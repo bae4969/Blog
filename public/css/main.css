@@ -558,6 +558,7 @@ footer a:hover { text-decoration: underline; color: #FF2E2E; }
 }
 .post-category { 
 	padding: 2px 8px; 
+	margin: 2px;
 	border: 1px solid #4e5256; 
 	border-radius: 999px; 
 	background: #2b2d2f; 
@@ -683,17 +684,11 @@ footer a:hover { text-decoration: underline; color: #FF2E2E; }
 		transition: all 0.3s ease;
 		overflow: hidden;
 		max-height: 0;
-		padding-top: 0;
-		padding-bottom: 0;
-		margin-bottom: 0;
 		opacity: 0;
 	}
 	
 	.sidebar-content.expanded {
 		max-height: none;
-		padding-top: 20px;
-		padding-bottom: 20px;
-		margin-bottom: 20px;
 		opacity: 1;
 	}
 	
