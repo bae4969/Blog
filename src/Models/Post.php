@@ -5,17 +5,42 @@ namespace Blog\Models;
 use HTMLPurifier;
 use HTMLPurifier_Config;
 use Blog\Database\Database;
+use Blog\Core\Cache;
 
 class Post
 {
     private $db;
+    private $cache;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
+        $this->cache = Cache::getInstance();
     }
 
     public function getMetaAll(int $userLevel, int $page = 1, int $perPage = 10, ?int $categoryId = null, ?string $search = null): array
+    {
+        // 검색어가 있으면 캐시하지 않음 (동적 결과)
+        if ($search) {
+            return $this->getMetaAllFromDb($userLevel, $page, $perPage, $categoryId, $search);
+        }
+
+        $cacheKey = Cache::key('posts_meta', $userLevel, $page, $perPage, $categoryId ?? 0);
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $posts = $this->getMetaAllFromDb($userLevel, $page, $perPage, $categoryId, $search);
+        
+        // 게시글 목록은 10분간 캐시
+        $this->cache->set($cacheKey, $posts, 600);
+        
+        return $posts;
+    }
+
+    private function getMetaAllFromDb(int $userLevel, int $page = 1, int $perPage = 10, ?int $categoryId = null, ?string $search = null): array
     {
         $offset = ($page - 1) * $perPage;
         $whereConditions = [];
@@ -73,13 +98,27 @@ class Post
 
     public function getDetailById(int $userLevel, int $postId): ?array
     {
+        $cacheKey = Cache::key('post_detail', $userLevel, $postId);
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $sql = "SELECT P.*, C.category_name, U.user_id as user_name 
                 FROM posting_list P 
                 LEFT JOIN category_list C ON P.category_index = C.category_index 
                 LEFT JOIN user_list U ON P.user_index = U.user_index 
                 WHERE C.category_read_level >= ? AND P.posting_index = ?" ;
         
-        return $this->db->fetch($sql, [$userLevel, $postId]);
+        $post = $this->db->fetch($sql, [$userLevel, $postId]);
+        
+        if ($post) {
+            // 게시글 상세는 30분간 캐시
+            $this->cache->set($cacheKey, $post, 1800);
+        }
+        
+        return $post;
     }
 
     public function create(array $data): int
@@ -139,7 +178,13 @@ class Post
             $data['user_index']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $postId = (int)$this->db->lastInsertId();
+        
+        // 게시글 관련 캐시 무효화
+        $this->cache->deletePattern('posts_meta');
+        $this->cache->deletePattern('post_count');
+        
+        return $postId;
     }
 
     public function update(int $postId, array $data): bool
@@ -155,24 +200,72 @@ class Post
             $postId
         ]);
 
-        return $stmt->rowCount() > 0;
+        if ($stmt->rowCount() > 0) {
+            // 게시글 관련 캐시 무효화
+            $this->cache->deletePattern('posts_meta');
+            $this->cache->deletePattern('post_detail');
+            $this->cache->deletePattern('post_count');
+            return true;
+        }
+        
+        return false;
     }
 
     public function enable(int $postId): bool
     {
         $sql = "UPDATE posting_list SET posting_state = 0 WHERE posting_index = ?";
         $stmt = $this->db->query($sql, [$postId]);
-        return $stmt->rowCount() > 0;
+        
+        if ($stmt->rowCount() > 0) {
+            // 게시글 관련 캐시 무효화
+            $this->cache->deletePattern('posts_meta');
+            $this->cache->deletePattern('post_detail');
+            $this->cache->deletePattern('post_count');
+            return true;
+        }
+        
+        return false;
     }
     
     public function disable(int $postId): bool
     {
         $sql = "UPDATE posting_list SET posting_state = 1 WHERE posting_index = ?";
         $stmt = $this->db->query($sql, [$postId]);
-        return $stmt->rowCount() > 0;
+        
+        if ($stmt->rowCount() > 0) {
+            // 게시글 관련 캐시 무효화
+            $this->cache->deletePattern('posts_meta');
+            $this->cache->deletePattern('post_detail');
+            $this->cache->deletePattern('post_count');
+            return true;
+        }
+        
+        return false;
     }
 
     public function getTotalCount(?int $categoryId = null, ?string $search = null): int
+    {
+        // 검색어가 있으면 캐시하지 않음
+        if ($search) {
+            return $this->getTotalCountFromDb($categoryId, $search);
+        }
+
+        $cacheKey = Cache::key('post_count', $categoryId ?? 0);
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $count = $this->getTotalCountFromDb($categoryId, $search);
+        
+        // 총 개수는 10분간 캐시
+        $this->cache->set($cacheKey, $count, 600);
+        
+        return $count;
+    }
+
+    private function getTotalCountFromDb(?int $categoryId = null, ?string $search = null): int
     {
         $whereConditions = [];
         $params = [];
@@ -235,6 +328,9 @@ class Post
         // 조회수 증가
         $sql = "UPDATE posting_list SET posting_read_cnt = posting_read_cnt + 1 WHERE posting_index = ?";
         $this->db->query($sql, [$postId]);
+        
+        // 해당 게시글 상세 캐시 무효화 (조회수 변경)
+        $this->cache->deletePattern('post_detail');
         
         // 세션에 조회 완료 표시
         $_SESSION[$sessionKey] = true;

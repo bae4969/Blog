@@ -59,7 +59,21 @@ class Auth
         }
 
         $userId = $this->session->get('user_id');
-        return $this->userModel->getUserById($userId);
+        
+        // 세션에서 기본 정보를 먼저 확인
+        $user = [
+            'user_index' => $this->session->get('user_index'),
+            'user_id' => $userId,
+            'user_level' => $this->session->get('user_level'),
+            'user_state' => $this->session->get('user_state')
+        ];
+        
+        // 추가 정보가 필요한 경우에만 DB 조회
+        if (empty($user['user_index'])) {
+            return $this->userModel->getUserById($userId);
+        }
+        
+        return $user;
     }
 
     public function getCurrentUserId(): ?string

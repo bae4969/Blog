@@ -3,26 +3,53 @@
 namespace Blog\Models;
 
 use Blog\Database\Database;
+use Blog\Core\Cache;
 
 class Category
 {
     private $db;
+    private $cache;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
+        $this->cache = Cache::getInstance();
     }
 
     public function getReadAll(int $userLevel): array
     {
+        $cacheKey = Cache::key('categories_read', $userLevel);
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $sql = "SELECT * FROM category_list WHERE category_read_level >= ? ORDER BY category_order ASC";
-        return $this->db->fetchAll($sql, [$userLevel]);
+        $categories = $this->db->fetchAll($sql, [$userLevel]);
+        
+        // 카테고리 목록은 1시간간 캐시
+        $this->cache->set($cacheKey, $categories, 3600);
+        
+        return $categories;
     }
 
     public function getWriteAll(int $userLevel): array
     {
+        $cacheKey = Cache::key('categories_write', $userLevel);
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $sql = "SELECT * FROM category_list WHERE category_write_level >= ? ORDER BY category_order ASC";
-        return $this->db->fetchAll($sql, [$userLevel]);
+        $categories = $this->db->fetchAll($sql, [$userLevel]);
+        
+        // 카테고리 목록은 1시간간 캐시
+        $this->cache->set($cacheKey, $categories, 3600);
+        
+        return $categories;
     }
 
     public function getById(int $userLevel, int $categoryId): ?array
@@ -47,6 +74,10 @@ class Category
     {
         $sql = "INSERT INTO category_list (category_name, category_order, category_read_level, category_write_level) VALUES (?, ?, ?, ?)";
         $this->db->query($sql, [$name, $order, $readLevel, $writeLevel]);
+        
+        // 카테고리 관련 캐시 무효화
+        $this->cache->deletePattern('categories_');
+        
         return (int)$this->db->lastInsertId();
     }
 
@@ -61,7 +92,14 @@ class Category
 
         $sql = "DELETE FROM category_list WHERE category_index = ?";
         $stmt = $this->db->query($sql, [$categoryId]);
-        return $stmt->rowCount() > 0;
+        
+        if ($stmt->rowCount() > 0) {
+            // 카테고리 관련 캐시 무효화
+            $this->cache->deletePattern('categories_');
+            return true;
+        }
+        
+        return false;
     }
 
     public function getPostCount(int $categoryId): int
