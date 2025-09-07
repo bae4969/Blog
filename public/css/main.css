@@ -161,7 +161,8 @@ section {
 }
 
 li.category { 
-    padding: 12px; 
+    margin: 4px; 
+    padding: 10px; 
     font-size: 1.8ex; 
     font-weight: bold; 
     cursor: pointer; 
