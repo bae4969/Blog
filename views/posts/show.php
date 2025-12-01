@@ -14,7 +14,7 @@
         </header>
         
         <div class="post-content">
-            <?= $post['posting_content'] ?>
+            <?= \Blog\Core\HtmlSanitizer::sanitize($post['posting_content']) ?>
         </div>
     </article>
     

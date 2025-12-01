@@ -13,11 +13,12 @@ class Session
         if (session_status() === PHP_SESSION_NONE) {
             // 세션 쿠키 설정
             $lifetime = $this->config['session_lifetime'] ?? 3600;
+            $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
             session_set_cookie_params([
                 'lifetime' => $lifetime,
                 'path' => '/',
                 'domain' => '',
-                'secure' => false, // HTTPS 사용 시 true로 변경
+                'secure' => $isSecure,
                 'httponly' => true,
                 'samesite' => 'Lax'
             ]);
