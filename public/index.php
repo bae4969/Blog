@@ -7,9 +7,14 @@ use Blog\Controllers\HomeController;
 use Blog\Controllers\AuthController;
 use Blog\Controllers\PostController;
 
-// 에러 리포팅 설정
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// 에러 리포팅 설정 (개발/운영 분리)
+if (getenv('APP_ENV') === 'production') {
+	ini_set('display_errors', '0');
+	ini_set('log_errors', '1');
+} else {
+	error_reporting(E_ALL);
+	ini_set('display_errors', '1');
+}
 
 // 타임존 설정
 date_default_timezone_set('Asia/Seoul');
