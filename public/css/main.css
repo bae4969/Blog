@@ -51,6 +51,11 @@ header::after, nav::after, aside::after, div::after, section::after, li::after, 
     cursor: auto;
 }
 
+/* 최상위에서 가로 오버플로우 차단 */
+html {
+    overflow-x: hidden;
+}
+
 body {
     min-width: 400px;
     margin: 0;
@@ -59,6 +64,7 @@ body {
     color: var(--text-secondary);
     font-family: "arial", sans-serif;
     box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 /* ===========================================
@@ -593,7 +599,14 @@ button.page:hover, .page-link:hover {
 }
 
 .auth-alert-container { 
-    width: 110%; 
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.auth-alert-container .alert {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 16px 0;
 }
 
 #inputLayout { 
@@ -1089,6 +1102,23 @@ footer a:hover {
 
 /* 모바일 크기 (1024px 이하) */
 @media (max-width: 1024px) {
+    /* 최상위 폭을 화면에 맞게 제한 */
+    html, body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* 작은 화면에서 강제 최소폭 제거 */
+    body {
+        min-width: 0;
+    }
+
+    /* 헤더 좌/우 버튼 마진을 픽셀로 조정 */
+    #topLeft, #topRight, #topWrite {
+        margin-left: 8px;
+        margin-right: 8px;
+    }
     #main {
         padding: 20px 10px;
         padding-top: 10px;

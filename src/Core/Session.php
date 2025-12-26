@@ -121,4 +121,14 @@ class Session
     {
         $_SESSION['last_activity'] = time();
     }
+
+    /**
+     * 세션 쓰기를 종료하여 잠금을 해제
+     */
+    public function writeClose(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+    }
 }
