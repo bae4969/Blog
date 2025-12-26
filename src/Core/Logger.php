@@ -28,16 +28,20 @@ class Logger
                 $message = mb_substr($message, 0, 8000, 'UTF-8');
             }
 
-            $func = isset($context['function']) ? mb_substr((string)$context['function'], 0, 255, 'UTF-8') : null;
-            $file = isset($context['file']) ? mb_substr((string)$context['file'], 0, 255, 'UTF-8') : null;
+            $func = isset($context['function']) ? self::normalizeFunctionName((string)$context['function']) : null;
+            $fileContext = $context['file'] ?? null;
+            $file = $fileContext ? basename((string)$fileContext) : null;
+            $file = $file ? mb_substr($file, 0, 255, 'UTF-8') : null;
             $line = isset($context['line']) ? (int)$context['line'] : null;
 
             // 기본적으로 현재 호출 스택에서 보완
             if ($func === null || $file === null || $line === null) {
                 $bt = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
                 if (isset($bt[1])) {
-                    $func = $func ?? ($bt[1]['function'] ?? null);
-                    $file = $file ?? ($bt[1]['file'] ?? null);
+                    $traceFunc = $bt[1]['function'] ?? null;
+                    $func = $func ?? self::normalizeFunctionName($traceFunc);
+                    $traceFile = $bt[1]['file'] ?? null;
+                    $file = $file ?? ($traceFile ? basename($traceFile) : null);
                     $line = $line ?? ($bt[1]['line'] ?? null);
                 }
             }
@@ -63,5 +67,20 @@ class Logger
     public static function error(string $name, string $message, array $context = []): void
     {
         self::log($name, 'E', $message, $context);
+    }
+
+    private static function normalizeFunctionName(?string $func): ?string
+    {
+        if ($func === null || $func === '') {
+            return null;
+        }
+
+        $funcStr = (string)$func;
+        $pos = strrpos($funcStr, '::');
+        if ($pos !== false) {
+            $funcStr = substr($funcStr, $pos + 2);
+        }
+
+        return mb_substr($funcStr, 0, 255, 'UTF-8');
     }
 }

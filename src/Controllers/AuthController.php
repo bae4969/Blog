@@ -77,7 +77,7 @@ class AuthController extends BaseController
         if ($this->cache->get($ipBlockKey) || $this->cache->get($userBlockKey)) {
             // 타이밍 공격 완화용 소량 지연
             usleep(random_int($this->rateLimit['block_delay_ms_min'], $this->rateLimit['block_delay_ms_max']) * 1000);
-            Logger::warn('auth', "blocked: too many attempts ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
+            Logger::warn('BlogAuth', "blocked: too many attempts ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.');
             $this->redirect('/login.php');
         }
@@ -104,12 +104,12 @@ class AuthController extends BaseController
             // 성공 시 카운터 리셋
             $this->cache->delete($ipAttemptsKey);
             $this->cache->delete($userAttemptsKey);
-            Logger::info('auth', "success ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
+            Logger::info('BlogAuth', "success ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->redirect('/index.php');
         } else {
             // 실패 시 소량 랜덤 지연으로 대량 시도 완화
             usleep(random_int($this->rateLimit['fail_delay_ms_min'], $this->rateLimit['fail_delay_ms_max']) * 1000);
-            Logger::error('auth', "fail ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
+            Logger::error('BlogAuth', "fail ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '아이디 또는 비밀번호가 일치하지 않습니다.');
             $this->redirect('/login.php');
         }
@@ -117,6 +117,10 @@ class AuthController extends BaseController
 
     public function logout(): void
     {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $user = $this->auth->getCurrentUser();
+        $userId = $user['user_id'] ?? 'anonymous';
+        Logger::info('BlogAuth', "logout ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
         $this->auth->logout();
         $this->session->setFlash('success', '로그아웃되었습니다.');
         $this->redirect('/index.php');
