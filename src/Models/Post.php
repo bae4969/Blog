@@ -74,7 +74,7 @@ class Post
                     P.category_index,
                     P.posting_state,
                     P.posting_first_post_datetime,
-                    P.posting_last_edit_datetime,
+                    P.posting_last_edit_datetime AS posting_last_post_datetime,
                     P.posting_read_cnt,
                     P.posting_title,
                     P.posting_thumbnail,
@@ -189,13 +189,47 @@ class Post
 
     public function update(int $postId, array $data): bool
     {
+        // Purifier 준비
+        $config = HTMLPurifier_Config::createDefault();
+        $config->set('Cache.SerializerPath', __DIR__ . '/../../cache/htmlpurifier');
+        $config->set('HTML.Allowed', 'p,br,strong,em,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
+        $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>false]);
+        $purifier = new HTMLPurifier($config);
+
+        // 원문
+        $title_raw = (string)($data['title'] ?? '');
+        $content_raw = (string)$data['content'];
+
+        // 첫 이미지 추출
+        $thumbnail = '';
+        if (preg_match('/<img[^>]+src=["\']?([^"\'>\s]+)["\']?/i', $content_raw, $m)) {
+            $thumbnail = $m[1];
+        } elseif (preg_match('/!\[[^\]]*\]\(([^)]+)\)/', $content_raw, $m)) {
+            $thumbnail = $m[1];
+        }
+
+        // 제목 정제
+        $title = htmlspecialchars(strip_tags($title_raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // 본문 정제
+        $content = $purifier->purify($content_raw);
+
+        // 요약 생성
+        $tmp = preg_replace('/<img\b[^>]*>/i', '', $content);
+        $tmp = strip_tags($tmp);
+        $tmp = html_entity_decode($tmp, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tmp = preg_replace('/\s+/u', ' ', trim($tmp));
+        $summary = mb_substr($tmp, 0, 200, 'UTF-8');
+
         $sql = "UPDATE posting_list 
-                SET posting_title = ?, posting_content = ?, category_index = ?, posting_last_edit_datetime = NOW() 
+                SET posting_title = ?, posting_content = ?, posting_summary = ?, posting_thumbnail = ?, category_index = ?, posting_last_edit_datetime = NOW() 
                 WHERE posting_index = ?";
         
         $stmt = $this->db->query($sql, [
-            $data['title'],
-            $data['content'],
+            $title,
+            $content,
+            $summary,
+            $thumbnail,
             $data['category_index'],
             $postId
         ]);
