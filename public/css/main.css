@@ -448,8 +448,8 @@ li.category-selected::before {
 }
 
 .posting_title, .post-title { 
-    padding: 30px 8% 20px 8%; 
-    font-size: 4ex; 
+    padding: 15px 2% 0 2%; 
+    font-size: 3ex; 
     font-weight: bold; 
     white-space: nowrap; 
     overflow: hidden; 
@@ -460,12 +460,19 @@ li.category-selected::before {
     display: flex; 
     justify-content: flex-end; 
     align-items: center; 
-    padding: 0 4% 2% 4%; 
+    padding: 0 4% 8px 4%; 
     font-size: 2ex; 
     flex-wrap: nowrap;
     gap: 20px;
     height: auto;
     min-height: 30px;
+}
+
+/* hr 태그 여백 조정 */
+.posting hr, .post-item hr {
+    margin: 8px 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
 }
 
 .posting_writer { 
@@ -722,7 +729,7 @@ footer a:hover {
    포스트 상세 페이지
    =========================================== */
 .post-wrapper { 
-    margin: 10px 10px 20px 10px; 
+    margin: 10px 5px 20px 5px; 
     padding: 30px; 
     border-radius: var(--border-radius-lg); 
     background: var(--bg-tertiary); 
@@ -749,7 +756,7 @@ footer a:hover {
 }
 
 .post-meta { 
-    margin-top: 15px; 
+    margin-top: 8px; 
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -758,7 +765,7 @@ footer a:hover {
     color: var(--text-secondary);
     font-size: 0.95rem;
     text-align: right;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     min-height: 30px;
 }
 
@@ -1116,16 +1123,24 @@ footer a:hover {
 
     /* 헤더 좌/우 버튼 마진을 픽셀로 조정 */
     #topLeft, #topRight, #topWrite {
-        margin-left: 8px;
-        margin-right: 8px;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    #topLeft {
+        margin-left: 3px !important;
+    }
+    
+    #topRight {
+        margin-right: 3px !important;
     }
     #main {
-        padding: 20px 10px;
+        padding: 20px 5px;
         padding-top: 10px;
     }
     
     section { 
-        padding: 10px; 
+        padding: 5px; 
         display: flex;
         flex-direction: column;
     }
@@ -1219,6 +1234,41 @@ footer a:hover {
         left: 4px;
         font-size: 0.6em;
         opacity: 0.8;
+    }
+    
+    /* 포스팅 제목 및 본문 글자 크기 조정 */
+    .post-title {
+        font-size: 1.8rem;
+        padding: 15px 10px;
+    }
+    
+    .post-content {
+        font-size: 1.8ex;
+        line-height: 1.7;
+        padding: 20px 10px 15px 10px !important;
+    }
+    
+    /* 포스트 상세 페이지 여백 줄이기 */
+    .post-wrapper {
+        margin: 5px 3px;
+        padding: 20px 12px;
+    }
+    
+    /* 포스트 목록 제목 크기 조정 */
+    .posting_title {
+        font-size: 3ex;
+        padding: 12px 1% 0 1%;
+    }
+    
+    /* 포스팅 카드 여백 줄이기 */
+    .post-item, .posting, .posting_ban {
+        width: calc(100% - 10px);
+        margin: 0 5px 15px 5px;
+        padding: 15px;
+    }
+    
+    .posting_summary, .post-excerpt {
+        padding: 0 4% 10px 4%;
     }
     
     /* 검색 UI 모바일 최적화 */
@@ -1336,13 +1386,27 @@ footer a:hover {
 
 /* 매우 작은 화면 (480px 이하) */
 @media (max-width: 480px) {
+    /* 헤더 버튼 마진 조정 */
+    #topLeft, #topRight, #topWrite {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    #topLeft {
+        margin-left: 2px !important;
+    }
+    
+    #topRight {
+        margin-right: 2px !important;
+    }
+    
     #main {
-        padding: 15px 8px;
+        padding: 15px 3px;
         padding-top: 8px;
     }
     
     section {
-        padding: 8px;
+        padding: 3px;
     }
     
     #side-panel {
@@ -1388,12 +1452,36 @@ footer a:hover {
     }
     
     .post-content {
-        padding: 0px 5px 15px 5px !important;
+        padding: 15px 5px 12px 5px !important;
+        font-size: 1.6ex;
+        line-height: 1.65;
+    }
+    
+    .post-title {
+        font-size: 1.5rem;
+        padding: 12px 5px;
+    }
+    
+    /* 포스트 목록 제목 크기 조정 */
+    .posting_title {
+        font-size: 2.5ex;
+        padding: 10px 1% 0 1%;
+    }
+    
+    /* 포스팅 카드 여백 더 줄이기 */
+    .post-item, .posting, .posting_ban {
+        width: calc(100% - 6px);
+        margin: 0 3px 12px 3px;
+        padding: 12px;
+    }
+    
+    .posting_summary, .post-excerpt {
+        padding: 0 3% 8px 3%;
     }
     
     .post-wrapper {
-        margin: 5px;
-        padding: 15px;
+        margin: 3px 2px;
+        padding: 12px 8px;
     }
     
     /* 에디터 최적화 */
