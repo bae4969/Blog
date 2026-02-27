@@ -74,8 +74,7 @@ body {
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
-    padding: 20px 10px;
-    padding-top: 10px;
+    padding: 10px 10px 20px 30px; /* top right bottom left - 왼쪽만 30px */
 }
 
 /* 헤더 */
@@ -83,26 +82,37 @@ header {
     width: 100%; 
 }
 
-#topLeft, #topRight, #topWrite { 
+#topLeft, #topStocks, #topRight, #topWrite { 
     color: #C8C3BC; 
     text-align: center; 
     cursor: pointer; 
     transition: var(--transition); 
     border-radius: 6px; 
     padding: 8px 4px; 
+    box-sizing: border-box;
+    display: inline-block;
 }
 
-#topLeft:hover, #topRight:hover, #topWrite:hover { 
+#topLeft:hover, #topStocks:hover, #topRight:hover, #topWrite:hover { 
     color: var(--text-primary); 
     background: var(--bg-hover); 
     transform: translateY(-1px); 
 }
 
-#topLeft { 
+#topLeft, #topStocks { 
     width: 70px; 
-    margin-left: 7%; 
     float: left; 
     font-size: 2ex; 
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+#topLeft {
+    margin-left: 7%; 
+}
+
+#topStocks {
+    margin-left: 8px;
 }
 
 #topRight { 
@@ -137,6 +147,11 @@ section {
     background: var(--bg-secondary);
 }
 
+section.stock-page-section {
+    padding: 0;
+    background: transparent;
+}
+
 .content-alert-container { 
     width: 100%; 
 }
@@ -149,6 +164,13 @@ section {
 #content { 
     width: calc(100% - 220px); 
     float: left;
+}
+
+#content.stock-page-content {
+    width: 100%;
+    max-width: 100%;
+    float: none;
+    margin: 0;
 }
 
 /* ===========================================
@@ -1122,13 +1144,17 @@ footer a:hover {
     }
 
     /* 헤더 좌/우 버튼 마진을 픽셀로 조정 */
-    #topLeft, #topRight, #topWrite {
+    #topLeft, #topStocks, #topRight, #topWrite {
         margin-left: 0 !important;
         margin-right: 0 !important;
     }
     
     #topLeft {
-        margin-left: 3px !important;
+        margin-left: 5px !important;
+    }
+    
+    #topStocks {
+        margin-left: 8px !important;
     }
     
     #topRight {
@@ -1387,13 +1413,17 @@ footer a:hover {
 /* 매우 작은 화면 (480px 이하) */
 @media (max-width: 480px) {
     /* 헤더 버튼 마진 조정 */
-    #topLeft, #topRight, #topWrite {
+    #topLeft, #topStocks, #topRight, #topWrite {
         margin-left: 0 !important;
         margin-right: 0 !important;
     }
     
     #topLeft {
-        margin-left: 2px !important;
+        margin-left: 3px !important;
+    }
+    
+    #topStocks {
+        margin-left: 5px !important;
     }
     
     #topRight {

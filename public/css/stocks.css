@@ -1,0 +1,841 @@
+/* ===========================================
+   주식 페이지 스타일시트
+   =========================================== */
+
+/* 주식 페이지 전용 컨텐츠 영역 */
+.stock-page-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    border-radius: var(--border-radius-lg);
+    background: var(--bg-secondary);
+}
+
+/* 주식 목록 페이지 */
+.stocks-container {
+    display: flex;
+    gap: 12px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.stocks-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.stocks-sidebar-right {
+    flex: 0 0 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 시장 통계 가로 배치 */
+.market-stats-horizontal {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.market-stat-item-h {
+    padding: 10px 6px 5px 6px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 65px;
+    gap: 3px;
+}
+
+.market-stat-item-h:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.market-stat-item-h.active {
+    background: var(--bg-quaternary);
+    border-color: var(--primary-color);
+}
+
+.market-stat-item-h .market-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.market-stat-item-h .market-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.market-stat-item-h .market-count,
+.market-stat-item-h .market-cap {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* 인기 주식 섹션 (오른쪽) */
+.top-stocks-section {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    position: sticky;
+    top: 20px;
+}
+
+.top-stocks-section h3 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.top-stocks-list {
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+}
+
+.no-top-stocks {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* 인기 주식 목록 */
+.top-stock-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.top-stock-item:hover {
+    background: var(--bg-hover);
+}
+
+.top-stock-item .stock-info {
+    flex: 1;
+}
+
+.top-stock-item .stock-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.top-stock-item .stock-code {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.top-stock-item .stock-price-info {
+    text-align: right;
+}
+
+.top-stock-item .stock-price {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.top-stock-item .stock-market {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* 주식 목록 헤더 */
+.stocks-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.stocks-header h2 {
+    margin: 0;
+    font-size: 24px;
+    color: var(--text-primary);
+}
+
+.stocks-search-bar {
+    display: flex;
+    flex: 1;
+    max-width: 400px;
+    gap: 8px;
+}
+
+.stocks-search-bar input {
+    flex: 1;
+    padding: 10px 15px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.stocks-search-bar input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.stocks-search-bar .search-btn,
+.clear-filter-btn {
+    padding: 8px 20px;
+    min-height: 42px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stocks-search-bar .search-btn svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    stroke: white;
+    color: white;
+}
+
+.stocks-search-bar .search-btn:hover,
+.clear-filter-btn:hover {
+    background: var(--primary-hover);
+}
+
+.clear-filter-btn {
+    background: var(--secondary-color);
+}
+
+.clear-filter-btn:hover {
+    background: var(--secondary-hover);
+}
+
+/* 정보 바 */
+.stocks-info-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 0;
+    margin-bottom: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-secondary);
+}
+
+.filter-tag {
+    padding: 4px 10px;
+    background: var(--bg-quaternary);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--primary-color);
+}
+
+/* 주식 테이블 */
+.stocks-table {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    margin-top: 5px;
+}
+
+.stocks-table table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.stocks-table thead {
+    background: var(--bg-tertiary);
+}
+
+.stocks-table th {
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* 각 열의 너비 고정 */
+.stocks-table th:nth-child(1),
+.stocks-table td:nth-child(1) {
+    width: 35%;
+    padding-left: 30px;
+}
+
+.stocks-table th:nth-child(2),
+.stocks-table td:nth-child(2) {
+    width: 9%;
+    text-align: center;
+}
+
+.stocks-table th:nth-child(3),
+.stocks-table td:nth-child(3) {
+    width: 10%;
+    text-align: center;
+}
+
+.stocks-table th:nth-child(4),
+.stocks-table td:nth-child(4) {
+    width: 10%;
+    text-align: center;
+}
+
+.stocks-table th:nth-child(5),
+.stocks-table td:nth-child(5) {
+    width: 12%;
+    text-align: center;
+}
+
+.stocks-table th:nth-child(6),
+.stocks-table td:nth-child(6) {
+    width: 12%;
+    text-align: center;
+}
+
+.stocks-table th:nth-child(7),
+.stocks-table td:nth-child(7) {
+    width: 12%;
+    text-align: center;
+}
+
+.stocks-table td {
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stock-row {
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.stock-row:hover {
+    background: var(--bg-hover);
+}
+
+.stock-name-cell {
+    white-space: normal !important;
+    overflow: visible !important;
+}
+
+.stock-name-kr {
+    font-weight: 600;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stock-name-en {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stock-code {
+    font-family: monospace;
+    color: var(--text-secondary);
+}
+
+.stock-price {
+    font-weight: 600;
+    color: var(--text-accent);
+}
+
+.stock-cap {
+    color: var(--info-color);
+}
+
+.market-badge,
+.type-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.market-badge {
+    background: var(--bg-quaternary);
+    color: var(--info-color);
+}
+
+.type-badge {
+    background: var(--bg-quaternary);
+}
+
+.type-badge.type-stock {
+    color: var(--primary-color);
+}
+
+.type-badge.type-etf {
+    color: #ff9800;
+}
+
+.type-badge.type-etn {
+    color: #9c27b0;
+}
+
+.update-time {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px !important;
+    color: var(--text-muted);
+}
+
+/* 페이지네이션 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.page-btn {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 14px;
+}
+
+.page-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.page-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* ===========================================
+   주식 상세 페이지
+   =========================================== */
+
+.stock-detail-container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* 헤더 */
+.stock-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 15px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 14px;
+}
+
+.back-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.stock-title-section {
+    flex: 1;
+}
+
+.stock-title-section h2 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    color: var(--text-primary);
+}
+
+.stock-subtitle {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.stock-subtitle .stock-code {
+    font-size: 14px;
+    font-family: monospace;
+}
+
+.stock-price-section {
+    text-align: right;
+}
+
+.current-price {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.current-price .currency {
+    font-size: 18px;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+.stock-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* 메인 컨텐츠 */
+.stock-detail-main {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* 차트 섹션 */
+.chart-section {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.chart-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 15px;
+}
+
+.chart-period-buttons,
+.chart-type-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.period-btn,
+.chart-type-btn {
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 13px;
+}
+
+.period-btn:hover,
+.chart-type-btn:hover {
+    background: var(--bg-hover);
+}
+
+.period-btn.active,
+.chart-type-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 500px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.chart-wrapper canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    position: relative;
+}
+
+.chart-no-data {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.chart-no-data p {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+.chart-no-data-sub {
+    font-size: 13px !important;
+}
+
+/* 체결 정보 섹션 */
+.execution-section {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.execution-section h3 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+
+.execution-list {
+    flex: 1;
+    min-height: 400px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    overflow: hidden;
+    overflow-x: hidden;
+    margin-bottom: 15px;
+}
+
+.execution-header {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
+    gap: 10px;
+    padding: 12px 15px;
+    margin-right: 14px;
+    background: var(--bg-quaternary);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+    text-align: center;
+    align-items: center;
+}
+
+.execution-body {
+    max-height: 420px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+}
+
+.execution-item {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
+    gap: 10px;
+    padding: 10px 15px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+    text-align: center;
+    align-items: center;
+}
+
+.execution-header > div,
+.execution-item > div {
+    min-width: 0;
+}
+
+.execution-item:hover {
+    background: var(--bg-hover);
+}
+
+.execution-item.buy {
+    background: rgba(76, 175, 80, 0.05);
+}
+
+.execution-item.sell {
+    background: rgba(244, 67, 54, 0.05);
+}
+
+.exec-time {
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.exec-price {
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.exec-volume {
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.exec-type {
+    font-weight: 600;
+    text-align: center;
+}
+
+.execution-item.buy .exec-type {
+    color: var(--primary-color);
+}
+
+.execution-item.sell .exec-type {
+    color: var(--danger-color);
+}
+
+.execution-no-data {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 15px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 14px;
+}
+
+.refresh-btn:hover {
+    background: var(--primary-hover);
+}
+
+/* 종목 정보 섹션 */
+.stock-info-section {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.stock-info-section h3 {
+    margin: 0 0 20px 0;
+    font-size: 20px;
+    color: var(--text-primary);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.info-item {
+    padding: 15px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.info-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.info-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1200px) {
+    .stocks-container {
+        flex-direction: column;
+    }
+    
+    .stocks-sidebar-right {
+        flex: 0 0 auto;
+        width: 100%;
+        order: -1; /* 모바일에서 위로 이동 */
+    }
+    
+    .top-stocks-section {
+        position: static;
+    }
+    
+    .top-stocks-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        max-height: none;
+    }
+    
+    .market-stats-horizontal {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .stock-detail-main {
+        grid-template-columns: 1fr;
+    }
+}

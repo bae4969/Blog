@@ -6,6 +6,7 @@ use Blog\Core\Router;
 use Blog\Controllers\HomeController;
 use Blog\Controllers\AuthController;
 use Blog\Controllers\PostController;
+use Blog\Controllers\StockController;
 
 // 에러 리포팅 설정 (개발/운영 분리)
 if (getenv('APP_ENV') === 'production') {
@@ -41,6 +42,13 @@ $router->get('/post/edit/:id', [PostController::class, 'editForm', '/post/edit/:
 $router->post('/post/update/:id', [PostController::class, 'update', '/post/update/:id']);
 $router->post('/post/enable/:id', [PostController::class, 'enable', '/post/enable/:id']);
 $router->post('/post/disable/:id', [PostController::class, 'disable', '/post/disable/:id']);
+
+// 주식 컨트롤러 라우트
+$router->get('/stocks', [StockController::class, 'index']);
+$router->get('/stocks/view', [StockController::class, 'show']);
+$router->get('/stocks/api/candle', [StockController::class, 'apiCandleData']);
+$router->get('/stocks/api/executions', [StockController::class, 'apiRecentExecutions']);
+$router->get('/stocks/api/search', [StockController::class, 'apiSearch']);
 
 // 요청 처리
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

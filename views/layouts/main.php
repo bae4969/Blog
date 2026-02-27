@@ -15,6 +15,7 @@
     <div id="main">
         <header>
             <div id="topLeft" onclick="location.href='/index.php'">Home</div>
+            <div id="topStocks" onclick="location.href='/stocks'">주식</div>
             <div id="topRight" onclick="loginoutClick()">
                 <?= $auth->isLoggedIn() ? '로그아웃' : '로그인' ?>
             </div>
@@ -26,7 +27,8 @@
             </div>
         </header>
         
-        <section>
+        <section class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-section' : '' ?>">
+            <?php if (!isset($isStockPage) || !$isStockPage): ?>
             <aside id="side-panel">
                 <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
                 <div class="sidebar-content">
@@ -76,8 +78,9 @@
                 </div>
                 </div>
             </aside>
+            <?php endif; ?>
             
-            <div id="content">
+            <div id="content" class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-content' : '' ?>">
 			    <div class="content-alert-container">
                     <?php if ($session->hasFlash('success')): ?>
                         <div class="alert alert-success">
