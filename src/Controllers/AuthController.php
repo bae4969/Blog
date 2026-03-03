@@ -33,7 +33,7 @@ class AuthController extends BaseController
     public function loginForm(): void
     {
         if ($this->auth->isLoggedIn()) {
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         // CSRF 토큰을 미리 생성 후, 세션 쓰기를 종료해 동시접속 시 잠금 최소화
@@ -105,7 +105,7 @@ class AuthController extends BaseController
             $this->cache->delete($ipAttemptsKey);
             $this->cache->delete($userAttemptsKey);
             Logger::info('BlogAuth', "success ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         } else {
             // 실패 시 소량 랜덤 지연으로 대량 시도 완화
             usleep(random_int($this->rateLimit['fail_delay_ms_min'], $this->rateLimit['fail_delay_ms_max']) * 1000);
@@ -123,7 +123,7 @@ class AuthController extends BaseController
         Logger::info('BlogAuth', "logout ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
         $this->auth->logout();
         $this->session->setFlash('success', '로그아웃되었습니다.');
-        $this->redirect('/index.php');
+        $this->redirect('/blog');
     }
 
     public function verify(): void

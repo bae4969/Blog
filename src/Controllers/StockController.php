@@ -34,7 +34,7 @@ class StockController extends BaseController
         $marketStats = $this->stockModel->getMarketStats();
         
         // 인기 주식
-        $topStocks = $this->stockModel->getTopStocks(10);
+        $topStocks = $this->stockModel->getTopStocks(10, $market);
 
         $this->renderLayout('main', 'stocks/index', [
             'stocks' => $stocks,

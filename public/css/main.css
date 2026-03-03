@@ -74,7 +74,7 @@ body {
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
-    padding: 10px 10px 20px 30px; /* top right bottom left - 왼쪽만 30px */
+    padding: 10px;
 }
 
 /* 헤더 */
@@ -112,7 +112,7 @@ header {
 }
 
 #topStocks {
-    margin-left: 8px;
+    margin-left: 3px;
 }
 
 #topRight { 
@@ -130,14 +130,26 @@ header {
 
 #title { 
     width: 100%; 
-    padding: 100px 0 70px; 
+    padding: 60px 0 40px; 
     text-align: center; 
+    clear: both;
 }
 
 #mainTitle { 
     width: 70%; 
-    max-width: 700px; 
+    max-width: 600px; 
     cursor: pointer; 
+}
+
+body.stock-page #title {
+    padding: 40px 0 40px;
+}
+
+body.stock-page #mainTitle {
+    width: 35%;
+    max-width: 350px;
+    display: block;
+    margin: 0 auto;
 }
 
 /* 메인 컨텐츠 영역 */

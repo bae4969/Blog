@@ -1,36 +1,6 @@
 <div class="stocks-container">
-    <!-- 메인 컨텐츠: 주식 목록 -->
-    <div class="stocks-main">
-        <div class="stocks-header">
-            <h2>주식 목록</h2>
-            <div class="stocks-search-bar">
-                <input type="text" id="stockSearchInput" placeholder="종목명 또는 코드 검색..." 
-                       value="<?= $view->escape($searchQuery) ?>"
-                       onkeyup="if(event.keyCode==13){searchStocks()}">
-                <button onclick="searchStocks()" class="search-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <path d="m21 21-4.35-4.35"></path>
-                    </svg>
-                </button>
-            </div>
-            <?php if ($currentMarket || $searchQuery): ?>
-                <button onclick="location.href='/stocks'" class="clear-filter-btn">필터 초기화</button>
-            <?php endif; ?>
-        </div>
-
-        <div class="stocks-info-bar">
-            <span>전체 <?= number_format($totalCount) ?>개 종목</span>
-            <?php if ($currentMarket): ?>
-                <span class="filter-tag">시장: <?= $view->escape($currentMarket) ?></span>
-            <?php endif; ?>
-            <?php if ($searchQuery): ?>
-                <span class="filter-tag">검색: <?= $view->escape($searchQuery) ?></span>
-            <?php endif; ?>
-        </div>
-        
-        <!-- 시장별 통계 (가로 배치) -->
-        <div class="market-stats-horizontal">
+    <!-- 시장별 통계 (가로 배치) -->
+    <div class="market-stats-horizontal">
             <?php if (!empty($marketStats)): ?>
                 <?php foreach ($marketStats as $stat): ?>
                     <div class="market-stat-item-h <?= $currentMarket === $stat['stock_market'] ? 'active' : '' ?>" 
@@ -53,8 +23,25 @@
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
-        </div>
+    </div>
 
+    <!-- 사이드바: 검색 -->
+    <div class="sidebar-search-bar">
+        <div class="stocks-search-bar">
+            <input type="text" id="stockSearchInput" placeholder="종목명 또는 코드 검색..." 
+                   value="<?= $view->escape($searchQuery) ?>"
+                   onkeyup="if(event.keyCode==13){searchStocks()}">
+            <button onclick="searchStocks()" class="search-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 메인 컨텐츠: 주식 목록 -->
+    <div class="stocks-main">
         <div class="stocks-table">
             <table>
                 <thead>
@@ -146,22 +133,35 @@
         <?php endif; ?>
     </div>
     
-    <!-- 사이드바: 인기 주식 TOP 10 -->
+    <!-- 사이드바: 거래대금 TOP 10 -->
     <div class="stocks-sidebar-right">
         <div class="top-stocks-section">
-            <h3>인기 주식 TOP 10</h3>
+            <h3>거래대금 TOP 10</h3>
             <div class="top-stocks-list">
                 <?php if (!empty($topStocks)): ?>
-                    <?php foreach ($topStocks as $topStock): ?>
+                    <?php foreach ($topStocks as $idx => $topStock): ?>
                         <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?>'">
+                            <div class="top-stock-rank"><?= $idx + 1 ?></div>
                             <div class="stock-info">
                                 <div class="stock-name"><?= $view->escape($topStock['stock_name_kr']) ?></div>
                                 <div class="stock-code"><?= $view->escape($topStock['stock_code']) ?></div>
                             </div>
                             <div class="stock-price-info">
-                                <?php $isUSMarket = in_array($topStock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
+                                <?php
+                                    $isUSMarket = in_array($topStock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']);
+                                    $amount = (float)($topStock['total_amount'] ?? 0);
+                                    if ($amount >= 1e12) {
+                                        $amountStr = number_format($amount / 1e12, 1) . '조';
+                                    } elseif ($amount >= 1e8) {
+                                        $amountStr = number_format($amount / 1e8, 0) . '억';
+                                    } elseif ($amount >= 1e4) {
+                                        $amountStr = number_format($amount / 1e4, 0) . '만';
+                                    } else {
+                                        $amountStr = number_format($amount, 0);
+                                    }
+                                ?>
                                 <div class="stock-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($topStock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '원' ?></div>
-                                <div class="stock-market"><?= $view->escape($topStock['stock_market']) ?></div>
+                                <div class="stock-trading-amount"><?= $amountStr ?></div>
                             </div>
                         </div>
                     <?php endforeach; ?>

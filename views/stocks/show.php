@@ -56,6 +56,11 @@
         <div class="chart-section">
             <div class="chart-controls">
                 <div class="chart-period-buttons">
+                    <button class="period-btn" onclick="loadChartData('10M', this)">10분</button>
+                    <button class="period-btn" onclick="loadChartData('30M', this)">30분</button>
+                    <button class="period-btn" onclick="loadChartData('1H', this)">1시간</button>
+                    <button class="period-btn" onclick="loadChartData('3H', this)">3시간</button>
+                    <button class="period-btn" onclick="loadChartData('6H', this)">6시간</button>
                     <button class="period-btn" onclick="loadChartData('1D', this)">1일</button>
                     <button class="period-btn" onclick="loadChartData('1W', this)">1주</button>
                     <button class="period-btn active" onclick="loadChartData('1M', this)">1개월</button>

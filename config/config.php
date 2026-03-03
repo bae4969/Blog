@@ -2,7 +2,7 @@
 
 return [
     'app_name' => 'Developer Blog',
-    'app_url' => 'https://baenoipddnsaddress.ddns.net:40000',
+    'app_url' => 'https://baenoipddnsaddress.ddns.net:40001',
     'timezone' => 'Asia/Seoul',
     'session_lifetime' => 3600,
     'csrf_token_name' => 'csrf_token',

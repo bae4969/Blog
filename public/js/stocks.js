@@ -5,6 +5,7 @@
 let stockChart = null;
 let currentChartType = 'candle';
 let currentPeriod = '1M';
+let currentTimeframe = '1M';
 
 // 즉시 실행: stocks.js가 로드되었는지 확인
 console.log('[stocks.js] 파일이 로드되었습니다.');
@@ -36,6 +37,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     } else {
         console.error('[DOMContentLoaded] candleData가 정의되지 않았습니다!');
+    }
+
+    const activePeriodButton = document.querySelector('.period-btn.active');
+    if (activePeriodButton) {
+        setTimeout(() => {
+            loadChartData(currentPeriod, activePeriodButton);
+        }, 200);
     }
 
     syncExecutionHeaderSpacing();
@@ -426,36 +434,69 @@ function loadChartData(period, triggerEl = null) {
     // API 호출하여 데이터 로드
     const endDate = new Date();
     let startDate = new Date();
-    let timeframe = '1h'; // 기본값
+    let timeframe = '1d'; // 기본값
+    let limit = 60;
     let candleCount = 60; // 한 번에 보여줄 캔들 수
     
     switch(period) {
+        case '10M':
+            startDate = new Date(endDate.getTime() - (candleCount * 10 * 60 * 1000));
+            timeframe = '10m'; // 10분봉
+            limit = candleCount;
+            break;
+        case '30M':
+            startDate = new Date(endDate.getTime() - (candleCount * 30 * 60 * 1000));
+            timeframe = '30m'; // 30분봉
+            limit = candleCount;
+            break;
+        case '1H':
+            startDate = new Date(endDate.getTime() - (candleCount * 60 * 60 * 1000));
+            timeframe = '1h'; // 1시간봉
+            limit = candleCount;
+            break;
+        case '3H':
+            startDate = new Date(endDate.getTime() - (candleCount * 3 * 60 * 60 * 1000));
+            timeframe = '3h'; // 3시간봉
+            limit = candleCount;
+            break;
+        case '6H':
+            startDate = new Date(endDate.getTime() - (candleCount * 6 * 60 * 60 * 1000));
+            timeframe = '6h'; // 6시간봉
+            limit = candleCount;
+            break;
         case '1D':
-            startDate.setHours(endDate.getHours() - candleCount);
-            timeframe = '1h'; // 1일: 시간봉
+            startDate.setDate(endDate.getDate() - 180);
+            timeframe = '1d'; // 1일: 일봉
+            limit = candleCount;
             break;
         case '1W':
-            startDate.setDate(endDate.getDate() - candleCount);
-            timeframe = '1d'; // 1주: 일봉
+            startDate.setDate(endDate.getDate() - (candleCount * 8));
+            timeframe = '1w'; // 1주: 주봉
+            limit = candleCount;
             break;
         case '1M':
-            startDate.setDate(endDate.getDate() - candleCount);
-            timeframe = '1d'; // 1개월: 일봉
+            startDate.setMonth(endDate.getMonth() - (candleCount + 12));
+            timeframe = '1M'; // 1개월: 월봉
+            limit = candleCount;
             break;
         case '3M':
-            startDate.setDate(endDate.getDate() - candleCount);
-            timeframe = '1d'; // 3개월: 일봉
+            startDate.setMonth(endDate.getMonth() - (candleCount * 3 + 12));
+            timeframe = '3M'; // 3개월: 분기봉
+            limit = candleCount;
             break;
         case '1Y':
-            startDate.setDate(endDate.getDate() - (candleCount * 7));
-            timeframe = '1w'; // 1년: 주봉
+            startDate.setFullYear(endDate.getFullYear() - (candleCount + 5));
+            timeframe = '1Y'; // 1년: 연봉
+            limit = candleCount;
             break;
     }
+
+    currentTimeframe = timeframe;
     
     const startDateStr = formatDateForAPI(startDate);
     const endDateStr = formatDateForAPI(endDate);
     
-    fetch(`/stocks/api/candle?code=${encodeURIComponent(stockCode)}&start=${startDateStr}&end=${endDateStr}&timeframe=${timeframe}`)
+    fetch(`/stocks/api/candle?code=${encodeURIComponent(stockCode)}&start=${startDateStr}&end=${endDateStr}&timeframe=${timeframe}&limit=${limit}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data.length > 0) {
@@ -463,6 +504,11 @@ function loadChartData(period, triggerEl = null) {
                 // 차트를 다시 그리기 전에 약간 기다림
                 setTimeout(() => initChart(), 50);
             } else {
+                candleData = [];
+                if (stockChart) {
+                    stockChart.destroy();
+                    stockChart = null;
+                }
                 console.warn('차트 데이터가 없습니다.');
             }
         })
@@ -560,12 +606,34 @@ function updateExecutionList(executions) {
  * 날짜/시간 형식화
  */
 function formatDateTime(datetime) {
-    const date = new Date(datetime);
+    const date = new Date(datetime.replace(' ', 'T'));
+    if (isNaN(date.getTime())) {
+        // Date 파싱 실패시 원본 문자열 사용
+        return datetime;
+    }
+    const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${month}/${day} ${hours}:${minutes}`;
+
+    // timeframe에 따라 포맷 결정
+    switch (currentTimeframe) {
+        case '1Y':
+            return `${year}`;
+        case '3M':
+            const quarter = Math.ceil((date.getMonth() + 1) / 3);
+            return `${year} Q${quarter}`;
+        case '1M':
+            return `${year}-${month}`;
+        case '1w':
+            return `${month}/${day}`;
+        case '1d':
+            return `${month}/${day}`;
+        default:
+            // 분봉/시간봉
+            return `${month}/${day} ${hours}:${minutes}`;
+    }
 }
 
 function formatTime(datetime) {
