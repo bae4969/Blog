@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        #chart-container {
+            width: 800px;
+            height: 400px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>Chart.js 테스트</h1>
+    <div id="status"></div>
+    <div id="chart-container">
+        <canvas id="testChart"></canvas>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const status = document.getElementById('status');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            status.appendChild(entry);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // 차트 라이브러리 로드 확인
+        log('페이지 로드 시작', 'info');
+
+        // Chart.js 로드
+        const chartScript = document.createElement('script');
+        chartScript.src = '/vendor/chart.umd.min.js';
+        chartScript.onload = function() {
+            log('Chart.js 로드 완료', 'success');
+            
+            // 차트 생성
+            try {
+                const canvas = document.getElementById('testChart');
+                const ctx = canvas.getContext('2d');
+                
+                // 샘플 데이터
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['1월', '2월', '3월', '4월', '5월'],
+                        datasets: [{
+                            label: '샘플 데이터',
+                            data: [10, 20, 15, 25, 30],
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: { color: '#fff' }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                ticks: { color: '#999' },
+                                grid: { color: '#444' }
+                            },
+                            x: {
+                                ticks: { color: '#999' },
+                                grid: { color: '#444' }
+                            }
+                        }
+                    }
+                });
+                
+                log('차트 생성 성공!', 'success');
+            } catch (error) {
+                log(`차트 생성 실패: ${error.message}`, 'error');
+            }
+        };
+        chartScript.onerror = function() {
+            log('Chart.js 로드 실패', 'error');
+        };
+        document.head.appendChild(chartScript);
+    </script>
+</body>
+</html>

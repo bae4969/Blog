@@ -20,6 +20,12 @@ class HomeController extends BaseController
         $this->userModel = new User();
     }
 
+    public function redirectToBlog(): void
+    {
+        $qs = $_SERVER['QUERY_STRING'] ?? '';
+        $this->redirect('/blog' . ($qs ? '?' . $qs : ''));
+    }
+
     public function index(): void
     {
         $page = (int)$this->getParam('page', 1);

@@ -1,6 +1,6 @@
 <div id="inputLayout">
     <div class="title">
-        <img id="mainTitle" onclick="location.href='index.php'" src="/res/title.png" alt="Index Page" />
+        <img id="mainTitle" onclick="location.href='/blog'" src="/res/title.png" alt="Blog Page" />
     </div>
 
     <form method="POST" action="/login.php" class="login-form" autocomplete="on">
