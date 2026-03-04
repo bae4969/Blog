@@ -125,7 +125,7 @@ class Auth
 
         if (!$this->canWrite()) {
             $this->session->setFlash('error', '글쓰기 횟수가 초과되었습니다.');
-            header('Location: /index.php');
+            header('Location: /blog');
             exit;
         }
     }

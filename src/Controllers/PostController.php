@@ -33,7 +33,7 @@ class PostController extends BaseController
         if ($postId <= 0) {
             Logger::warn('BlogPost', "show invalid id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '잘못된 접근입니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
             return;
         }
 
@@ -43,7 +43,7 @@ class PostController extends BaseController
         if (!$post) {
             Logger::warn('BlogPost', "show not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         // 조회수 증가
@@ -95,7 +95,7 @@ class PostController extends BaseController
         if ($userPostingInfo && $userPostingInfo['is_limited']) {
             Logger::warn('BlogPost', "createForm blocked_by_limit user={$userIndex} count={$userPostingInfo['current_count']} limit={$userPostingInfo['limit']}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 제한에 도달했습니다. (' . $userPostingInfo['current_count'] . '/' . $userPostingInfo['limit'] . ')');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
             return;
         }
         
@@ -131,7 +131,7 @@ class PostController extends BaseController
         if ($userPostingInfo && $userPostingInfo['is_limited']) {
             Logger::warn('BlogPost', "create blocked_by_limit user={$userIndex} count={$userPostingInfo['current_count']} limit={$userPostingInfo['limit']}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 제한에 도달했습니다. (' . $userPostingInfo['current_count'] . '/' . $userPostingInfo['limit'] . ')');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
             return;
         }
 
@@ -194,7 +194,7 @@ class PostController extends BaseController
         if ($postId <= 0) {
             Logger::warn('BlogPost', "editForm invalid_id id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '잘못된 접근입니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
             return;
         }
         
@@ -204,14 +204,14 @@ class PostController extends BaseController
         if (!$post) {
             Logger::warn('BlogPost', "editForm not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $currentUserIndex = $this->auth->getCurrentUserIndex();
         if ($post['user_index'] !== $currentUserIndex) {
             Logger::warn('BlogPost', "editForm no_permission id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '수정 권한이 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $categories = $this->categoryModel->getWriteAll($userLevel);
@@ -248,14 +248,14 @@ class PostController extends BaseController
         if (!$post) {
             Logger::warn('BlogPost', "update not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $currentUserIndex = $this->auth->getCurrentUserIndex();
         if ($post['user_index'] !== $currentUserIndex) {
             Logger::warn('BlogPost', "update no_permission id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '수정 권한이 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         // 사용자의 게시글 작성 제한 확인 (수정은 제한에 영향받지 않지만 일관성을 위해)
@@ -264,7 +264,7 @@ class PostController extends BaseController
         if ($userPostingInfo && $userPostingInfo['is_limited']) {
             Logger::warn('BlogPost', "update blocked_by_limit user={$currentUserIndex} count={$userPostingInfo['current_count']} limit={$userPostingInfo['limit']}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 제한에 도달했습니다. (' . $userPostingInfo['current_count'] . '/' . $userPostingInfo['limit'] . ')');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
             return;
         }
 
@@ -316,13 +316,13 @@ class PostController extends BaseController
 
         if (!$this->isPost()) {
             Logger::warn('BlogPost', "enable not_post_request id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         if (!$this->validateCsrfToken()) {
             Logger::warn('BlogPost', "enable csrf_invalid id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $userLevel = $this->auth->getCurrentUserLevel();
@@ -331,14 +331,14 @@ class PostController extends BaseController
         if (!$post) {
             Logger::warn('BlogPost', "enable not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $currentUserIndex = $this->auth->getCurrentUserIndex();
         if ($post['user_index'] !== $currentUserIndex) {
             Logger::warn('BlogPost', "enable no_permission id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '복구 권한이 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         try {
@@ -350,7 +350,7 @@ class PostController extends BaseController
             $this->session->setFlash('error', '게시글 복구 중 오류가 발생했습니다.');
         }
 
-        $this->redirect('/index.php');
+        $this->redirect('/blog');
     }
 
     public function disable($postId): void
@@ -362,13 +362,13 @@ class PostController extends BaseController
 
         if (!$this->isPost()) {
             Logger::warn('BlogPost', "disable not_post_request id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         if (!$this->validateCsrfToken()) {
             Logger::warn('BlogPost', "disable csrf_invalid id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $userLevel = $this->auth->getCurrentUserLevel();
@@ -377,7 +377,7 @@ class PostController extends BaseController
         if (!$post) {
             Logger::warn('BlogPost', "disable not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         $currentUserIndex = $this->auth->getCurrentUserIndex();
@@ -388,7 +388,7 @@ class PostController extends BaseController
         if (!$canDelete) {
             Logger::warn('BlogPost', "disable no_permission id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '삭제 권한이 없습니다.');
-            $this->redirect('/index.php');
+            $this->redirect('/blog');
         }
 
         try {
@@ -400,6 +400,6 @@ class PostController extends BaseController
             $this->session->setFlash('error', '게시글 삭제 중 오류가 발생했습니다.');
         }
 
-        $this->redirect('/index.php');
+        $this->redirect('/blog');
     }
 }

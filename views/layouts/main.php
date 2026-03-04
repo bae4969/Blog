@@ -4,17 +4,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $config['app_name'] ?></title>
-    <link rel="stylesheet" href="/css/main.css">
+    <?php $mainCssVersion = @filemtime(__DIR__ . '/../../public/css/main.css') ?: time(); ?>
+    <link rel="stylesheet" href="/css/main.css?v=<?= $mainCssVersion ?>">
     <?php if (isset($additionalCss)): ?>
         <?php foreach ($additionalCss as $css): ?>
-            <link rel="stylesheet" href="<?= $css ?>">
+            <?php
+                $cssPublicPath = __DIR__ . '/../../public' . $css;
+                $cssVersion = @filemtime($cssPublicPath) ?: $mainCssVersion;
+            ?>
+            <link rel="stylesheet" href="<?= $css ?>?v=<?= $cssVersion ?>">
         <?php endforeach; ?>
     <?php endif; ?>
 </head>
-<body>
+<body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?>">
     <div id="main">
         <header>
-            <div id="topLeft" onclick="location.href='/index.php'">Home</div>
+            <div id="topLeft" onclick="location.href='/blog'">블로그</div>
+            <div id="topStocks" onclick="location.href='/stocks'">주식</div>
             <div id="topRight" onclick="loginoutClick()">
                 <?= $auth->isLoggedIn() ? '로그아웃' : '로그인' ?>
             </div>
@@ -22,11 +28,13 @@
                 <div id="topWrite" onclick="writePostingClick()">글쓰기</div>
             <?php endif; ?>
             <div id="title">
-                <img id="mainTitle" onclick="location.href='index.php'" src="/res/title.png" alt="Blog Page" />
+                <?php $titleLink = (isset($isStockPage) && $isStockPage) ? '/stocks' : '/blog'; ?>
+                <img id="mainTitle" onclick="location.href='<?= $titleLink ?>'" src="/res/title.png" alt="Blog Page" />
             </div>
         </header>
         
-        <section>
+        <section class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-section' : '' ?>">
+            <?php if (!isset($isStockPage) || !$isStockPage): ?>
             <aside id="side-panel">
                 <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
                 <div class="sidebar-content">
@@ -76,8 +84,9 @@
                 </div>
                 </div>
             </aside>
+            <?php endif; ?>
             
-            <div id="content">
+            <div id="content" class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-content' : '' ?>">
 			    <div class="content-alert-container">
                     <?php if ($session->hasFlash('success')): ?>
                         <div class="alert alert-success">
@@ -104,7 +113,8 @@
         </footer>
     </div>
 
-    <script src="/js/main.js"></script>
+    <?php $mainJsVersion = @filemtime(__DIR__ . '/../../public/js/main.js') ?: time(); ?>
+    <script src="/js/main.js?v=<?= $mainJsVersion ?>"></script>
     <script>
     function writePostingClick() {
         <?php if (isset($userPostingInfo) && $userPostingInfo && $userPostingInfo['is_limited']): ?>
@@ -144,7 +154,11 @@
     </script>
     <?php if (isset($additionalJs)): ?>
         <?php foreach ($additionalJs as $js): ?>
-            <script src="<?= $js ?>"></script>
+            <?php
+                $jsPublicPath = __DIR__ . '/../../public' . $js;
+                $jsVersion = @filemtime($jsPublicPath) ?: $mainJsVersion;
+            ?>
+            <script src="<?= $js ?>?v=<?= $jsVersion ?>"></script>
         <?php endforeach; ?>
     <?php endif; ?>
 </body>

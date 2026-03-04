@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 현재 페이지에 따라 다른 초기화
     const currentPath = window.location.pathname;
-    if (currentPath === '/index.php' || currentPath === '/') {
+    if (currentPath === '/index.php' || currentPath === '/' || currentPath === '/blog') {
         initPostingList();
         // 초기 게시글 배치
         setPostingList(true);
@@ -175,7 +175,7 @@ function selectCategory(categoryId) {
     // 카테고리 선택 상태를 쿠키에 저장
     setCookie('selectedCategory', categoryIndex.toString(), 24);
     // 해당 카테고리로 이동
-    location.href = `/index.php${categoryId > 0 ? '?category_index=' + categoryId : ''}`;
+    location.href = `/blog${categoryId > 0 ? '?category_index=' + categoryId : ''}`;
 }
 
 // 검색 기능 향상 초기화
@@ -237,11 +237,11 @@ function searchPostingClick() {
     
     // 검색어가 없으면 전체 목록으로 이동
     if (!searchValue && selectedCategory === '-1') {
-        location.href = '/index.php';
+        location.href = '/blog';
         return;
     }
     
-    let url = '/index.php?';
+    let url = '/blog?';
     if (selectedCategory !== '-1') {
         url += 'category_index=' + selectedCategory + '&';
     }

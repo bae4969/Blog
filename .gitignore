@@ -2,3 +2,4 @@
 cache/
 vendor/
 config/database.php
+config/SQL_Tables.md

@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 if (confirm('작성 중인 내용이 있습니다. 정말 나가시겠습니까?')) {
                     hasUnsavedChanges = false;
-                    location.href = 'index.php';
+                    location.href = '/blog';
                 }
             }
         });
@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         hasUnsavedChanges = false;
                         // 원래 동작 실행
                         if (element === topLeft) {
-                            location.href = 'index.php';
+                            location.href = '/blog';
                         } else if (element === topRight) {
                             loginoutClick();
                         } else if (element === topWrite) {
@@ -452,14 +452,14 @@ function handleCancel() {
             <?php if ($isEdit): ?>
                 location.href = '/reader.php?posting_index=<?= $post['posting_index'] ?>';
             <?php else: ?>
-                location.href = '/index.php';
+                location.href = '/blog';
             <?php endif; ?>
         }
     } else {
         <?php if ($isEdit): ?>
             location.href = '/reader.php?posting_index=<?= $post['posting_index'] ?>';
         <?php else: ?>
-            location.href = '/index.php';
+            location.href = '/blog';
         <?php endif; ?>
     }
 }

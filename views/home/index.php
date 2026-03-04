@@ -78,7 +78,7 @@ function searchPostingClick() {
     const searchText = document.getElementById('search_posting_text').value;
     const categoryIndex = categorySelect.value;
     
-    let url = '/index.php?';
+    let url = '/blog?';
     if (categoryIndex !== '-1') {
         url += 'category_index=' + categoryIndex + '&';
     }

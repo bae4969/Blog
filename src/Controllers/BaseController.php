@@ -34,6 +34,12 @@ abstract class BaseController
         $this->view->json($data);
     }
 
+    protected function jsonResponse(array $data, int $statusCode = 200): void
+    {
+        http_response_code($statusCode);
+        $this->view->json($data);
+    }
+
     protected function redirect(string $url): void
     {
         $this->view->redirect($url);
