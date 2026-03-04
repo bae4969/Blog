@@ -56,16 +56,16 @@
         <div class="chart-section">
             <div class="chart-controls">
                 <div class="chart-period-buttons">
-                    <button class="period-btn" onclick="loadChartData('10M', this)">10분</button>
-                    <button class="period-btn" onclick="loadChartData('30M', this)">30분</button>
-                    <button class="period-btn" onclick="loadChartData('1H', this)">1시간</button>
-                    <button class="period-btn" onclick="loadChartData('3H', this)">3시간</button>
-                    <button class="period-btn" onclick="loadChartData('6H', this)">6시간</button>
-                    <button class="period-btn" onclick="loadChartData('1D', this)">1일</button>
-                    <button class="period-btn" onclick="loadChartData('1W', this)">1주</button>
-                    <button class="period-btn active" onclick="loadChartData('1M', this)">1개월</button>
-                    <button class="period-btn" onclick="loadChartData('3M', this)">3개월</button>
-                    <button class="period-btn" onclick="loadChartData('1Y', this)">1년</button>
+                    <button class="period-btn" onclick="loadChartData('10M', this)">10M</button>
+                    <button class="period-btn" onclick="loadChartData('30M', this)">30M</button>
+                    <button class="period-btn" onclick="loadChartData('1H', this)">1H</button>
+                    <button class="period-btn" onclick="loadChartData('3H', this)">3H</button>
+                    <button class="period-btn" onclick="loadChartData('6H', this)">6H</button>
+                    <button class="period-btn active" onclick="loadChartData('1D', this)">1D</button>
+                    <button class="period-btn" onclick="loadChartData('1W', this)">1W</button>
+                    <button class="period-btn" onclick="loadChartData('1M', this)">1M</button>
+                    <button class="period-btn" onclick="loadChartData('3M', this)">3M</button>
+                    <button class="period-btn" onclick="loadChartData('1Y', this)">1Y</button>
                 </div>
                 <div class="chart-type-buttons">
                     <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
@@ -75,12 +75,14 @@
             
             <div class="chart-wrapper">
                 <canvas id="stockChart"></canvas>
-                <?php if (empty($candleData)): ?>
-                    <div class="chart-no-data">
-                        <p>차트 데이터가 없습니다.</p>
-                        <p class="chart-no-data-sub">해당 종목의 거래 데이터가 수집되지 않았습니다.</p>
-                    </div>
-                <?php endif; ?>
+                <div id="chartLoading" class="chart-loading">
+                    <div class="chart-loading-spinner"></div>
+                    <p>차트 데이터를 불러오는 중...</p>
+                </div>
+                <div id="chartNoData" class="chart-no-data" style="display:none;">
+                    <p>차트 데이터가 없습니다.</p>
+                    <p class="chart-no-data-sub">해당 종목의 거래 데이터가 수집되지 않았습니다.</p>
+                </div>
             </div>
         </div>
 
@@ -95,22 +97,7 @@
                     <div>구분</div>
                 </div>
                 <div class="execution-body" id="executionList">
-                    <?php if (empty($recentExecutions)): ?>
-                        <div class="execution-no-data">체결 데이터가 없습니다.</div>
-                    <?php else: ?>
-                        <?php foreach ($recentExecutions as $exec): ?>
-                            <?php
-                            $isBuy = $exec['execution_bid_volume'] > $exec['execution_ask_volume'];
-                            $volume = max($exec['execution_non_volume'], $exec['execution_bid_volume'], $exec['execution_ask_volume']);
-                            ?>
-                            <div class="execution-item <?= $isBuy ? 'buy' : 'sell' ?>">
-                                <div class="exec-time"><?= date('H:i:s', strtotime($exec['execution_datetime'])) ?></div>
-                                <div class="exec-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($exec['execution_price'], $isUSMarket ? 2 : 0) ?></div>
-                                <div class="exec-volume"><?= number_format($volume) ?></div>
-                                <div class="exec-type"><?= $isBuy ? '매수' : '매도' ?></div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <div class="execution-loading">체결 데이터를 불러오는 중...</div>
                 </div>
             </div>
             
@@ -192,9 +179,14 @@
     </div>
 </div>
 
+<!-- 차트 라이브러리 프리로드 (페이지 렌더와 병렬 다운로드) -->
+<script defer src="/vendor/chart.umd.min.js"></script>
+<script defer src="/vendor/chartjs-chart-financial.min.js"></script>
+
 <script>
 // 차트 데이터를 JavaScript 변수로 전달
 const stockCode = '<?= $view->escape($stock['stock_code']) ?>';
-let candleData = <?= json_encode($candleData) ?>;
-const recentExecutions = <?= json_encode($recentExecutions) ?>;
+const isUSMarket = <?= $isUSMarket ? 'true' : 'false' ?>;
+let candleData = [];
+const recentExecutions = [];
 </script>

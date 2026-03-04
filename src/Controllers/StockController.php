@@ -21,13 +21,17 @@ class StockController extends BaseController
     public function index(): void
     {
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-        $market = isset($_GET['market']) ? $this->sanitizeInput($_GET['market']) : '';
+        $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
+        if (!in_array($market, ['KR', 'US'], true)) {
+            $market = $this->getDefaultMarketByMarketHours();
+        }
         $search = isset($_GET['search']) ? $this->sanitizeInput($_GET['search']) : '';
         $perPage = 50;
 
-        // 주식 목록 조회
-        $stocks = $this->stockModel->getStockList($page, $perPage, $market, $search);
-        $totalCount = $this->stockModel->getStockCount($market, $search);
+        // 주식 목록 + 전체 개수를 한 번에 조회
+        $listResult = $this->stockModel->getStockListWithCount($page, $perPage, $market, $search);
+        $stocks = $listResult['stocks'];
+        $totalCount = $listResult['total'];
         $totalPages = ceil($totalCount / $perPage);
         
         // 시장 통계
@@ -51,6 +55,29 @@ class StockController extends BaseController
     }
 
     /**
+     * 현재 시간 기준 기본 시장 결정
+     * - 한국장 개장 시간(평일 09:00~15:30)이면 KR
+     * - 그 외 시간은 US
+     */
+    private function getDefaultMarketByMarketHours(): string
+    {
+        $now = new \DateTime('now', new \DateTimeZone('Asia/Seoul'));
+        $dayOfWeek = (int)$now->format('N');
+        $hour = (int)$now->format('G');
+        $minute = (int)$now->format('i');
+
+        $isWeekday = $dayOfWeek >= 1 && $dayOfWeek <= 5;
+        $isAfterOpen = ($hour > 9) || ($hour === 9 && $minute >= 0);
+        $isBeforeClose = ($hour < 15) || ($hour === 15 && $minute <= 30);
+
+        if ($isWeekday && $isAfterOpen && $isBeforeClose) {
+            return 'KR';
+        }
+
+        return 'US';
+    }
+
+    /**
      * 주식 상세 페이지 (차트)
      */
     public function show(): void
@@ -63,7 +90,7 @@ class StockController extends BaseController
             return;
         }
 
-        // 주식 정보 조회
+        // 주식 정보 조회 (가벼운 단건 쿼리만 서버에서 실행)
         $stock = $this->stockModel->getStockByCode($stockCode);
         
         if (!$stock) {
@@ -72,18 +99,11 @@ class StockController extends BaseController
             return;
         }
 
-        // 캔들 데이터 조회 (최근 30일)
-        $endDate = date('Y-m-d H:i:s');
-        $startDate = date('Y-m-d H:i:s', strtotime('-30 days'));
-        $candleData = $this->stockModel->getCandleData($stockCode, $startDate, $endDate, 500);
-        
-        // 최근 체결 데이터
-        $recentExecutions = $this->stockModel->getRecentExecutions($stockCode, 50);
-
+        // 캔들/체결 데이터는 클라이언트에서 API로 비동기 로딩 (페이지 렌더 차단 방지)
         $this->renderLayout('main', 'stocks/show', [
             'stock' => $stock,
-            'candleData' => $candleData,
-            'recentExecutions' => $recentExecutions,
+            'candleData' => [],
+            'recentExecutions' => [],
             'isStockPage' => true,
             'additionalCss' => ['/css/stocks.css'],
             'additionalJs' => ['/js/stocks.js']

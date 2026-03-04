@@ -4,51 +4,78 @@
 
 let stockChart = null;
 let currentChartType = 'candle';
-let currentPeriod = '1M';
-let currentTimeframe = '1M';
+let currentPeriod = '1D';
+let currentTimeframe = '1d';
 
-// 즉시 실행: stocks.js가 로드되었는지 확인
-console.log('[stocks.js] 파일이 로드되었습니다.');
-console.log('[stocks.js] 전역 변수 확인: candleData =', typeof candleData !== 'undefined' ? (candleData ? candleData.length : 'null') : 'undefined');
-console.log('[stocks.js] 전역 변수 확인: stockCode =', typeof stockCode !== 'undefined' ? stockCode : 'undefined');
+/**
+ * 통화 단위 반환 (미국 주식이면 $, 한국 주식이면 원)
+ */
+function getCurrencyPrefix() {
+    return (typeof isUSMarket !== 'undefined' && isUSMarket) ? '$' : '';
+}
+function getCurrencySuffix() {
+    return (typeof isUSMarket !== 'undefined' && isUSMarket) ? '' : '원';
+}
+function formatPrice(value) {
+    const prefix = getCurrencyPrefix();
+    const suffix = getCurrencySuffix();
+    if (typeof isUSMarket !== 'undefined' && isUSMarket) {
+        return prefix + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + suffix;
+    }
+    return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
+}
 
 // Chart.js가 로드되었을 때 초기화
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[DOMContentLoaded] 이벤트 발생');
-    
-    // candleData가 정의되었는지 확인
-    if (typeof candleData !== 'undefined') {
-        console.log('[DOMContentLoaded] candleData 정의됨. 길이:', candleData.length);
-        if (candleData.length > 0) {
-            console.log('[DOMContentLoaded] candleData가 준비되었습니다. Chart 모듈을 로드합니다.');
-            loadChartModules().finally(() => {
-                // 약간의 지연 후 차트 초기화 (DOM이 완전히 준비되도록)
-                setTimeout(() => {
-                    console.log('[DOMContentLoaded] 지연 후 initChart 호출');
-                    if (typeof candleData !== 'undefined' && candleData.length > 0) {
-                        initChart();
-                    } else {
-                        console.warn('[DOMContentLoaded] candleData가 비어있습니다.');
-                    }
-                }, 100);
-            });
-        } else {
-            console.warn('[DOMContentLoaded] candleData가 비어있습니다.');
-        }
-    } else {
-        console.error('[DOMContentLoaded] candleData가 정의되지 않았습니다!');
-    }
-
-    const activePeriodButton = document.querySelector('.period-btn.active');
-    if (activePeriodButton) {
-        setTimeout(() => {
-            loadChartData(currentPeriod, activePeriodButton);
-        }, 200);
-    }
+    // 차트 라이브러리는 defer로 이미 로딩 중 — 준비되면 데이터 fetch 시작
+    waitForChartReady().then(() => {
+        // 캔들 데이터와 체결 데이터를 동시에 비동기 로딩
+        loadChartData(currentPeriod, document.querySelector('.period-btn.active'));
+        loadInitialExecutions();
+    });
 
     syncExecutionHeaderSpacing();
     window.addEventListener('resize', syncExecutionHeaderSpacing);
 });
+
+/**
+ * Chart.js defer 스크립트 로딩 완료 대기 (최대 5초)
+ */
+function waitForChartReady() {
+    return new Promise((resolve) => {
+        if (typeof Chart !== 'undefined') {
+            resolve();
+            return;
+        }
+        let elapsed = 0;
+        const interval = setInterval(() => {
+            elapsed += 50;
+            if (typeof Chart !== 'undefined' || elapsed >= 5000) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 50);
+    });
+}
+
+/**
+ * 초기 체결 데이터 로딩
+ */
+function loadInitialExecutions() {
+    fetch(`/stocks/api/executions?code=${encodeURIComponent(stockCode)}&limit=50`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateExecutionList(data.data);
+                syncExecutionHeaderSpacing();
+            }
+        })
+        .catch(error => {
+            console.error('체결 정보 로드 실패:', error);
+            const el = document.getElementById('executionList');
+            if (el) el.innerHTML = '<div class="execution-no-data">체결 데이터를 불러올 수 없습니다.</div>';
+        });
+}
 
 /**
  * 차트 모듈 준비 상태 확인
@@ -93,16 +120,12 @@ function loadScript(src) {
 async function loadChartModules() {
     try {
         if (typeof Chart === 'undefined') {
-            console.log('Chart.js 로드 중...');
             await loadScript('/vendor/chart.umd.min.js');
-            console.log('Chart.js 로드 완료');
         }
 
         if (!hasCandlestickSupport()) {
-            console.log('캔들스틱 플러그인 로드 중...');
             try {
                 await loadScript('/vendor/chartjs-chart-financial.min.js');
-                console.log('캔들스틱 플러그인 로드 완료');
             } catch (pluginError) {
                 console.warn('캔들 플러그인 로드 실패, 라인 차트로 대체합니다.', pluginError);
             }
@@ -117,98 +140,59 @@ async function loadChartModules() {
  * 차트 초기화
  */
 function initChart() {
-    console.log('[initChart] 시작. candleData 길이:', typeof candleData !== 'undefined' ? candleData.length : 'undefined');
-    
     const canvas = document.getElementById('stockChart');
     if (!canvas) {
-        console.error('[initChart] Canvas 요소를 찾을 수 없습니다.');
         showChartError('Canvas 요소를 찾을 수 없습니다.');
         return;
     }
 
-    // Canvas wrapper의 크기 확인
     const wrapper = canvas.parentElement;
     if (!wrapper) {
-        console.error('[initChart] Canvas wrapper를 찾을 수 없습니다.');
         showChartError('Canvas wrapper를 찾을 수 없습니다.');
         return;
     }
 
-    // Wrapper의 실제 크기 가져오기
     const rect = wrapper.getBoundingClientRect();
-    console.log('[initChart] Wrapper 크기:', { width: rect.width, height: rect.height, offsetWidth: wrapper.offsetWidth, offsetHeight: wrapper.offsetHeight });
     
     if (rect.width === 0 || rect.height === 0) {
-        console.warn('[initChart] Canvas wrapper의 크기가 0입니다. 크기 조정 후 재시도합니다.');
         setTimeout(() => initChart(), 200);
         return;
     }
 
     // Canvas의 크기를 wrapper 크기에 맞춰 설정
-    const paddingLeft = parseInt(getComputedStyle(wrapper).paddingLeft) || 0;
-    const paddingRight = parseInt(getComputedStyle(wrapper).paddingRight) || 0;
-    const paddingTop = parseInt(getComputedStyle(wrapper).paddingTop) || 0;
-    const paddingBottom = parseInt(getComputedStyle(wrapper).paddingBottom) || 0;
+    const cs = getComputedStyle(wrapper);
+    const width = wrapper.offsetWidth - (parseInt(cs.paddingLeft) || 0) - (parseInt(cs.paddingRight) || 0);
+    const height = wrapper.offsetHeight - (parseInt(cs.paddingTop) || 0) - (parseInt(cs.paddingBottom) || 0);
     
-    const width = wrapper.offsetWidth - paddingLeft - paddingRight;
-    const height = wrapper.offsetHeight - paddingTop - paddingBottom;
-    
-    console.log('[initChart] 계산된 Canvas 크기:', { width, height, padding: { left: paddingLeft, right: paddingRight, top: paddingTop, bottom: paddingBottom } });
-    
-    // Canvas 해상도 비율 설정
-    canvas.width = width * window.devicePixelRatio;
-    canvas.height = height * window.devicePixelRatio;
-    
-    // Canvas CSS 크기 설정 (max-width/height 무시하도록 important 추가)
-    canvas.style.width = width + 'px !important';
-    canvas.style.height = height + 'px !important';
+    // Canvas 해상도 + CSS 크기 설정 (한 번만)
+    const dpr = window.devicePixelRatio;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
     canvas.style.display = 'block';
-    
-    // Canvas 컨텍스트 스케일 설정
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    }
-    
-    // Canvas 해상도 비율 설정
-    canvas.width = width * window.devicePixelRatio;
-    canvas.height = height * window.devicePixelRatio;
-    
-    // Canvas CSS 크기 설정 (max-width/height 무시하도록 important 추가)
-    canvas.style.width = width + 'px !important';
-    canvas.style.height = height + 'px !important';
-    canvas.style.display = 'block';
-    
-    console.log('[initChart] Canvas element 크기 설정 완료');
 
     if (!isChartReady()) {
-        console.log('[initChart] Chart.js가 준비되지 않았습니다. 로드 중...');
-        loadChartModules().then(() => {
-            console.log('[initChart] Chart.js 로드 완료. 재시도합니다.');
-            setTimeout(() => initChart(), 100);
-        }).catch(error => {
-            console.error('[initChart] Chart.js 로드 실패:', error);
-            showChartError('차트 라이브러리를 로드할 수 없습니다.');
-        });
+        // defer 스크립트 로딩 대기 후 재시도
+        waitForChartReady().then(() => initChart());
         return;
     }
 
+    const ctx = canvas.getContext('2d');
     if (!ctx) {
-        console.error('[initChart] Canvas 컨텍스트를 가져올 수 없습니다.');
         showChartError('Canvas 컨텍스트를 가져올 수 없습니다.');
         return;
     }
+    
+    ctx.scale(dpr, dpr);
 
     if (stockChart) {
-        console.log('[initChart] 기존 차트 제거');
         stockChart.destroy();
     }
 
     const resolvedChartType = (currentChartType === 'candle' && hasCandlestickSupport()) ? 'candle' : 'line';
-    console.log('[initChart] resolvedChartType:', resolvedChartType, '| currentChartType:', currentChartType, '| hasCandlestickSupport:', hasCandlestickSupport());
     
     const chartData = prepareChartData(candleData, resolvedChartType);
-    console.log('[initChart] chartData 준비 완료:', chartData);
 
     // 데이터 범위 계산
     let dataRange = null;
@@ -225,32 +209,42 @@ function initChart() {
                 min: Math.min(...allValues),
                 max: Math.max(...allValues)
             };
-            console.log('[initChart] 데이터 범위:', dataRange, '데이터 포인트:', candleData.length);
         }
     }
 
     try {
-        console.log('[initChart] Chart 생성 중... type:', resolvedChartType === 'candle' ? 'candlestick' : 'line');
         stockChart = new Chart(ctx, {
             type: resolvedChartType === 'candle' ? 'candlestick' : 'line',
             data: chartData,
             options: getChartOptions(resolvedChartType, dataRange)
         });
-        console.log('[initChart] 차트가 성공적으로 렌더링되었습니다.');
     } catch (error) {
-        console.warn('[initChart] 캔들/라인 렌더 실패, 라인 차트로 재시도합니다.', error);
         try {
             stockChart = new Chart(ctx, {
                 type: 'line',
                 data: prepareChartData(candleData, 'line'),
                 options: getChartOptions('line')
             });
-            console.log('[initChart] 라인 차트가 성공적으로 렌더링되었습니다.');
         } catch (fallbackError) {
-            console.error('[initChart] 차트 렌더링 완전 실패:', fallbackError);
             showChartError('차트를 렌더링할 수 없습니다: ' + fallbackError.message);
         }
     }
+}
+
+/**
+ * 차트 로딩 인디케이터 표시/숨김
+ */
+function showChartLoading(show) {
+    const el = document.getElementById('chartLoading');
+    if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+/**
+ * 차트 데이터 없음 표시/숨김
+ */
+function showChartNoData(show) {
+    const el = document.getElementById('chartNoData');
+    if (el) el.style.display = show ? 'flex' : 'none';
 }
 
 /**
@@ -316,8 +310,8 @@ function prepareChartData(data, chartType) {
                     down: '#26a69a',
                     unchanged: '#999'
                 },
-                barPercentage: 0.035,
-                categoryPercentage: 0.5
+                barPercentage: 0.05,
+                categoryPercentage: 1.0
             }]
         };
     }
@@ -357,10 +351,10 @@ function getChartOptions(chartType = 'line', dataRange = null) {
                     label: function(context) {
                         if (chartType === 'candle' && context.raw) {
                             return [
-                                `시가: ${new Intl.NumberFormat('ko-KR').format(context.raw.o)}원`,
-                                `고가: ${new Intl.NumberFormat('ko-KR').format(context.raw.h)}원`,
-                                `저가: ${new Intl.NumberFormat('ko-KR').format(context.raw.l)}원`,
-                                `종가: ${new Intl.NumberFormat('ko-KR').format(context.raw.c)}원`
+                                `시가: ${formatPrice(context.raw.o)}`,
+                                `고가: ${formatPrice(context.raw.h)}`,
+                                `저가: ${formatPrice(context.raw.l)}`,
+                                `종가: ${formatPrice(context.raw.c)}`
                             ];
                         }
 
@@ -370,7 +364,7 @@ function getChartOptions(chartType = 'line', dataRange = null) {
                         }
 
                         if (context.parsed.y !== null) {
-                            label += new Intl.NumberFormat('ko-KR').format(context.parsed.y) + '원';
+                            label += formatPrice(context.parsed.y);
                         }
                         return label;
                     }
@@ -398,7 +392,7 @@ function getChartOptions(chartType = 'line', dataRange = null) {
                 ticks: {
                     color: '#9aa0a6',
                     callback: function(value) {
-                        return new Intl.NumberFormat('ko-KR').format(value) + '원';
+                        return formatPrice(value);
                     }
                 }
             }
@@ -410,7 +404,6 @@ function getChartOptions(chartType = 'line', dataRange = null) {
         const padding = (dataRange.max - dataRange.min) * 0.05; // 5% 여유 공간
         options.scales.y.min = Math.max(0, dataRange.min - padding);
         options.scales.y.max = dataRange.max + padding;
-        console.log('[getChartOptions] Y축 범위 설정:', { min: options.scales.y.min, max: options.scales.y.max, dataRange });
     }
 
     return options;
@@ -495,24 +488,30 @@ function loadChartData(period, triggerEl = null) {
     
     const startDateStr = formatDateForAPI(startDate);
     const endDateStr = formatDateForAPI(endDate);
+
+    // 로딩 UI 표시
+    showChartLoading(true);
     
     fetch(`/stocks/api/candle?code=${encodeURIComponent(stockCode)}&start=${startDateStr}&end=${endDateStr}&timeframe=${timeframe}&limit=${limit}`)
         .then(response => response.json())
         .then(data => {
+            showChartLoading(false);
             if (data.success && data.data.length > 0) {
                 candleData = data.data;
-                // 차트를 다시 그리기 전에 약간 기다림
-                setTimeout(() => initChart(), 50);
+                showChartNoData(false);
+                initChart();
             } else {
                 candleData = [];
                 if (stockChart) {
                     stockChart.destroy();
                     stockChart = null;
                 }
-                console.warn('차트 데이터가 없습니다.');
+                showChartNoData(true);
             }
         })
         .catch(error => {
+            showChartLoading(false);
+            showChartNoData(true);
             console.error('차트 데이터 로드 실패:', error);
         });
 }
@@ -524,7 +523,9 @@ function setChartType(chartType, triggerEl = null) {
     currentChartType = chartType;
 
     if (currentChartType === 'candle' && !hasCandlestickSupport()) {
+        // defer 스크립트로 이미 로딩 시도됨 — 폴백으로 동적 로딩 재시도
         loadChartModules().finally(() => initChart());
+        return;
     }
     
     // 버튼 활성화 상태 변경
@@ -592,7 +593,7 @@ function updateExecutionList(executions) {
         html += `
             <div class="execution-item ${isBuy ? 'buy' : 'sell'}">
                 <div class="exec-time">${formatTime(exec.execution_datetime)}</div>
-                <div class="exec-price">${formatNumber(exec.execution_price)}</div>
+                <div class="exec-price">${formatPrice(exec.execution_price)}</div>
                 <div class="exec-volume">${formatNumber(volume)}</div>
                 <div class="exec-type">${isBuy ? '매수' : '매도'}</div>
             </div>

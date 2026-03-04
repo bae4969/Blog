@@ -3,14 +3,16 @@
     <div class="market-stats-horizontal">
             <?php if (!empty($marketStats)): ?>
                 <?php foreach ($marketStats as $stat): ?>
-                    <div class="market-stat-item-h <?= $currentMarket === $stat['stock_market'] ? 'active' : '' ?>" 
-                         onclick="location.href='/stocks?market=<?= urlencode($stat['stock_market']) ?>'">
-                        <div class="market-name"><?= $view->escape($stat['stock_market']) ?></div>
+                    <?php if (!in_array($stat['market_group'], ['KR', 'US'], true)) { continue; } ?>
+                    <?php $isUS = ($stat['market_group'] === 'US'); ?>
+                    <div class="market-stat-item-h <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
+                         onclick="location.href='/stocks?market=<?= urlencode($stat['market_group']) ?>'">
+                        <div class="market-name"><?= $view->escape($stat['market_label']) ?></div>
                         <div class="market-info">
-                            <span class="market-count"><?= number_format($stat['stock_count']) ?>개</span>
+                            <span class="market-count"><?= number_format($stat['stock_count']) ?>종목</span>
+                            <span class="market-sep">·</span>
                             <?php 
-                            $isUSMarket = in_array($stat['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']);
-                            if ($isUSMarket) {
+                            if ($isUS) {
                                 $capValue = $stat['total_cap'] / 1000000000; // Billion
                                 $capUnit = 'B';
                             } else {
@@ -18,7 +20,7 @@
                                 $capUnit = '조';
                             }
                             ?>
-                            <span class="market-cap"><?= $isUSMarket ? '$' : '' ?><?= number_format($capValue, 2) ?><?= $capUnit ?></span>
+                            <span class="market-cap"><?= $isUS ? '$' : '' ?><?= number_format($capValue, 2) ?><?= $capUnit ?></span>
                         </div>
                     </div>
                 <?php endforeach; ?>
