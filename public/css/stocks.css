@@ -320,14 +320,16 @@
 .stocks-table {
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
+    -webkit-overflow-scrolling: touch;
 }
 
 .stocks-table table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
+    min-width: 0;
 }
 
 .stocks-table thead {
@@ -618,31 +620,71 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    gap: 15px;
-    margin-right: -20px;
+    gap: 12px;
 }
 
-.chart-period-buttons,
-.chart-type-buttons {
+/* 기간 드롭다운 */
+.chart-period-select-wrapper {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
+.period-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    margin-left: 12px;
+}
+
+.period-select {
+    padding: 8px 8px 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+    height: 36px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 10px center;
+    min-width: 80px;
+    text-align: center;
+    text-align-last: center;
+}
+
+.period-select:hover {
+    border-color: var(--primary-color);
+}
+
+.period-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+
+.period-select option,
+.period-select optgroup {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
 .chart-type-buttons {
-    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    margin-right: auto;
+    margin-left: 12px;
 }
 
 .chart-type-btn {
     min-width: 60px;
     text-align: center;
-}
-
-.chart-period-buttons {
-    flex-wrap: wrap;
-}
-
-.period-btn,
-.chart-type-btn {
     padding: 8px 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
@@ -651,19 +693,15 @@
     cursor: pointer;
     transition: var(--transition);
     font-size: 13px;
-    min-width: 50px;
-    text-align: center;
     line-height: 1.2;
     box-sizing: border-box;
     height: 36px;
 }
 
-.period-btn:hover,
 .chart-type-btn:hover {
     background: var(--bg-hover);
 }
 
-.period-btn.active,
 .chart-type-btn.active {
     background: var(--primary-color);
     border-color: var(--primary-color);
@@ -961,5 +999,375 @@
 
     .stock-detail-main {
         grid-template-columns: 1fr;
+    }
+
+    /* 상세 헤더 줄바꿈 */
+    .stock-detail-header {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 15px;
+    }
+
+    .stock-title-section h2 {
+        font-size: 22px;
+    }
+
+    .current-price {
+        font-size: 26px;
+    }
+}
+
+/* ====== 태블릿 세로 / 좁은 브라우저 (768px 이하) ====== */
+@media (max-width: 768px) {
+    .stocks-container {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .market-stats-horizontal {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        margin-bottom: -6px;
+    }
+
+    .market-stat-item-h {
+        padding: 10px 12px;
+        min-height: 42px;
+        gap: 8px;
+    }
+
+    .market-stat-item-h .market-name {
+        font-size: 14px;
+    }
+
+    .market-stat-item-h .market-info {
+        font-size: 11px;
+        gap: 4px;
+    }
+
+    .market-stat-item-h .market-count,
+    .market-stat-item-h .market-cap {
+        font-size: 11px;
+    }
+
+    /* 인기 주식: 2열로 축소 */
+    .top-stocks-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    /* 테이블: 시장/유형/상장주식수 컬럼 숨기기 */
+    .stocks-table th:nth-child(3),
+    .stocks-table td:nth-child(3),
+    .stocks-table th:nth-child(4),
+    .stocks-table td:nth-child(4),
+    .stocks-table th:nth-child(7),
+    .stocks-table td:nth-child(7) {
+        display: none;
+    }
+
+    .stocks-table th:nth-child(1),
+    .stocks-table td:nth-child(1) {
+        width: 40%;
+        padding-left: 12px;
+    }
+
+    .stocks-table th:nth-child(2),
+    .stocks-table td:nth-child(2) {
+        width: 18%;
+    }
+
+    .stocks-table th:nth-child(5),
+    .stocks-table td:nth-child(5) {
+        width: 22%;
+    }
+
+    .stocks-table th:nth-child(6),
+    .stocks-table td:nth-child(6) {
+        width: 20%;
+    }
+
+    .stocks-table th {
+        padding: 8px 6px;
+        font-size: 12px;
+    }
+
+    .stocks-table td {
+        padding: 8px 6px;
+        font-size: 13px;
+    }
+
+    /* 상세 페이지 헤더: 세로 배치 */
+    .stock-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 15px;
+    }
+
+    .stock-price-section {
+        text-align: left;
+        width: 100%;
+    }
+
+    .stock-title-section h2 {
+        font-size: 20px;
+    }
+
+    .current-price {
+        font-size: 24px;
+    }
+
+    .stock-meta {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* 차트 컨트롤 */
+    .chart-controls {
+        gap: 10px;
+    }
+
+    .period-select {
+        font-size: 12px;
+        height: 32px;
+        min-width: 110px;
+        padding: 6px 28px 6px 10px;
+    }
+
+    .period-label {
+        font-size: 12px;
+    }
+
+    .chart-type-btn {
+        padding: 6px 8px;
+        font-size: 12px;
+        min-width: 50px;
+        height: 32px;
+    }
+
+    .chart-wrapper {
+        height: 350px;
+        padding: 10px;
+    }
+
+    /* 체결 정보 */
+    .execution-header,
+    .execution-item {
+        grid-template-columns: 60px minmax(0, 1fr) 48px 36px;
+        gap: 6px;
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    .execution-header {
+        margin-right: 14px;
+        font-size: 11px;
+    }
+
+    /* 종목 정보 그리드 */
+    .info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .info-item {
+        padding: 12px;
+    }
+}
+
+/* ====== 모바일 (480px 이하) ====== */
+@media (max-width: 480px) {
+    .stock-page-content {
+        padding: 5px !important;
+    }
+
+    .stocks-container {
+        gap: 6px;
+    }
+
+    .market-stat-item-h {
+        padding: 8px 10px;
+        min-height: 38px;
+        gap: 6px;
+    }
+
+    .market-stat-item-h .market-name {
+        font-size: 13px;
+    }
+
+    .market-stat-item-h .market-info {
+        font-size: 10px;
+    }
+
+    .top-stocks-list {
+        gap: 6px;
+    }
+
+    .top-stock-item {
+        padding: 8px;
+        margin-bottom: 0;
+    }
+
+    /* 테이블: 시가총액도 숨기고 최소 컬럼만 */
+    .stocks-table th:nth-child(6),
+    .stocks-table td:nth-child(6) {
+        display: none;
+    }
+
+    .stocks-table th:nth-child(1),
+    .stocks-table td:nth-child(1) {
+        width: 50%;
+        padding-left: 8px;
+    }
+
+    .stocks-table th:nth-child(2),
+    .stocks-table td:nth-child(2) {
+        width: 22%;
+    }
+
+    .stocks-table th:nth-child(5),
+    .stocks-table td:nth-child(5) {
+        width: 28%;
+    }
+
+    .stocks-table th {
+        padding: 6px 4px;
+        font-size: 11px;
+    }
+
+    .stocks-table td {
+        padding: 6px 4px;
+        font-size: 12px;
+    }
+
+    .stock-name-kr {
+        font-size: 13px;
+    }
+
+    .stock-name-en {
+        font-size: 10px;
+    }
+
+    .stocks-search-bar input {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    /* 페이지네이션 */
+    .pagination {
+        gap: 4px;
+    }
+
+    .page-btn {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    /* 상세 헤더 */
+    .stock-detail-header {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .back-btn {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .stock-title-section h2 {
+        font-size: 18px;
+        margin-bottom: 4px;
+    }
+
+    .stock-subtitle {
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .current-price {
+        font-size: 22px;
+    }
+
+    .current-price .currency {
+        font-size: 14px;
+    }
+
+    /* 차트 */
+    .chart-section {
+        padding: 12px;
+    }
+
+    .period-select {
+        font-size: 11px;
+        height: 28px;
+        min-width: 100px;
+        padding: 4px 24px 4px 8px;
+    }
+
+    .period-label {
+        font-size: 11px;
+    }
+
+    .chart-type-btn {
+        padding: 5px 6px;
+        font-size: 11px;
+        min-width: 44px;
+        height: 28px;
+    }
+
+    .chart-wrapper {
+        height: 280px;
+        padding: 8px;
+    }
+
+    /* 체결 정보 */
+    .execution-section {
+        padding: 12px;
+    }
+
+    .execution-header,
+    .execution-item {
+        grid-template-columns: 54px minmax(0, 1fr) 42px 32px;
+        gap: 4px;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+
+    .execution-header {
+        font-size: 10px;
+        margin-right: 10px;
+    }
+
+    .execution-list {
+        min-height: 300px;
+    }
+
+    /* 종목 정보 */
+    .stock-info-section {
+        padding: 12px;
+    }
+
+    .stock-info-section h3 {
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .info-item {
+        padding: 10px;
+    }
+
+    .info-label {
+        font-size: 11px;
+    }
+
+    .info-value {
+        font-size: 14px;
     }
 }
