@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 차트 라이브러리는 defer로 이미 로딩 중 — 준비되면 데이터 fetch 시작
     waitForChartReady().then(() => {
         // 캔들 데이터와 체결 데이터를 동시에 비동기 로딩
-        loadChartData(currentPeriod, document.querySelector('.period-btn.active'));
+        loadChartData(currentPeriod);
         loadInitialExecutions();
     });
 
@@ -412,16 +412,13 @@ function getChartOptions(chartType = 'line', dataRange = null) {
 /**
  * 차트 기간 변경
  */
-function loadChartData(period, triggerEl = null) {
+function loadChartData(period) {
     currentPeriod = period;
     
-    // 버튼 활성화 상태 변경
-    document.querySelectorAll('.period-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    const targetEl = triggerEl || (typeof event !== 'undefined' ? event.target : null);
-    if (targetEl && targetEl.classList) {
-        targetEl.classList.add('active');
+    // 드롭다운 선택 상태 동기화
+    const periodSelect = document.getElementById('periodSelect');
+    if (periodSelect && periodSelect.value !== period) {
+        periodSelect.value = period;
     }
     
     // API 호출하여 데이터 로드

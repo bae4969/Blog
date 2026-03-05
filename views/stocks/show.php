@@ -55,21 +55,24 @@
         <!-- 차트 영역 -->
         <div class="chart-section">
             <div class="chart-controls">
-                <div class="chart-period-buttons">
-                    <button class="period-btn" onclick="loadChartData('10M', this)">10M</button>
-                    <button class="period-btn" onclick="loadChartData('30M', this)">30M</button>
-                    <button class="period-btn" onclick="loadChartData('1H', this)">1H</button>
-                    <button class="period-btn" onclick="loadChartData('3H', this)">3H</button>
-                    <button class="period-btn" onclick="loadChartData('6H', this)">6H</button>
-                    <button class="period-btn active" onclick="loadChartData('1D', this)">1D</button>
-                    <button class="period-btn" onclick="loadChartData('1W', this)">1W</button>
-                    <button class="period-btn" onclick="loadChartData('1M', this)">1M</button>
-                    <button class="period-btn" onclick="loadChartData('3M', this)">3M</button>
-                    <button class="period-btn" onclick="loadChartData('1Y', this)">1Y</button>
-                </div>
                 <div class="chart-type-buttons">
                     <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
                     <button class="chart-type-btn" onclick="setChartType('line', this)">라인</button>
+                </div>
+                <div class="chart-period-select-wrapper">
+                    <label for="periodSelect" class="period-label">기간</label>
+                    <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
+                        <option value="10M">10M</option>
+                        <option value="30M">30M</option>
+                        <option value="1H">1H</option>
+                        <option value="3H">3H</option>
+                        <option value="6H">6H</option>
+                        <option value="1D" selected>1D</option>
+                        <option value="1W">1W</option>
+                        <option value="1M">1M</option>
+                        <option value="3M">3M</option>
+                        <option value="1Y">1Y</option>
+                    </select>
                 </div>
             </div>
             
