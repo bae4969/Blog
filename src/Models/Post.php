@@ -135,20 +135,15 @@ class Post
         $config = HTMLPurifier_Config::createDefault();
         $config->set('Cache.SerializerPath', __DIR__ . '/../../cache/htmlpurifier'); // 웹서버 쓰기 가능 경로
         $config->set('HTML.Allowed', 'p,br,strong,em,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
-        $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>false]); // data: 금지 권장
+        $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>true]); // data URI 허용 (base64 이미지)
         $purifier = new HTMLPurifier($config);
 
         // 원문
         $title_raw = (string)($data['title'] ?? '');
         $content_raw = (string)$data['content'];
 
-        // 첫 이미지 추출은 정제 전 원문 기준으로 시도
-        $thumbnail = '';
-        if (preg_match('/<img[^>]+src=["\']?([^"\'>\s]+)["\']?/i', $content_raw, $m)) {
-            $thumbnail = $m[1];
-        } elseif (preg_match('/!\[[^\]]*\]\(([^)]+)\)/', $content_raw, $m)) {
-            $thumbnail = $m[1];
-        }
+        // 순수 데이터로 제공되는 thumbnail 사용
+        $thumbnail = (string)($data['thumbnail'] ?? '');
 
         // 제목 정제
         $title = htmlspecialchars(strip_tags($title_raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -193,20 +188,15 @@ class Post
         $config = HTMLPurifier_Config::createDefault();
         $config->set('Cache.SerializerPath', __DIR__ . '/../../cache/htmlpurifier');
         $config->set('HTML.Allowed', 'p,br,strong,em,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
-        $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>false]);
+        $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>true]); // data URI 허용 (base64 이미지)
         $purifier = new HTMLPurifier($config);
 
         // 원문
         $title_raw = (string)($data['title'] ?? '');
         $content_raw = (string)$data['content'];
 
-        // 첫 이미지 추출
-        $thumbnail = '';
-        if (preg_match('/<img[^>]+src=["\']?([^"\'>\s]+)["\']?/i', $content_raw, $m)) {
-            $thumbnail = $m[1];
-        } elseif (preg_match('/!\[[^\]]*\]\(([^)]+)\)/', $content_raw, $m)) {
-            $thumbnail = $m[1];
-        }
+        // 순수 데이터로 제공되는 thumbnail 사용
+        $thumbnail = (string)($data['thumbnail'] ?? '');
 
         // 제목 정제
         $title = htmlspecialchars(strip_tags($title_raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
