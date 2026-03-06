@@ -21,13 +21,28 @@
                             <span class="post-read-count">조회: <?= number_format($post['posting_read_cnt'] ?? 0) ?></span>
                         </div>
                         <hr>
-                        <div class="posting_thumbnail_container">
+                        <div class="posting_content_wrapper <?php echo empty($post['posting_thumbnail']) ? 'no-thumbnail' : ''; ?>">
                             <?php if (!empty($post['posting_thumbnail'])): ?>
-                                <img class="posting_thumbnail" src="<?= $view->escape($post['posting_thumbnail']) ?>" alt="썸네일">
+                            <div class="posting_thumbnail_container">
+                                <img class="posting_thumbnail" src="data:image/webp;base64,<?= $post['posting_thumbnail'] ?>" alt="썸네일">
+                            </div>
                             <?php endif; ?>
-                        </div>
-                        <div class="posting_summary">
-                            <?= $view->escape(substr(strip_tags($post['posting_summary']), 0, 200)) ?> ...
+                            <div class="posting_summary">
+                                <?php 
+                                    $summary = trim(strip_tags($post['posting_summary'] ?? ''));
+                                    $summary = preg_replace('/\s+/u', ' ', $summary);
+                                    $originalLength = mb_strlen($summary, 'UTF-8');
+                                    $summary = mb_substr($summary, 0, 200, 'UTF-8');
+                                    if (!empty($summary)) {
+                                        echo $view->escape($summary);
+                                        if ($originalLength > 200) {
+                                            echo ' ...';
+                                        }
+                                    } else {
+                                        echo '내용이 없습니다.';
+                                    }
+                                ?>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
