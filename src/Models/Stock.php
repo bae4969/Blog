@@ -375,14 +375,6 @@ class Stock
                     // 60개 월봉 = 60개월 × 21영업일/월 ≈ 1260 영업일
                     $businessDaysToMove = 1260;
                     break;
-                case '3M':
-                    // 60개 분기봉 = 60분기 × 63영업일/분기 ≈ 3780 영업일
-                    $businessDaysToMove = 3780;
-                    break;
-                case '1Y':
-                    // 60개 연봉 = 60년 × 252영업일/년 ≈ 15120 영업일
-                    $businessDaysToMove = 15120;
-                    break;
                 default:
                     $businessDaysToMove = 12;
                     break;
@@ -407,7 +399,7 @@ class Stock
 
     /**
      * sub-daily 타임프레임 여부 확인 (분봉, 시간봉)
-     * 일봉 이상(1d, 1w, 1M, 3M, 1Y)은 false 반환
+     * 일봉 이상(1d, 1w, 1M)은 false 반환
      */
     private function isSubDailyTimeframe(string $timeframe): bool
     {
@@ -419,7 +411,7 @@ class Stock
         if (preg_match('/^\\d+h$/', $timeframe)) {
             return true;
         }
-        // 그 외 (1d, 1w, 1M, 3M, 1Y) = daily 이상
+        // 그 외 (1d, 1w, 1M) = daily 이상
         return false;
     }
 
@@ -785,13 +777,6 @@ class Stock
                 return date('o-W', $timestamp); // ISO 년도-주차 (연경계 정확)
             case '1M':
                 return date('Y-m', $timestamp);
-            case '3M':
-                $year = (int)date('Y', $timestamp);
-                $month = (int)date('n', $timestamp);
-                $quarter = (int)floor(($month - 1) / 3) + 1;
-                return sprintf('%04d-Q%d', $year, $quarter);
-            case '1Y':
-                return date('Y', $timestamp);
             default:
                 return $datetime;
         }
