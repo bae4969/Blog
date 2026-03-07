@@ -539,15 +539,11 @@ li.category-selected::before {
     line-height: 1;
 }
 
-.posting_thumbnail_container {
-    text-align: center;
-    padding: 10px 0;
-}
-
 .posting_content_wrapper {
     display: flex;
     gap: 20px;
     align-items: center;
+    margin-top: 15px;
 }
 
 .posting_content_wrapper.no-thumbnail {
@@ -558,23 +554,20 @@ li.category-selected::before {
     flex-shrink: 0;
     width: 33%;
     text-align: center;
-    padding: 10px 0;
 }
 
 .posting_thumbnail { 
     max-width: 100%; 
     max-height: 400px; 
-    padding-bottom: 10px; 
 }
 
 .posting_summary {
     flex: 1;
-    padding: 0 10px 10px 0;
+    padding: 0 10px 0 0;
 }
 
 .post-thumbnail-container {
     text-align: center;
-    margin: 20px 0;
 }
 
 .post-thumbnail {
@@ -1346,10 +1339,6 @@ footer a:hover {
         width: 33%;
     }
     
-    .posting_summary, .post-excerpt {
-        padding: 0 4% 10px 4%;
-    }
-    
     /* 검색 UI 모바일 최적화 */
     .search-container {
         gap: 8px;
@@ -1560,10 +1549,6 @@ footer a:hover {
     
     .posting_thumbnail_container {
         width: 33%;
-    }
-    
-    .posting_summary, .post-excerpt {
-        padding: 0 3% 8px 3%;
     }
     
     .post-wrapper {

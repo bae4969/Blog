@@ -70,8 +70,6 @@
                         <option value="1D" selected>1D</option>
                         <option value="1W">1W</option>
                         <option value="1M">1M</option>
-                        <option value="3M">3M</option>
-                        <option value="1Y">1Y</option>
                     </select>
                 </div>
             </div>
