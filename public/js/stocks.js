@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     syncExecutionHeaderSpacing();
     window.addEventListener('resize', syncExecutionHeaderSpacing);
+    
+    // 기간 선택 박스에 휠 이벤트 추가
+    setupPeriodWheelControl();
 });
 
 /**
@@ -469,16 +472,6 @@ function loadChartData(period) {
             timeframe = '1M'; // 1개월: 월봉
             limit = candleCount;
             break;
-        case '3M':
-            startDate.setMonth(endDate.getMonth() - (candleCount * 3 + 12));
-            timeframe = '3M'; // 3개월: 분기봉
-            limit = candleCount;
-            break;
-        case '1Y':
-            startDate.setFullYear(endDate.getFullYear() - (candleCount + 5));
-            timeframe = '1Y'; // 1년: 연봉
-            limit = candleCount;
-            break;
     }
 
     currentTimeframe = timeframe;
@@ -617,11 +610,6 @@ function formatDateTime(datetime) {
 
     // timeframe에 따라 포맷 결정
     switch (currentTimeframe) {
-        case '1Y':
-            return `${year}`;
-        case '3M':
-            const quarter = Math.ceil((date.getMonth() + 1) / 3);
-            return `${year} Q${quarter}`;
         case '1M':
             return `${year}-${month}`;
         case '1w':
@@ -662,3 +650,41 @@ setInterval(function() {
         refreshExecutions();
     }
 }, 30000);
+
+/**
+ * 기간 선택 박스 휠 컨트롤 설정
+ */
+function setupPeriodWheelControl() {
+    const periodSelect = document.getElementById('periodSelect');
+    if (!periodSelect) return;
+    
+    // 사용 가능한 기간 옵션들
+    const periodOptions = ['10M', '30M', '1H', '3H', '6H', '1D', '1W', '1M'];
+    
+    periodSelect.addEventListener('wheel', function(e) {
+        e.preventDefault(); // 페이지 스크롤 방지
+        
+        // 현재 선택된 옵션의 인덱스 찾기
+        const currentValue = periodSelect.value;
+        const currentIndex = periodOptions.indexOf(currentValue);
+        
+        if (currentIndex === -1) return;
+        
+        // 휠 방향에 따라 인덱스 변경
+        let newIndex;
+        if (e.deltaY < 0) {
+            // 휠을 위로 (다음 옵션)
+            newIndex = currentIndex < periodOptions.length - 1 ? currentIndex + 1 : periodOptions.length - 1;
+        } else {
+            // 휠을 아래로 (이전 옵션)
+            newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+        }
+        
+        // 새로운 기간 선택
+        const newValue = periodOptions[newIndex];
+        if (newValue !== currentValue) {
+            periodSelect.value = newValue;
+            loadChartData(newValue);
+        }
+    });
+}
