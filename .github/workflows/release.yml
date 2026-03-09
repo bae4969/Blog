@@ -1,9 +1,9 @@
-name: Master Branch CI/CD Pipeline
+name: Main Branch CI/CD Pipeline
 
 on:
   push:
     branches:
-      - master # master 브랜치에 코드가 푸시(머지 포함)될 때 실행
+      - main # main 브랜치에 코드가 푸시(머지 포함)될 때 실행
 
 concurrency:
   group: production-deploy-${{ github.ref }}
