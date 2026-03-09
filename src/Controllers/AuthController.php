@@ -115,8 +115,17 @@ class AuthController extends BaseController
         }
     }
 
+    public function logoutRedirect(): void
+    {
+        $this->redirect('/blog');
+    }
+
     public function logout(): void
     {
+        if (!$this->isPost() || !$this->validateCsrfToken()) {
+            $this->redirect('/blog');
+        }
+
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         $user = $this->auth->getCurrentUser();
         $userId = $user['user_id'] ?? 'anonymous';

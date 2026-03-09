@@ -18,6 +18,9 @@ class Logger
         try {
             $db = Database::getInstance();
             $year = date('Y');
+            if (!preg_match('/^\d{4}$/', $year)) {
+                return;
+            }
             $table = "Log.Log{$year}"; // 다른 DB 스키마(Log) 내 연도별 테이블
 
             // 길이 제어 및 기본값
