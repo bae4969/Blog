@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 기존 내용이 있으면 에디터에 로드
     const existingContent = document.getElementById('input_content').value;
     if (existingContent) {
-        quill.root.innerHTML = existingContent;
+        quill.clipboard.dangerouslyPasteHTML(existingContent);
     }
     
     // 초기 내용 저장
