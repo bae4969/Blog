@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     --no-install-recommends \
+    && if [ "$APP_ENV" = "dev" ]; then apt-get install -y --no-install-recommends $PHPIZE_DEPS; fi \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. PHP 확장 모듈 설치 (DB 및 이미지 처리)
@@ -30,12 +31,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 
 # 2-1. 개발 환경에서만 Xdebug 설치
 RUN if [ "$APP_ENV" = "dev" ]; then \
-            apt-get update \
-            && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
-            && pecl install xdebug \
+            pecl install xdebug \
             && docker-php-ext-enable xdebug \
-            && apt-get purge -y --auto-remove $PHPIZE_DEPS \
-            && rm -rf /var/lib/apt/lists/*; \
+            && apt-get purge -y --auto-remove $PHPIZE_DEPS; \
         fi
 
 # 3. Apache 설정: DocumentRoot를 /public으로 변경
