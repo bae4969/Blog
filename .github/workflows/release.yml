@@ -5,14 +5,48 @@ on:
     branches:
       - master # master 브랜치에 코드가 푸시(머지 포함)될 때 실행
 
+concurrency:
+  group: production-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # 0단계: 기본 검증 (CI)
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Install dependencies for CI
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHP lint
+        run: |
+          find src public config -type f -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Run tests when tests directory exists
+        run: |
+          if [ -d tests ]; then
+            composer test
+          else
+            echo "No tests directory. Skipping tests."
+          fi
+
   # 1단계: 릴리스 생성 (Release)
   create-release:
+    needs: quality-check
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
       VERSION: ${{ steps.get_version.outputs.VERSION }}
+      RELEASE_CREATED: ${{ steps.release_decision.outputs.release_created }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,13 +58,42 @@ jobs:
           VERSION=$(jq -r .version package.json)
           echo "VERSION=v$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          TAG="${{ steps.get_version.outputs.VERSION }}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG already exists. Skip release creation."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Decide release creation
+        id: release_decision
+        run: |
+          if [ "${{ steps.tag_check.outputs.exists }}" = "true" ]; then
+            echo "release_created=false" >> $GITHUB_OUTPUT
+          else
+            echo "release_created=true" >> $GITHUB_OUTPUT
+          fi
+
       # 배포용 파일 압축
       - name: Archive production files
+        if: steps.release_decision.outputs.release_created == 'true'
         run: |
-          zip -r release-source.zip . -x "node_modules/*" ".git/*" ".github/*"
+          zip -r release-source.zip . -x "node_modules/*" ".git/*" ".github/*" "vendor/*" "cache/data/*"
+
+      - name: Upload release artifact
+        if: steps.release_decision.outputs.release_created == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-source
+          path: release-source.zip
 
       # GitHub Release 생성
       - name: Create GitHub Release
+        if: steps.release_decision.outputs.release_created == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
@@ -43,10 +106,14 @@ jobs:
   # 2단계: 서버 배포 (CD)
   deploy:
     needs: create-release
+    if: needs.create-release.outputs.RELEASE_CREATED == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-source
+          path: .
 
       # SCP를 이용한 서버 전송 (홈서버 환경 고려)
       - name: Deploy to Home Server
@@ -56,10 +123,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_KEY }}
           port: ${{ secrets.SERVER_PORT }}
-          source: "./*"
-          target: "/var/www/html/php-blog" # 실제 배포 경로
-          rm: false # cache/data, uploads 등 서버 데이터 보존
-          exclude: "node_modules,.git,.github,vendor,package-lock.json,.gitignore"
+          source: "release-source.zip"
+          target: "/tmp/php-blog-release"
+          rm: false
 
       # 배포 후 후속 조치
       - name: Post-deployment tasks
@@ -70,7 +136,10 @@ jobs:
           key: ${{ secrets.SERVER_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            set -e
+            mkdir -p /tmp/php-blog-release
             cd /var/www/html/php-blog
+            unzip -o /tmp/php-blog-release/release-source.zip -d /var/www/html/php-blog
             composer install --no-dev --optimize-autoloader
             mkdir -p cache/data
             chmod -R 775 cache/
