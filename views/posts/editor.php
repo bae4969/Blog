@@ -552,7 +552,7 @@ function compressImage(file, callback) {
 function loginoutClick() {
     <?php if ($auth->isLoggedIn()): ?>
         if (confirm('로그아웃하시겠습니까?')) {
-            location.href = '/logout.php';
+            document.getElementById('logout-form').submit();
         }
     <?php else: ?>
         location.href = '/login.php';

@@ -150,6 +150,8 @@ class Post
 
         // 본문 정제
         $content = $purifier->purify($content_raw);
+        // data: URI를 href에서 제거 (피싱 방어, img src는 유지)
+        $content = preg_replace('/(href\s*=\s*["\'])data:[^"\']*(["\'\s>])/i', '$1#$2', $content);
 
         // 요약 생성(정제본에서 이미지 제거 후 200자)
         $tmp = preg_replace('/<img\b[^>]*>/i', '', $content);
@@ -203,6 +205,8 @@ class Post
 
         // 본문 정제
         $content = $purifier->purify($content_raw);
+        // data: URI를 href에서 제거 (피싱 방어, img src는 유지)
+        $content = preg_replace('/(href\s*=\s*["\'])data:[^"\']*(["\'\s>])/i', '$1#$2', $content);
 
         // 요약 생성
         $tmp = preg_replace('/<img\b[^>]*>/i', '', $content);

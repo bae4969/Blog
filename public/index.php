@@ -9,10 +9,9 @@ use Blog\Controllers\PostController;
 use Blog\Controllers\StockController;
 
 // 에러 리포팅 설정 (개발/운영 분리)
-if (getenv('APP_ENV') === 'production') {
-	ini_set('display_errors', '0');
-	ini_set('log_errors', '1');
-} else {
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+if (getenv('APP_ENV') === 'development') {
 	error_reporting(E_ALL);
 	ini_set('display_errors', '1');
 }
@@ -33,7 +32,8 @@ $router->get('/search', [HomeController::class, 'search']);
 // 인증 컨트롤러 라우트
 $router->get('/login.php', [AuthController::class, 'loginForm']);
 $router->post('/login.php', [AuthController::class, 'login']);
-$router->get('/logout.php', [AuthController::class, 'logout']);
+$router->get('/logout.php', [AuthController::class, 'logoutRedirect']);
+$router->post('/logout.php', [AuthController::class, 'logout']);
 $router->get('/get/login_verify', [AuthController::class, 'verify']);
 
 // 게시글 컨트롤러 라우트

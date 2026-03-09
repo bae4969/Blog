@@ -153,7 +153,9 @@ function initPostingDetail() {
 function loginoutClick() {
     if (userInfo && userInfo.state === 0) {
         if (confirm('로그아웃하시겠습니까?')) {
-            location.href = '/logout.php';
+            var form = document.getElementById('logout-form');
+            if (form) { form.submit(); }
+            else { location.href = '/blog'; }
         }
     } else {
         location.href = '/login.php';
