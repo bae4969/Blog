@@ -48,7 +48,7 @@ class Cache
         // 파일 캐시에서 확인
         $filePath = $this->getFilePath($key);
         if (file_exists($filePath)) {
-            $data = unserialize(file_get_contents($filePath));
+            $data = unserialize(file_get_contents($filePath), ['allowed_classes' => false]);
             if ($data['expires'] > time()) {
                 // 메모리 캐시에도 저장
                 $this->cache[$key] = $data;

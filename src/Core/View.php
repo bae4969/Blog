@@ -70,6 +70,10 @@ class View
 
     public function redirect(string $url): void
     {
+        // 내부 경로만 허용 (Open Redirect 방어)
+        if ($url === '' || $url[0] !== '/' || strpos($url, '//') === 0) {
+            $url = '/';
+        }
         header("Location: {$url}");
         exit;
     }
@@ -100,6 +104,10 @@ class View
         if (!$storedToken || !hash_equals($storedToken, $token)) {
             return false;
         }
+        
+        // 토큰 소비 후 재생성 (replay attack 방어)
+        $newToken = bin2hex(random_bytes(32));
+        $session->set('csrf_token', $newToken);
         
         return true;
     }

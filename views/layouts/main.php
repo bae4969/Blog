@@ -115,6 +115,11 @@
 
     <?php $mainJsVersion = @filemtime(__DIR__ . '/../../public/js/main.js') ?: time(); ?>
     <script src="/js/main.js?v=<?= $mainJsVersion ?>"></script>
+    <?php if ($auth->isLoggedIn()): ?>
+    <form id="logout-form" method="POST" action="/logout.php" style="display:none;">
+        <input type="hidden" name="csrf_token" value="<?= $view->csrfToken() ?>">
+    </form>
+    <?php endif; ?>
     <script>
     function writePostingClick() {
         <?php if (isset($userPostingInfo) && $userPostingInfo && $userPostingInfo['is_limited']): ?>
