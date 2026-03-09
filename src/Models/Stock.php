@@ -48,6 +48,11 @@ class Stock
 
         $dbName = $result ? $result['SCHEMA_NAME'] : null;
 
+        // DB명 패턴 검증 (SQL 인젝션 방어)
+        if ($dbName !== null && !preg_match('/^Z_Stock[A-Za-z0-9_]+$/', $dbName)) {
+            $dbName = null;
+        }
+
         // 캐시 저장 (없는 경우도 빈 문자열로 저장하여 반복 조회 방지)
         $this->cache->set($cacheKey, $dbName ?? '', 3600);
         self::$dbNameCache[$stockCode] = $dbName;
