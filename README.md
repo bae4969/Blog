@@ -4,7 +4,7 @@
 
 ## 핵심 요약
 
-- MVC + PSR-4 오토로딩 (`Blog\\` -> `src/`)
+- MVC + PSR-4 오토로딩 (`Blog\` -> `src/`)
 - 단일 진입점: `public/index.php`
 - 보안 기본기: PDO Prepared Statement, CSRF 토큰, 입력값 정리
 - 캐시: 메모리 + 파일(`cache/data`) 다층 캐시
@@ -109,7 +109,8 @@ npm install
 
 ```bash
 mkdir -p cache/data
-chmod 755 cache cache/data
+chmod 755 cache
+chmod 755 cache/data
 ```
 
 ### 5) 개발 서버 실행
