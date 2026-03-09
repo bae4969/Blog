@@ -64,11 +64,10 @@ class StockController extends BaseController
         $now = new \DateTime('now', new \DateTimeZone('Asia/Seoul'));
         $dayOfWeek = (int)$now->format('N');
         $hour = (int)$now->format('G');
-        $minute = (int)$now->format('i');
 
         $isWeekday = $dayOfWeek >= 1 && $dayOfWeek <= 5;
-        $isAfterOpen = ($hour > 9) || ($hour === 9 && $minute >= 0);
-        $isBeforeClose = ($hour < 15) || ($hour === 15 && $minute <= 30);
+        $isAfterOpen = $hour >= 8;
+        $isBeforeClose = $hour < 18;
 
         if ($isWeekday && $isAfterOpen && $isBeforeClose) {
             return 'KR';

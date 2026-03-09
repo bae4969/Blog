@@ -1,0 +1,75 @@
+name: Master Branch CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master # master 브랜치에 코드가 푸시(머지 포함)될 때 실행
+
+jobs:
+  # 1단계: 릴리스 생성 (Release)
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      VERSION: ${{ steps.get_version.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # package.json에서 버전 추출
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(jq -r .version package.json)
+          echo "VERSION=v$VERSION" >> $GITHUB_OUTPUT
+
+      # 배포용 파일 압축
+      - name: Archive production files
+        run: |
+          zip -r release-source.zip . -x "node_modules/*" ".git/*" ".github/*"
+
+      # GitHub Release 생성
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          files: release-source.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2단계: 서버 배포 (CD)
+  deploy:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # SCP를 이용한 서버 전송 (홈서버 환경 고려)
+      - name: Deploy to Home Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "./*"
+          target: "/var/www/html/php-blog" # 실제 배포 경로
+          rm: true # 기존 파일 삭제 후 클린 배포
+          exclude: "node_modules, .git, .github, package-lock.json, .gitignore"
+
+      # 배포 후 후속 조치 (필요 시)
+      - name: Post-deployment tasks
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            echo "Successfully deployed ${{ needs.create-release.outputs.VERSION }} to production."
+            # 예: Nginx 재시작이 필요하다면 아래 명령 추가
+            # sudo systemctl reload nginx
