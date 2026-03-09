@@ -9,6 +9,10 @@ concurrency:
   group: production-deploy-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APP_DIR: /mnt/10.project/20.blog
+  DEPLOY_BRANCH: main
+
 jobs:
   # 0단계: 기본 검증 (CI)
   quality-check:
@@ -107,42 +111,34 @@ jobs:
   deploy:
     needs: create-release
     if: needs.create-release.outputs.RELEASE_CREATED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
-      - name: Download release artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-source
-          path: .
+      - name: Sync source in VM directory
+        run: |
+          set -e
 
-      # SCP를 이용한 서버 전송 (홈서버 환경 고려)
-      - name: Deploy to Home Server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          source: "release-source.zip"
-          target: "/tmp/php-blog-release"
-          rm: false
+          if [ ! -d "$APP_DIR/.git" ]; then
+            echo "Repository not found in $APP_DIR"
+            exit 1
+          fi
 
-      # 배포 후 후속 조치
-      - name: Post-deployment tasks
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            set -e
-            mkdir -p /tmp/php-blog-release
-            cd /var/www/html/php-blog
-            unzip -o /tmp/php-blog-release/release-source.zip -d /var/www/html/php-blog
-            composer install --no-dev --optimize-autoloader
-            mkdir -p cache/data
-            chmod -R 775 cache/
-            echo "Successfully deployed ${{ needs.create-release.outputs.VERSION }} to production."
-            # 예: Nginx 재시작이 필요하다면 아래 명령 추가
-            # sudo systemctl reload nginx
+          cd "$APP_DIR"
+          git fetch origin "$DEPLOY_BRANCH"
+          git checkout "$DEPLOY_BRANCH"
+          git reset --hard "origin/$DEPLOY_BRANCH"
+
+      - name: Install production dependencies
+        run: |
+          set -e
+          cd "$APP_DIR"
+          composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Ensure writable directories
+        run: |
+          set -e
+          cd "$APP_DIR"
+          mkdir -p cache/data uploads/images
+          chmod -R 775 cache/
+
+      - name: Deployment complete
+        run: echo "Successfully deployed ${{ needs.create-release.outputs.VERSION }} to $APP_DIR"
