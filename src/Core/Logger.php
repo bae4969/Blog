@@ -6,6 +6,9 @@ use Blog\Database\Database;
 
 class Logger
 {
+    /** @var array<string, bool> */
+    private static $ensuredTables = [];
+
     /**
      * 일반 로그 기록
      * @param string $name   논리적 로그 이름(예: 'auth', 'post')
@@ -17,11 +20,12 @@ class Logger
     {
         try {
             $db = Database::getInstance();
-            $year = date('Y');
-            if (!preg_match('/^\d{4}$/', $year)) {
+            $year = (int)date('Y');
+            if ($year < 2000 || $year > 9999) {
                 return;
             }
-            $table = "Log.Log{$year}"; // 다른 DB 스키마(Log) 내 연도별 테이블
+            self::ensureBlogLogTableInnoDb($db, $year);
+            $table = "Log.blog_log";
 
             // 길이 제어 및 기본값
             $name = mb_substr($name, 0, 255, 'UTF-8');
@@ -85,5 +89,73 @@ class Logger
         }
 
         return mb_substr($funcStr, 0, 255, 'UTF-8');
+    }
+
+    private static function ensureBlogLogTableInnoDb(Database $db, int $year): void
+    {
+        $tableName = 'blog_log';
+        $ensureKey = $tableName . ':' . $year;
+
+        if (isset(self::$ensuredTables[$ensureKey])) {
+            return;
+        }
+
+        $quotedTable = "Log.`{$tableName}`";
+
+        $createSql = "
+            CREATE TABLE IF NOT EXISTS {$quotedTable} (
+                log_datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
+                log_name VARCHAR(255),
+                log_type CHAR(1),
+                log_message TEXT,
+                log_function VARCHAR(255),
+                log_file VARCHAR(255),
+                log_line INT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            PARTITION BY RANGE (YEAR(log_datetime)) (
+                PARTITION p{$year}_prev VALUES LESS THAN ({$year}),
+                PARTITION p{$year} VALUES LESS THAN (" . ($year + 1) . "),
+                PARTITION pmax VALUES LESS THAN MAXVALUE
+            )
+        ";
+        $db->query($createSql);
+
+        $engineInfo = $db->fetch(
+            "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1",
+            ['Log', $tableName]
+        );
+
+        if (!empty($engineInfo['ENGINE']) && strcasecmp((string)$engineInfo['ENGINE'], 'InnoDB') !== 0) {
+            $db->query("ALTER TABLE {$quotedTable} ENGINE=InnoDB");
+        }
+
+        $partitionInfo = $db->fetch(
+            "SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL LIMIT 1",
+            ['Log', $tableName]
+        );
+
+        if (empty($partitionInfo)) {
+            $db->query(
+                "ALTER TABLE {$quotedTable} PARTITION BY RANGE (YEAR(log_datetime)) (" .
+                "PARTITION p{$year}_prev VALUES LESS THAN ({$year}), " .
+                "PARTITION p{$year} VALUES LESS THAN (" . ($year + 1) . "), " .
+                "PARTITION pmax VALUES LESS THAN MAXVALUE)"
+            );
+        } else {
+            $yearPartition = $db->fetch(
+                "SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME = ? LIMIT 1",
+                ['Log', $tableName, 'p' . $year]
+            );
+
+            if (empty($yearPartition)) {
+                $db->query(
+                    "ALTER TABLE {$quotedTable} REORGANIZE PARTITION pmax INTO (" .
+                    "PARTITION p{$year} VALUES LESS THAN (" . ($year + 1) . "), " .
+                    "PARTITION pmax VALUES LESS THAN MAXVALUE)"
+                );
+            }
+        }
+
+        self::$ensuredTables[$ensureKey] = true;
     }
 }
