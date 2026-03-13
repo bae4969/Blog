@@ -10,54 +10,107 @@ class Stock
     private $db;
     private $cache;
 
-    /** @var array<string, ?string> 인메모리 DB 이름 캐시 */
-    private static $dbNameCache = [];
-
     public function __construct()
     {
         $this->db = Database::getInstance();
         $this->cache = Cache::getInstance();
     }
 
-    private function resolveStockDbName(string $stockCode): ?string
+    /**
+     * candle.s{Symbol} 소스 resolve
+     * @return array{schema: string, table: string}|null
+     */
+    private function resolveCandleSource(string $stockCode): ?array
     {
-        // 1) 인메모리 캐시 확인
-        if (array_key_exists($stockCode, self::$dbNameCache)) {
-            return self::$dbNameCache[$stockCode];
-        }
-
-        // 2) 파일 캐시 확인 (1시간 TTL)
-        $cacheKey = Cache::key('stock_dbname', $stockCode);
+        $cacheKey = Cache::key('stock_candle_source', $stockCode);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
-            self::$dbNameCache[$stockCode] = $cached ?: null;
-            return self::$dbNameCache[$stockCode];
+            return $cached ?: null;
         }
 
-        // 3) information_schema 조회 - 한 번의 IN 쿼리로 처리
-        $normalizedCode = str_replace('.', '_', $stockCode);
-        $candidates = [
-            'Z_Stock' . $normalizedCode,
-            'Z_Stock_' . $normalizedCode,
-        ];
+        $code = strtoupper($stockCode);
+        $normalizedUnderscore = str_replace(['.', '/'], '_', $code);
+        $normalizedNoDot = str_replace(['.', '/'], '', $code);
 
-        $result = $this->db->fetch(
-            'SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME IN (:schema1, :schema2) LIMIT 1',
-            [':schema1' => $candidates[0], ':schema2' => $candidates[1]]
+        $candidates = array_values(array_unique([
+            's' . $code,
+            's' . $normalizedUnderscore,
+            's' . $normalizedNoDot,
+        ]));
+
+        // 후보가 3개 미만이면 패딩
+        while (count($candidates) < 3) {
+            $candidates[] = $candidates[count($candidates) - 1];
+        }
+
+        $row = $this->db->fetch(
+            "SELECT TABLE_SCHEMA, TABLE_NAME
+             FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = 'candle'
+               AND TABLE_NAME IN (:t1, :t2, :t3)
+             LIMIT 1",
+            [':t1' => $candidates[0], ':t2' => $candidates[1], ':t3' => $candidates[2]]
         );
 
-        $dbName = $result ? $result['SCHEMA_NAME'] : null;
-
-        // DB명 패턴 검증 (SQL 인젝션 방어)
-        if ($dbName !== null && !preg_match('/^Z_Stock[A-Za-z0-9_]+$/', $dbName)) {
-            $dbName = null;
+        $source = null;
+        if ($row) {
+            $schema = $row['TABLE_SCHEMA'] ?? '';
+            $table = $row['TABLE_NAME'] ?? '';
+            if (preg_match('/^[A-Za-z0-9_]+$/', $schema) && preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+                $source = ['schema' => $schema, 'table' => $table];
+            }
         }
 
-        // 캐시 저장 (없는 경우도 빈 문자열로 저장하여 반복 조회 방지)
-        $this->cache->set($cacheKey, $dbName ?? '', 3600);
-        self::$dbNameCache[$stockCode] = $dbName;
+        $this->cache->set($cacheKey, $source ?? '', 3600);
+        return $source;
+    }
 
-        return $dbName;
+    /**
+     * tick.s{Symbol} 소스 resolve (체결 데이터용)
+     * @return array{schema: string, table: string}|null
+     */
+    private function resolveTickSource(string $stockCode): ?array
+    {
+        $cacheKey = Cache::key('stock_tick_source', $stockCode);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached ?: null;
+        }
+
+        $code = strtoupper($stockCode);
+        $normalizedUnderscore = str_replace(['.', '/'], '_', $code);
+        $normalizedNoDot = str_replace(['.', '/'], '', $code);
+
+        $candidates = array_values(array_unique([
+            's' . $code,
+            's' . $normalizedUnderscore,
+            's' . $normalizedNoDot,
+        ]));
+
+        while (count($candidates) < 3) {
+            $candidates[] = $candidates[count($candidates) - 1];
+        }
+
+        $row = $this->db->fetch(
+            "SELECT TABLE_SCHEMA, TABLE_NAME
+             FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = 'tick'
+               AND TABLE_NAME IN (:t1, :t2, :t3)
+             LIMIT 1",
+            [':t1' => $candidates[0], ':t2' => $candidates[1], ':t3' => $candidates[2]]
+        );
+
+        $source = null;
+        if ($row) {
+            $schema = $row['TABLE_SCHEMA'] ?? '';
+            $table = $row['TABLE_NAME'] ?? '';
+            if (preg_match('/^[A-Za-z0-9_]+$/', $schema) && preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+                $source = ['schema' => $schema, 'table' => $table];
+            }
+        }
+
+        $this->cache->set($cacheKey, $source ?? '', 3600);
+        return $source;
     }
 
     /**
@@ -178,12 +231,12 @@ class Stock
             return $cached;
         }
 
-        $dbName = $this->resolveStockDbName($stockCode);
-        if ($dbName === null) {
+        $candleSource = $this->resolveCandleSource($stockCode);
+        if ($candleSource === null) {
             return [];
         }
 
-        $candles = $this->fetchCandlesWithExpansion($dbName, $startDate, $endDate, $limit, $timeframe);
+        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe);
         
         $this->cache->set($cacheKey, $candles, 60); // 1분 캐시
         
@@ -192,63 +245,43 @@ class Stock
 
     /**
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
-     * 
-     * 최적화: 매 확장마다 "새 구간"만 추가로 fetch하여 누적.
-     * - 이미 조회한 날짜 범위는 재조회하지 않음 (연도 단위가 아닌 날짜 범위 기준)
-     * - 존재하지 않는 Candle 테이블 접근 방지 (연도 목록 캐싱)
-     * - 1900년 전체 스캔 fallback 제거
+     * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
      */
-    private function fetchCandlesWithExpansion(string $dbName, string $startDate, string $endDate, int $limit, string $timeframe): array
+    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe): array
     {
         $currentStart = $startDate;
         $allRows = [];
         $maxAttempts = 5;
         $attemptCount = 0;
-        // 이전에 조회한 시작점 (첫 시도에서는 endDate, 이후 확장 시 이전 시작점까지만 조회)
         $previousStart = $endDate;
+
+        $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
         
         try {
-            // 실존하는 Candle 테이블 연도 목록을 한 번에 조회
-            $existingYears = $this->getExistingCandleYears($dbName);
-            if (empty($existingYears)) {
-                return [];
-            }
-
             while ($attemptCount <= $maxAttempts) {
-                // 조회할 범위 결정: 첫 시도는 전체 범위, 이후는 확장된 갭만
                 $fetchStart = $currentStart;
                 $fetchEnd = ($attemptCount === 0) ? $endDate : $previousStart;
-
-                $queryStartYear = (int)date('Y', strtotime($fetchStart));
-                $queryEndYear = (int)date('Y', strtotime($fetchEnd));
                 $newDataAdded = false;
 
-                for ($year = $queryStartYear; $year <= $queryEndYear; $year++) {
-                    // 테이블이 없는 연도는 건너뜀
-                    if (!in_array($year, $existingYears, true)) {
-                        continue;
+                try {
+                    $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
+                                   execution_non_volume, execution_ask_volume, execution_bid_volume,
+                                   execution_non_amount, execution_ask_amount, execution_bid_amount
+                            FROM {$tableRef}
+                            WHERE execution_datetime BETWEEN :start_date AND :end_date
+                            ORDER BY execution_datetime ASC";
+
+                    $rows = $this->db->fetchAll($sql, [
+                        ':start_date' => $fetchStart,
+                        ':end_date' => $fetchEnd
+                    ]);
+
+                    if (!empty($rows)) {
+                        $allRows = array_merge($allRows, $rows);
+                        $newDataAdded = true;
                     }
-
-                    try {
-                        $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
-                                       execution_non_volume, execution_ask_volume, execution_bid_volume,
-                                       execution_non_amount, execution_ask_amount, execution_bid_amount
-                                FROM `{$dbName}`.`Candle{$year}`
-                                WHERE execution_datetime BETWEEN :start_date AND :end_date
-                                ORDER BY execution_datetime ASC";
-
-                        $rows = $this->db->fetchAll($sql, [
-                            ':start_date' => $fetchStart,
-                            ':end_date' => $fetchEnd
-                        ]);
-
-                        if (!empty($rows)) {
-                            $allRows = array_merge($allRows, $rows);
-                            $newDataAdded = true;
-                        }
-                    } catch (\Exception $e) {
-                        continue;
-                    }
+                } catch (\Exception $e) {
+                    return [];
                 }
 
                 $previousStart = $fetchStart;
@@ -267,17 +300,14 @@ class Stock
                 }
                 $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
 
-                // limit 이상 확보했으면 종료
                 if (count($candles) >= $limit) {
                     return array_slice($candles, -$limit);
                 }
 
-                // 새 데이터 없으면 더 이상 확장 해도 소용없음 → 종료
                 if (!$newDataAdded && $attemptCount > 0) {
                     return $candles;
                 }
 
-                // 부족하면 start를 더 이전으로 확장
                 $attemptCount++;
                 $currentStart = $this->expandStartDateByTimeframe($currentStart, $timeframe);
             }
@@ -293,62 +323,6 @@ class Stock
         } catch (\Exception $e) {
             return [];
         }
-    }
-
-    /**
-     * 특정 주식 DB에 존재하는 Candle 테이블의 연도 목록 조회 (캐싱)
-     */
-    private function getExistingCandleYears(string $dbName): array
-    {
-        $cacheKey = Cache::key('stock_candle_years', $dbName);
-        $cached = $this->cache->get($cacheKey);
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $rows = $this->db->fetchAll(
-            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema AND TABLE_NAME LIKE 'Candle%'",
-            [':schema' => $dbName]
-        );
-
-        $years = [];
-        foreach ($rows as $row) {
-            if (preg_match('/^Candle(\d{4})$/', $row['TABLE_NAME'], $m)) {
-                $years[] = (int)$m[1];
-            }
-        }
-        sort($years);
-
-        $this->cache->set($cacheKey, $years, 3600); // 1시간 캐시
-        return $years;
-    }
-
-    /**
-     * 특정 주식 DB에 존재하는 Raw 테이블의 연도 목록 조회 (캐싱)
-     */
-    private function getExistingRawYears(string $dbName): array
-    {
-        $cacheKey = Cache::key('stock_raw_years', $dbName);
-        $cached = $this->cache->get($cacheKey);
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $rows = $this->db->fetchAll(
-            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema AND TABLE_NAME LIKE 'Raw%'",
-            [':schema' => $dbName]
-        );
-
-        $years = [];
-        foreach ($rows as $row) {
-            if (preg_match('/^Raw(\d{4})$/', $row['TABLE_NAME'], $m)) {
-                $years[] = (int)$m[1];
-            }
-        }
-        sort($years);
-
-        $this->cache->set($cacheKey, $years, 3600); // 1시간 캐시
-        return $years;
     }
 
     /**
@@ -459,39 +433,25 @@ class Stock
             return $cached;
         }
 
-        $dbName = $this->resolveStockDbName($stockCode);
-        if ($dbName === null) {
+        $tickSource = $this->resolveTickSource($stockCode);
+        if ($tickSource === null) {
             return [];
         }
 
-        $year = (int)date('Y');
-        
-        // 현재 연도 → 이전 연도 순으로 Raw 테이블 조회 (아카이브 대응)
-        $existingRawYears = $this->getExistingRawYears($dbName);
-        $yearsToTry = [$year, $year - 1];
-        
         try {
-            foreach ($yearsToTry as $y) {
-                if (!in_array($y, $existingRawYears, true)) {
-                    continue;
-                }
+            $sql = "SELECT execution_datetime, execution_price,
+                           execution_non_volume, execution_ask_volume, execution_bid_volume
+                    FROM `{$tickSource['schema']}`.`{$tickSource['table']}`
+                    ORDER BY execution_datetime DESC
+                    LIMIT :limit";
 
-                $tableName = "Raw{$y}";
-                $sql = "SELECT execution_datetime, execution_price, 
-                               execution_non_volume, execution_ask_volume, execution_bid_volume
-                        FROM `{$dbName}`.`{$tableName}`
-                        ORDER BY execution_datetime DESC
-                        LIMIT :limit";
-                
-                $executions = $this->db->fetchAll($sql, [':limit' => $limit]);
-                
-                if (!empty($executions)) {
-                    $this->cache->set($cacheKey, $executions, 10); // 10초 캐시
-                    return $executions;
-                }
+            $executions = $this->db->fetchAll($sql, [':limit' => $limit]);
+
+            if (!empty($executions)) {
+                $this->cache->set($cacheKey, $executions, 10); // 10초 캐시
             }
-            
-            return [];
+
+            return $executions;
         } catch (\Exception $e) {
             return [];
         }
@@ -559,114 +519,158 @@ class Stock
 
     /**
      * 거래대금 기준 상위 주식 조회
-     * 모든 Z_Stock 데이터베이스의 최근 캔들 데이터를 UNION ALL로 집계
+     * candle 스키마의 테이블 목록을 일괄 조회 후 UNION ALL로 집계 (N+1 → 3회 쿼리)
      */
     private function getTopStocksByTradingAmount(int $limit, string $market): array
     {
-        $year = date('Y');
-
-        // 수집 중인 종목 코드 목록 조회 (stock_last_ws_query 기준)
-        $wsCacheKey = Cache::key('stock_ws_query_codes');
-        $wsCodes = $this->cache->get($wsCacheKey);
-        if ($wsCodes === null) {
-            $wsRows = $this->db->fetchAll("SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query");
-            $wsCodes = array_map(function ($r) { return $r['stock_code']; }, $wsRows);
-            $this->cache->set($wsCacheKey, $wsCodes, 600); // 10분 캐시
-        }
-
-        // 현재 연도의 캔들 테이블을 가진 주식 데이터베이스 목록 (캐싱)
-        $dbsCacheKey = Cache::key('stock_dbs_with_candle', $year);
-        $dbs = $this->cache->get($dbsCacheKey);
-        if ($dbs === null) {
-            $dbs = $this->db->fetchAll(
-                "SELECT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_NAME = :table AND TABLE_SCHEMA LIKE 'Z\\_Stock%'",
-                [':table' => "Candle{$year}"]
-            );
-            $this->cache->set($dbsCacheKey, $dbs, 3600); // 1시간 캐시
-        }
-
-        if (empty($dbs)) {
-            return [];
-        }
-
         // 거래대금 합산 기간
-        // - 전체 시장: 최근 3일(실시간성 우선)
-        // - 시장 필터: 최근 30일(시장별 종목 수가 너무 적어지는 문제 방지)
         $lookbackDays = ($market !== '') ? 30 : 3;
         $lookback = date('Y-m-d', strtotime("-{$lookbackDays} days"));
-        $unions = [];
 
-        foreach ($dbs as $row) {
-            $schema = $row['TABLE_SCHEMA'];
-            // 스키마 이름 검증 (알파벳, 숫자, 언더스코어만 허용)
-            if (!preg_match('/^Z_Stock[A-Za-z0-9_]+$/', $schema)) {
-                continue;
+        // 1) candle 스키마의 주식 테이블 목록 일괄 조회
+        $candleTables = $this->db->fetchAll(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = 'candle' AND TABLE_NAME LIKE 's%'"
+        );
+        if (empty($candleTables)) {
+            return [];
+        }
+        $tableSet = [];
+        foreach ($candleTables as $row) {
+            $name = $row['TABLE_NAME'];
+            if (preg_match('/^[A-Za-z0-9_]+$/', $name)) {
+                $tableSet[$name] = true;
             }
-            $code = preg_replace('/^Z_Stock_?/', '', $schema);
-
-            // 수집 중인 종목만 포함 (stock_last_ws_query에 등록된 것)
-            $codeWithDot = str_replace('_', '.', $code);
-            if (!in_array($code, $wsCodes, true) && !in_array($codeWithDot, $wsCodes, true)) {
-                continue;
-            }
-            $unions[] = sprintf(
-                "SELECT '%s' AS stock_code, COALESCE(SUM(execution_non_amount + execution_ask_amount + execution_bid_amount), 0) AS total_amount FROM `%s`.`Candle%s` WHERE execution_datetime >= '%s'",
-                addslashes($code),
-                $schema,
-                $year,
-                $lookback
-            );
         }
 
-        if (empty($unions)) {
+        // 2) 수집 중인 종목 코드 조회 (시장별 사전 필터링으로 불필요한 집계 제거)
+        $wsSQL = "SELECT DISTINCT wsq.stock_code
+                  FROM KoreaInvest.stock_last_ws_query wsq";
+        $wsParams = [];
+        if ($market !== '') {
+            $wsSQL .= " INNER JOIN KoreaInvest.stock_info si ON wsq.stock_code = si.stock_code";
+            if ($market === 'KR') {
+                $wsSQL .= " WHERE si.stock_market IN ('KOSPI', 'KOSDAQ', 'KONEX')";
+            } elseif ($market === 'US') {
+                $wsSQL .= " WHERE si.stock_market IN ('NYSE', 'NASDAQ', 'AMEX')";
+            } else {
+                $wsSQL .= " WHERE UPPER(si.stock_market) = :market";
+                $wsParams[':market'] = strtoupper(trim($market));
+            }
+        }
+        $wsRows = $this->db->fetchAll($wsSQL, $wsParams);
+        if (empty($wsRows)) {
             return [];
         }
 
-        $fetchLimit = max($limit * 3, 30);
-        $whereClauses = [
-            'si.stock_code IS NOT NULL'
-        ];
-        $params = [];
+        // 3) 종목코드 → 캔들 테이블 매핑 (PHP side, DB 쿼리 없음)
+        $codeToTable = [];
+        foreach ($wsRows as $row) {
+            $code = $row['stock_code'] ?? '';
+            if ($code === '') continue;
 
-        if ($market === '') {
-            $whereClauses[] = 'sub.total_amount > 0';
-        }
-
-        if ($market !== '') {
-            if ($market === 'KR') {
-                $whereClauses[] = "si.stock_market IN ('KOSPI', 'KOSDAQ', 'KONEX')";
-            } elseif ($market === 'US') {
-                $whereClauses[] = "si.stock_market IN ('NYSE', 'NASDAQ', 'AMEX')";
-            } else {
-                $whereClauses[] = 'UPPER(si.stock_market) = :market';
-                $params[':market'] = strtoupper(trim($market));
+            $upper = strtoupper($code);
+            $candidates = array_unique([
+                's' . $upper,
+                's' . str_replace(['.', '/'], '_', $upper),
+                's' . str_replace(['.', '/'], '', $upper),
+            ]);
+            foreach ($candidates as $candidate) {
+                if (isset($tableSet[$candidate])) {
+                    $codeToTable[$code] = $candidate;
+                    break;
+                }
             }
         }
 
-        $sql = "SELECT sub.stock_code, sub.total_amount,
-                       si.stock_name_kr, si.stock_name_en, si.stock_market,
-                       si.stock_price, si.stock_capitalization
-                FROM (" . implode(' UNION ALL ', $unions) . ") sub
-                LEFT JOIN KoreaInvest.stock_info si
-                    ON si.stock_code = sub.stock_code
-                    OR si.stock_code = REPLACE(sub.stock_code, '_', '.')
-                WHERE " . implode(' AND ', $whereClauses) . "
-                ORDER BY sub.total_amount DESC
-                LIMIT {$fetchLimit}";
+        if (empty($codeToTable)) {
+            return [];
+        }
 
-        $results = $this->db->fetchAll($sql, $params);
+        // 4) UNION ALL로 거래대금 일괄 집계 (N개 개별 쿼리 → 1회 쿼리)
+        $unionParts = [];
+        $safeLookback = date('Y-m-d', strtotime($lookback));
+        foreach ($codeToTable as $code => $table) {
+            $safeCode = str_replace("'", "''", $code);
+            $unionParts[] = "SELECT '{$safeCode}' AS stock_code,
+                                    COALESCE(SUM(execution_non_amount + execution_ask_amount + execution_bid_amount), 0) AS total_amount
+                             FROM `candle`.`{$table}`
+                             WHERE execution_datetime >= '{$safeLookback}'";
+        }
 
-        // 시장 필터 시, 캔들 스키마 기반 결과가 부족하면 stock_info에서 보충
+        try {
+            $unionSql = implode("\nUNION ALL\n", $unionParts);
+            $aggregatedRows = $this->db->fetchAll($unionSql);
+        } catch (\Exception $e) {
+            return [];
+        }
+
+        $aggregated = [];
+        foreach ($aggregatedRows as $row) {
+            $amount = (float)($row['total_amount'] ?? 0);
+            if ($amount > 0) {
+                $aggregated[$row['stock_code']] = $amount;
+            }
+        }
+
+        if (empty($aggregated)) {
+            return [];
+        }
+
+        arsort($aggregated);
+        $topCodes = array_slice(array_keys($aggregated), 0, max($limit * 3, 30));
+
+        if (empty($topCodes)) {
+            return [];
+        }
+
+        $codePlaceholders = [];
+        $detailParams = [];
+        foreach ($topCodes as $i => $code) {
+            $ph = ':code' . $i;
+            $codePlaceholders[] = $ph;
+            $detailParams[$ph] = $code;
+        }
+
+        $detailSql = "SELECT si.stock_code,
+                             si.stock_name_kr,
+                             si.stock_name_en,
+                             si.stock_market,
+                             si.stock_price,
+                             si.stock_capitalization
+                      FROM KoreaInvest.stock_info si
+                      WHERE si.stock_code IN (" . implode(', ', $codePlaceholders) . ")";
+
+        $detailRows = $this->db->fetchAll($detailSql, $detailParams);
+        if (empty($detailRows)) {
+            return [];
+        }
+
+        $detailByCode = [];
+        foreach ($detailRows as $row) {
+            $detailByCode[$row['stock_code']] = $row;
+        }
+
+        $results = [];
+        foreach ($aggregated as $code => $amount) {
+            if (!isset($detailByCode[$code])) {
+                continue;
+            }
+            $item = $detailByCode[$code];
+            $item['total_amount'] = $amount;
+            $results[] = $item;
+
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        // 부족하면 stock_info에서 시가총액 기준으로 보충
         if ($market !== '' && count($results) < $limit) {
             $need = $limit - count($results);
-            $existingCodes = array_values(array_filter(array_map(static function ($row) {
-                return $row['stock_code'] ?? null;
-            }, $results)));
+            $existingCodes = array_column($results, 'stock_code');
 
-            $fillParams = [
-                ':limit_fill' => $need,
-            ];
-
+            $fillParams = [':limit_fill' => $need];
             $excludeSql = '';
             if (!empty($existingCodes)) {
                 $placeholders = [];
@@ -678,7 +682,6 @@ class Stock
                 $excludeSql = ' AND si.stock_code NOT IN (' . implode(', ', $placeholders) . ')';
             }
 
-            // 한국/미국 그룹 필터
             if ($market === 'KR') {
                 $marketFilter = "si.stock_market IN ('KOSPI', 'KOSDAQ', 'KONEX')";
             } elseif ($market === 'US') {
@@ -688,13 +691,9 @@ class Stock
                 $fillParams[':market_fill'] = strtoupper(trim($market));
             }
 
-            $fillSql = "SELECT si.stock_code,
-                               0 AS total_amount,
-                               si.stock_name_kr,
-                               si.stock_name_en,
-                               si.stock_market,
-                               si.stock_price,
-                               si.stock_capitalization
+            $fillSql = "SELECT si.stock_code, 0 AS total_amount,
+                               si.stock_name_kr, si.stock_name_en, si.stock_market,
+                               si.stock_price, si.stock_capitalization
                         FROM KoreaInvest.stock_info si
                         INNER JOIN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) wsq
                             ON si.stock_code = wsq.stock_code
