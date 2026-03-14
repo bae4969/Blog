@@ -3,21 +3,26 @@
     <div class="market-stats-horizontal">
             <?php if (!empty($marketStats)): ?>
                 <?php foreach ($marketStats as $stat): ?>
-                    <?php if (!in_array($stat['market_group'], ['KR', 'US'], true)) { continue; } ?>
+                    <?php if (!in_array($stat['market_group'], ['KR', 'US', 'COIN'], true)) { continue; } ?>
                     <?php $isUS = ($stat['market_group'] === 'US'); ?>
+                    <?php $isCoin = ($stat['market_group'] === 'COIN'); ?>
                     <div class="market-stat-item-h <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
                          onclick="location.href='/stocks?market=<?= urlencode($stat['market_group']) ?>'">
                         <div class="market-name"><?= $view->escape($stat['market_label']) ?></div>
                         <div class="market-info">
-                            <span class="market-count"><?= number_format($stat['stock_count']) ?>종목</span>
+                            <span class="market-count"><?= number_format($stat['stock_count']) ?><?= $isCoin ? '종목' : '종목' ?></span>
                             <span class="market-sep">·</span>
                             <?php 
                             if ($isUS) {
-                                $capValue = $stat['total_cap'] / 1000000000; // Billion
+                                $capValue = $stat['total_cap'] / 1000000000;
                                 $capUnit = 'B';
                             } else {
-                                $capValue = $stat['total_cap'] / 1000000000000; // 조
-                                $capUnit = '조';
+                                $cap = $stat['total_cap'];
+                                if ($cap >= 1e20) { $capValue = $cap / 1e20; $capUnit = '해'; }
+                                elseif ($cap >= 1e16) { $capValue = $cap / 1e16; $capUnit = '경'; }
+                                elseif ($cap >= 1e12) { $capValue = $cap / 1e12; $capUnit = '조'; }
+                                elseif ($cap >= 1e8) { $capValue = $cap / 1e8; $capUnit = '억'; }
+                                else { $capValue = $cap; $capUnit = ''; }
                             }
                             ?>
                             <span class="market-cap"><?= $isUS ? '$' : '' ?><?= number_format($capValue, 2) ?><?= $capUnit ?></span>
@@ -54,17 +59,17 @@
                         <th>유형</th>
                         <th>현재가</th>
                         <th>시가총액</th>
-                        <th>상장주식수</th>
+                        <th><?= $currentMarket === 'COIN' ? '총 발행량' : '상장주식수' ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($stocks)): ?>
                         <tr>
-                            <td colspan="7" class="no-data">조회된 주식이 없습니다.</td>
+                            <td colspan="7" class="no-data">조회된 종목이 없습니다.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($stocks as $stock): ?>
-                            <tr class="stock-row" onclick="location.href='/stocks/view?code=<?= urlencode($stock['stock_code']) ?>'">
+                            <tr class="stock-row" onclick="location.href='/stocks/view?code=<?= urlencode($stock['stock_code']) ?><?= $currentMarket === 'COIN' ? '&market=COIN' : '' ?>'">
                                 <td class="stock-name-cell">
                                     <div class="stock-name-kr"><?= $view->escape($stock['stock_name_kr']) ?></div>
                                     <?php if ($stock['stock_name_en']): ?>
@@ -75,29 +80,37 @@
                                 <td><span class="market-badge"><?= $view->escape($stock['stock_market']) ?></span></td>
                                 <td><span class="type-badge type-<?= strtolower($stock['stock_type']) ?>"><?= $view->escape($stock['stock_type']) ?></span></td>
                                 <?php $isUSMarket = in_array($stock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
+                                <?php $isCoinMarket = (($stock['stock_type'] ?? '') === 'COIN'); ?>
                                 <td class="stock-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'] ?? 0, $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '원' ?></td>
-                                <td class="stock-cap"><?= $isUSMarket ? '$' : '' ?><?= number_format(($stock['stock_capitalization'] ?? 0) / ($isUSMarket ? 1000000000 : 1000000000000), $isUSMarket ? 2 : 2) ?><?= $isUSMarket ? 'B' : '조' ?></td>
+                                <td class="stock-cap"><?php
+                                    $cap = (float)($stock['stock_capitalization'] ?? 0);
+                                    if ($isUSMarket) {
+                                        echo '$' . number_format($cap / 1e9, 2) . 'B';
+                                    } elseif ($cap >= 1e20) {
+                                        echo number_format($cap / 1e20, 2) . '해';
+                                    } elseif ($cap >= 1e16) {
+                                        echo number_format($cap / 1e16, 2) . '경';
+                                    } elseif ($cap >= 1e12) {
+                                        echo number_format($cap / 1e12, 2) . '조';
+                                    } elseif ($cap >= 1e8) {
+                                        echo number_format($cap / 1e8, 0) . '억';
+                                    } else {
+                                        echo number_format($cap, 0);
+                                    }
+                                ?></td>
                                 <td><?php 
                                     if (!empty($stock['stock_count']) && $stock['stock_count'] > 0) {
-                                        $count = $stock['stock_count'];
-                                        if ($isUSMarket) {
-                                            if ($count >= 1000000000) {
-                                                echo number_format($count / 1000000000, 2) . 'B';
-                                            } elseif ($count >= 1000000) {
-                                                echo number_format($count / 1000000, 2) . 'M';
-                                            } elseif ($count >= 1000) {
-                                                echo number_format($count / 1000, 2) . 'K';
-                                            } else {
-                                                echo number_format($count);
-                                            }
+                                        $count = (float)$stock['stock_count'];
+                                        if ($count >= 1e16) {
+                                            echo number_format($count / 1e16, 2) . '경';
+                                        } elseif ($count >= 1e12) {
+                                            echo number_format($count / 1e12, 2) . '조';
+                                        } elseif ($count >= 1e8) {
+                                            echo number_format($count / 1e8, 1) . '억';
+                                        } elseif ($count >= 1e4) {
+                                            echo number_format($count / 1e4, 1) . '만';
                                         } else {
-                                            if ($count >= 100000000) {
-                                                echo number_format($count / 100000000, 1) . '억';
-                                            } elseif ($count >= 10000) {
-                                                echo number_format($count / 10000, 1) . '만';
-                                            } else {
-                                                echo number_format($count);
-                                            }
+                                            echo number_format($count);
                                         }
                                     } else {
                                         echo '-';
@@ -152,7 +165,11 @@
                                 <?php
                                     $isUSMarket = in_array($topStock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']);
                                     $amount = (float)($topStock['total_amount'] ?? 0);
-                                    if ($amount >= 1e12) {
+                                    if ($amount >= 1e20) {
+                                        $amountStr = number_format($amount / 1e20, 1) . '해';
+                                    } elseif ($amount >= 1e16) {
+                                        $amountStr = number_format($amount / 1e16, 1) . '경';
+                                    } elseif ($amount >= 1e12) {
                                         $amountStr = number_format($amount / 1e12, 1) . '조';
                                     } elseif ($amount >= 1e8) {
                                         $amountStr = number_format($amount / 1e8, 0) . '억';

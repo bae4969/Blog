@@ -1,6 +1,6 @@
 {
   "name": "php-blog-frontend",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Frontend dependencies for PHP Blog",
   "main": "index.js",
   "scripts": {
