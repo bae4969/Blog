@@ -1,30 +1,56 @@
+<?php
+$totalUsers = count($users);
+$activeUsers = 0;
+$inactiveUsers = 0;
+foreach ($users as $u) {
+    if ((int)$u['user_state'] === 0) $activeUsers++;
+    else $inactiveUsers++;
+}
+?>
 <div class="admin-content">
     <h2>사용자 관리</h2>
+
+    <div class="admin-summary-stats">
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">전체 사용자</span>
+            <strong class="admin-stat-value"><?= $totalUsers ?></strong>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">활성</span>
+            <strong class="admin-stat-value stat-active"><?= $activeUsers ?></strong>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">비활성</span>
+            <strong class="admin-stat-value stat-inactive"><?= $inactiveUsers ?></strong>
+        </div>
+    </div>
 
     <!-- 사용자 생성 폼 -->
     <div class="admin-card">
         <h3>새 사용자 생성</h3>
         <form method="post" action="/admin/users/create" class="admin-form" id="createUserForm">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-            <div class="admin-form-row">
-                <label>아이디</label>
-                <input type="text" name="user_id" required minlength="2" maxlength="50" placeholder="아이디 입력">
-            </div>
-            <div class="admin-form-row">
-                <label>비밀번호</label>
-                <input type="password" name="user_pw" id="createPasswordField" required placeholder="비밀번호 입력">
-            </div>
-            <div class="admin-form-row">
-                <label>권한</label>
-                <select name="user_level">
-                    <?php foreach ($levelLabels as $lv => $label): ?>
-                        <option value="<?= $lv ?>" <?= $lv === 4 ? 'selected' : '' ?>><?= $lv ?> - <?= $view->escape($label) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="admin-form-row">
-                <label>게시글 제한</label>
-                <input type="number" name="user_posting_limit" value="10" min="0" max="10000">
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label>아이디</label>
+                    <input type="text" name="user_id" required minlength="2" maxlength="50" placeholder="아이디 입력">
+                </div>
+                <div class="admin-form-field">
+                    <label>비밀번호</label>
+                    <input type="password" name="user_pw" id="createPasswordField" required placeholder="비밀번호 입력">
+                </div>
+                <div class="admin-form-field">
+                    <label>권한</label>
+                    <select name="user_level">
+                        <?php foreach ($levelLabels as $lv => $label): ?>
+                            <option value="<?= $lv ?>" <?= $lv === 4 ? 'selected' : '' ?>><?= $lv ?> - <?= $view->escape($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="admin-form-field">
+                    <label>게시글 제한</label>
+                    <input type="number" name="user_posting_limit" value="10" min="0" max="10000">
+                </div>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">생성</button>
@@ -34,7 +60,7 @@
 
     <!-- 사용자 목록 -->
     <div class="admin-card">
-        <h3>사용자 목록 (<?= count($users) ?>명)</h3>
+        <h3>사용자 목록</h3>
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
