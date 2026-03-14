@@ -17,12 +17,30 @@ class Stock
     }
 
     /**
-     * candle.s{Symbol} 소스 resolve
+     * 코인 코드 여부 판별 (Bithumb.coin_info 존재 확인, 캐시)
+     */
+    public function isCoinCode(string $code): bool
+    {
+        $cacheKey = Cache::key('coin_code_set');
+        $coinSet = $this->cache->get($cacheKey);
+        if ($coinSet === null) {
+            $rows = $this->db->fetchAll("SELECT coin_code FROM Bithumb.coin_info");
+            $coinSet = [];
+            foreach ($rows as $row) {
+                $coinSet[$row['coin_code']] = true;
+            }
+            $this->cache->set($cacheKey, $coinSet, 1800);
+        }
+        return isset($coinSet[$code]);
+    }
+
+    /**
+     * candle 스키마 소스 resolve (주식: s{Symbol}, 코인: c{Symbol})
      * @return array{schema: string, table: string}|null
      */
-    private function resolveCandleSource(string $stockCode): ?array
+    private function resolveCandleSource(string $stockCode, string $prefix = 's'): ?array
     {
-        $cacheKey = Cache::key('stock_candle_source', $stockCode);
+        $cacheKey = Cache::key('stock_candle_source', $prefix, $stockCode);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached ?: null;
@@ -33,9 +51,9 @@ class Stock
         $normalizedNoDot = str_replace(['.', '/'], '', $code);
 
         $candidates = array_values(array_unique([
-            's' . $code,
-            's' . $normalizedUnderscore,
-            's' . $normalizedNoDot,
+            $prefix . $code,
+            $prefix . $normalizedUnderscore,
+            $prefix . $normalizedNoDot,
         ]));
 
         // 후보가 3개 미만이면 패딩
@@ -66,12 +84,12 @@ class Stock
     }
 
     /**
-     * tick.s{Symbol} 소스 resolve (체결 데이터용)
+     * tick 스키마 소스 resolve (주식: s{Symbol}, 코인: c{Symbol})
      * @return array{schema: string, table: string}|null
      */
-    private function resolveTickSource(string $stockCode): ?array
+    private function resolveTickSource(string $stockCode, string $prefix = 's'): ?array
     {
-        $cacheKey = Cache::key('stock_tick_source', $stockCode);
+        $cacheKey = Cache::key('stock_tick_source', $prefix, $stockCode);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached ?: null;
@@ -82,9 +100,9 @@ class Stock
         $normalizedNoDot = str_replace(['.', '/'], '', $code);
 
         $candidates = array_values(array_unique([
-            's' . $code,
-            's' . $normalizedUnderscore,
-            's' . $normalizedNoDot,
+            $prefix . $code,
+            $prefix . $normalizedUnderscore,
+            $prefix . $normalizedNoDot,
         ]));
 
         while (count($candidates) < 3) {
@@ -132,7 +150,7 @@ class Stock
     }
 
     /**
-     * 주식 목록 + 총 개수를 한 번에 조회 (DB 라운드트립 1회로 감소)
+     * 주식/코인 목록 + 총 개수를 한 번에 조회 (DB 라운드트립 1회로 감소)
      */
     public function getStockListWithCount(int $page = 1, int $perPage = 50, string $market = '', string $search = ''): array
     {
@@ -142,6 +160,11 @@ class Stock
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached;
+        }
+
+        // 코인 시장은 별도 쿼리
+        if ($market === 'COIN') {
+            return $this->getCoinListWithCount($page, $perPage, $search);
         }
 
         $params = [];
@@ -199,44 +222,145 @@ class Stock
     }
 
     /**
-     * 특정 주식 상세 정보 조회
+     * 코인 목록 + 총 개수 조회 (Bithumb.coin_info)
      */
-    public function getStockByCode(string $stockCode): ?array
+    private function getCoinListWithCount(int $page, int $perPage, string $search): array
     {
-        $cacheKey = Cache::key('stock_detail', $stockCode);
+        $offset = ($page - 1) * $perPage;
+
+        $cacheKey = Cache::key('coin_list_count', $page, $perPage, $search);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached;
+        }
+
+        $params = [];
+        $whereClauses = [];
+
+        if ($search !== '') {
+            $whereClauses[] = '(ci.coin_code LIKE :search_code OR ci.coin_name_kr LIKE :search_name_kr OR ci.coin_name_en LIKE :search_name_en)';
+            $searchValue = '%' . $search . '%';
+            $params[':search_code'] = $searchValue;
+            $params[':search_name_kr'] = $searchValue;
+            $params[':search_name_en'] = $searchValue;
+        }
+
+        $whereSQL = !empty($whereClauses) ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
+
+        $fromSQL = "Bithumb.coin_info ci
+                    INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) cwq
+                        ON ci.coin_code = cwq.coin_code";
+
+        $countResult = $this->db->fetch("SELECT COUNT(*) as count FROM $fromSQL $whereSQL", $params);
+        $total = (int)($countResult['count'] ?? 0);
+
+        $sql = "SELECT ci.coin_code AS stock_code,
+                       ci.coin_name_kr AS stock_name_kr,
+                       ci.coin_name_en AS stock_name_en,
+                       'Bithumb' AS stock_market,
+                       'COIN' AS stock_type,
+                       ci.coin_price AS stock_price,
+                       (ci.coin_price * ci.coin_amount) AS stock_capitalization,
+                       ci.coin_amount AS stock_count,
+                       ci.coin_update AS stock_update
+                FROM $fromSQL
+                $whereSQL
+                ORDER BY (ci.coin_price * ci.coin_amount) DESC
+                LIMIT :limit OFFSET :offset";
+
+        $params[':limit'] = $perPage;
+        $params[':offset'] = $offset;
+
+        $stocks = $this->db->fetchAll($sql, $params);
+
+        $result = ['stocks' => $stocks, 'total' => $total];
+        $this->cache->set($cacheKey, $result, 300);
+
+        return $result;
+    }
+
+    /**
+     * 특정 주식/코인 상세 정보 조회
+     * $market='COIN'이면 Bithumb 우선, 그 외에는 KoreaInvest 우선 후 폴백
+     */
+    public function getStockByCode(string $stockCode, string $market = ''): ?array
+    {
+        $cacheKey = Cache::key('stock_detail', $stockCode, $market);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        if ($market === 'COIN') {
+            // 코인 우선 조회
+            $coin = $this->fetchCoinByCode($stockCode);
+            if ($coin) {
+                $this->cache->set($cacheKey, $coin, 300);
+                return $coin;
+            }
         }
 
         $sql = "SELECT * FROM KoreaInvest.stock_info WHERE stock_code = :stock_code";
         $stock = $this->db->fetch($sql, [':stock_code' => $stockCode]);
         
         if ($stock) {
-            $this->cache->set($cacheKey, $stock, 300); // 5분 캐시
+            $this->cache->set($cacheKey, $stock, 300);
+            return $stock;
         }
-        
-        return $stock ?: null;
+
+        // 코인 폴백 (market이 명시되지 않은 경우)
+        if ($market !== 'COIN') {
+            $coin = $this->fetchCoinByCode($stockCode);
+            if ($coin) {
+                $this->cache->set($cacheKey, $coin, 300);
+                return $coin;
+            }
+        }
+
+        return null;
     }
 
     /**
-     * 주식 캔들 데이터 조회 (차트용)
+     * Bithumb.coin_info에서 코인 조회
+     */
+    private function fetchCoinByCode(string $coinCode): ?array
+    {
+        $coinSql = "SELECT ci.coin_code AS stock_code,
+                           ci.coin_name_kr AS stock_name_kr,
+                           ci.coin_name_en AS stock_name_en,
+                           'Bithumb' AS stock_market,
+                           'COIN' AS stock_type,
+                           ci.coin_price AS stock_price,
+                           (ci.coin_price * ci.coin_amount) AS stock_capitalization,
+                           ci.coin_amount AS stock_count,
+                           ci.coin_update AS stock_update
+                    FROM Bithumb.coin_info ci
+                    WHERE ci.coin_code = :coin_code";
+        $coin = $this->db->fetch($coinSql, [':coin_code' => $coinCode]);
+        return $coin ?: null;
+    }
+
+    /**
+     * 주식/코인 캔들 데이터 조회 (차트용)
      * limit에 미달하면 자동으로 이전 시간대를 포함해서 조회
      */
-    public function getCandleData(string $stockCode, string $startDate, string $endDate, int $limit = 500, string $timeframe = '1h'): array
+    public function getCandleData(string $stockCode, string $startDate, string $endDate, int $limit = 500, string $timeframe = '1h', string $market = ''): array
     {
-        $cacheKey = Cache::key('stock_candle', $stockCode, $startDate, $endDate, $limit, $timeframe);
+        $cacheKey = Cache::key('stock_candle', $stockCode, $startDate, $endDate, $limit, $timeframe, $market);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached;
         }
 
-        $candleSource = $this->resolveCandleSource($stockCode);
+        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $prefix = $isCoin ? 'c' : 's';
+
+        $candleSource = $this->resolveCandleSource($stockCode, $prefix);
         if ($candleSource === null) {
             return [];
         }
 
-        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe);
+        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin);
         
         $this->cache->set($cacheKey, $candles, 60); // 1분 캐시
         
@@ -247,7 +371,7 @@ class Stock
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
      * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
      */
-    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe): array
+    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false): array
     {
         $currentStart = $startDate;
         $allRows = [];
@@ -293,9 +417,9 @@ class Stock
                     });
                 }
 
-                // 필터링 + 집계
+                // 필터링 + 집계 (코인은 24시간 거래이므로 정규장 필터 제외)
                 $candles = $allRows;
-                if ($this->isSubDailyTimeframe($timeframe)) {
+                if (!$isCoin && $this->isSubDailyTimeframe($timeframe)) {
                     $candles = array_values($this->filterRegularTradingHours($candles));
                 }
                 $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
@@ -314,7 +438,7 @@ class Stock
 
             // 마지막 결과 반환
             $candles = $allRows;
-            if ($this->isSubDailyTimeframe($timeframe)) {
+            if (!$isCoin && $this->isSubDailyTimeframe($timeframe)) {
                 $candles = array_values($this->filterRegularTradingHours($candles));
             }
             $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
@@ -425,15 +549,18 @@ class Stock
     /**
      * 실시간 체결 데이터 조회 (최근 N건)
      */
-    public function getRecentExecutions(string $stockCode, int $limit = 100): array
+    public function getRecentExecutions(string $stockCode, int $limit = 100, string $market = ''): array
     {
-        $cacheKey = Cache::key('stock_executions', $stockCode, $limit);
+        $cacheKey = Cache::key('stock_executions', $stockCode, $limit, $market);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
             return $cached;
         }
 
-        $tickSource = $this->resolveTickSource($stockCode);
+        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $prefix = $isCoin ? 'c' : 's';
+
+        $tickSource = $this->resolveTickSource($stockCode, $prefix);
         if ($tickSource === null) {
             return [];
         }
@@ -458,7 +585,7 @@ class Stock
     }
 
     /**
-     * 시장별 주식 통계
+     * 시장별 주식/코인 통계
      */
     public function getMarketStats(): array
     {
@@ -485,15 +612,22 @@ class Stock
                 INNER JOIN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) wsq
                     ON si.stock_code = wsq.stock_code
                 GROUP BY market_group, market_label
-                ORDER BY CASE 
-                    WHEN si.stock_market IN ('KOSPI', 'KOSDAQ', 'KONEX') THEN 1
-                    WHEN si.stock_market IN ('NYSE', 'NASDAQ', 'AMEX') THEN 2
-                    ELSE 99
-                END";
+
+                UNION ALL
+
+                SELECT 'COIN' AS market_group,
+                       '코인' AS market_label,
+                       COUNT(*) AS stock_count,
+                       SUM(ci.coin_price * ci.coin_amount) AS total_cap
+                FROM Bithumb.coin_info ci
+                INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) cwq
+                    ON ci.coin_code = cwq.coin_code
+
+                ORDER BY FIELD(market_group, 'KR', 'US', 'COIN', 'ETC')";
         
         $stats = $this->db->fetchAll($sql);
         
-        $this->cache->set($cacheKey, $stats, 1800); // 30분 캐시 (시장 통계는 변경이 드묾)
+        $this->cache->set($cacheKey, $stats, 1800);
         
         return $stats;
     }
@@ -518,11 +652,15 @@ class Stock
     }
 
     /**
-     * 거래대금 기준 상위 주식 조회
+     * 거래대금 기준 상위 주식/코인 조회
      * candle 스키마의 테이블 목록을 일괄 조회 후 UNION ALL로 집계 (N+1 → 3회 쿼리)
      */
     private function getTopStocksByTradingAmount(int $limit, string $market): array
     {
+        if ($market === 'COIN') {
+            return $this->getTopCoinsByTradingAmount($limit);
+        }
+
         // 거래대금 합산 기간
         $lookbackDays = ($market !== '') ? 30 : 3;
         $lookback = date('Y-m-d', strtotime("-{$lookbackDays} days"));
@@ -699,6 +837,160 @@ class Stock
                             ON si.stock_code = wsq.stock_code
                         WHERE " . $marketFilter . $excludeSql . "
                         ORDER BY si.stock_capitalization DESC
+                        LIMIT :limit_fill";
+
+            $fillRows = $this->db->fetchAll($fillSql, $fillParams);
+            $results = array_merge($results, $fillRows);
+        }
+
+        return array_slice($results, 0, $limit);
+    }
+
+    /**
+     * 코인 거래대금 기준 상위 조회
+     */
+    private function getTopCoinsByTradingAmount(int $limit): array
+    {
+        $lookback = date('Y-m-d', strtotime('-30 days'));
+
+        // 1) candle 스키마의 코인 테이블 목록 (c prefix)
+        $candleTables = $this->db->fetchAll(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = 'candle' AND TABLE_NAME LIKE 'c%'"
+        );
+        if (empty($candleTables)) {
+            return [];
+        }
+        $tableSet = [];
+        foreach ($candleTables as $row) {
+            $name = $row['TABLE_NAME'];
+            if (preg_match('/^[A-Za-z0-9_]+$/', $name)) {
+                $tableSet[$name] = true;
+            }
+        }
+
+        // 2) 수집 중인 코인 코드 조회
+        $wsRows = $this->db->fetchAll(
+            "SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query"
+        );
+        if (empty($wsRows)) {
+            return [];
+        }
+
+        // 3) 코인코드 → 캔들 테이블 매핑
+        $codeToTable = [];
+        foreach ($wsRows as $row) {
+            $code = $row['coin_code'] ?? '';
+            if ($code === '') continue;
+            $upper = strtoupper($code);
+            $candidate = 'c' . $upper;
+            if (isset($tableSet[$candidate])) {
+                $codeToTable[$code] = $candidate;
+            }
+        }
+
+        if (empty($codeToTable)) {
+            return [];
+        }
+
+        // 4) UNION ALL로 거래대금 집계
+        $unionParts = [];
+        $safeLookback = date('Y-m-d', strtotime($lookback));
+        foreach ($codeToTable as $code => $table) {
+            $safeCode = str_replace("'", "''", $code);
+            $unionParts[] = "SELECT '{$safeCode}' AS stock_code,
+                                    COALESCE(SUM(execution_non_amount + execution_ask_amount + execution_bid_amount), 0) AS total_amount
+                             FROM `candle`.`{$table}`
+                             WHERE execution_datetime >= '{$safeLookback}'";
+        }
+
+        try {
+            $unionSql = implode("\nUNION ALL\n", $unionParts);
+            $aggregatedRows = $this->db->fetchAll($unionSql);
+        } catch (\Exception $e) {
+            return [];
+        }
+
+        $aggregated = [];
+        foreach ($aggregatedRows as $row) {
+            $amount = (float)($row['total_amount'] ?? 0);
+            if ($amount > 0) {
+                $aggregated[$row['stock_code']] = $amount;
+            }
+        }
+
+        if (empty($aggregated)) {
+            return [];
+        }
+
+        arsort($aggregated);
+        $topCodes = array_slice(array_keys($aggregated), 0, max($limit * 3, 30));
+
+        // 상세 정보 조회
+        $codePlaceholders = [];
+        $detailParams = [];
+        foreach ($topCodes as $i => $code) {
+            $ph = ':code' . $i;
+            $codePlaceholders[] = $ph;
+            $detailParams[$ph] = $code;
+        }
+
+        $detailSql = "SELECT ci.coin_code AS stock_code,
+                             ci.coin_name_kr AS stock_name_kr,
+                             ci.coin_name_en AS stock_name_en,
+                             'Bithumb' AS stock_market,
+                             ci.coin_price AS stock_price,
+                             (ci.coin_price * ci.coin_amount) AS stock_capitalization
+                      FROM Bithumb.coin_info ci
+                      WHERE ci.coin_code IN (" . implode(', ', $codePlaceholders) . ")";
+
+        $detailRows = $this->db->fetchAll($detailSql, $detailParams);
+        if (empty($detailRows)) {
+            return [];
+        }
+
+        $detailByCode = [];
+        foreach ($detailRows as $row) {
+            $detailByCode[$row['stock_code']] = $row;
+        }
+
+        $results = [];
+        foreach ($aggregated as $code => $amount) {
+            if (!isset($detailByCode[$code])) continue;
+            $item = $detailByCode[$code];
+            $item['total_amount'] = $amount;
+            $results[] = $item;
+            if (count($results) >= $limit) break;
+        }
+
+        // 부족하면 시총 기준으로 보충
+        if (count($results) < $limit) {
+            $need = $limit - count($results);
+            $existingCodes = array_column($results, 'stock_code');
+
+            $fillParams = [':limit_fill' => $need];
+            $excludeSql = '';
+            if (!empty($existingCodes)) {
+                $placeholders = [];
+                foreach ($existingCodes as $idx => $code) {
+                    $ph = ':exclude_' . $idx;
+                    $placeholders[] = $ph;
+                    $fillParams[$ph] = $code;
+                }
+                $excludeSql = ' AND ci.coin_code NOT IN (' . implode(', ', $placeholders) . ')';
+            }
+
+            $fillSql = "SELECT ci.coin_code AS stock_code, 0 AS total_amount,
+                               ci.coin_name_kr AS stock_name_kr,
+                               ci.coin_name_en AS stock_name_en,
+                               'Bithumb' AS stock_market,
+                               ci.coin_price AS stock_price,
+                               (ci.coin_price * ci.coin_amount) AS stock_capitalization
+                        FROM Bithumb.coin_info ci
+                        INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) cwq
+                            ON ci.coin_code = cwq.coin_code
+                        WHERE 1=1" . $excludeSql . "
+                        ORDER BY (ci.coin_price * ci.coin_amount) DESC
                         LIMIT :limit_fill";
 
             $fillRows = $this->db->fetchAll($fillSql, $fillParams);
