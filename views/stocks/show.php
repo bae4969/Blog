@@ -18,7 +18,9 @@
         <?php $isUSMarket = in_array($stock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
         <?php $isCoinType = (($stock['stock_type'] ?? '') === 'COIN'); ?>
         <div class="stock-price-section">
-            <div class="current-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '<span class="currency">원</span>' ?></div>
+            <div class="current-price">
+                <span id="currentPriceMainValue"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?></span><?= $isUSMarket ? '' : '<span class="currency">원</span>' ?>
+            </div>
             <div class="stock-meta">
                 <span>시가총액: <?php
                     $cap = (float)$stock['stock_capitalization'];
@@ -146,7 +148,7 @@
             </div>
             <div class="info-item">
                 <div class="info-label">현재가</div>
-                <div class="info-value"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '원' ?></div>
+                <div class="info-value"><span id="currentPriceInfoValue"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?></span><?= $isUSMarket ? '' : '원' ?></div>
             </div>
             <div class="info-item">
                 <div class="info-label">시가총액</div>
