@@ -242,7 +242,8 @@ class Cache
      */
     private function getFilePath(string $key): string
     {
-        return $this->cacheDir . '/' . md5($key) . '.cache';
+        $safe = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', $key);
+        return $this->cacheDir . '/' . $safe . '.cache';
     }
 
     /**

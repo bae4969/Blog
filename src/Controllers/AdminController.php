@@ -36,7 +36,7 @@ class AdminController extends BaseController
 
     public function index(): void
     {
-        $this->redirect('/admin/stocks');
+        $this->redirect('/admin/users');
     }
 
     public function users(): void

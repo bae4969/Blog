@@ -14,16 +14,6 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
 ?>
 
 <div class="stock-admin-container">
-    <div class="stock-admin-header">
-        <div class="stock-admin-title">
-            <h2>주식 관리자</h2>
-            <p>user_level 1 이하만 접근 가능하며, 선택한 종목은 실시간 구독 목록으로 전체 저장됩니다.</p>
-        </div>
-        <div class="stock-admin-actions">
-            <a class="stock-admin-link" href="/stocks">공개 주식 페이지로 이동</a>
-        </div>
-    </div>
-
     <div class="stock-admin-summary">
         <div class="stock-admin-card">
             <span class="stock-admin-card-label">현재 필터 결과</span>
