@@ -1,30 +1,50 @@
+<?php
+$totalCategories = count($categories);
+$totalPosts = 0;
+foreach ($categories as $c) {
+    $totalPosts += (int)$c['post_count'];
+}
+?>
 <div class="admin-content">
     <h2>블로그 카테고리 관리</h2>
+
+    <div class="admin-summary-stats">
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">전체 카테고리</span>
+            <strong class="admin-stat-value"><?= $totalCategories ?></strong>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">전체 게시글</span>
+            <strong class="admin-stat-value"><?= number_format($totalPosts) ?></strong>
+        </div>
+    </div>
 
     <!-- 카테고리 생성 폼 -->
     <div class="admin-card">
         <h3>새 카테고리 생성</h3>
         <form method="post" action="/admin/categories/create" class="admin-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-            <div class="admin-form-row">
-                <label>이름</label>
-                <input type="text" name="category_name" required maxlength="50" placeholder="카테고리 이름">
-            </div>
-            <div class="admin-form-row">
-                <label>읽기 권한</label>
-                <select name="category_read_level">
-                    <?php foreach ($levelOptions as $lv => $label): ?>
-                        <option value="<?= $lv ?>" <?= $lv === 4 ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="admin-form-row">
-                <label>쓰기 권한</label>
-                <select name="category_write_level">
-                    <?php foreach ($levelOptions as $lv => $label): ?>
-                        <option value="<?= $lv ?>" <?= $lv === 1 ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label>이름</label>
+                    <input type="text" name="category_name" required maxlength="50" placeholder="카테고리 이름">
+                </div>
+                <div class="admin-form-field">
+                    <label>읽기 권한</label>
+                    <select name="category_read_level">
+                        <?php foreach ($levelOptions as $lv => $label): ?>
+                            <option value="<?= $lv ?>" <?= $lv === 4 ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="admin-form-field">
+                    <label>쓰기 권한</label>
+                    <select name="category_write_level">
+                        <?php foreach ($levelOptions as $lv => $label): ?>
+                            <option value="<?= $lv ?>" <?= $lv === 1 ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">생성</button>
@@ -34,7 +54,7 @@
 
     <!-- 카테고리 목록 -->
     <div class="admin-card">
-        <h3>카테고리 목록 (<?= count($categories) ?>개)</h3>
+        <h3>카테고리 목록</h3>
         <?php if (empty($categories)): ?>
             <p class="admin-placeholder">등록된 카테고리가 없습니다.</p>
         <?php else: ?>

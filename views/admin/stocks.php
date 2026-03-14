@@ -14,8 +14,8 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
 ?>
 
 <div class="stock-admin-container">
-    <h2>캐시 관리</h2>
-    
+    <h2>주식 구독 관리</h2>
+
     <div class="stock-admin-summary">
         <div class="stock-admin-card">
             <span class="stock-admin-card-label">현재 필터 결과</span>

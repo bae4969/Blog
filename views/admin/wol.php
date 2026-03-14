@@ -1,22 +1,31 @@
 <div class="admin-content">
     <h2>WOL (Wake-on-LAN)</h2>
 
+    <div class="admin-summary-stats">
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">등록된 장치</span>
+            <strong class="admin-stat-value"><?= count($devices) ?></strong>
+        </div>
+    </div>
+
     <!-- 장치 등록 -->
     <div class="admin-card">
         <h3>새 장치 등록</h3>
         <form method="post" action="/admin/wol/create" class="admin-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-            <div class="admin-form-row">
-                <label>장치 이름</label>
-                <input type="text" name="device_name" required maxlength="100" placeholder="예: 메인 PC">
-            </div>
-            <div class="admin-form-row">
-                <label>IP 대역</label>
-                <input type="text" name="ip_range" required maxlength="100" placeholder="예: 192.168.0.10 또는 192.168.0.0/24">
-            </div>
-            <div class="admin-form-row">
-                <label>MAC 주소</label>
-                <input type="text" name="mac_address" required maxlength="17" placeholder="예: AA-BB-CC-DD-EE-FF">
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label>장치 이름</label>
+                    <input type="text" name="device_name" required maxlength="100" placeholder="예: 메인 PC">
+                </div>
+                <div class="admin-form-field">
+                    <label>IP 대역</label>
+                    <input type="text" name="ip_range" required maxlength="100" placeholder="예: 192.168.0.10 또는 192.168.0.0/24">
+                </div>
+                <div class="admin-form-field">
+                    <label>MAC 주소</label>
+                    <input type="text" name="mac_address" required maxlength="17" placeholder="예: AA-BB-CC-DD-EE-FF">
+                </div>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">등록</button>
@@ -26,7 +35,7 @@
 
     <!-- 장치 목록 -->
     <div class="admin-card">
-        <h3>장치 목록 (<?= count($devices) ?>대)</h3>
+        <h3>장치 목록</h3>
         <?php if (empty($devices)): ?>
             <p class="admin-placeholder">등록된 장치가 없습니다.</p>
         <?php else: ?>
