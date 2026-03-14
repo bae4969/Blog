@@ -70,7 +70,7 @@
 /* 시장 통계 가로 배치 */
 .market-stats-horizontal {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     margin-bottom: -10px;
 }
@@ -965,7 +965,7 @@
     .market-stats-horizontal {
         grid-column: 1;
         grid-row: 1;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 8px;
         margin-bottom: -8px;
     }
@@ -1025,7 +1025,7 @@
     }
 
     .market-stats-horizontal {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 6px;
         margin-bottom: -6px;
     }
@@ -1174,6 +1174,14 @@
 
     .info-item {
         padding: 12px;
+    }
+}
+
+/* ====== 좁은 화면에서 시장 탭 시총 숨김 (600px 이하) ====== */
+@media (max-width: 600px) {
+    .market-stat-item-h .market-cap,
+    .market-stat-item-h .market-sep {
+        display: none;
     }
 }
 

@@ -1,7 +1,7 @@
 <div class="stock-detail-container">
     <!-- 헤더: 주식 정보 -->
     <div class="stock-detail-header">
-        <button class="back-btn" onclick="location.href='/stocks'">
+        <button class="back-btn" onclick="location.href='/stocks<?= !empty($isCoinMarket) ? '?market=COIN' : '' ?>'">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -16,31 +16,40 @@
             </div>
         </div>
         <?php $isUSMarket = in_array($stock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
+        <?php $isCoinType = (($stock['stock_type'] ?? '') === 'COIN'); ?>
         <div class="stock-price-section">
             <div class="current-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '<span class="currency">원</span>' ?></div>
             <div class="stock-meta">
-                <span>시가총액: <?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_capitalization'] / ($isUSMarket ? 1000000000 : 1000000000000), $isUSMarket ? 2 : 2) ?><?= $isUSMarket ? 'B' : '조원' ?></span>
-                <span>상장주식수: <?php 
+                <span>시가총액: <?php
+                    $cap = (float)$stock['stock_capitalization'];
+                    if ($isUSMarket) {
+                        echo '$' . number_format($cap / 1e9, 2) . 'B';
+                    } elseif ($cap >= 1e20) {
+                        echo number_format($cap / 1e20, 2) . '해원';
+                    } elseif ($cap >= 1e16) {
+                        echo number_format($cap / 1e16, 2) . '경원';
+                    } elseif ($cap >= 1e12) {
+                        echo number_format($cap / 1e12, 2) . '조원';
+                    } elseif ($cap >= 1e8) {
+                        echo number_format($cap / 1e8, 0) . '억원';
+                    } else {
+                        echo number_format($cap, 0) . '원';
+                    }
+                ?></span>
+                <span><?= $isCoinType ? '총 발행량' : '상장주식수' ?>: <?php 
                     if (!empty($stock['stock_count']) && $stock['stock_count'] > 0) {
-                        $count = $stock['stock_count'];
-                        if ($isUSMarket) {
-                            if ($count >= 1000000000) {
-                                echo number_format($count / 1000000000, 2) . 'B';
-                            } elseif ($count >= 1000000) {
-                                echo number_format($count / 1000000, 2) . 'M';
-                            } elseif ($count >= 1000) {
-                                echo number_format($count / 1000, 2) . 'K';
-                            } else {
-                                echo number_format($count);
-                            }
+                        $count = (float)$stock['stock_count'];
+                        $suffix = $isCoinType ? '' : '주';
+                        if ($count >= 1e16) {
+                            echo number_format($count / 1e16, 2) . '경' . $suffix;
+                        } elseif ($count >= 1e12) {
+                            echo number_format($count / 1e12, 2) . '조' . $suffix;
+                        } elseif ($count >= 1e8) {
+                            echo number_format($count / 1e8, 1) . '억' . $suffix;
+                        } elseif ($count >= 1e4) {
+                            echo number_format($count / 1e4, 1) . '만' . $suffix;
                         } else {
-                            if ($count >= 100000000) {
-                                echo number_format($count / 100000000, 1) . '억주';
-                            } elseif ($count >= 10000) {
-                                echo number_format($count / 10000, 1) . '만주';
-                            } else {
-                                echo number_format($count) . '주';
-                            }
+                            echo number_format($count) . $suffix;
                         }
                     } else {
                         echo '-';
@@ -141,31 +150,39 @@
             </div>
             <div class="info-item">
                 <div class="info-label">시가총액</div>
-                <div class="info-value"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_capitalization'] / ($isUSMarket ? 1000000000 : 100000000), $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? 'B' : '억원' ?></div>
+                <div class="info-value"><?php
+                    $cap = (float)$stock['stock_capitalization'];
+                    if ($isUSMarket) {
+                        echo '$' . number_format($cap / 1e9, 2) . 'B';
+                    } elseif ($cap >= 1e20) {
+                        echo number_format($cap / 1e20, 2) . '해원';
+                    } elseif ($cap >= 1e16) {
+                        echo number_format($cap / 1e16, 2) . '경원';
+                    } elseif ($cap >= 1e12) {
+                        echo number_format($cap / 1e12, 2) . '조원';
+                    } elseif ($cap >= 1e8) {
+                        echo number_format($cap / 1e8, 0) . '억원';
+                    } else {
+                        echo number_format($cap, 0) . '원';
+                    }
+                ?></div>
             </div>
             <div class="info-item">
-                <div class="info-label">상장주식수</div>
+                <div class="info-label"><?= $isCoinType ? '총 발행량' : '상장주식수' ?></div>
                 <div class="info-value"><?php 
                     if (!empty($stock['stock_count']) && $stock['stock_count'] > 0) {
-                        $count = $stock['stock_count'];
-                        if ($isUSMarket) {
-                            if ($count >= 1000000000) {
-                                echo number_format($count / 1000000000, 2) . 'B';
-                            } elseif ($count >= 1000000) {
-                                echo number_format($count / 1000000, 2) . 'M';
-                            } elseif ($count >= 1000) {
-                                echo number_format($count / 1000, 2) . 'K';
-                            } else {
-                                echo number_format($count);
-                            }
+                        $count = (float)$stock['stock_count'];
+                        $suffix = $isCoinType ? '' : '주';
+                        if ($count >= 1e16) {
+                            echo number_format($count / 1e16, 2) . '경' . $suffix;
+                        } elseif ($count >= 1e12) {
+                            echo number_format($count / 1e12, 2) . '조' . $suffix;
+                        } elseif ($count >= 1e8) {
+                            echo number_format($count / 1e8, 1) . '억' . $suffix;
+                        } elseif ($count >= 1e4) {
+                            echo number_format($count / 1e4, 1) . '만' . $suffix;
                         } else {
-                            if ($count >= 100000000) {
-                                echo number_format($count / 100000000, 1) . '억주';
-                            } elseif ($count >= 10000) {
-                                echo number_format($count / 10000, 1) . '만주';
-                            } else {
-                                echo number_format($count) . '주';
-                            }
+                            echo number_format($count) . $suffix;
                         }
                     } else {
                         echo '-';
@@ -188,6 +205,7 @@
 // 차트 데이터를 JavaScript 변수로 전달
 const stockCode = '<?= $view->escape($stock['stock_code']) ?>';
 const isUSMarket = <?= $isUSMarket ? 'true' : 'false' ?>;
+const isCoinMarket = <?= $isCoinType ? 'true' : 'false' ?>;
 let candleData = [];
 const recentExecutions = [];
 </script>

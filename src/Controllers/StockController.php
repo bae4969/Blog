@@ -22,7 +22,7 @@ class StockController extends BaseController
     {
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
         $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
-        if (!in_array($market, ['KR', 'US'], true)) {
+        if (!in_array($market, ['KR', 'US', 'COIN'], true)) {
             $market = $this->getDefaultMarketByMarketHours();
         }
         $search = isset($_GET['search']) ? $this->sanitizeInput($_GET['search']) : '';
@@ -82,6 +82,7 @@ class StockController extends BaseController
     public function show(): void
     {
         $stockCode = isset($_GET['code']) ? $this->sanitizeInput($_GET['code']) : '';
+        $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
         
         if (empty($stockCode)) {
             $this->session->setFlash('error', '주식 코드가 필요합니다.');
@@ -89,8 +90,8 @@ class StockController extends BaseController
             return;
         }
 
-        // 주식 정보 조회 (가벼운 단건 쿼리만 서버에서 실행)
-        $stock = $this->stockModel->getStockByCode($stockCode);
+        // 주식 정보 조회 (market 파람으로 우선순위 결정)
+        $stock = $this->stockModel->getStockByCode($stockCode, $market);
         
         if (!$stock) {
             $this->session->setFlash('error', '해당 주식을 찾을 수 없습니다.');
@@ -98,11 +99,14 @@ class StockController extends BaseController
             return;
         }
 
+        $isCoinMarket = (($stock['stock_type'] ?? '') === 'COIN');
+
         // 캔들/체결 데이터는 클라이언트에서 API로 비동기 로딩 (페이지 렌더 차단 방지)
         $this->renderLayout('main', 'stocks/show', [
             'stock' => $stock,
             'candleData' => [],
             'recentExecutions' => [],
+            'isCoinMarket' => $isCoinMarket,
             'isStockPage' => true,
             'additionalCss' => ['/css/stocks.css'],
             'additionalJs' => ['/js/stocks.js']
@@ -119,13 +123,14 @@ class StockController extends BaseController
         $endDate = isset($_GET['end']) ? $this->sanitizeInput($_GET['end']) : date('Y-m-d H:i:s');
         $limit = isset($_GET['limit']) ? min(1000, max(1, intval($_GET['limit']))) : 500;
         $timeframe = isset($_GET['timeframe']) ? $this->sanitizeInput($_GET['timeframe']) : '1h';
+        $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
         
         if (empty($stockCode)) {
             $this->jsonResponse(['error' => 'Stock code is required'], 400);
             return;
         }
 
-        $candleData = $this->stockModel->getCandleData($stockCode, $startDate, $endDate, $limit, $timeframe);
+        $candleData = $this->stockModel->getCandleData($stockCode, $startDate, $endDate, $limit, $timeframe, $market);
         
         $this->jsonResponse([
             'success' => true,
@@ -141,13 +146,14 @@ class StockController extends BaseController
     {
         $stockCode = isset($_GET['code']) ? $this->sanitizeInput($_GET['code']) : '';
         $limit = isset($_GET['limit']) ? min(200, max(1, intval($_GET['limit']))) : 100;
+        $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
         
         if (empty($stockCode)) {
             $this->jsonResponse(['error' => 'Stock code is required'], 400);
             return;
         }
 
-        $executions = $this->stockModel->getRecentExecutions($stockCode, $limit);
+        $executions = $this->stockModel->getRecentExecutions($stockCode, $limit, $market);
         
         $this->jsonResponse([
             'success' => true,

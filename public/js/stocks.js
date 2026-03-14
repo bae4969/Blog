@@ -8,7 +8,7 @@ let currentPeriod = '1D';
 let currentTimeframe = '1d';
 
 /**
- * 통화 단위 반환 (미국 주식이면 $, 한국 주식이면 원)
+ * 통화 단위 반환 (미국 주식이면 $, 한국 주식/코인이면 원)
  */
 function getCurrencyPrefix() {
     return (typeof isUSMarket !== 'undefined' && isUSMarket) ? '$' : '';
@@ -21,6 +21,9 @@ function formatPrice(value) {
     const suffix = getCurrencySuffix();
     if (typeof isUSMarket !== 'undefined' && isUSMarket) {
         return prefix + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + suffix;
+    }
+    if (typeof isCoinMarket !== 'undefined' && isCoinMarket) {
+        return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
     }
     return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
 }
@@ -65,7 +68,7 @@ function waitForChartReady() {
  * 초기 체결 데이터 로딩
  */
 function loadInitialExecutions() {
-    fetch(`/stocks/api/executions?code=${encodeURIComponent(stockCode)}&limit=50`)
+    fetch(`/stocks/api/executions?code=${encodeURIComponent(stockCode)}&limit=50${typeof isCoinMarket !== 'undefined' && isCoinMarket ? '&market=COIN' : ''}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -482,7 +485,7 @@ function loadChartData(period) {
     // 로딩 UI 표시
     showChartLoading(true);
     
-    fetch(`/stocks/api/candle?code=${encodeURIComponent(stockCode)}&start=${startDateStr}&end=${endDateStr}&timeframe=${timeframe}&limit=${limit}`)
+    fetch(`/stocks/api/candle?code=${encodeURIComponent(stockCode)}&start=${startDateStr}&end=${endDateStr}&timeframe=${timeframe}&limit=${limit}${typeof isCoinMarket !== 'undefined' && isCoinMarket ? '&market=COIN' : ''}`)
         .then(response => response.json())
         .then(data => {
             showChartLoading(false);
@@ -535,7 +538,7 @@ function setChartType(chartType, triggerEl = null) {
  * 체결 정보 새로고침
  */
 function refreshExecutions() {
-    fetch(`/stocks/api/executions?code=${encodeURIComponent(stockCode)}&limit=50`)
+    fetch(`/stocks/api/executions?code=${encodeURIComponent(stockCode)}&limit=50${typeof isCoinMarket !== 'undefined' && isCoinMarket ? '&market=COIN' : ''}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
