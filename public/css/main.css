@@ -82,7 +82,7 @@ header {
     width: 100%; 
 }
 
-#topLeft, #topStocks, #topRight, #topWrite { 
+#topNav, #topRight, #topWrite { 
     color: #C8C3BC; 
     text-align: center; 
     cursor: pointer; 
@@ -93,26 +93,59 @@ header {
     display: inline-block;
 }
 
-#topLeft:hover, #topStocks:hover, #topRight:hover, #topWrite:hover { 
+#topNav:hover, #topRight:hover, #topWrite:hover { 
     color: var(--text-primary); 
     background: var(--bg-hover); 
     transform: translateY(-1px); 
 }
 
-#topLeft, #topStocks { 
-    width: 70px; 
-    float: left; 
-    font-size: 2ex; 
+/* 네비게이션 드롭다운 */
+#topNav {
+    width: 80px;
+    float: left;
+    font-size: 2ex;
     font-weight: 400;
     line-height: 1.5;
+    margin-left: 7%;
+    position: relative;
+    user-select: none;
 }
 
-#topLeft {
-    margin-left: 7%; 
+#topNavSelected {
+    padding: 0;
 }
 
-#topStocks {
-    margin-left: 3px;
+#topNavDropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 120px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-medium);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+#topNav.open #topNavDropdown {
+    display: block;
+}
+
+#topNavDropdown a {
+    display: block;
+    padding: 10px 16px;
+    color: #C8C3BC;
+    text-decoration: none;
+    font-size: 1.8ex;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+#topNavDropdown a:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 #topRight { 
@@ -631,7 +664,6 @@ button.page:hover, .page-link:hover {
 .alert { 
     padding: 1rem; 
     border-radius: 10px; 
-    margin: 10px; 
     margin-bottom: 1rem; 
 }
 
@@ -1186,17 +1218,13 @@ footer a:hover {
     }
 
     /* 헤더 좌/우 버튼 마진을 픽셀로 조정 */
-    #topLeft, #topStocks, #topRight, #topWrite {
+    #topNav, #topRight, #topWrite {
         margin-left: 0 !important;
         margin-right: 0 !important;
     }
     
-    #topLeft {
+    #topNav {
         margin-left: 5px !important;
-    }
-    
-    #topStocks {
-        margin-left: 8px !important;
     }
     
     #topRight {

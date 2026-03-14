@@ -1,0 +1,547 @@
+/* ===========================================
+   관리자 페이지 스타일
+   =========================================== */
+
+/* 관리자 콘텐츠 영역 */
+.admin-content {
+    padding: 20px;
+}
+
+.admin-content h2 {
+    color: var(--text-primary);
+    font-size: 2.2ex;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-placeholder {
+    color: var(--text-muted);
+    font-size: 1.8ex;
+    padding: 40px 20px;
+    text-align: center;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px dashed var(--border-color);
+}
+
+/* 관리자 카드 */
+.admin-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.admin-card h3 {
+    color: var(--text-primary);
+    font-size: 1.9ex;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* 관리자 폼 */
+.admin-form .admin-form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.admin-form .admin-form-row label {
+    width: 100px;
+    color: var(--text-secondary);
+    font-size: 1.6ex;
+    flex-shrink: 0;
+}
+
+.admin-form .admin-form-row input,
+.admin-form .admin-form-row select {
+    flex: 1;
+    max-width: 300px;
+    padding: 8px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 1.6ex;
+}
+
+.admin-form .admin-form-row input:focus,
+.admin-form .admin-form-row select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.admin-form-actions {
+    margin-top: 16px;
+}
+
+/* 관리자 테이블 */
+.admin-table-wrap {
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.6ex;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.admin-table th {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 1.4ex;
+    text-transform: uppercase;
+}
+
+.admin-table td {
+    color: var(--text-secondary);
+}
+
+.admin-table tr:hover {
+    background: var(--bg-hover);
+}
+
+.admin-table tr.row-disabled {
+    opacity: 0.5;
+}
+
+/* 인라인 폼 */
+.inline-form {
+    display: inline;
+}
+
+.inline-form select {
+    padding: 4px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 1.4ex;
+    cursor: pointer;
+}
+
+.input-small {
+    width: 70px !important;
+    padding: 4px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 1.4ex;
+    text-align: center;
+}
+
+/* 버튼 */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.5ex;
+    transition: var(--transition);
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-secondary {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: var(--secondary-hover);
+}
+
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 1.3ex;
+}
+
+/* 배지 */
+.badge-self {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    font-size: 1.1ex;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.level-badge {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+.state-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 1.3ex;
+    font-weight: 600;
+}
+
+.btn-state {
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 1.3ex;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.state-active {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+    border-color: rgba(76, 175, 80, 0.3);
+}
+
+.state-inactive {
+    background: rgba(244, 67, 54, 0.15);
+    color: #f44336;
+    border-color: rgba(244, 67, 54, 0.3);
+}
+
+.btn-state:hover {
+    opacity: 0.8;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* 인라인 입력 */
+.inline-input-sm {
+    width: 70px !important;
+    min-width: 50px;
+}
+
+.inline-select {
+    padding: 4px 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1.3ex;
+}
+
+.action-cell {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.btn-danger {
+    background: #d32f2f;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #b71c1c;
+}
+
+/* 순서 화살표 */
+.order-cell {
+    width: 50px;
+    text-align: center;
+}
+
+.order-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.btn-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 20px;
+    font-size: 1.1ex;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: var(--transition);
+}
+
+.btn-arrow:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.btn-arrow.disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* 도움말 */
+.admin-help {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.admin-help p {
+    margin: 4px 0;
+    font-size: 1.3ex;
+    color: var(--text-muted);
+}
+
+/* 캐시 관리 */
+.cache-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    min-width: 120px;
+}
+
+.stat-label {
+    font-size: 1.2ex;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 2ex;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-active {
+    color: #4CAF50;
+}
+
+.stat-expired {
+    color: #f44336;
+}
+
+.cache-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cache-actions .inline-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.action-desc {
+    font-size: 1.3ex;
+    color: var(--text-muted);
+}
+
+.pattern-select {
+    flex: 1;
+    max-width: 300px;
+}
+
+.cache-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+    border-radius: 4px;
+    font-size: 1.2ex;
+    margin: 2px 3px;
+    font-family: monospace;
+}
+
+/* WOL 장치 목록 */
+.wol-device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wol-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: var(--transition);
+}
+
+.wol-device:hover {
+    border-color: var(--primary-color);
+}
+
+.wol-device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wol-device-name {
+    font-size: 1.8ex;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.wol-device-desc {
+    font-size: 1.3ex;
+    color: var(--text-muted);
+}
+
+.wol-device-detail {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+    font-size: 1.2ex;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.wol-label {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-family: inherit;
+}
+
+.btn-wol {
+    padding: 10px 24px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.5ex;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.btn-wol:hover {
+    background: #f57c00;
+}
+
+.btn-wol.btn-sm {
+    padding: 6px 14px;
+    font-size: 1.3ex;
+}
+
+.wol-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.wol-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wol-edit-row label {
+    min-width: 55px;
+    font-size: 1.2ex;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.wol-edit-row .inline-input {
+    flex: 1;
+    max-width: 300px;
+}
+
+.wol-device-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    align-items: center;
+}
+
+/* 모바일 대응 */
+@media (max-width: 1024px) {
+    .admin-form .admin-form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .admin-form .admin-form-row label {
+        width: auto;
+    }
+
+    .admin-form .admin-form-row input,
+    .admin-form .admin-form-row select {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .admin-table {
+        font-size: 1.4ex;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 8px 6px;
+    }
+
+    .wol-device {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .wol-device .btn-wol {
+        width: 100%;
+    }
+
+    .cache-stats {
+        flex-direction: column;
+    }
+
+    .cache-actions .inline-form {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

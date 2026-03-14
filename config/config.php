@@ -13,6 +13,12 @@ return [
     'contact_email' => 'bae4969@naver.com',
     'github_url' => 'https://github.com/bae4969',
 
+    // 주식 관리자 저장 제한
+    'stock_admin_limits' => [
+        'kr_max_subscriptions' => 400,
+        'us_max_subscriptions' => 400,
+    ],
+
     // 로그인 레이트 리미팅 설정
     'login_rate_limit' => [
         'window_seconds' => 60,   // 시도 집계 윈도우
@@ -23,5 +29,11 @@ return [
         'block_delay_ms_max' => 300, // 차단 응답 시 최대 지연(ms)
         'fail_delay_ms_min' => 200,  // 로그인 실패 시 최소 지연(ms)
         'fail_delay_ms_max' => 500,  // 로그인 실패 시 최대 지연(ms)
+    ],
+
+    // WOL UDP 브로드캐스트 설정
+    'wol' => [
+        'broadcast_ip' => '255.255.255.255',
+        'broadcast_port' => 9,
     ],
 ];

@@ -19,22 +19,71 @@
 <body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?>">
     <div id="main">
         <header>
-            <div id="topLeft" onclick="location.href='/blog'">블로그</div>
-            <div id="topStocks" onclick="location.href='/stocks'">주식</div>
+            <div id="topNav">
+                <div id="topNavSelected">이동 ▾</div>
+                <div id="topNavDropdown">
+                    <a href="/blog">블로그</a>
+                    <a href="/stocks">주식</a>
+                    <?php if ($auth->isLoggedIn() && $auth->canManageStocks()): ?>
+                        <a href="/admin">관리자</a>
+                    <?php endif; ?>
+                </div>
+            </div>
             <div id="topRight" onclick="loginoutClick()">
                 <?= $auth->isLoggedIn() ? '로그아웃' : '로그인' ?>
             </div>
-            <?php if ($auth->isLoggedIn() && $auth->canWrite()): ?>
-                <div id="topWrite" onclick="writePostingClick()">글쓰기</div>
+            <?php if ((!isset($isStockPage) || !$isStockPage) && (!isset($isAdminPage) || !$isAdminPage) && $auth->isLoggedIn() && $auth->canWrite()): ?>
+                <div id="topWrite" data-button-role="blog-write" onclick="writePostingClick()">글쓰기</div>
             <?php endif; ?>
             <div id="title">
-                <?php $titleLink = (isset($isStockPage) && $isStockPage) ? '/stocks' : '/blog'; ?>
+                <?php
+                    if (isset($isAdminPage) && $isAdminPage) {
+                        $titleLink = '/admin';
+                    } elseif (isset($isStockPage) && $isStockPage) {
+                        $titleLink = '/stocks';
+                    } else {
+                        $titleLink = '/blog';
+                    }
+                ?>
                 <img id="mainTitle" onclick="location.href='<?= $titleLink ?>'" src="/res/title.png" alt="Blog Page" />
             </div>
         </header>
         
-        <section class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-section' : '' ?>">
-            <?php if (!isset($isStockPage) || !$isStockPage): ?>
+        <?php
+            $sectionClass = '';
+            if (isset($isStockPage) && $isStockPage) $sectionClass = 'stock-page-section';
+            elseif (isset($isAdminPage) && $isAdminPage) $sectionClass = '';
+        ?>
+        <section class="<?= $sectionClass ?>">
+            <?php if (isset($isAdminPage) && $isAdminPage): ?>
+            <!-- 관리자 사이드바 -->
+            <aside id="side-panel">
+                <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
+                <div class="sidebar-content">
+                    <div id="profile">
+                        관리자: <?= $view->escape($auth->getCurrentUserName()) ?>
+                    </div>
+                    <ul id="category">
+                        <?php
+                        $adminMenus = [
+                            'users' => ['label' => '사용자 관리', 'url' => '/admin/users'],
+                            'categories' => ['label' => '블로그 카테고리', 'url' => '/admin/categories'],
+                            'cache' => ['label' => '캐시 관리', 'url' => '/admin/cache'],
+                            'stocks' => ['label' => '주식 구독 관리', 'url' => '/admin/stocks'],
+                            'wol' => ['label' => 'WOL', 'url' => '/admin/wol'],
+                        ];
+                        $currentAdminMenu = $adminCurrentMenu ?? '';
+                        ?>
+                        <?php foreach ($adminMenus as $menuKey => $menu): ?>
+                            <li class="category <?= $currentAdminMenu === $menuKey ? 'category-selected' : '' ?>" onclick="location.href='<?= $menu['url'] ?>'">
+                                <?= $view->escape($menu['label']) ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </aside>
+            <?php elseif (!isset($isStockPage) || !$isStockPage): ?>
+            <!-- 블로그 사이드바 -->
             <aside id="side-panel">
                 <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
                 <div class="sidebar-content">
@@ -86,7 +135,11 @@
             </aside>
             <?php endif; ?>
             
-            <div id="content" class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-content' : '' ?>">
+            <?php
+                $contentClass = '';
+                if (isset($isStockPage) && $isStockPage) $contentClass = 'stock-page-content';
+            ?>
+            <div id="content" class="<?= $contentClass ?>">
 			    <div class="content-alert-container">
                     <?php if ($session->hasFlash('success')): ?>
                         <div class="alert alert-success">
@@ -121,6 +174,23 @@
     </form>
     <?php endif; ?>
     <script>
+    // 네비게이션 드롭다운 토글
+    (function() {
+        const topNav = document.getElementById('topNav');
+        const topNavSelected = document.getElementById('topNavSelected');
+        if (topNav && topNavSelected) {
+            topNavSelected.addEventListener('click', function(e) {
+                e.stopPropagation();
+                topNav.classList.toggle('open');
+            });
+            document.addEventListener('click', function(e) {
+                if (!topNav.contains(e.target)) {
+                    topNav.classList.remove('open');
+                }
+            });
+        }
+    })();
+
     function writePostingClick() {
         <?php if (isset($userPostingInfo) && $userPostingInfo && $userPostingInfo['is_limited']): ?>
             alert('게시글 작성 제한에 도달했습니다. (<?= $userPostingInfo['current_count'] ?>/<?= $userPostingInfo['limit'] ?>)');
