@@ -18,9 +18,21 @@
 </head>
 <body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?>">
     <div id="main">
+        <?php
+            $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+            $topNavLabel = '이동';
+
+            if (isset($isAdminPage) && $isAdminPage) {
+                $topNavLabel = '관리자';
+            } elseif (isset($isStockPage) && $isStockPage) {
+                $topNavLabel = '주식';
+            } elseif ($currentPath === '/' || strpos($currentPath, '/blog') === 0 || strpos($currentPath, '/reader.php') === 0 || strpos($currentPath, '/writer.php') === 0 || strpos($currentPath, '/post/') === 0 || strpos($currentPath, '/search') === 0) {
+                $topNavLabel = '블로그';
+            }
+        ?>
         <header>
             <div id="topNav">
-                <div id="topNavSelected">이동 ▾</div>
+                <div id="topNavSelected"><?= $view->escape($topNavLabel) ?> ▾</div>
                 <div id="topNavDropdown">
                     <a href="/blog">블로그</a>
                     <a href="/stocks">주식</a>

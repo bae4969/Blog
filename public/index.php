@@ -71,8 +71,6 @@ $router->post('/admin/wol/delete', [AdminController::class, 'wolDeleteDevice']);
 
 // 주식 컨트롤러 라우트
 $router->get('/stocks', [StockController::class, 'index']);
-$router->get('/stocks/admin', [StockController::class, 'adminRedirect']);
-$router->post('/stocks/admin/subscriptions', [StockController::class, 'adminRedirect']);
 $router->get('/stocks/view', [StockController::class, 'show']);
 $router->get('/stocks/api/candle', [StockController::class, 'apiCandleData']);
 $router->get('/stocks/api/executions', [StockController::class, 'apiRecentExecutions']);

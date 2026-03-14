@@ -523,29 +523,6 @@
     gap: 16px;
 }
 
-.stock-admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 20px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-}
-
-.stock-admin-title h2 {
-    margin: 0 0 6px;
-    font-size: 28px;
-    color: var(--text-primary);
-}
-
-.stock-admin-title p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
 .stock-admin-actions {
     display: flex;
     gap: 10px;
@@ -762,7 +739,6 @@
 }
 
 @media (max-width: 1024px) {
-    .stock-admin-header,
     .stock-admin-toolbar {
         flex-direction: column;
         align-items: stretch;
