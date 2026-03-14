@@ -214,6 +214,7 @@ class Stock
         $params[':offset'] = $offset;
         
         $stocks = $this->db->fetchAll($sql, $params);
+        $stocks = $this->applyLatestCloseToStockRows($stocks, '');
         
         $result = ['stocks' => $stocks, 'total' => $total];
         $this->cache->set($cacheKey, $result, 300); // 5분 캐시
@@ -272,6 +273,7 @@ class Stock
         $params[':offset'] = $offset;
 
         $stocks = $this->db->fetchAll($sql, $params);
+        $stocks = $this->applyLatestCloseToStockRows($stocks, 'COIN');
 
         $result = ['stocks' => $stocks, 'total' => $total];
         $this->cache->set($cacheKey, $result, 300);
@@ -318,6 +320,79 @@ class Stock
         }
 
         return null;
+    }
+
+    /**
+     * 캔들 테이블의 최신 종가 조회
+     */
+    public function getLatestCandleClose(string $stockCode, string $market = ''): ?float
+    {
+        $cacheKey = Cache::key('stock_latest_close', $stockCode, $market);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached === '' ? null : (float)$cached;
+        }
+
+        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $prefix = $isCoin ? 'c' : 's';
+        $candleSource = $this->resolveCandleSource($stockCode, $prefix);
+
+        if ($candleSource === null) {
+            $this->cache->set($cacheKey, '', 60);
+            return null;
+        }
+
+        $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
+
+        try {
+            $row = $this->db->fetch(
+                "SELECT execution_close
+                 FROM {$tableRef}
+                 ORDER BY execution_datetime DESC
+                 LIMIT 1"
+            );
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        if (!$row || !isset($row['execution_close'])) {
+            $this->cache->set($cacheKey, '', 60);
+            return null;
+        }
+
+        $latestClose = (float)$row['execution_close'];
+        $this->cache->set($cacheKey, $latestClose, 60);
+
+        return $latestClose;
+    }
+
+    /**
+     * 목록 데이터의 현재가를 최신 캔들 종가로 일괄 보정
+     */
+    private function applyLatestCloseToStockRows(array $stocks, string $market = ''): array
+    {
+        if (empty($stocks)) {
+            return $stocks;
+        }
+
+        foreach ($stocks as $index => $stock) {
+            $stockCode = $stock['stock_code'] ?? '';
+            if ($stockCode === '') {
+                continue;
+            }
+
+            $rowMarket = $market;
+            if ($rowMarket === '' && (($stock['stock_type'] ?? '') === 'COIN')) {
+                $rowMarket = 'COIN';
+            }
+
+            $latestClose = $this->getLatestCandleClose($stockCode, $rowMarket);
+            if ($latestClose !== null) {
+                $stocks[$index]['stock_price'] = $latestClose;
+            }
+        }
+
+        return $stocks;
     }
 
     /**
@@ -645,6 +720,7 @@ class Stock
         }
 
         $stocks = $this->getTopStocksByTradingAmount($limit, $market);
+        $stocks = $this->applyLatestCloseToStockRows($stocks, $market === 'COIN' ? 'COIN' : '');
 
         $this->cache->set($cacheKey, $stocks, 600); // 10분 캐시
 

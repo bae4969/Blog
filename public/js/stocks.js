@@ -28,6 +28,36 @@ function formatPrice(value) {
     return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
 }
 
+function formatPriceValueOnly(value) {
+    const prefix = getCurrencyPrefix();
+    if (typeof isUSMarket !== 'undefined' && isUSMarket) {
+        return prefix + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    }
+    return prefix + new Intl.NumberFormat('ko-KR').format(value);
+}
+
+function updateCurrentPriceFromCandles(data) {
+    if (!Array.isArray(data) || data.length === 0) {
+        return;
+    }
+
+    const latestCandle = data[data.length - 1];
+    const latestClose = parseFloat(latestCandle.execution_close);
+    if (isNaN(latestClose)) {
+        return;
+    }
+
+    const mainPriceEl = document.getElementById('currentPriceMainValue');
+    if (mainPriceEl) {
+        mainPriceEl.textContent = formatPriceValueOnly(latestClose);
+    }
+
+    const infoPriceEl = document.getElementById('currentPriceInfoValue');
+    if (infoPriceEl) {
+        infoPriceEl.textContent = formatPriceValueOnly(latestClose);
+    }
+}
+
 // Chart.js가 로드되었을 때 초기화
 document.addEventListener('DOMContentLoaded', function() {
     // 차트 라이브러리는 defer로 이미 로딩 중 — 준비되면 데이터 fetch 시작
@@ -491,6 +521,7 @@ function loadChartData(period) {
             showChartLoading(false);
             if (data.success && data.data.length > 0) {
                 candleData = data.data;
+                updateCurrentPriceFromCandles(candleData);
                 showChartNoData(false);
                 initChart();
             } else {
