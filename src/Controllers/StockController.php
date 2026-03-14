@@ -101,6 +101,11 @@ class StockController extends BaseController
 
         $isCoinMarket = (($stock['stock_type'] ?? '') === 'COIN');
 
+        $latestClose = $this->stockModel->getLatestCandleClose($stockCode, $market);
+        if ($latestClose !== null) {
+            $stock['stock_price'] = $latestClose;
+        }
+
         // 캔들/체결 데이터는 클라이언트에서 API로 비동기 로딩 (페이지 렌더 차단 방지)
         $this->renderLayout('main', 'stocks/show', [
             'stock' => $stock,
