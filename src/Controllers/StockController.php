@@ -55,6 +55,15 @@ class StockController extends BaseController
     }
 
     /**
+     * 기존 /stocks/admin → /admin/stocks 리다이렉트 (하위 호환)
+     */
+    public function adminRedirect(): void
+    {
+        $qs = $_SERVER['QUERY_STRING'] ?? '';
+        $this->redirect('/admin/stocks' . ($qs ? '?' . $qs : ''));
+    }
+
+    /**
      * 현재 시간 기준 기본 시장 결정
      * - 한국장 개장 시간(평일 09:00~15:30)이면 KR
      * - 그 외 시간은 US
@@ -184,4 +193,5 @@ class StockController extends BaseController
             'count' => count($stocks)
         ]);
     }
+
 }

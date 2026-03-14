@@ -514,6 +514,277 @@
 }
 
 /* ===========================================
+   주식 관리자 페이지
+   =========================================== */
+
+.stock-admin-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.stock-admin-title h2 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    color: var(--text-primary);
+}
+
+.stock-admin-title p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.stock-admin-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.stock-admin-link,
+.stock-admin-save-btn,
+.stock-admin-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    text-decoration: none;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.stock-admin-link {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.stock-admin-link:hover,
+.stock-admin-reset-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.stock-admin-save-btn {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.stock-admin-save-btn:hover {
+    background: var(--primary-hover);
+}
+
+.stock-admin-reset-btn {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.stock-admin-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.stock-admin-card {
+    padding: 16px 18px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.stock-admin-card-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.stock-admin-card-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stock-admin-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    flex-wrap: wrap;
+}
+
+.stock-admin-market-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.stock-admin-market-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.stock-admin-market-tab.active,
+.stock-admin-market-tab:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.stock-admin-search-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.stock-admin-selection-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.stock-admin-table-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-table-form .stocks-table table {
+    min-width: 1080px;
+}
+
+.stocks-table.admin-table th:nth-child(1),
+.stocks-table.admin-table td:nth-child(1) {
+    width: 7%;
+    padding-left: 12px;
+    text-align: center;
+}
+
+.stocks-table.admin-table th:nth-child(2),
+.stocks-table.admin-table td:nth-child(2) {
+    width: 29%;
+    text-align: left;
+}
+
+.stocks-table.admin-table th:nth-child(3),
+.stocks-table.admin-table td:nth-child(3) {
+    width: 10%;
+}
+
+.stocks-table.admin-table th:nth-child(4),
+.stocks-table.admin-table td:nth-child(4) {
+    width: 10%;
+}
+
+.stocks-table.admin-table th:nth-child(5),
+.stocks-table.admin-table td:nth-child(5) {
+    width: 10%;
+}
+
+.stocks-table.admin-table th:nth-child(6),
+.stocks-table.admin-table td:nth-child(6) {
+    width: 10%;
+}
+
+.stocks-table.admin-table th:nth-child(7),
+.stocks-table.admin-table td:nth-child(7) {
+    width: 10%;
+}
+
+.stocks-table.admin-table th:nth-child(8),
+.stocks-table.admin-table td:nth-child(8) {
+    width: 14%;
+    text-align: center;
+}
+
+.admin-select-cell input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.admin-table-row.is-selected {
+    background: rgba(76, 175, 80, 0.08);
+}
+
+.stock-admin-view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stock-admin-view-link:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+@media (max-width: 1024px) {
+    .stock-admin-header,
+    .stock-admin-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .stock-admin-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .stock-admin-actions,
+    .stock-admin-search-form {
+        width: 100%;
+    }
+
+    .stock-admin-link,
+    .stock-admin-save-btn,
+    .stock-admin-reset-btn {
+        width: 100%;
+    }
+}
+
+/* ===========================================
    주식 상세 페이지
    =========================================== */
 

@@ -129,4 +129,24 @@ class Auth
             exit;
         }
     }
+
+    public function canManageStocks(): bool
+    {
+        if (!$this->isLoggedIn()) {
+            return false;
+        }
+
+        return (int)$this->getCurrentUserLevel() <= 1;
+    }
+
+    public function requireStockAdminAccess(): void
+    {
+        $this->requireLogin();
+
+        if (!$this->canManageStocks()) {
+            $this->session->setFlash('error', '주식 관리자 페이지는 관리자만 접근할 수 있습니다.');
+            header('Location: /stocks');
+            exit;
+        }
+    }
 }
