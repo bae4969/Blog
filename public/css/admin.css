@@ -951,6 +951,42 @@
     background: var(--bg-hover);
 }
 
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.pagination .page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.pagination .page-btn:hover {
+    background: var(--bg-hover);
+    text-decoration: none;
+}
+
+.pagination .page-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+    text-decoration: none;
+}
+
 /* 툴바: 중간 화면 — 2행 (탭+검색 / 액션) */
 @media (max-width: 1200px) {
     .stock-admin-market-tabs {
