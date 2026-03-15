@@ -175,11 +175,13 @@ header {
     cursor: pointer; 
 }
 
-body.stock-page #title {
+body.stock-page #title,
+body.admin-page #title {
     padding: 40px 0 40px;
 }
 
-body.stock-page #mainTitle {
+body.stock-page #mainTitle,
+body.admin-page #mainTitle {
     width: 35%;
     max-width: 350px;
     display: block;

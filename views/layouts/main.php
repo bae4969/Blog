@@ -16,7 +16,7 @@
         <?php endforeach; ?>
     <?php endif; ?>
 </head>
-<body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?>">
+<body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?><?= isset($isAdminPage) && $isAdminPage ? ' admin-page' : '' ?>">
     <div id="main">
         <?php
             $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
