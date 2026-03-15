@@ -55,7 +55,7 @@ class AdminController extends BaseController
             4 => '구독자',
         ];
 
-        $this->renderLayout('main', 'admin/users', $this->adminData('users', [
+        $this->renderLayout('admin', 'admin/users', $this->adminData('users', [
             'users' => $users,
             'levelLabels' => $levelLabels,
             'searchQuery' => $searchQuery,
@@ -245,7 +245,7 @@ class AdminController extends BaseController
             4 => '모든 사용자',
         ];
 
-        $this->renderLayout('main', 'admin/categories', $this->adminData('categories', [
+        $this->renderLayout('admin', 'admin/categories', $this->adminData('categories', [
             'categories' => $categories,
             'levelLabels' => $levelLabels,
             'levelOptions' => $levelOptions,
@@ -447,7 +447,7 @@ class AdminController extends BaseController
         $fileDetails = $cache->getFileDetails();
         $config = $cache->getConfig();
 
-        $this->renderLayout('main', 'admin/cache', $this->adminData('cache', [
+        $this->renderLayout('admin', 'admin/cache', $this->adminData('cache', [
             'fileDetails' => $fileDetails,
             'cacheConfig' => $config['cache'],
             'cacheTtl' => $config['cache_ttl'],
@@ -561,7 +561,7 @@ class AdminController extends BaseController
         $selectionMarketMap = $this->stockModel->getSelectionMarketMap();
         $registeredCountsByMarket = $this->stockModel->getRegisteredCountsByMarket();
 
-        $this->renderLayout('main', 'admin/stocks', $this->adminData('stocks', [
+        $this->renderLayout('admin', 'admin/stocks', $this->adminData('stocks', [
             'stocks' => $stocks,
             'currentPage' => $page,
             'totalPages' => $totalPages,
@@ -639,7 +639,7 @@ class AdminController extends BaseController
     {
         $devices = $this->wolDeviceModel->getAll();
 
-        $this->renderLayout('main', 'admin/wol', $this->adminData('wol', [
+        $this->renderLayout('admin', 'admin/wol', $this->adminData('wol', [
             'devices' => $devices,
             'csrfToken' => $this->view->csrfToken(),
         ]));

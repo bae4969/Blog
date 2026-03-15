@@ -144,8 +144,8 @@
 .admin-form .admin-form-row input:focus,
 .admin-form .admin-form-row select:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
-    background: #2f3133;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
 }
 
 .admin-form .admin-form-row input::placeholder {
@@ -202,8 +202,8 @@
 
 .admin-search-form input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
-    background: #2f3133;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
 }
 
 .admin-search-result {
@@ -238,7 +238,7 @@
 }
 
 .admin-table th {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-table-header);
     color: var(--text-secondary);
     font-weight: 600;
     font-size: 13px;
@@ -268,7 +268,7 @@
 }
 
 .admin-table tbody tr:nth-child(even) {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-table-stripe);
 }
 
 .admin-table tbody tr:hover {
@@ -290,7 +290,7 @@
     padding: 6px 10px;
     background: var(--bg-quaternary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     color: var(--text-primary);
     font-size: 13px;
     cursor: pointer;
@@ -299,7 +299,7 @@
 
 .inline-form select:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    box-shadow: var(--shadow-focus);
 }
 
 .input-small {
@@ -307,7 +307,7 @@
     padding: 6px 10px;
     background: var(--bg-quaternary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     color: var(--text-primary);
     font-size: 13px;
     text-align: center;
@@ -316,14 +316,14 @@
 
 .input-small:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    box-shadow: var(--shadow-focus);
 }
 
 .inline-input {
     padding: 8px 12px;
     background: var(--bg-quaternary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     color: var(--text-primary);
     font-size: 14px;
     transition: var(--transition);
@@ -331,7 +331,7 @@
 
 .inline-input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    box-shadow: var(--shadow-focus);
 }
 
 /* ===========================================
@@ -342,7 +342,7 @@
     padding: 2px 8px;
     background: var(--primary-color);
     color: white;
-    border-radius: 999px;
+    border-radius: var(--border-radius-pill);
     font-size: 11px;
     font-weight: 600;
     margin-left: 8px;
@@ -358,7 +358,7 @@
 .state-badge {
     display: inline-block;
     padding: 5px 12px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     font-size: 12px;
     font-weight: 600;
 }
@@ -366,7 +366,7 @@
 .btn-state {
     padding: 5px 12px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -374,13 +374,13 @@
 }
 
 .state-active {
-    background: rgba(76, 175, 80, 0.15);
-    color: #4CAF50;
+    background: var(--primary-bg);
+    color: var(--primary-color);
 }
 
 .state-inactive {
-    background: rgba(244, 67, 54, 0.15);
-    color: #f44336;
+    background: var(--danger-bg);
+    color: var(--danger-color);
 }
 
 .btn-state:hover {
@@ -402,14 +402,14 @@
     background: var(--bg-quaternary);
     color: var(--text-primary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     font-size: 13px;
     transition: var(--transition);
 }
 
 .inline-select:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    box-shadow: var(--shadow-focus);
 }
 
 .action-cell {
@@ -449,7 +449,7 @@
     background: var(--bg-quaternary);
     color: var(--text-primary);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--border-radius-xs);
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -488,11 +488,11 @@
    캐시 관리
    =========================================== */
 .stat-active {
-    color: #4CAF50;
+    color: var(--primary-color);
 }
 
 .stat-expired {
-    color: #f44336;
+    color: var(--danger-color);
 }
 
 .cache-actions {
@@ -534,9 +534,9 @@
 .cache-tag {
     display: inline-block;
     padding: 3px 10px;
-    background: rgba(76, 175, 80, 0.15);
-    color: #4CAF50;
-    border-radius: 999px;
+    background: var(--primary-bg);
+    color: var(--primary-color);
+    border-radius: var(--border-radius-pill);
     font-size: 12px;
     margin: 2px 3px;
     font-family: monospace;
@@ -611,7 +611,7 @@
     align-items: center;
     justify-content: center;
     padding: 10px 24px;
-    background: #ff9800;
+    background: var(--btn-warning);
     color: white;
     border: none;
     border-radius: var(--border-radius);
@@ -624,14 +624,14 @@
 }
 
 .btn-wol:hover {
-    background: #f57c00;
+    background: var(--btn-warning-hover);
 }
 
 .btn-wol.btn-sm {
     padding: 6px 12px;
     font-size: 12px;
     min-height: 32px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
 }
 
 .wol-edit-form {
@@ -674,7 +674,7 @@
 .wol-device-actions .btn-wol {
     min-width: 80px;
     text-align: center;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
 }
 
 /* ===========================================
@@ -715,8 +715,8 @@
 .admin-form-field input:focus,
 .admin-form-field select:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
-    background: #2f3133;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
 }
 
 .admin-form-field input::placeholder {
@@ -776,8 +776,8 @@
 
 .stock-admin-search-form input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
-    background: #2f3133;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
 }
 
 .stock-admin-search-form input::placeholder {
@@ -804,7 +804,7 @@
     justify-content: center;
     min-height: 40px;
     padding: 4px 20px;
-    border-radius: 15px;
+    border-radius: var(--border-radius-pill);
     border: none;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
@@ -929,7 +929,7 @@
 }
 
 .admin-table-row.is-selected {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-selected);
 }
 
 .stock-admin-view-link {
@@ -938,7 +938,7 @@
     justify-content: center;
     min-height: 34px;
     padding: 6px 10px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-sm);
     border: none;
     background: var(--bg-tertiary);
     color: var(--text-primary);
@@ -959,6 +959,69 @@
     margin-top: 10px;
 }
 
+/* ===========================================
+   모달
+   =========================================== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    background: var(--shadow-overlay);
+}
+
+.modal-content {
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 28px 24px;
+    width: 320px;
+    max-width: 95vw;
+    box-shadow: var(--shadow-heavy);
+    color: var(--text-primary);
+}
+
+.modal-content h3 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+}
+
+.modal-input-wrapper {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.modal-input-wrapper input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 36px 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.95rem;
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+}
+
+.modal-input-wrapper .modal-toggle-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
 .pagination .page-btn {
     display: inline-flex;
     align-items: center;
@@ -966,7 +1029,7 @@
     min-width: 36px;
     height: 36px;
     padding: 0 10px;
-    border-radius: 8px;
+    border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
     background: var(--bg-quaternary);
     color: var(--text-primary);
@@ -1132,7 +1195,7 @@
     .admin-card {
         margin: 0 3px;
         padding: 20px 15px;
-        border-radius: 12px;
+        border-radius: var(--border-radius-md);
     }
 
 
@@ -1259,7 +1322,7 @@
     .btn-wol.btn-sm {
         min-height: 36px;
         padding: 8px 12px;
-        border-radius: 6px;
+        border-radius: var(--border-radius-sm);
     }
 
     .btn-state {
@@ -1282,7 +1345,7 @@
     .admin-card {
         margin: 0;
         padding: 14px 12px;
-        border-radius: 8px;
+        border-radius: var(--border-radius);
     }
 
 
