@@ -30,10 +30,4 @@ return [
         'fail_delay_ms_min' => 200,  // 로그인 실패 시 최소 지연(ms)
         'fail_delay_ms_max' => 500,  // 로그인 실패 시 최대 지연(ms)
     ],
-
-    // WOL UDP 브로드캐스트 설정
-    'wol' => [
-        'broadcast_ip' => '255.255.255.255',
-        'broadcast_port' => 9,
-    ],
 ];

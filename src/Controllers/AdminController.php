@@ -567,17 +567,30 @@ class AdminController extends BaseController
         }
 
         $mac = $device['wol_device_mac_address'];
-        $ipRange = $device['wol_device_ip_range'];
-        $wolConfig = (require __DIR__ . '/../../config/config.php')['wol'];
-        $broadcastIp = $wolConfig['broadcast_ip'] ?? '255.255.255.255';
-        $port = $wolConfig['broadcast_port'] ?? 9;
+        $broadcastIp = trim((string)$device['wol_device_ip_range']);
+        if (filter_var($broadcastIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            $this->session->setFlash('error', '브로드캐스트 IP 형식이 올바르지 않습니다.');
+            $this->redirect('/admin/wol');
+            return;
+        }
+        $ports = [9, 7];
+        $errors = [];
+        $result = false;
 
-        $result = $this->sendMagicPacket($mac, $broadcastIp, $ipRange, $port);
+        foreach ($ports as $port) {
+            $sendResult = $this->sendMagicPacket($mac, $broadcastIp, $port);
+            if ($sendResult !== true) {
+                $errors[] = "{$port}번 포트: {$sendResult}";
+                continue;
+            }
+
+            $result = true;
+        }
 
         if ($result === true) {
             $this->session->setFlash('success', "'{$device['wol_device_name']}'에 WOL 패킷을 전송했습니다.");
         } else {
-            $this->session->setFlash('error', "WOL 패킷 전송 실패: {$result}");
+            $this->session->setFlash('error', 'WOL 패킷 전송 실패: ' . implode(' | ', $errors));
         }
 
         $this->redirect('/admin/wol');
@@ -672,7 +685,7 @@ class AdminController extends BaseController
         $this->redirect('/admin/wol');
     }
 
-    private function sendMagicPacket(string $mac, string $broadcastIp, string $targetIp, int $port)
+    private function sendMagicPacket(string $mac, string $broadcastIp, int $port)
     {
         // MAC 주소 파싱 (XX-XX-XX-XX-XX-XX 또는 XX:XX:XX:XX:XX:XX)
         $macHex = str_replace(['-', ':'], '', $mac);
@@ -685,25 +698,18 @@ class AdminController extends BaseController
         // 매직 패킷: FF x 6 + MAC x 16 = 102 bytes
         $packet = str_repeat(chr(0xFF), 6) . str_repeat($macBin, 16);
 
-        // socket 확장이 있으면 브로드캐스트 사용
-        if (function_exists('socket_create')) {
-            $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-            if (!$sock) {
-                return '소켓 생성 실패';
-            }
-            @socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
-            $sent = @socket_sendto($sock, $packet, strlen($packet), 0, $broadcastIp, $port);
-            socket_close($sock);
-            return $sent !== false ? true : '패킷 전송 실패';
+        if (!function_exists('socket_create')) {
+            return 'WOL 전송 실패: PHP sockets 확장이 비활성화되어 있습니다.';
         }
 
-        // fallback: fsockopen으로 대상 IP에 직접 전송
-        $sock = @fsockopen("udp://{$targetIp}", $port, $errno, $errstr, 2);
-        if (!$sock) {
-            return "소켓 연결 실패: {$errstr}";
+        $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if (!$socket) {
+            return '소켓 생성 실패';
         }
-        $sent = @fwrite($sock, $packet);
-        fclose($sock);
+
+        socket_set_option($socket, SOL_SOCKET, SO_BROADCAST, 1);
+        $sent = @socket_sendto($socket, $packet, strlen($packet), 0, $broadcastIp, $port);
+        socket_close($socket);
         return $sent !== false ? true : '패킷 전송 실패';
     }
 
