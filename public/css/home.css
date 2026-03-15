@@ -1,0 +1,77 @@
+/* ===========================================
+   홈/로그인 페이지 스타일
+   =========================================== */
+
+/* 색상 오버라이드 */
+.auth-wrapper {
+    --primary-color: #6b9e6e;
+    --primary-hover: #5e8c61;
+}
+
+/* 인증 페이지 레이아웃 */
+.auth-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 520px;
+}
+
+.auth-alert-container {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.auth-alert-container .alert {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 16px 0;
+}
+
+/* 로그인 폼 */
+#inputLayout {
+    width: 100%;
+    margin: 0 auto;
+    padding: 28px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+#inputLayout .title {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+#inputLayout #blogTitle {
+    width: 320px;
+    max-width: 100%;
+    height: auto;
+}
+
+#inputLayout .input {
+    margin-bottom: 14px;
+}
+
+#inputLayout .input input {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    font-size: 16px;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    display: block;
+}
+
+#inputLayout .input button {
+    width: 100%;
+    border-radius: var(--border-radius-md);
+    font-size: 16px;
+}

@@ -1,0 +1,118 @@
+/* ===========================================
+   공통 CSS 변수 정의
+   =========================================== */
+
+:root {
+    /* 기본 색상 */
+    --primary-color: #4CAF50;
+    --primary-hover: #45a049;
+    --primary-dark: #3d8b40;
+    --secondary-color: #6c757d;
+    --secondary-hover: #5a6268;
+    --danger-color: #f44336;
+    --info-color: #2196F3;
+    --warning-color: #ffd17a;
+
+    /* 배경색 */
+    --bg-primary: #181A1B;
+    --bg-secondary: #1A1C1D;
+    --bg-tertiary: #222426;
+    --bg-quaternary: #2b2d2f;
+    --bg-hover: #36383A;
+    --bg-input: #2b2d2f;
+
+    /* 텍스트 색상 */
+    --text-primary: #ffffff;
+    --text-secondary: #C3C3C3;
+    --text-muted: #9aa0a6;
+    --text-accent: #a8e3a1;
+    --text-tertiary: rgba(255,255,255,0.3);
+
+    /* 테두리 */
+    --border-color: #464646;
+    --border-hover: #5b5f63;
+
+    /* 그림자 */
+    --shadow-light: 0 1px 3px rgba(0,0,0,0.15);
+    --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-heavy: 0 6px 20px rgba(0,0,0,0.35);
+
+    /* 텍스트 색상 (보조) */
+    --text-nav: #C8C3BC;
+    --text-dim: #888;
+    --text-light: #aaa;
+    --text-link-info: #9dc1ff;
+    --text-date: #c6c6c6;
+    --text-date-alt: #bbbbbb;
+    --text-footer: darkgray;
+
+    /* 테두리 (보조) */
+    --border-input: #3a3d40;
+    --border-tag: #4e5256;
+
+    /* Primary 투명도 계열 */
+    --primary-bg-subtle: rgba(76, 175, 80, 0.05);
+    --primary-bg-light: rgba(76, 175, 80, 0.12);
+    --primary-bg: rgba(76, 175, 80, 0.15);
+    --primary-bg-emphasis: rgba(76, 175, 80, 0.2);
+    --primary-outline: rgba(76, 175, 80, 0.25);
+    --primary-shadow-sm: rgba(76, 175, 80, 0.3);
+    --primary-shadow: rgba(76, 175, 80, 0.4);
+
+    /* Danger 투명도 계열 */
+    --danger-bg-subtle: rgba(244, 67, 54, 0.05);
+    --danger-bg: rgba(244, 67, 54, 0.15);
+    --danger-outline: rgba(244, 67, 54, 0.25);
+
+    /* 랭킹/배지 색상 */
+    --rank-1st: #e74c3c;
+    --rank-2nd: #e67e22;
+    --rank-3rd: #f1c40f;
+    --color-etf: #ff9800;
+    --color-etn: #9c27b0;
+
+    /* 테이블 배경 */
+    --bg-table-header: rgba(255, 255, 255, 0.03);
+    --bg-table-stripe: rgba(255, 255, 255, 0.02);
+    --bg-selected: rgba(255, 255, 255, 0.06);
+
+    /* 둥글기 */
+    --border-radius-xs: 4px;
+    --border-radius-sm: 6px;
+    --border-radius: 8px;
+    --border-radius-md: 10px;
+    --border-radius-lg: 20px;
+    --border-radius-pill: 999px;
+    --border-radius-circle: 50%;
+
+    /* 그림자 (보조) */
+    --shadow-focus: 0 0 0 2px var(--primary-outline);
+    --shadow-focus-danger: 0 0 0 2px var(--danger-outline);
+    --shadow-btn-sm: 0 1px 2px var(--primary-shadow-sm);
+    --shadow-btn-hover: 0 2px 4px var(--primary-shadow);
+    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.25);
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-subtle: 0 1px 4px rgba(0, 0, 0, 0.2);
+    --shadow-overlay: rgba(0, 0, 0, 0.45);
+
+    /* 트랜지션 */
+    --transition: all 0.2s ease;
+
+    /* 의미별 배경색 */
+    --bg-success: #2d4a2d;
+    --bg-danger: #4a2d2d;
+    --bg-info: #2d3a4a;
+    --bg-focus: #2f3133;
+
+    /* 버튼 색상 */
+    --btn-warning: #ff9800;
+    --btn-warning-hover: #f57c00;
+    --btn-danger: #d32f2f;
+    --btn-danger-hover: #b71c1c;
+    --btn-edit: #3f5e46;
+    --btn-edit-hover: #344e3b;
+    --btn-disable: #8a3a3a;
+    --btn-disable-hover: #7a3030;
+    --btn-enable: #3a5a8a;
+    --btn-enable-hover: #30407a;
+}

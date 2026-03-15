@@ -9,11 +9,13 @@ class Stock
 {
     private $db;
     private $cache;
+    private $config;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
         $this->cache = Cache::getInstance();
+        $this->config = require __DIR__ . '/../../config/config.php';
     }
 
     /**
@@ -149,6 +151,268 @@ class Stock
         return $result['total'];
     }
 
+    public function getAdminStockListWithCount(int $page = 1, int $perPage = 100, string $market = 'KR', string $search = ''): array
+    {
+        $market = strtoupper(trim($market));
+        $offset = ($page - 1) * $perPage;
+
+        $cacheKey = Cache::key('stock_admin_list', $page, $perPage, $market, $search);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $result = ($market === 'COIN')
+            ? $this->getAdminCoinListWithCount($offset, $perPage, $search)
+            : $this->getAdminMarketStockListWithCount($offset, $perPage, $market, $search);
+
+        $this->cache->set($cacheKey, $result, 120);
+
+        return $result;
+    }
+
+    public function getRegisteredStockCodeSet(): array
+    {
+        $cacheKey = Cache::key('stock_admin_registered');
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $rows = $this->db->fetchAll(
+            "SELECT CONCAT('STOCK:', stock_code) AS selection_key
+             FROM KoreaInvest.stock_last_ws_query
+             UNION
+             SELECT CONCAT('COIN:', coin_code) AS selection_key
+             FROM Bithumb.coin_last_ws_query"
+        );
+
+        $set = [];
+        foreach ($rows as $row) {
+            if (!empty($row['selection_key'])) {
+                $set[$row['selection_key']] = true;
+            }
+        }
+
+        $this->cache->set($cacheKey, $set, 60);
+
+        return $set;
+    }
+
+    public function getSelectionMarketMap(): array
+    {
+        $cacheKey = Cache::key('stock_admin_market_map');
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $map = [];
+
+        $stockRows = $this->db->fetchAll(
+            "SELECT stock_code, stock_market
+             FROM KoreaInvest.stock_info"
+        );
+        foreach ($stockRows as $row) {
+            $stockCode = strtoupper((string)($row['stock_code'] ?? ''));
+            if ($stockCode === '') {
+                continue;
+            }
+
+            $map['STOCK:' . $stockCode] = $this->normalizeSelectionMarket((string)($row['stock_market'] ?? ''));
+        }
+
+        $coinRows = $this->db->fetchAll(
+            "SELECT coin_code
+             FROM Bithumb.coin_info"
+        );
+        foreach ($coinRows as $row) {
+            $coinCode = strtoupper((string)($row['coin_code'] ?? ''));
+            if ($coinCode === '') {
+                continue;
+            }
+
+            $map['COIN:' . $coinCode] = 'COIN';
+        }
+
+        $this->cache->set($cacheKey, $map, 300);
+
+        return $map;
+    }
+
+    public function getRegisteredCountsByMarket(): array
+    {
+        $registeredSet = $this->getRegisteredStockCodeSet();
+        $selectionMarketMap = $this->getSelectionMarketMap();
+
+        return $this->countSelectionKeysByMarket(array_keys($registeredSet), $selectionMarketMap);
+    }
+
+    public function replaceRegisteredSubscriptions(array $selectedCodes): array
+    {
+        [$stockCodes, $coinCodes] = $this->partitionSubscriptionSelections($selectedCodes);
+
+        $validStocks = $this->fetchValidStockMarkets($stockCodes);
+        $this->validateMarketSubscriptionLimits($validStocks);
+        $validCoins = $this->fetchValidCoinCodes($coinCodes);
+        $stockCountsByMarket = $this->countStocksByRegion($validStocks);
+
+        $stockRows = [];
+        foreach ($validStocks as $stockCode => $stockMarket) {
+            $queryType = 'EX';
+            [$apiCode, $apiKey] = $this->buildStockApiMapping($stockCode, $stockMarket);
+            $stockRows[] = [
+                $this->buildSubscriptionQueryKey($queryType, $stockCode),
+                $stockCode,
+                $queryType,
+                $apiCode,
+                $apiKey,
+            ];
+        }
+
+        $coinRows = [];
+        foreach ($validCoins as $coinCode) {
+            $queryType = 'EX';
+            $coinRows[] = [
+                $this->buildSubscriptionQueryKey($queryType, $coinCode),
+                $coinCode,
+                $queryType,
+                'transaction',
+                $coinCode . '_KRW',
+            ];
+        }
+
+        $connection = $this->db->getConnection();
+        $connection->beginTransaction();
+
+        try {
+            $this->db->query('DELETE FROM KoreaInvest.stock_last_ws_query');
+            $this->db->query('DELETE FROM Bithumb.coin_last_ws_query');
+
+            if (!empty($stockRows)) {
+                $this->insertStockSubscriptionRows($stockRows);
+            }
+
+            if (!empty($coinRows)) {
+                $this->insertCoinSubscriptionRows($coinRows);
+            }
+
+            $connection->commit();
+        } catch (\Throwable $e) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            throw $e;
+        }
+
+        $this->invalidateSubscriptionCaches();
+
+        return [
+            'stock_count' => count($stockRows),
+            'kr_count' => $stockCountsByMarket['KR'],
+            'us_count' => $stockCountsByMarket['US'],
+            'coin_count' => count($coinRows),
+        ];
+    }
+
+    private function countStocksByRegion(array $validStocks): array
+    {
+        $counts = [
+            'KR' => 0,
+            'US' => 0,
+        ];
+
+        foreach ($validStocks as $stockMarket) {
+            if (in_array($stockMarket, ['KOSPI', 'KOSDAQ', 'KONEX'], true)) {
+                $counts['KR']++;
+                continue;
+            }
+
+            if (in_array($stockMarket, ['NYSE', 'NASDAQ', 'AMEX'], true)) {
+                $counts['US']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    private function validateMarketSubscriptionLimits(array $validStocks): void
+    {
+        $limits = $this->getMarketSubscriptionLimits();
+        $krCount = 0;
+        $usCount = 0;
+
+        foreach ($validStocks as $stockMarket) {
+            if (in_array($stockMarket, ['KOSPI', 'KOSDAQ', 'KONEX'], true)) {
+                $krCount++;
+                continue;
+            }
+
+            if (in_array($stockMarket, ['NYSE', 'NASDAQ', 'AMEX'], true)) {
+                $usCount++;
+            }
+        }
+
+        if ($krCount > $limits['kr']) {
+            throw new \InvalidArgumentException(
+                sprintf('한국 종목은 최대 %d개까지 저장할 수 있습니다. (현재 선택: %d개)', $limits['kr'], $krCount)
+            );
+        }
+
+        if ($usCount > $limits['us']) {
+            throw new \InvalidArgumentException(
+                sprintf('미국 종목은 최대 %d개까지 저장할 수 있습니다. (현재 선택: %d개)', $limits['us'], $usCount)
+            );
+        }
+    }
+
+    private function getMarketSubscriptionLimits(): array
+    {
+        $limitConfig = $this->config['stock_admin_limits'] ?? [];
+        $kr = isset($limitConfig['kr_max_subscriptions']) ? (int)$limitConfig['kr_max_subscriptions'] : 400;
+        $us = isset($limitConfig['us_max_subscriptions']) ? (int)$limitConfig['us_max_subscriptions'] : 400;
+
+        return [
+            'kr' => max(1, $kr),
+            'us' => max(1, $us),
+        ];
+    }
+
+    private function countSelectionKeysByMarket(array $selectionKeys, array $selectionMarketMap): array
+    {
+        $counts = [
+            'KR' => 0,
+            'US' => 0,
+            'COIN' => 0,
+        ];
+
+        foreach ($selectionKeys as $selectionKey) {
+            $market = $selectionMarketMap[$selectionKey] ?? null;
+            if ($market === null || !isset($counts[$market])) {
+                continue;
+            }
+
+            $counts[$market]++;
+        }
+
+        return $counts;
+    }
+
+    private function normalizeSelectionMarket(string $stockMarket): string
+    {
+        $stockMarket = strtoupper(trim($stockMarket));
+
+        if (in_array($stockMarket, ['KOSPI', 'KOSDAQ', 'KONEX'], true)) {
+            return 'KR';
+        }
+
+        if (in_array($stockMarket, ['NYSE', 'NASDAQ', 'AMEX'], true)) {
+            return 'US';
+        }
+
+        return 'KR';
+    }
+
     /**
      * 주식/코인 목록 + 총 개수를 한 번에 조회 (DB 라운드트립 1회로 감소)
      */
@@ -279,6 +543,302 @@ class Stock
         $this->cache->set($cacheKey, $result, 300);
 
         return $result;
+    }
+
+    private function getAdminMarketStockListWithCount(int $offset, int $perPage, string $market, string $search): array
+    {
+        $params = [];
+        $whereClauses = [];
+
+        if ($market === 'KR') {
+            $whereClauses[] = "si.stock_market IN ('KOSPI', 'KOSDAQ', 'KONEX')";
+        } elseif ($market === 'US') {
+            $whereClauses[] = "si.stock_market IN ('NYSE', 'NASDAQ', 'AMEX')";
+        }
+
+        $this->appendAdminSearchConditions(
+            $whereClauses,
+            $params,
+            'si.stock_code',
+            ['si.stock_name_kr', 'si.stock_name_en'],
+            $search,
+            'stock_admin'
+        );
+
+        $whereSql = !empty($whereClauses) ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
+        $fromSql = "KoreaInvest.stock_info si
+                    LEFT JOIN (
+                        SELECT DISTINCT stock_code
+                        FROM KoreaInvest.stock_last_ws_query
+                    ) wsq ON si.stock_code = wsq.stock_code";
+
+        $countRow = $this->db->fetch("SELECT COUNT(*) AS count FROM {$fromSql} {$whereSql}", $params);
+        $total = (int)($countRow['count'] ?? 0);
+
+        $sql = "SELECT si.stock_code,
+                       si.stock_name_kr,
+                       si.stock_name_en,
+                       si.stock_market,
+                       si.stock_type,
+                       si.stock_price,
+                       si.stock_capitalization,
+                       si.stock_count,
+                       si.stock_update,
+                       'STOCK' AS asset_group,
+                       CASE WHEN wsq.stock_code IS NULL THEN 0 ELSE 1 END AS is_registered
+                FROM {$fromSql}
+                {$whereSql}
+                ORDER BY is_registered DESC, si.stock_market ASC, si.stock_capitalization DESC, si.stock_code ASC
+                LIMIT :limit OFFSET :offset";
+
+        $params[':limit'] = $perPage;
+        $params[':offset'] = $offset;
+
+        $stocks = $this->db->fetchAll($sql, $params);
+        $stocks = $this->applyLatestCloseToStockRows($stocks, '');
+
+        return ['stocks' => $stocks, 'total' => $total];
+    }
+
+    private function getAdminCoinListWithCount(int $offset, int $perPage, string $search): array
+    {
+        $params = [];
+        $whereClauses = [];
+
+        $this->appendAdminSearchConditions(
+            $whereClauses,
+            $params,
+            'ci.coin_code',
+            ['ci.coin_name_kr', 'ci.coin_name_en'],
+            $search,
+            'coin_admin'
+        );
+
+        $whereSql = !empty($whereClauses) ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
+        $fromSql = "Bithumb.coin_info ci
+                    LEFT JOIN (
+                        SELECT DISTINCT coin_code
+                        FROM Bithumb.coin_last_ws_query
+                    ) cwq ON ci.coin_code = cwq.coin_code";
+
+        $countRow = $this->db->fetch("SELECT COUNT(*) AS count FROM {$fromSql} {$whereSql}", $params);
+        $total = (int)($countRow['count'] ?? 0);
+
+        $sql = "SELECT ci.coin_code AS stock_code,
+                       ci.coin_name_kr AS stock_name_kr,
+                       ci.coin_name_en AS stock_name_en,
+                       'Bithumb' AS stock_market,
+                       'COIN' AS stock_type,
+                       ci.coin_price AS stock_price,
+                       (ci.coin_price * ci.coin_amount) AS stock_capitalization,
+                       ci.coin_amount AS stock_count,
+                       ci.coin_update AS stock_update,
+                       'COIN' AS asset_group,
+                       CASE WHEN cwq.coin_code IS NULL THEN 0 ELSE 1 END AS is_registered
+                FROM {$fromSql}
+                {$whereSql}
+                ORDER BY is_registered DESC, (ci.coin_price * ci.coin_amount) DESC, ci.coin_code ASC
+                LIMIT :limit OFFSET :offset";
+
+        $params[':limit'] = $perPage;
+        $params[':offset'] = $offset;
+
+        $coins = $this->db->fetchAll($sql, $params);
+        $coins = $this->applyLatestCloseToStockRows($coins, 'COIN');
+
+        return ['stocks' => $coins, 'total' => $total];
+    }
+
+    private function appendAdminSearchConditions(
+        array &$whereClauses,
+        array &$params,
+        string $codeColumn,
+        array $nameColumns,
+        string $search,
+        string $prefix
+    ): void {
+        $search = trim($search);
+        if ($search === '') {
+            return;
+        }
+
+        $terms = $this->splitSearchTerms($search);
+        $searchParts = [];
+        $params[":{$prefix}_code"] = $search . '%';
+        $searchParts[] = "{$codeColumn} LIKE :{$prefix}_code";
+
+        if (!empty($terms)) {
+            $nameTermClauses = [];
+            foreach ($terms as $index => $term) {
+                $termClauses = [];
+                foreach ($nameColumns as $columnIndex => $column) {
+                    $paramName = sprintf(':%s_term_%d_%d', $prefix, $index, $columnIndex);
+                    $params[$paramName] = '%' . $term . '%';
+                    $termClauses[] = "{$column} LIKE {$paramName}";
+                }
+                $nameTermClauses[] = '(' . implode(' OR ', $termClauses) . ')';
+            }
+            $searchParts[] = '(' . implode(' AND ', $nameTermClauses) . ')';
+        }
+
+        $whereClauses[] = '(' . implode(' OR ', $searchParts) . ')';
+    }
+
+    private function splitSearchTerms(string $search): array
+    {
+        $search = str_replace("'", '', trim($search));
+        $terms = preg_split('/\s+/', $search) ?: [];
+        $terms = array_values(array_filter(array_map('trim', $terms)));
+        return array_slice($terms, 0, 5);
+    }
+
+    private function partitionSubscriptionSelections(array $selectedCodes): array
+    {
+        $stockCodes = [];
+        $coinCodes = [];
+
+        foreach ($selectedCodes as $value) {
+            if (!preg_match('/^(STOCK|COIN):([A-Za-z0-9._\/-]{1,32})$/i', (string)$value, $matches)) {
+                continue;
+            }
+
+            $type = strtoupper($matches[1]);
+            $code = strtoupper($matches[2]);
+
+            if ($type === 'STOCK') {
+                $stockCodes[$code] = true;
+                continue;
+            }
+
+            $coinCodes[$code] = true;
+        }
+
+        return [array_keys($stockCodes), array_keys($coinCodes)];
+    }
+
+    private function fetchValidStockMarkets(array $stockCodes): array
+    {
+        if (empty($stockCodes)) {
+            return [];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($stockCodes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT stock_code, stock_market
+             FROM KoreaInvest.stock_info
+                         WHERE stock_code IN ({$placeholders})",
+            $stockCodes
+        );
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[strtoupper($row['stock_code'])] = strtoupper($row['stock_market']);
+        }
+
+        return $result;
+    }
+
+    private function fetchValidCoinCodes(array $coinCodes): array
+    {
+        if (empty($coinCodes)) {
+            return [];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($coinCodes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT coin_code
+             FROM Bithumb.coin_info
+                         WHERE coin_code IN ({$placeholders})",
+            $coinCodes
+        );
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[] = strtoupper($row['coin_code']);
+        }
+
+        return $result;
+    }
+
+    private function buildStockApiMapping(string $stockCode, string $stockMarket): array
+    {
+        switch (strtoupper($stockMarket)) {
+            case 'NYSE':
+                return ['HDFSCNT0', 'DNYS' . $stockCode];
+            case 'NASDAQ':
+                return ['HDFSCNT0', 'DNAS' . $stockCode];
+            case 'AMEX':
+                return ['HDFSCNT0', 'DAMS' . $stockCode];
+            default:
+                return ['H0STCNT0', $stockCode];
+        }
+    }
+
+    private function buildSubscriptionQueryKey(string $queryType, string $queryCode): string
+    {
+        $normalizedType = strtoupper(trim($queryType));
+        $normalizedType = preg_replace('/[^A-Z0-9_]+/', '', $normalizedType);
+        $normalizedType = trim((string)$normalizedType, '_');
+        if ($normalizedType === '') {
+            $normalizedType = 'EX';
+        }
+
+        $normalizedCode = strtoupper($queryCode);
+        $normalizedCode = str_replace(['/', '.'], '_', $normalizedCode);
+        $normalizedCode = preg_replace('/[^A-Z0-9_]+/', '', $normalizedCode);
+        $normalizedCode = trim((string)$normalizedCode, '_');
+
+        if ($normalizedCode === '') {
+            $normalizedCode = 'UNKNOWN';
+        }
+
+        // query 컬럼은 varchar(32): {query_type}_{query_code}
+        // 타입 + '_' 길이만큼 제외하고 code를 잘라 길이 제한을 맞춘다.
+        $maxCodeLength = max(1, 32 - (strlen($normalizedType) + 1));
+        return $normalizedType . '_' . substr($normalizedCode, 0, $maxCodeLength);
+    }
+
+    private function insertStockSubscriptionRows(array $rows): void
+    {
+        $valueGroups = [];
+        $params = [];
+        foreach ($rows as $row) {
+            $valueGroups[] = '(?, ?, ?, ?, ?)';
+            foreach ($row as $value) {
+                $params[] = $value;
+            }
+        }
+
+        $sql = 'INSERT INTO KoreaInvest.stock_last_ws_query (stock_query, stock_code, query_type, stock_api_type, stock_api_stock_code) VALUES '
+            . implode(', ', $valueGroups);
+        $this->db->query($sql, $params);
+    }
+
+    private function insertCoinSubscriptionRows(array $rows): void
+    {
+        $valueGroups = [];
+        $params = [];
+        foreach ($rows as $row) {
+            $valueGroups[] = '(?, ?, ?, ?, ?)';
+            foreach ($row as $value) {
+                $params[] = $value;
+            }
+        }
+
+        $sql = 'INSERT INTO Bithumb.coin_last_ws_query (coin_query, coin_code, query_type, coin_api_type, coin_api_coin_code) VALUES '
+            . implode(', ', $valueGroups);
+        $this->db->query($sql, $params);
+    }
+
+    private function invalidateSubscriptionCaches(): void
+    {
+        $this->cache->deletePattern('stock_list_count');
+        $this->cache->deletePattern('coin_list_count');
+        $this->cache->deletePattern('market_stats');
+        $this->cache->deletePattern('top_stocks');
+        $this->cache->deletePattern('stock_admin_list');
+        $this->cache->deletePattern('stock_admin_registered');
+        $this->cache->deletePattern('stock_admin_market_map');
     }
 
     /**

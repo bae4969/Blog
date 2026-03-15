@@ -153,11 +153,97 @@ class Cache
     }
 
     /**
+     * 캐시 파일 상세 정보 (패턴별 그룹)
+     */
+    public function getFileDetails(): array
+    {
+        $files = glob($this->cacheDir . '/*.cache');
+        $groups = [];
+        $totalSize = 0;
+        $expiredCount = 0;
+        $now = time();
+
+        foreach ($files as $file) {
+            $size = filesize($file);
+            $totalSize += $size;
+
+            $raw = @file_get_contents($file);
+            if ($raw === false) {
+                continue;
+            }
+            $data = @unserialize($raw, ['allowed_classes' => false]);
+            if (!is_array($data) || !isset($data['expires'], $data['created'])) {
+                continue;
+            }
+
+            $expired = $data['expires'] <= $now;
+            if ($expired) {
+                $expiredCount++;
+            }
+
+            // 파일명에서 키를 복원할 수 없으므로 created/expires 기준으로 그룹핑 안 함
+            // 대신 파일 mtime 기준 최근순 정렬 정보 제공
+        }
+
+        return [
+            'file_count' => count($files),
+            'total_size' => $totalSize,
+            'total_size_formatted' => $this->formatBytes($totalSize),
+            'expired_count' => $expiredCount,
+            'active_count' => count($files) - $expiredCount,
+            'cache_dir' => $this->cacheDir,
+            'cache_dir_writable' => is_writable($this->cacheDir),
+        ];
+    }
+
+    /**
+     * 만료된 캐시만 삭제
+     */
+    public function clearExpired(): int
+    {
+        $files = glob($this->cacheDir . '/*.cache');
+        $count = 0;
+        $now = time();
+
+        foreach ($files as $file) {
+            $raw = @file_get_contents($file);
+            if ($raw === false) {
+                continue;
+            }
+            $data = @unserialize($raw, ['allowed_classes' => false]);
+            if (is_array($data) && isset($data['expires']) && $data['expires'] <= $now) {
+                @unlink($file);
+                $count++;
+            }
+        }
+
+        // 메모리 캐시에서도 만료된 것 정리
+        foreach ($this->cache as $key => $value) {
+            if ($value['expires'] <= $now) {
+                unset($this->cache[$key]);
+            }
+        }
+
+        return $count;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return round($bytes / 1024, 2) . ' KB';
+        }
+        return $bytes . ' B';
+    }
+
+    /**
      * 캐시 파일 경로 생성
      */
     private function getFilePath(string $key): string
     {
-        return $this->cacheDir . '/' . md5($key) . '.cache';
+        $safe = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', $key);
+        return $this->cacheDir . '/' . $safe . '.cache';
     }
 
     /**

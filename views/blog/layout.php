@@ -1,46 +1,16 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $config['app_name'] ?></title>
-    <?php $mainCssVersion = @filemtime(__DIR__ . '/../../public/css/main.css') ?: time(); ?>
-    <link rel="stylesheet" href="/css/main.css?v=<?= $mainCssVersion ?>">
-    <?php if (isset($additionalCss)): ?>
-        <?php foreach ($additionalCss as $css): ?>
-            <?php
-                $cssPublicPath = __DIR__ . '/../../public' . $css;
-                $cssVersion = @filemtime($cssPublicPath) ?: $mainCssVersion;
-            ?>
-            <link rel="stylesheet" href="<?= $css ?>?v=<?= $cssVersion ?>">
-        <?php endforeach; ?>
-    <?php endif; ?>
-</head>
-<body class="<?= isset($isStockPage) && $isStockPage ? 'stock-page' : '' ?>">
-    <div id="main">
-        <header>
-            <div id="topLeft" onclick="location.href='/blog'">블로그</div>
-            <div id="topStocks" onclick="location.href='/stocks'">주식</div>
-            <div id="topRight" onclick="loginoutClick()">
-                <?= $auth->isLoggedIn() ? '로그아웃' : '로그인' ?>
-            </div>
-            <?php if ($auth->isLoggedIn() && $auth->canWrite()): ?>
-                <div id="topWrite" onclick="writePostingClick()">글쓰기</div>
-            <?php endif; ?>
-            <div id="title">
-                <?php $titleLink = (isset($isStockPage) && $isStockPage) ? '/stocks' : '/blog'; ?>
-                <img id="mainTitle" onclick="location.href='<?= $titleLink ?>'" src="/res/title.png" alt="Blog Page" />
-            </div>
-        </header>
+<?php include __DIR__ . '/../home/partials-head.php'; ?>
+<body>
+    <div id="blog">
+        <?php include __DIR__ . '/../home/header.php'; ?>
         
-        <section class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-section' : '' ?>">
-            <?php if (!isset($isStockPage) || !$isStockPage): ?>
+        <section>
             <aside id="side-panel">
                 <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
                 <div class="sidebar-content">
                     <div id="profile">
                         <?php if ($auth->isLoggedIn()): ?>
-                            안녕하세요, <?= $view->escape($auth->getCurrentUserName()) ?>님!
+                            안녕하세요<br>
+                            <span class="profile-user-id"><?= $view->escape($auth->getCurrentUserName()) ?> 님</span>
                         <?php else: ?>
                             로그인해주세요
                         <?php endif; ?>
@@ -84,42 +54,20 @@
                 </div>
                 </div>
             </aside>
-            <?php endif; ?>
             
-            <div id="content" class="<?= isset($isStockPage) && $isStockPage ? 'stock-page-content' : '' ?>">
+            <div id="content">
 			    <div class="content-alert-container">
-                    <?php if ($session->hasFlash('success')): ?>
-                        <div class="alert alert-success">
-                            <?= $view->escape($session->getFlash('success')) ?>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <?php if ($session->hasFlash('error')): ?>
-                        <div class="alert alert-error">
-                            <?= $view->escape($session->getFlash('error')) ?>
-                        </div>
-                    <?php endif; ?>
+                    <?php include __DIR__ . '/../home/partials-flash-messages.php'; ?>
                 </div>
                 
                 <?= $content ?>
             </div>
         </section>
         
-        <footer>
-            <p>
-                Contact: <?= $view->escape($config['contact_email']) ?><br>
-                Github: <a class="footer" href="<?= $view->escape($config['github_url']) ?>"><?= $view->escape($config['github_url']) ?></a>
-            </p>
-        </footer>
+        <?php include __DIR__ . '/../home/footer.php'; ?>
     </div>
 
-    <?php $mainJsVersion = @filemtime(__DIR__ . '/../../public/js/main.js') ?: time(); ?>
-    <script src="/js/main.js?v=<?= $mainJsVersion ?>"></script>
-    <?php if ($auth->isLoggedIn()): ?>
-    <form id="logout-form" method="POST" action="/logout.php" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?= $view->csrfToken() ?>">
-    </form>
-    <?php endif; ?>
+    <?php include __DIR__ . '/../home/partials-footer-scripts.php'; ?>
     <script>
     function writePostingClick() {
         <?php if (isset($userPostingInfo) && $userPostingInfo && $userPostingInfo['is_limited']): ?>
@@ -130,7 +78,6 @@
         location.href = '/writer.php';
     }
     
-    // 사이드 패널 토글 함수
     function toggleSidebar() {
         const sidebarContent = document.querySelector('.sidebar-content');
         const toggleButton = document.querySelector('.sidebar-toggle');
@@ -144,27 +91,16 @@
         }
     }
     
-    // 모바일에서 페이지 로드 시 사이드 패널 접기
     document.addEventListener('DOMContentLoaded', function() {
         if (window.innerWidth <= 1024) {
             const sidebarContent = document.querySelector('.sidebar-content');
             const toggleButton = document.querySelector('.sidebar-toggle');
             
             if (sidebarContent && toggleButton) {
-                // CSS에서 이미 접힌 상태로 설정되어 있으므로 추가 작업 불필요
                 toggleButton.classList.add('collapsed');
             }
         }
     });
     </script>
-    <?php if (isset($additionalJs)): ?>
-        <?php foreach ($additionalJs as $js): ?>
-            <?php
-                $jsPublicPath = __DIR__ . '/../../public' . $js;
-                $jsVersion = @filemtime($jsPublicPath) ?: $mainJsVersion;
-            ?>
-            <script src="<?= $js ?>?v=<?= $jsVersion ?>"></script>
-        <?php endforeach; ?>
-    <?php endif; ?>
 </body>
 </html>

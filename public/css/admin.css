@@ -1,0 +1,1361 @@
+/* ===========================================
+   관리자 페이지 스타일
+   다크테마 · 보더리스 디자인 · 배경색 계층 구분
+   =========================================== */
+
+/* 관리자 콘텐츠 영역 */
+.admin-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 10px 5px 20px 5px;
+}
+
+.admin-content h2 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    padding: 5px;
+    background: transparent;
+}
+
+.admin-placeholder {
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    background: var(--bg-quaternary);
+    border-radius: var(--border-radius);
+}
+
+/* ===========================================
+   관리자 카드
+   =========================================== */
+.admin-card {
+    background: var(--bg-tertiary);
+    border: none;
+    border-radius: var(--border-radius-lg);
+    padding: 25px 30px;
+}
+
+.admin-card h3 {
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.admin-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 16px;
+    margin-bottom: 18px;
+}
+
+.admin-card-header h3 {
+    margin: 0;
+}
+
+/* ===========================================
+   요약 통계 (admin-card 내부 stat-row)
+   =========================================== */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 20px;
+}
+
+.stat-row .stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-row .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.stat-row .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stat-row .stat-sep {
+    color: var(--text-muted);
+    opacity: 0.4;
+    font-size: 14px;
+    user-select: none;
+}
+
+/* 캐시 헤더 카드: 라벨/값 폰트 차이로 생기는 세로 정렬 어긋남 보정 */
+.cache-stat-row {
+    align-items: baseline;
+}
+
+.cache-stat-row .stat-item {
+    align-items: baseline;
+}
+
+.cache-stat-row .stat-label,
+.cache-stat-row .stat-value,
+.cache-stat-row .stat-sep {
+    line-height: 1;
+}
+
+/* ===========================================
+   관리자 폼
+   =========================================== */
+.admin-form .admin-form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.admin-form .admin-form-row label {
+    width: 100px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.admin-form .admin-form-row input,
+.admin-form .admin-form-row select {
+    flex: 1;
+    max-width: 300px;
+    padding: 12px 16px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.admin-form .admin-form-row input:focus,
+.admin-form .admin-form-row select:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
+}
+
+.admin-form .admin-form-row input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* 관리자 권한/레벨 콤보박스 텍스트 중앙 정렬 */
+.admin-form select[name="user_level"],
+.inline-form select[name="user_level"],
+.admin-form select[name="category_read_level"],
+.admin-form select[name="category_write_level"],
+.inline-form select[name="category_read_level"],
+.inline-form select[name="category_write_level"] {
+    text-align: center;
+    text-align-last: center;
+}
+
+.admin-form select[name="user_level"] option,
+.inline-form select[name="user_level"] option,
+.admin-form select[name="category_read_level"] option,
+.admin-form select[name="category_write_level"] option,
+.inline-form select[name="category_read_level"] option,
+.inline-form select[name="category_write_level"] option {
+    text-align: center;
+}
+
+.admin-form-actions {
+    margin-top: 20px;
+}
+
+.admin-search-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+    justify-content: flex-end;
+    justify-self: end;
+    margin-left: auto;
+}
+
+.admin-search-form input {
+    min-width: 240px;
+    max-width: 360px;
+    padding: 12px 16px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.admin-search-form input:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
+}
+
+.admin-search-result {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+/* ===========================================
+   관리자 테이블
+   =========================================== */
+.admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--bg-quaternary);
+    border-radius: var(--border-radius);
+    border: none;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 5px 7px;
+    text-align: left;
+    border-bottom: none;
+    white-space: nowrap;
+}
+
+.admin-table th {
+    background: var(--bg-table-header);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.admin-table td {
+    color: var(--text-secondary);
+    vertical-align: middle;
+    height: auto;
+}
+
+.admin-table tbody td:nth-child(1),
+.admin-table tbody td:nth-child(3),
+.admin-table tbody td:nth-child(4),
+.admin-table tbody td:nth-child(5),
+.admin-table tbody td:nth-child(6),
+.admin-table tbody td:nth-child(7),
+.admin-table tbody td:nth-child(8) {
+    text-align: center;
+}
+
+.admin-table tbody tr {
+    height: 40px;
+    transition: var(--transition);
+}
+
+.admin-table tbody tr:nth-child(even) {
+    background: var(--bg-table-stripe);
+}
+
+.admin-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.admin-table tr.row-disabled {
+    opacity: 0.5;
+}
+
+/* ===========================================
+   인라인 폼 & 입력
+   =========================================== */
+.inline-form {
+    display: inline;
+}
+
+.inline-form select {
+    padding: 6px 10px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.inline-form select:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+.input-small {
+    width: 70px !important;
+    padding: 6px 10px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.input-small:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+.inline-input {
+    padding: 8px 12px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.inline-input:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+/* ===========================================
+   배지 & 상태
+   =========================================== */
+.badge-self {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.level-badge {
+    color: var(--text-accent);
+    font-weight: 600;
+    padding: 15px;
+}
+
+.state-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: var(--border-radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-state {
+    padding: 5px 12px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.state-active {
+    background: var(--primary-bg);
+    color: var(--primary-color);
+}
+
+.state-inactive {
+    background: var(--danger-bg);
+    color: var(--danger-color);
+}
+
+.btn-state:hover {
+    opacity: 0.8;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* 인라인 입력 */
+.inline-input-sm {
+    width: 70px !important;
+    min-width: 50px;
+}
+
+.inline-select {
+    padding: 6px 10px;
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    font-size: 13px;
+    transition: var(--transition);
+}
+
+.inline-select:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+.action-cell {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.action-buttons {
+    display: inline-grid;
+    grid-template-columns: 50px 50px;
+    gap: 4px;
+    align-items: center;
+}
+
+/* ===========================================
+   순서 화살표
+   =========================================== */
+.order-cell {
+    width: 50px;
+    text-align: center;
+}
+
+.order-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.btn-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 16px;
+    font-size: 10px;
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius-xs);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: var(--transition);
+}
+
+.btn-arrow:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-arrow.disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* ===========================================
+   도움말
+   =========================================== */
+.admin-help {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--bg-quaternary);
+    border-radius: var(--border-radius);
+}
+
+.admin-help p {
+    margin: 5px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+/* ===========================================
+   캐시 관리
+   =========================================== */
+.stat-active {
+    color: var(--primary-color);
+}
+
+.stat-expired {
+    color: var(--danger-color);
+}
+
+.cache-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cache-actions .inline-form {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: nowrap;
+}
+
+.cache-actions .btn {
+    width: 140px;
+    justify-content: center;
+    text-align: center;
+}
+
+.action-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+}
+
+.pattern-select {
+    min-width: 100px;
+    flex: 1;
+    max-width: 170px;
+    height: 40px;
+}
+
+.cache-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--primary-bg);
+    color: var(--primary-color);
+    border-radius: var(--border-radius-pill);
+    font-size: 12px;
+    margin: 2px 3px;
+    font-family: monospace;
+    font-weight: 500;
+}
+
+.cache-table th,
+.cache-table td {
+    text-align: center;
+}
+
+/* ===========================================
+   WOL 장치 목록
+   =========================================== */
+.wol-device-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.wol-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.wol-device:hover {
+    background: var(--bg-hover);
+}
+
+.wol-device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.wol-device-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.wol-device-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.wol-device-detail {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.wol-label {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-family: inherit;
+}
+
+.btn-wol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    background: var(--btn-warning);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    min-height: 40px;
+}
+
+.btn-wol:hover {
+    background: var(--btn-warning-hover);
+}
+
+.btn-wol.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-height: 32px;
+    border-radius: var(--border-radius-sm);
+}
+
+.wol-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.wol-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wol-edit-row label {
+    min-width: 60px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.wol-edit-row .inline-input {
+    flex: 1;
+    max-width: 300px;
+}
+
+.wol-hidden-form {
+    display: none;
+}
+
+.wol-device-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
+}
+
+.wol-device-actions .btn,
+.wol-device-actions .btn-wol {
+    min-width: 80px;
+    text-align: center;
+    border-radius: var(--border-radius-sm);
+}
+
+/* ===========================================
+   폼 그리드 레이아웃
+   =========================================== */
+.admin-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    align-items: end;
+}
+
+.admin-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-form-field label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.admin-form-field input,
+.admin-form-field select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+    box-sizing: border-box;
+}
+
+.admin-form-field input:focus,
+.admin-form-field select:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
+}
+
+.admin-form-field input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* ===========================================
+   주식 관리자 페이지
+   =========================================== */
+
+.stock-admin-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    margin-left: auto;
+    flex: 0 0 auto;
+    margin-bottom: 8px;
+}
+
+.stock-admin-actions .btn {
+    width: 160px;
+    text-align: center;
+}
+
+.stock-admin-action {
+    margin-right: 8px;
+}
+
+.stock-admin-action:last-child {
+    margin-right: 0px;
+}
+
+.stock-admin-management-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-search-form input {
+    padding: 10px 14px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+    min-width: 200px;
+}
+
+.stock-admin-search-form input:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
+}
+
+.stock-admin-search-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.stock-admin-toolbar {
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    flex-wrap: wrap;
+}
+
+.stock-admin-market-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.stock-admin-market-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 4px 20px;
+    border-radius: var(--border-radius-pill);
+    border: none;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: var(--transition);
+    margin-right: 8px;
+}
+
+.stock-admin-market-tab:last-child {
+    margin-right: 0;
+}
+
+.stock-admin-market-tab.active,
+.stock-admin-market-tab:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.stock-admin-search-form {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-left: 12px;
+    margin-bottom: 8px;
+}
+
+.stock-admin-selection-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.stock-admin-table-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stock-admin-table-form .stocks-table table {
+    min-width: 0 !important;
+    width: 100%;
+    table-layout: fixed !important;
+}
+
+.stocks-table.admin-table th:nth-child(1),
+.stocks-table.admin-table td:nth-child(1) {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    padding-left: 12px;
+    text-align: center;
+}
+
+.stock-admin-table-form .stocks-table.admin-table th:nth-child(1),
+.stock-admin-table-form .stocks-table.admin-table td:nth-child(1) {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+}
+
+.stocks-table.admin-table th:nth-child(2),
+.stocks-table.admin-table td:nth-child(2) {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    text-align: left;
+}
+
+.stocks-table.admin-table th:nth-child(3),
+.stocks-table.admin-table td:nth-child(3) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(4),
+.stocks-table.admin-table td:nth-child(4) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(5),
+.stocks-table.admin-table td:nth-child(5) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(6),
+.stocks-table.admin-table td:nth-child(6) {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+}
+
+.stocks-table.admin-table th:nth-child(7),
+.stocks-table.admin-table td:nth-child(7) {
+    width: 110px;
+    min-width: 110px;
+    max-width: 110px;
+}
+
+.stocks-table.admin-table th:nth-child(8),
+.stocks-table.admin-table td:nth-child(8) {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+    text-align: center;
+}
+
+.admin-select-cell input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #8f959c;
+}
+
+.admin-table-row.is-selected {
+    background: var(--bg-selected);
+}
+
+.stock-admin-view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: var(--border-radius-sm);
+    border: none;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stock-admin-view-link:hover {
+    background: var(--bg-hover);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+/* ===========================================
+   모달
+   =========================================== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    background: var(--shadow-overlay);
+}
+
+.modal-content {
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 28px 24px;
+    width: 320px;
+    max-width: 95vw;
+    box-shadow: var(--shadow-heavy);
+    color: var(--text-primary);
+}
+
+.modal-content h3 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+}
+
+.modal-input-wrapper {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.modal-input-wrapper input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 36px 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.95rem;
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+}
+
+.modal-input-wrapper .modal-toggle-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.pagination .page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.pagination .page-btn:hover {
+    background: var(--bg-hover);
+    text-decoration: none;
+}
+
+.pagination .page-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+    text-decoration: none;
+}
+
+/* 툴바: 중간 화면 — 2행 (탭+검색 / 액션) */
+@media (max-width: 1200px) {
+    .stock-admin-market-tabs {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .stock-admin-search-form {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    .stock-admin-actions {
+        flex: 1 0 100%;
+    }
+}
+
+/* 툴바: 모바일 — 3행 (탭 / 검색 / 액션) */
+@media (max-width: 600px) {
+    .stock-admin-market-tabs {
+        flex: 1 0 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-right: 10px;
+    }
+
+    .stock-admin-market-tab {
+        width: 100%;
+    }
+
+    .stock-admin-market-tabs .stock-admin-market-tab:last-child {
+        margin-right: 0;
+    }
+
+    .stock-admin-search-form {
+        margin-left: 0px;
+        flex: 1 0 100%;
+    }
+
+    .stock-admin-search-form input {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .stock-admin-actions {
+        flex: 1 0 100%;
+    }
+
+    .stock-admin-actions .btn {
+        width: auto;
+        min-width: 0;
+        flex: 1 1 0;
+    }
+}
+
+/* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
+@media (max-width: 1200px) {
+    .stocks-table.admin-table th:nth-child(6),
+    .stocks-table.admin-table td:nth-child(6) {
+        display: none !important;
+    }
+
+    .stock-admin-view-link {
+        min-height: 30px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 1120px) {
+    .stocks-table.admin-table th:nth-child(8),
+    .stocks-table.admin-table td:nth-child(8) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 900px) {
+    .stocks-table.admin-table th:nth-child(4),
+    .stocks-table.admin-table td:nth-child(4) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 768px) {
+    .stocks-table.admin-table th:nth-child(5),
+    .stocks-table.admin-table td:nth-child(5) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 640px) {
+    .stocks-table.admin-table th:nth-child(3),
+    .stocks-table.admin-table td:nth-child(3) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+/* ===========================================
+   반응형 (태블릿)
+   =========================================== */
+@media (max-width: 1024px) {
+    .admin-content {
+        padding: 5px 0 15px 0;
+        gap: 12px;
+    }
+
+    .admin-content h2 {
+        font-size: 1.5rem;
+        padding: 10px 12px;
+    }
+
+    .admin-card {
+        margin: 0 3px;
+        padding: 20px 15px;
+        border-radius: var(--border-radius-md);
+    }
+
+
+
+    .admin-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-form .admin-form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .admin-form .admin-form-row label {
+        width: auto;
+    }
+
+    .admin-form .admin-form-row input,
+    .admin-form .admin-form-row select {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .admin-table {
+        font-size: 13px;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 10px 8px;
+    }
+
+    .wol-device {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .wol-device-list {
+        grid-template-columns: 1fr;
+    }
+
+    .cache-actions .inline-form {
+        flex-direction: row;
+        align-items: center;
+        overflow-x: auto;
+    }
+
+    .action-cell {
+        flex-wrap: wrap;
+    }
+
+    .wol-edit-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .wol-edit-row .inline-input {
+        max-width: 100%;
+    }
+
+    .wol-device-actions {
+        flex-wrap: wrap;
+    }
+
+    .wol-device-actions .btn,
+    .wol-device-actions .btn-wol {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+/* ===========================================
+   반응형 (모바일)
+   =========================================== */
+@media (max-width: 768px) {
+    .admin-card-header {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-search-form {
+        justify-self: stretch;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+
+    .admin-content h2 {
+        font-size: 1.3rem;
+        padding: 8px 10px;
+    }
+
+    .admin-card {
+        padding: 16px 14px;
+        border-radius: 10px;
+    }
+
+    .stat-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stat-row .stat-sep {
+        display: none;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 10px 6px;
+        font-size: 12px;
+    }
+
+    .btn {
+        min-height: 44px;
+        padding: 10px 16px;
+    }
+
+    .btn-sm {
+        min-height: 36px;
+        padding: 8px 12px;
+    }
+
+    .btn-wol.btn-sm {
+        min-height: 36px;
+        padding: 8px 12px;
+        border-radius: var(--border-radius-sm);
+    }
+
+    .btn-state {
+        min-height: 36px;
+        padding: 8px 12px;
+    }
+
+    .wol-device-actions {
+        flex-wrap: wrap;
+    }
+
+    .wol-device-actions .btn,
+    .wol-device-actions .btn-wol {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-card {
+        margin: 0;
+        padding: 14px 12px;
+        border-radius: var(--border-radius);
+    }
+
+
+
+    .admin-table-wrap {
+        margin: 0 -12px;
+        border-radius: 0;
+    }
+
+    .inline-input {
+        font-size: 13px;
+    }
+}
