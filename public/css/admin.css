@@ -95,6 +95,21 @@
     user-select: none;
 }
 
+/* 캐시 헤더 카드: 라벨/값 폰트 차이로 생기는 세로 정렬 어긋남 보정 */
+.cache-stat-row {
+    align-items: baseline;
+}
+
+.cache-stat-row .stat-item {
+    align-items: baseline;
+}
+
+.cache-stat-row .stat-label,
+.cache-stat-row .stat-value,
+.cache-stat-row .stat-sep {
+    line-height: 1;
+}
+
 /* ===========================================
    관리자 폼
    =========================================== */
@@ -136,6 +151,26 @@
 .admin-form .admin-form-row input::placeholder {
     color: var(--text-muted);
     font-weight: 400;
+}
+
+/* 관리자 권한/레벨 콤보박스 텍스트 중앙 정렬 */
+.admin-form select[name="user_level"],
+.inline-form select[name="user_level"],
+.admin-form select[name="category_read_level"],
+.admin-form select[name="category_write_level"],
+.inline-form select[name="category_read_level"],
+.inline-form select[name="category_write_level"] {
+    text-align: center;
+    text-align-last: center;
+}
+
+.admin-form select[name="user_level"] option,
+.inline-form select[name="user_level"] option,
+.admin-form select[name="category_read_level"] option,
+.admin-form select[name="category_write_level"] option,
+.inline-form select[name="category_read_level"] option,
+.inline-form select[name="category_write_level"] option {
+    text-align: center;
 }
 
 .admin-form-actions {
@@ -486,16 +521,30 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    flex-wrap: nowrap;
+}
+
+.cache-actions .btn {
+    width: 140px;
+    justify-content: center;
+    text-align: center;
 }
 
 .action-desc {
     font-size: 13px;
     color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
 }
 
 .pattern-select {
+    min-width: 100px;
     flex: 1;
-    max-width: 300px;
+    max-width: 170px;
+    height: 40px;
 }
 
 .cache-tag {
@@ -748,8 +797,9 @@
     }
 
     .cache-actions .inline-form {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
+        overflow-x: auto;
     }
 
     .action-cell {

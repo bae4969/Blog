@@ -230,6 +230,11 @@ section.stock-page-section {
     display: block;
 }
 
+#profile .profile-user-id {
+    display: inline-block;
+    margin-top: 6px;
+}
+
 #category { 
     list-style: none; 
 }

@@ -3,7 +3,7 @@
 
     <!-- 캐시 현황 -->
     <div class="admin-card">
-        <div class="stat-row">
+        <div class="stat-row cache-stat-row">
             <div class="stat-item"><span class="stat-label">파일 수</span> <span class="stat-value"><?= (int)$fileDetails['file_count'] ?></span></div>
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">전체 크기</span> <span class="stat-value"><?= $view->escape($fileDetails['total_size_formatted']) ?></span></div>
@@ -16,7 +16,7 @@
         </div>
     </div>
 
-    <!-- 캐시 작업 -->
+    <!-- 캐시 작업 (통합) -->
     <div class="admin-card">
         <h3>캐시 작업</h3>
         <div class="cache-actions">
@@ -30,33 +30,18 @@
                 <button type="submit" class="btn btn-secondary">캐시 워밍업</button>
                 <span class="action-desc">자주 사용하는 데이터를 미리 캐시합니다</span>
             </form>
-            <form method="post" action="/admin/cache/clear" class="inline-form"
-                  onsubmit="return confirm('모든 캐시를 삭제하시겠습니까? 일시적으로 사이트 응답이 느려질 수 있습니다.');">
+            <form method="post" action="/admin/cache/clear-pattern" class="inline-form">
                 <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-                <button type="submit" class="btn btn-danger">전체 캐시 삭제</button>
-                <span class="action-desc">모든 캐시를 삭제합니다 (주의)</span>
-            </form>
-        </div>
-    </div>
-
-    <!-- 패턴 삭제 -->
-    <div class="admin-card">
-        <h3>패턴별 캐시 삭제</h3>
-        <form method="post" action="/admin/cache/clear-pattern" class="admin-form">
-            <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-            <div class="admin-form-row">
-                <label>패턴</label>
-                <select name="pattern" class="pattern-select">
-                    <option value="">-- 패턴 선택 --</option>
+                <button type="submit" class="btn btn-danger">캐시 삭제</button>
+                <select name="pattern" class="pattern-select" required>
+                    <option value="__all__" selected>전체</option>
                     <?php foreach ($cacheTtl as $key => $ttl): ?>
                         <option value="<?= $view->escape($key) ?>"><?= $view->escape($key) ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            <div class="admin-form-actions">
-                <button type="submit" class="btn btn-primary">선택 패턴 삭제</button>
-            </div>
-        </form>
+                <span class="action-desc">선택한 패턴의 캐시를 삭제합니다</span>
+            </form>
+        </div>
     </div>
 
     <!-- TTL 설정 (읽기 전용) -->
