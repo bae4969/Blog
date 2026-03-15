@@ -101,7 +101,8 @@
                 <div class="sidebar-content">
                     <div id="profile">
                         <?php if ($auth->isLoggedIn()): ?>
-                            안녕하세요, <?= $view->escape($auth->getCurrentUserName()) ?>님!
+                            안녕하세요<br>
+                            <span class="profile-user-id"><?= $view->escape($auth->getCurrentUserName()) ?> 님</span>
                         <?php else: ?>
                             로그인해주세요
                         <?php endif; ?>

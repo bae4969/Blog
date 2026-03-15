@@ -450,6 +450,14 @@ class AdminController extends BaseController
         }
 
         $cache = Cache::getInstance();
+
+        if ($pattern === '__all__') {
+            $cache->clear();
+            $this->session->setFlash('success', '모든 캐시가 삭제되었습니다.');
+            $this->redirect('/admin/cache');
+            return;
+        }
+
         $cache->deletePattern($pattern);
         $this->session->setFlash('success', "'{$pattern}' 패턴 캐시가 삭제되었습니다.");
         $this->redirect('/admin/cache');
