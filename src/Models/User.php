@@ -184,8 +184,27 @@ class User
 
     public function getAllUsers(): array
     {
-        $sql = "SELECT user_index, user_id, user_level, user_state, user_posting_count, user_posting_limit, user_last_action_datetime FROM user_list ORDER BY user_level ASC, user_id ASC";
-        return $this->db->fetchAll($sql);
+        return $this->getAllUsersBySearch('');
+    }
+
+    public function getAllUsersBySearch(string $searchQuery = ''): array
+    {
+        $sql = "SELECT user_index, user_id, user_level, user_state, user_posting_count, user_posting_limit, user_last_action_datetime FROM user_list";
+        $params = [];
+
+        if ($searchQuery !== '') {
+            $sql .= " WHERE user_id LIKE ?";
+            $params[] = '%' . $searchQuery . '%';
+
+            if (ctype_digit($searchQuery)) {
+                $sql .= " OR user_index = ?";
+                $params[] = (int)$searchQuery;
+            }
+        }
+
+        $sql .= " ORDER BY user_level ASC, user_id ASC";
+
+        return $this->db->fetchAll($sql, $params);
     }
 
     public function getUserByIndex(int $userIndex): ?array

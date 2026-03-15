@@ -1,27 +1,18 @@
 <div class="admin-content">
     <h2>캐시 관리</h2>
 
-    <!-- 캐시 현황 - 상단 요약 카드 -->
-    <div class="admin-summary-stats">
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">파일 수</span>
-            <strong class="admin-stat-value"><?= (int)$fileDetails['file_count'] ?></strong>
-        </div>
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">전체 크기</span>
-            <strong class="admin-stat-value"><?= $view->escape($fileDetails['total_size_formatted']) ?></strong>
-        </div>
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">활성</span>
-            <strong class="admin-stat-value stat-active"><?= (int)$fileDetails['active_count'] ?></strong>
-        </div>
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">만료</span>
-            <strong class="admin-stat-value stat-inactive"><?= (int)$fileDetails['expired_count'] ?></strong>
-        </div>
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">디렉토리</span>
-            <strong class="admin-stat-value"><?= $fileDetails['cache_dir_writable'] ? '쓰기 가능' : '쓰기 불가' ?></strong>
+    <!-- 캐시 현황 -->
+    <div class="admin-card">
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">파일 수</span> <span class="stat-value"><?= (int)$fileDetails['file_count'] ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">전체 크기</span> <span class="stat-value"><?= $view->escape($fileDetails['total_size_formatted']) ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">활성</span> <span class="stat-value stat-active"><?= (int)$fileDetails['active_count'] ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">만료</span> <span class="stat-value" style="color:#f44336"><?= (int)$fileDetails['expired_count'] ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">디렉토리</span> <span class="stat-value"><?= $fileDetails['cache_dir_writable'] ? '쓰기 가능' : '쓰기 불가' ?></span></div>
         </div>
     </div>
 

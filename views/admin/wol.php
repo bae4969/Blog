@@ -1,10 +1,9 @@
 <div class="admin-content">
     <h2>WOL (Wake-on-LAN)</h2>
 
-    <div class="admin-summary-stats">
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">등록된 장치</span>
-            <strong class="admin-stat-value"><?= count($devices) ?></strong>
+    <div class="admin-card">
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value"><?= count($devices) ?></span></div>
         </div>
     </div>
 
@@ -43,7 +42,7 @@
                 <?php foreach ($devices as $device): ?>
                     <div class="wol-device">
                         <div class="wol-device-info">
-                            <form method="post" action="/admin/wol/update" class="wol-edit-form">
+                            <form method="post" action="/admin/wol/update" class="wol-edit-form" id="wol-edit-<?= (int)$device['wol_device_id'] ?>">
                                 <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
                                 <input type="hidden" name="device_id" value="<?= (int)$device['wol_device_id'] ?>">
                                 <div class="wol-edit-row">
@@ -58,22 +57,22 @@
                                     <label>MAC</label>
                                     <input type="text" name="mac_address" value="<?= $view->escape($device['wol_device_mac_address']) ?>" required maxlength="17" class="inline-input">
                                 </div>
-                                <div class="wol-device-actions">
-                                    <button type="submit" class="btn btn-sm btn-primary">저장</button>
                             </form>
-                            <form method="post" action="/admin/wol/execute" class="inline-form"
+                            <form method="post" action="/admin/wol/execute" id="wol-exec-<?= (int)$device['wol_device_id'] ?>" class="wol-hidden-form"
                                   onsubmit="return confirm('<?= $view->escape($device['wol_device_name']) ?>에 WOL 패킷을 전송하시겠습니까?');">
                                 <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
                                 <input type="hidden" name="device_id" value="<?= (int)$device['wol_device_id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-wol">전원 켜기</button>
                             </form>
-                            <form method="post" action="/admin/wol/delete" class="inline-form"
+                            <form method="post" action="/admin/wol/delete" id="wol-del-<?= (int)$device['wol_device_id'] ?>" class="wol-hidden-form"
                                   onsubmit="return confirm('<?= $view->escape($device['wol_device_name']) ?> 장치를 삭제하시겠습니까?');">
                                 <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
                                 <input type="hidden" name="device_id" value="<?= (int)$device['wol_device_id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-danger">삭제</button>
                             </form>
-                                </div>
+                            <div class="wol-device-actions">
+                                <button type="submit" form="wol-edit-<?= (int)$device['wol_device_id'] ?>" class="btn btn-sm btn-primary wol-save-btn" disabled>저장</button>
+                                <button type="submit" form="wol-exec-<?= (int)$device['wol_device_id'] ?>" class="btn btn-sm btn-wol">전원 켜기</button>
+                                <button type="submit" form="wol-del-<?= (int)$device['wol_device_id'] ?>" class="btn btn-sm btn-danger">삭제</button>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -92,3 +91,13 @@
         </div>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('.wol-edit-form').forEach(function(form) {
+    var btn = document.querySelector('button[form="' + form.id + '"]');
+    if (!btn) return;
+    form.querySelectorAll('.inline-input').forEach(function(input) {
+        input.addEventListener('input', function() { btn.disabled = false; });
+    });
+});
+</script>

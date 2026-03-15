@@ -41,7 +41,10 @@ class AdminController extends BaseController
 
     public function users(): void
     {
-        $users = $this->userModel->getAllUsers();
+        $searchQuery = mb_substr($this->sanitizeInput((string)$this->getParam('q', '')), 0, 50);
+        $users = $searchQuery === ''
+            ? $this->userModel->getAllUsers()
+            : $this->userModel->getAllUsersBySearch($searchQuery);
 
         $levelLabels = [
             0 => '슈퍼관리자',
@@ -54,15 +57,27 @@ class AdminController extends BaseController
         $this->renderLayout('main', 'admin/users', $this->adminData('users', [
             'users' => $users,
             'levelLabels' => $levelLabels,
+            'searchQuery' => $searchQuery,
             'csrfToken' => $this->view->csrfToken(),
         ]));
+    }
+
+    private function getAdminUsersUrl(): string
+    {
+        $searchQuery = mb_substr($this->sanitizeInput((string)$this->getParam('q', '')), 0, 50);
+
+        if ($searchQuery === '') {
+            return '/admin/users';
+        }
+
+        return '/admin/users?q=' . urlencode($searchQuery);
     }
 
     public function createUser(): void
     {
         if (!$this->validateCsrfToken()) {
             $this->session->setFlash('error', '잘못된 요청입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
@@ -73,44 +88,44 @@ class AdminController extends BaseController
 
         if (empty($userId) || empty($password)) {
             $this->session->setFlash('error', '아이디와 비밀번호는 필수입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         if (strlen($userId) < 2 || strlen($userId) > 50) {
             $this->session->setFlash('error', '아이디는 2~50자여야 합니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         if (!in_array($level, [0, 1, 2, 3, 4], true)) {
             $this->session->setFlash('error', '유효하지 않은 권한 레벨입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         if ($postingLimit < 0 || $postingLimit > 10000) {
             $this->session->setFlash('error', '게시글 제한은 0~10000 사이여야 합니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         if ($this->userModel->isUserIdExists($userId)) {
             $this->session->setFlash('error', '이미 존재하는 아이디입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         $this->userModel->createUser($userId, $password, $level, $postingLimit);
         $this->session->setFlash('success', "사용자 '{$userId}'가 생성되었습니다.");
-        $this->redirect('/admin/users');
+        $this->redirect($this->getAdminUsersUrl());
     }
 
     public function updateUser(): void
     {
         if (!$this->validateCsrfToken()) {
             $this->session->setFlash('error', '잘못된 요청입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
@@ -119,14 +134,14 @@ class AdminController extends BaseController
 
         if ($userIndex <= 0) {
             $this->session->setFlash('error', '유효하지 않은 사용자입니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
         $user = $this->userModel->getUserByIndex($userIndex);
         if (!$user) {
             $this->session->setFlash('error', '사용자를 찾을 수 없습니다.');
-            $this->redirect('/admin/users');
+            $this->redirect($this->getAdminUsersUrl());
             return;
         }
 
@@ -182,7 +197,7 @@ class AdminController extends BaseController
                 $this->session->setFlash('error', '알 수 없는 작업입니다.');
         }
 
-        $this->redirect('/admin/users');
+        $this->redirect($this->getAdminUsersUrl());
     }
 
     public function categories(): void

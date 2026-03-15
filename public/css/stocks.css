@@ -530,74 +530,25 @@
     flex-wrap: wrap;
 }
 
-.stock-admin-link,
-.stock-admin-save-btn,
-.stock-admin-reset-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    text-decoration: none;
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.stock-admin-link {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-.stock-admin-link:hover,
-.stock-admin-reset-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--primary-color);
-}
-
-.stock-admin-save-btn {
-    background: var(--primary-color);
-    color: #fff;
-    border-color: var(--primary-color);
-}
-
-.stock-admin-save-btn:hover {
-    background: var(--primary-hover);
-}
-
-.stock-admin-reset-btn {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-
-.stock-admin-summary {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.stock-admin-card {
-    padding: 16px 18px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+.stock-admin-search-form input {
+    padding: 10px 14px;
+    background: var(--bg-quaternary);
+    border: none;
     border-radius: var(--border-radius);
-}
-
-.stock-admin-card-label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.stock-admin-card-value {
-    font-size: 26px;
-    font-weight: 700;
     color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+    min-width: 200px;
+}
+
+.stock-admin-search-form input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    background: #2f3133;
+}
+
+.stock-admin-search-form input::placeholder {
+    color: var(--text-muted);
 }
 
 .stock-admin-toolbar {
@@ -607,7 +558,7 @@
     gap: 12px;
     padding: 16px;
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: var(--border-radius);
     flex-wrap: wrap;
 }
@@ -625,7 +576,7 @@
     min-height: 40px;
     padding: 8px 14px;
     border-radius: 999px;
-    border: 1px solid var(--border-color);
+    border: none;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
     text-decoration: none;
@@ -637,7 +588,6 @@
 .stock-admin-market-tab.active,
 .stock-admin-market-tab:hover {
     background: var(--primary-color);
-    border-color: var(--primary-color);
     color: #fff;
 }
 
@@ -725,7 +675,7 @@
     min-height: 34px;
     padding: 6px 10px;
     border-radius: 6px;
-    border: 1px solid var(--border-color);
+    border: none;
     background: var(--bg-tertiary);
     color: var(--text-primary);
     text-decoration: none;
@@ -734,7 +684,6 @@
 }
 
 .stock-admin-view-link:hover {
-    border-color: var(--primary-color);
     background: var(--bg-hover);
 }
 
@@ -744,19 +693,13 @@
         align-items: stretch;
     }
 
-    .stock-admin-summary {
-        grid-template-columns: 1fr;
-    }
-
     .stock-admin-actions,
     .stock-admin-search-form {
         width: 100%;
     }
 
-    .stock-admin-link,
-    .stock-admin-save-btn,
-    .stock-admin-reset-btn {
-        width: 100%;
+    .stock-admin-actions .btn {
+        flex: 1;
     }
 }
 
@@ -780,25 +723,6 @@
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
-}
-
-.back-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 15px 15px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 15px;
-}
-
-.back-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--primary-color);
 }
 
 .stock-title-section {
@@ -1143,25 +1067,6 @@
     padding: 40px;
     text-align: center;
     color: var(--text-muted);
-}
-
-.refresh-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 15px;
-    background: var(--primary-color);
-    border: none;
-    border-radius: 6px;
-    color: white;
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 14px;
-}
-
-.refresh-btn:hover {
-    background: var(--primary-hover);
 }
 
 /* 종목 정보 섹션 */
@@ -1524,11 +1429,6 @@
     .stock-detail-header {
         padding: 12px;
         gap: 10px;
-    }
-
-    .back-btn {
-        padding: 10px 12px;
-        font-size: 13px;
     }
 
     .stock-title-section h2 {
