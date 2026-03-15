@@ -68,7 +68,7 @@ class PostController extends BaseController
             $userPostingInfo = $this->userModel->getPostingLimitInfo($userIndex);
         }
         
-        $this->renderLayout('main', 'posts/show', [
+        $this->renderLayout('blog', 'blog/show', [
             'post' => $post,
             'categories' => $categories,
             'visitorCount' => $visitorCount,
@@ -101,7 +101,7 @@ class PostController extends BaseController
         
         $categories = $this->categoryModel->getWriteAll($userLevel);
         
-        $this->renderLayout('main', 'posts/editor', [
+        $this->renderLayout('blog', 'blog/editor', [
             'categories' => $categories,
             'selectedCategory' => $categoryId > 0 ? $categoryId : null,
             'csrfToken' => $this->view->csrfToken(),
@@ -232,7 +232,7 @@ class PostController extends BaseController
 
         $categories = $this->categoryModel->getWriteAll($userLevel);
         
-        $this->renderLayout('main', 'posts/editor', [
+        $this->renderLayout('blog', 'blog/editor', [
             'post' => $post,
             'categories' => $categories,
             'csrfToken' => $this->view->csrfToken(),

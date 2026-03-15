@@ -312,9 +312,9 @@ document.addEventListener('DOMContentLoaded', function() {
     validateContent();
     
     // 제목 아이콘 클릭 시 확인 메시지
-    const mainTitle = document.getElementById('mainTitle');
-    if (mainTitle) {
-        mainTitle.addEventListener('click', function(e) {
+    const blogTitle = document.getElementById('blogTitle');
+    if (blogTitle) {
+        blogTitle.addEventListener('click', function(e) {
             if (hasUnsavedChanges) {
                 e.preventDefault();
                 if (confirm('작성 중인 내용이 있습니다. 정말 나가시겠습니까?')) {

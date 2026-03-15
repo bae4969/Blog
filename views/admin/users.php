@@ -152,19 +152,17 @@ foreach ($users as $u) {
 </div>
 
 <!-- 비밀번호 변경 모달 -->
-<div id="resetPwModal" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,.45);">
-    <div style="background:#fff;border-radius:8px;padding:28px 24px;width:320px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.2);">
-        <h3 id="resetPwModalTitle" style="margin:0 0 16px;font-size:1rem;"></h3>
-        <div style="position:relative;margin-bottom:16px;">
-            <input type="password" id="resetPwInput" placeholder="새 비밀번호 입력"
-                style="width:100%;box-sizing:border-box;padding:8px 36px 8px 10px;border:1px solid #ccc;border-radius:4px;font-size:.95rem;">
-            <button type="button" id="resetPwToggle" title="비밀번호 표시/숨기기"
-                onclick="toggleResetPwVisibility()"
-                style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:2px 4px;color:#666;font-size:.85rem;">
+<div id="resetPwModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="resetPwModalTitle"></h3>
+        <div class="modal-input-wrapper">
+            <input type="password" id="resetPwInput" placeholder="새 비밀번호 입력">
+            <button type="button" id="resetPwToggle" class="modal-toggle-btn" title="비밀번호 표시/숨기기"
+                onclick="toggleResetPwVisibility()">
                 표시
             </button>
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <div class="modal-actions">
             <button type="button" class="btn btn-secondary" onclick="closeResetPwModal()">취소</button>
             <button type="button" class="btn btn-primary" onclick="submitResetPassword()">변경</button>
         </div>

@@ -40,7 +40,7 @@ class AuthController extends BaseController
         $token = $this->view->csrfToken();
         $this->session->writeClose();
 
-        $this->renderLayout('auth', 'auth/login', [
+        $this->renderLayout('home', 'home/login', [
             'csrfToken' => $token
         ]);
     }

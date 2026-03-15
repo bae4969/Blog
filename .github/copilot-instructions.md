@@ -38,7 +38,7 @@ composer test-coverage                     # 커버리지 HTML 리포트
 ### 컨트롤러 규칙
 
 - 반드시 `BaseController` 상속
-- 뷰 출력: `renderLayout('main', 'home/index', $data)` — 레이아웃은 `main` 또는 `auth`
+- 뷰 출력: `renderLayout('blog', 'home/index', $data)` — 레이아웃은 `blog` 또는 `auth`
 - POST 요청: `validateCsrfToken()` 필수, 뷰에 `csrfToken` 전달
 - 입력 정리: `sanitizeInput()` (strip_tags + trim), 필수 필드 검증은 `validateRequired($data, $fields)`
 - JSON 응답: `json($data)` 또는 `jsonResponse($data, $statusCode)`
@@ -90,8 +90,48 @@ composer test-coverage                     # 커버리지 HTML 리포트
 
 ### 뷰 레이어
 
-- 레이아웃: `views/layouts/main.php` (블로그/주식/관리자 공용), `views/layouts/auth.php` (로그인)
+#### `views/` 디렉토리 구조
+
+```
+views/
+  home/              # 공통 요소 + 로그인
+    layout.php         # 로그인 전용 레이아웃
+    header.php         # 공통 헤더 (nav, 로그인/로그아웃, 글쓰기)
+    footer.php         # 공통 푸터
+    partials-head.php            # 공통 <head> (CSS 로드, cache bust)
+    partials-flash-messages.php  # 공통 flash 알림 (success/error)
+    partials-footer-scripts.php  # 공통 JS (blog.js, nav dropdown, additionalJs)
+    login.php          # 로그인 폼 뷰
+    index.php          # 홈 페이지 뷰
+  blog/              # 블로그 섹션
+    layout.php         # 블로그 레이아웃 (사이드바: 카테고리, 검색, 방문자)
+    index.php          # 글 목록
+    show.php           # 글 상세
+    editor.php         # 글 작성/수정 에디터
+  admin/             # 관리자 섹션
+    layout.php         # 관리자 레이아웃 (사이드바: 관리 메뉴)
+    users.php          # 사용자 관리
+    categories.php     # 카테고리 관리
+    cache.php          # 캐시 관리
+    stocks.php         # 주식 구독 관리
+    wol.php            # WOL 관리
+  stock/             # 주식 섹션
+    layout.php         # 주식 레이아웃 (사이드바 없음)
+    index.php          # 주식 목록
+    show.php           # 주식 상세
+```
+
+#### 규칙
+
+- **레이아웃**: 섹션별 분리 — 각 섹션 폴더에 `layout.php` 존재
+- **공통 partial**: `views/home/partials-{이름}.php` 명명 규칙 — 여러 레이아웃에서 include
+- **새 partial 추가 시**: `views/home/partials-{이름}.php`로 생성
+- **새 섹션 추가 시**: `views/{섹션}/layout.php` 생성 + `View::renderLayout()`에서 자동 해석 (`views/{$layout}/layout.php`)
+- `renderLayout($layout, $view)` — `$layout`은 뷰 폴더명과 동일 (`'blog'`, `'admin'`, `'stock'`, `'home'`)
 - 뷰 내 자동 주입 변수: `$session`, `$auth`, `$config`, `$view`
+- **CSS 색상/변수**: `public/css/common.css`의 `:root`에서 일괄 정의 — 색상 추가·변경 시 반드시 이 파일에서 관리
+- 섹션별 색상 오버라이드: `common.css` 내 CSS 스코프(예: `.auth-wrapper { --primary-color: ... }`)로 처리
+- CSS 로드 순서: `common.css` → `blog.css` → 섹션별 CSS (`stocks.css`, `admin.css` 등)
 - CSS 캐시 버스팅: `?v={filemtime}` 패턴
 - 에디터: Quill (`public/vendor/quill/` 로컬 파일)
 

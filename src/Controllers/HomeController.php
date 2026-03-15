@@ -66,7 +66,7 @@ class HomeController extends BaseController
             'csrfToken' => $this->view->csrfToken()
         ];
         
-        $this->renderLayout('main', 'home/index', $data);
+        $this->renderLayout('blog', 'blog/index', $data);
     }
 
     public function search(): void

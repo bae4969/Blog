@@ -38,7 +38,7 @@ class View
 
     public function renderLayout(string $layout, string $viewName, array $data = []): void
     {
-        $layoutPath = __DIR__ . "/../../views/layouts/{$layout}.php";
+        $layoutPath = __DIR__ . "/../../views/{$layout}/layout.php";
         
         if (!file_exists($layoutPath)) {
             throw new \Exception("Layout file not found: {$layoutPath}");
