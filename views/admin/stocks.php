@@ -16,18 +16,13 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
 <div class="stock-admin-container">
     <h2>주식 구독 관리</h2>
 
-    <div class="stock-admin-summary">
-        <div class="stock-admin-card">
-            <span class="stock-admin-card-label">현재 필터 결과</span>
-            <strong class="stock-admin-card-value"><?= number_format($totalCount) ?></strong>
-        </div>
-        <div class="stock-admin-card">
-            <span class="stock-admin-card-label">현재 시장 등록 종목</span>
-            <strong class="stock-admin-card-value" id="registeredCountLabel"><?= number_format($currentRegisteredCount) ?></strong>
-        </div>
-        <div class="stock-admin-card">
-            <span class="stock-admin-card-label">현재 시장 선택 수</span>
-            <strong class="stock-admin-card-value" id="selectedCountLabel">0</strong>
+    <div class="admin-card">
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">현재 필터 결과</span> <span class="stat-value"><?= number_format($totalCount) ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 시장 등록 종목</span> <span class="stat-value" id="registeredCountLabel"><?= number_format($currentRegisteredCount) ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 시장 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
         </div>
     </div>
 
@@ -44,7 +39,7 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
         <form class="stock-admin-search-form" method="get" action="/admin/stocks">
             <input type="hidden" name="market" value="<?= $view->escape($currentMarket) ?>">
             <input type="text" name="search" placeholder="종목명 또는 코드 검색" value="<?= $view->escape($searchQuery) ?>">
-            <button type="submit" class="search-btn">검색</button>
+            <button type="submit" class="btn btn-primary">검색</button>
         </form>
 
         <p class="stock-admin-selection-note">페이지 이동 전 저장하지 않아도 선택 상태는 브라우저 세션에 임시 유지됩니다.</p>
@@ -58,8 +53,8 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
         <div id="dynamicSelectionInputs"></div>
 
         <div class="stock-admin-actions">
-            <button type="submit" class="stock-admin-save-btn">구독 목록 저장</button>
-            <button type="button" class="stock-admin-reset-btn" id="resetSelectionButton">DB 상태로 되돌리기</button>
+            <button type="submit" class="btn btn-primary">구독 목록 저장</button>
+            <button type="button" class="btn btn-secondary" id="resetSelectionButton">DB 상태로 되돌리기</button>
         </div>
 
         <div class="stocks-table admin-table">

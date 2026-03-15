@@ -1,9 +1,9 @@
 /* ===========================================
    관리자 페이지 스타일
-   블로그/주식 페이지와 일관된 다크테마 디자인
+   다크테마 · 보더리스 디자인 · 배경색 계층 구분
    =========================================== */
 
-/* 관리자 콘텐츠 영역 (flex 컨테이너) */
+/* 관리자 콘텐츠 영역 */
 .admin-content {
     display: flex;
     flex-direction: column;
@@ -27,18 +27,16 @@
     text-align: center;
     background: var(--bg-quaternary);
     border-radius: var(--border-radius);
-    border: 1px dashed var(--border-color);
 }
 
 /* ===========================================
-   관리자 카드 (블로그 .post-wrapper 패턴)
+   관리자 카드
    =========================================== */
 .admin-card {
     background: var(--bg-tertiary);
     border: none;
     border-radius: var(--border-radius-lg);
     padding: 25px 30px;
-    margin: 0 5px;
 }
 
 .admin-card h3 {
@@ -46,12 +44,59 @@
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid var(--bg-hover);
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.admin-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 16px;
+    margin-bottom: 18px;
+}
+
+.admin-card-header h3 {
+    margin: 0;
 }
 
 /* ===========================================
-   관리자 폼 (블로그 .form-control 패턴)
+   요약 통계 (admin-card 내부 stat-row)
+   =========================================== */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 20px;
+}
+
+.stat-row .stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-row .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.stat-row .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stat-row .stat-sep {
+    color: var(--text-muted);
+    opacity: 0.4;
+    font-size: 14px;
+    user-select: none;
+}
+
+/* ===========================================
+   관리자 폼
    =========================================== */
 .admin-form .admin-form-row {
     display: flex;
@@ -74,7 +119,7 @@
     max-width: 300px;
     padding: 12px 16px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: var(--border-radius);
     color: var(--text-primary);
     font-size: 14px;
@@ -84,7 +129,6 @@
 .admin-form .admin-form-row input:focus,
 .admin-form .admin-form-row select:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
     background: #2f3133;
 }
@@ -98,54 +142,100 @@
     margin-top: 20px;
 }
 
+.admin-search-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+    justify-content: flex-end;
+    justify-self: end;
+    margin-left: auto;
+}
+
+.admin-search-form input {
+    min-width: 240px;
+    max-width: 360px;
+    padding: 12px 16px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.admin-search-form input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    background: #2f3133;
+}
+
+.admin-search-result {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
 /* ===========================================
-   관리자 테이블 (주식 .stocks-table 패턴)
+   관리자 테이블
    =========================================== */
 .admin-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     background: var(--bg-quaternary);
     border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
+    border: none;
 }
 
 .admin-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
 }
 
 .admin-table th,
 .admin-table td {
-    padding: 12px 14px;
+    padding: 5px 7px;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: none;
     white-space: nowrap;
 }
 
 .admin-table th {
-    background: var(--bg-quaternary);
+    background: rgba(255, 255, 255, 0.03);
     color: var(--text-secondary);
     font-weight: 600;
     font-size: 13px;
     text-transform: uppercase;
-    border-bottom: 2px solid var(--border-color);
+    text-align: center;
 }
 
 .admin-table td {
     color: var(--text-secondary);
+    vertical-align: middle;
+}
+
+.admin-table tbody td:nth-child(1),
+.admin-table tbody td:nth-child(3),
+.admin-table tbody td:nth-child(4),
+.admin-table tbody td:nth-child(5),
+.admin-table tbody td:nth-child(6),
+.admin-table tbody td:nth-child(7),
+.admin-table tbody td:nth-child(8) {
+    text-align: center;
 }
 
 .admin-table tbody tr {
     transition: var(--transition);
 }
 
-.admin-table tbody tr:hover {
-    background: var(--bg-hover);
+.admin-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
 }
 
-.admin-table tbody tr:last-child td {
-    border-bottom: none;
+.admin-table tbody tr:hover {
+    background: var(--bg-hover);
 }
 
 .admin-table tr.row-disabled {
@@ -162,7 +252,7 @@
 .inline-form select {
     padding: 6px 10px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 13px;
@@ -172,7 +262,6 @@
 
 .inline-form select:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
 }
 
@@ -180,7 +269,7 @@
     width: 70px !important;
     padding: 6px 10px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 13px;
@@ -190,14 +279,13 @@
 
 .input-small:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
 }
 
 .inline-input {
     padding: 8px 12px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 14px;
@@ -206,66 +294,7 @@
 
 .inline-input:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
-}
-
-/* ===========================================
-   버튼 (주식 버튼 패턴 통일)
-   =========================================== */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 18px;
-    border: 1px solid transparent;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    transition: var(--transition);
-    min-height: 40px;
-    line-height: 1;
-}
-
-.btn-primary {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.btn-primary:hover {
-    background: var(--primary-hover);
-    border-color: var(--primary-hover);
-}
-
-.btn-secondary {
-    background: var(--secondary-color);
-    color: white;
-    border-color: var(--secondary-color);
-}
-
-.btn-secondary:hover {
-    background: var(--secondary-hover);
-    border-color: var(--secondary-hover);
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 12px;
-    min-height: 32px;
-    border-radius: 6px;
-}
-
-.btn-danger {
-    background: #d32f2f;
-    color: white;
-    border-color: #d32f2f;
-}
-
-.btn-danger:hover {
-    background: #b71c1c;
-    border-color: #b71c1c;
 }
 
 /* ===========================================
@@ -286,6 +315,7 @@
 .level-badge {
     color: var(--text-accent);
     font-weight: 600;
+    padding: 15px;
 }
 
 .state-badge {
@@ -298,7 +328,7 @@
 
 .btn-state {
     padding: 5px 12px;
-    border: 1px solid transparent;
+    border: none;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
@@ -309,13 +339,11 @@
 .state-active {
     background: rgba(76, 175, 80, 0.15);
     color: #4CAF50;
-    border-color: rgba(76, 175, 80, 0.3);
 }
 
 .state-inactive {
     background: rgba(244, 67, 54, 0.15);
     color: #f44336;
-    border-color: rgba(244, 67, 54, 0.3);
 }
 
 .btn-state:hover {
@@ -336,7 +364,7 @@
     padding: 6px 10px;
     background: var(--bg-quaternary);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 6px;
     font-size: 13px;
     transition: var(--transition);
@@ -344,15 +372,37 @@
 
 .inline-select:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
 }
 
 .action-cell {
-    display: flex;
+    display: grid;
+    grid-template-columns: 50px 50px;
     gap: 6px;
+    height: 60px;
     align-items: center;
-    flex-wrap: nowrap;
+    align-content: center;
+    justify-content: center;
+}
+
+.action-cell > button,
+.action-cell > .inline-form {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-cell > button {
+    width: 100%;
+    max-height: 34px;
+}
+
+.action-cell > .inline-form > button {
+    width: 100%;
+    max-height: 34px;
+    flex: 1;
+    justify-content: center;
 }
 
 /* ===========================================
@@ -379,7 +429,7 @@
     font-size: 11px;
     background: var(--bg-quaternary);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 4px;
     cursor: pointer;
     padding: 0;
@@ -390,7 +440,6 @@
 .btn-arrow:hover {
     background: var(--primary-color);
     color: white;
-    border-color: var(--primary-color);
 }
 
 .btn-arrow.disabled {
@@ -400,14 +449,13 @@
 }
 
 /* ===========================================
-   도움말 (블로그 border-left 패턴)
+   도움말
    =========================================== */
 .admin-help {
     margin-top: 16px;
     padding: 12px 16px;
     background: var(--bg-quaternary);
     border-radius: var(--border-radius);
-    border-left: 3px solid var(--primary-color);
 }
 
 .admin-help p {
@@ -420,41 +468,6 @@
 /* ===========================================
    캐시 관리
    =========================================== */
-.cache-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 12px;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    padding: 16px 20px;
-    background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    min-width: 0;
-    transition: var(--transition);
-}
-
-.stat-item:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-}
-
-.stat-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-    font-weight: 500;
-}
-
-.stat-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
 .stat-active {
     color: #4CAF50;
 }
@@ -501,8 +514,8 @@
    WOL 장치 목록
    =========================================== */
 .wol-device-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
 }
 
@@ -512,14 +525,13 @@
     justify-content: space-between;
     padding: 20px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: var(--border-radius);
     transition: var(--transition);
 }
 
 .wol-device:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
+    background: var(--bg-hover);
 }
 
 .wol-device-info {
@@ -563,7 +575,7 @@
     padding: 10px 24px;
     background: #ff9800;
     color: white;
-    border: 1px solid #ff9800;
+    border: none;
     border-radius: var(--border-radius);
     font-size: 14px;
     font-weight: 600;
@@ -575,13 +587,13 @@
 
 .btn-wol:hover {
     background: #f57c00;
-    border-color: #f57c00;
 }
 
 .btn-wol.btn-sm {
-    padding: 6px 14px;
+    padding: 6px 12px;
     font-size: 12px;
     min-height: 32px;
+    border-radius: 6px;
 }
 
 .wol-edit-form {
@@ -609,6 +621,10 @@
     max-width: 300px;
 }
 
+.wol-hidden-form {
+    display: none;
+}
+
 .wol-device-actions {
     display: flex;
     gap: 8px;
@@ -616,48 +632,15 @@
     align-items: center;
 }
 
-/* ===========================================
-   요약 통계 카드 (주식 .stock-admin-summary 패턴)
-   =========================================== */
-.admin-summary-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
-    margin: 0 5px;
-}
-
-.admin-stat-card {
-    padding: 16px 20px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    transition: var(--transition);
-}
-
-.admin-stat-card:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-}
-
-.admin-stat-label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.admin-stat-value {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.admin-stat-value.stat-inactive {
-    color: #f44336;
+.wol-device-actions .btn,
+.wol-device-actions .btn-wol {
+    min-width: 80px;
+    text-align: center;
+    border-radius: 6px;
 }
 
 /* ===========================================
-   폼 그리드 레이아웃 (가로 배치)
+   폼 그리드 레이아웃
    =========================================== */
 .admin-form-grid {
     display: grid;
@@ -683,7 +666,7 @@
     width: 100%;
     padding: 10px 14px;
     background: var(--bg-quaternary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: var(--border-radius);
     color: var(--text-primary);
     font-size: 14px;
@@ -694,7 +677,6 @@
 .admin-form-field input:focus,
 .admin-form-field select:focus {
     outline: none;
-    border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
     background: #2f3133;
 }
@@ -705,7 +687,7 @@
 }
 
 /* ===========================================
-   반응형 (1024px 이하)
+   반응형 (태블릿)
    =========================================== */
 @media (max-width: 1024px) {
     .admin-content {
@@ -724,10 +706,7 @@
         border-radius: 12px;
     }
 
-    .admin-summary-stats {
-        grid-template-columns: repeat(2, 1fr);
-        margin: 0 3px;
-    }
+
 
     .admin-form-grid {
         grid-template-columns: 1fr;
@@ -758,32 +737,132 @@
         padding: 10px 8px;
     }
 
-    .cache-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
     .wol-device {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
     }
 
-    .wol-device .btn-wol {
-        width: 100%;
+    .wol-device-list {
+        grid-template-columns: 1fr;
     }
 
     .cache-actions .inline-form {
         flex-direction: column;
         align-items: flex-start;
     }
+
+    .action-cell {
+        flex-wrap: wrap;
+    }
+
+    .wol-edit-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .wol-edit-row .inline-input {
+        max-width: 100%;
+    }
+
+    .wol-device-actions {
+        flex-wrap: wrap;
+    }
+
+    .wol-device-actions .btn,
+    .wol-device-actions .btn-wol {
+        flex: 1;
+        min-width: 0;
+    }
 }
 
-@media (max-width: 480px) {
-    .cache-stats {
+/* ===========================================
+   반응형 (모바일)
+   =========================================== */
+@media (max-width: 768px) {
+    .admin-card-header {
         grid-template-columns: 1fr;
     }
 
-    .admin-summary-stats {
-        grid-template-columns: 1fr;
+    .admin-search-form {
+        justify-self: stretch;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+
+    .admin-content h2 {
+        font-size: 1.3rem;
+        padding: 8px 10px;
+    }
+
+    .admin-card {
+        padding: 16px 14px;
+        border-radius: 10px;
+    }
+
+    .stat-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stat-row .stat-sep {
+        display: none;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 10px 6px;
+        font-size: 12px;
+    }
+
+    .btn {
+        min-height: 44px;
+        padding: 10px 16px;
+    }
+
+    .btn-sm {
+        min-height: 36px;
+        padding: 8px 12px;
+    }
+
+    .btn-wol.btn-sm {
+        min-height: 36px;
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+
+    .btn-state {
+        min-height: 36px;
+        padding: 8px 12px;
+    }
+
+    .wol-device-actions {
+        flex-wrap: wrap;
+    }
+
+    .wol-device-actions .btn,
+    .wol-device-actions .btn-wol {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-card {
+        margin: 0;
+        padding: 14px 12px;
+        border-radius: 8px;
+    }
+
+
+
+    .admin-table-wrap {
+        margin: 0 -12px;
+        border-radius: 0;
+    }
+
+    .inline-input {
+        font-size: 13px;
     }
 }

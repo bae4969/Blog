@@ -8,14 +8,11 @@ foreach ($categories as $c) {
 <div class="admin-content">
     <h2>블로그 카테고리 관리</h2>
 
-    <div class="admin-summary-stats">
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">전체 카테고리</span>
-            <strong class="admin-stat-value"><?= $totalCategories ?></strong>
-        </div>
-        <div class="admin-stat-card">
-            <span class="admin-stat-label">전체 게시글</span>
-            <strong class="admin-stat-value"><?= number_format($totalPosts) ?></strong>
+    <div class="admin-card">
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">전체 카테고리</span> <span class="stat-value"><?= $totalCategories ?></span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">전체 게시글</span> <span class="stat-value"><?= number_format($totalPosts) ?></span></div>
         </div>
     </div>
 

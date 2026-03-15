@@ -19,7 +19,7 @@
         </div>
 
         <div class="input">
-            <button id="btn_login" type="submit">Login</button>
+            <button id="btn_login" class="btn btn-primary" type="submit">Login</button>
         </div>
     </form>
 </div>

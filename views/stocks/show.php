@@ -1,7 +1,7 @@
 <div class="stock-detail-container">
     <!-- 헤더: 주식 정보 -->
     <div class="stock-detail-header">
-        <button class="back-btn" onclick="location.href='/stocks<?= !empty($isCoinMarket) ? '?market=COIN' : '' ?>'">
+        <button class="btn btn-ghost" onclick="location.href='/stocks<?= !empty($isCoinMarket) ? '?market=COIN' : '' ?>'">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -113,7 +113,7 @@
                 </div>
             </div>
             
-            <button class="refresh-btn" onclick="refreshExecutions()">
+            <button class="btn btn-primary" onclick="refreshExecutions()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                 </svg>

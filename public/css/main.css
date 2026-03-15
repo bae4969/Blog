@@ -476,7 +476,7 @@ li.category-selected::before {
 }
 
 .post-item, .posting, .posting_ban { 
-    width: calc(100% - 20px); 
+    width: calc(100% - 15px); 
     margin: 0 10px 20px 10px; 
     padding: 20px; 
     display: inline-block; 
@@ -737,7 +737,7 @@ button.page:hover, .page-link:hover {
     margin-bottom: 14px; 
 }
 
-#inputLayout .input input, #inputLayout .input button { 
+#inputLayout .input input { 
     width: 100%; 
     padding: 14px; 
     border: 1px solid var(--border-color); 
@@ -750,12 +750,9 @@ button.page:hover, .page-link:hover {
 }
 
 #inputLayout .input button { 
-    background: var(--bg-quaternary); 
-    cursor: pointer; 
-}
-
-#inputLayout .input button:hover { 
-    background: #3a3c3f; 
+    width: 100%;
+    border-radius: 10px;
+    font-size: 16px;
 }
 
 /* ===========================================
@@ -946,101 +943,120 @@ footer a:hover {
 }
 
 /* ===========================================
-   버튼 스타일 통합
+   버튼 시스템 (전역 공통)
    =========================================== */
 .btn {
-    display: inline-block;
-    padding: 12px 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
     border-radius: var(--border-radius);
     text-decoration: none;
     cursor: pointer;
     font-size: 14px;
-    border: 1px solid transparent;
-    transition: var(--transition);
-    margin-right: 12px;
-    box-sizing: border-box;
-    height: 44px;
+    font-weight: 600;
+    min-height: 40px;
     line-height: 1;
+    transition: var(--transition);
+    box-sizing: border-box;
+    white-space: nowrap;
 }
 
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* 크기 변형 */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-height: 32px;
+    border-radius: 6px;
+}
+
+/* 색상 변형 */
 .btn-primary {
     background: var(--primary-color);
-    color: var(--text-primary);
-    border-color: var(--primary-color);
+    color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
     background: var(--primary-hover);
-    border-color: var(--primary-hover);
-}
-
-.btn-primary:disabled {
-    background: #6b6b6b;
-    border-color: #6b6b6b;
-    cursor: not-allowed;
 }
 
 .btn-secondary {
     background: var(--secondary-color);
-    color: var(--text-primary);
-    border-color: var(--secondary-color);
+    color: white;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
     background: var(--secondary-hover);
-    border-color: var(--secondary-hover);
+    color: white;
     text-decoration: none;
-    color: var(--text-primary);
 }
 
+.btn-danger {
+    background: #d32f2f;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #b71c1c;
+}
+
+/* Ghost: 테두리 있는 배경 투명 스타일 */
+.btn-ghost {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-ghost:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+/* Warning: 주황색 계열 */
+.btn-warning {
+    background: #ff9800;
+    color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: #f57c00;
+}
+
+/* 블로그 포스트 전용 액션 버튼 */
 .btn-edit {
     background: #3f5e46;
     color: var(--text-primary);
-    border-color: #2a4130;
 }
 
-.btn-edit:hover {
+.btn-edit:hover:not(:disabled) {
     background: #344e3b;
-    border-color: #233528;
 }
 
 .btn-disable {
     background: #8a3a3a;
     color: var(--text-primary);
-    border-color: #6b2929;
-    margin-right: 0;
 }
 
-.btn-disable:hover {
+.btn-disable:hover:not(:disabled) {
     background: #7a3030;
-    border-color: #5e2424;
 }
 
 .btn-enable {
     background: #3a5a8a;
     color: var(--text-primary);
-    border-color: #29406b;
-    margin-right: 0;
 }
 
-.btn-enable:hover {
+.btn-enable:hover:not(:disabled) {
     background: #30407a;
-    border-color: #24245e;
-}
-
-.posting_control {
-    padding: 8px 14px;
-    margin-left: 8px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.posting_control:hover {
-    background: var(--bg-hover);
 }
 
 /* ===========================================
@@ -1466,8 +1482,7 @@ footer a:hover {
         text-align: center;
     }
     
-    .btn-primary,
-    .btn-secondary {
+    .form-actions .btn {
         width: 100%;
         margin-bottom: 12px;
         margin-right: 0;
@@ -1608,7 +1623,7 @@ footer a:hover {
     .btn-secondary {
         padding: 8px 16px;
         font-size: 13px;
-        height: 36px;
+        min-height: 36px;
     }
 }
 

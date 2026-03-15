@@ -42,7 +42,7 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
         <form class="stock-admin-search-form" method="get" action="/stocks/admin">
             <input type="hidden" name="market" value="<?= $view->escape($currentMarket) ?>">
             <input type="text" name="search" placeholder="종목명 또는 코드 검색" value="<?= $view->escape($searchQuery) ?>">
-            <button type="submit" class="search-btn">검색</button>
+            <button type="submit" class="btn btn-primary">검색</button>
         </form>
 
         <p class="stock-admin-selection-note">페이지 이동 전 저장하지 않아도 선택 상태는 브라우저 세션에 임시 유지됩니다.</p>
@@ -56,8 +56,8 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
         <div id="dynamicSelectionInputs"></div>
 
         <div class="stock-admin-actions">
-            <button type="submit" class="stock-admin-save-btn">구독 목록 저장</button>
-            <button type="button" class="stock-admin-reset-btn" id="resetSelectionButton">DB 상태로 되돌리기</button>
+            <button type="submit" class="btn btn-primary">구독 목록 저장</button>
+            <button type="button" class="btn btn-secondary" id="resetSelectionButton">DB 상태로 되돌리기</button>
         </div>
 
         <div class="stocks-table admin-table">
