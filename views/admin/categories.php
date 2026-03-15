@@ -118,14 +118,16 @@ foreach ($categories as $c) {
                                 </td>
                                 <td><?= (int)$cat['post_count'] ?></td>
                                 <td class="action-cell">
-                                    <button type="submit" class="btn btn-sm btn-primary">저장</button>
-                                    </form>
-                                    <form method="post" action="/admin/categories/delete" class="inline-form"
-                                        onsubmit="return confirm('카테고리 \'<?= $view->escape($cat['category_name']) ?>\'을(를) 삭제하시겠습니까?<?= (int)$cat['post_count'] > 0 ? ' (게시글 ' . (int)$cat['post_count'] . '개 존재)' : '' ?>');">
-                                        <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
-                                        <input type="hidden" name="category_index" value="<?= (int)$cat['category_index'] ?>">
-                                        <button type="submit" class="btn btn-sm btn-danger">삭제</button>
-                                    </form>
+                                    <div class="action-buttons">
+                                        <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                                        </form>
+                                        <form method="post" action="/admin/categories/delete" class="inline-form"
+                                            onsubmit="return confirm('카테고리 \'<?= $view->escape($cat['category_name']) ?>\'을(를) 삭제하시겠습니까?<?= (int)$cat['post_count'] > 0 ? ' (게시글 ' . (int)$cat['post_count'] . '개 존재)' : '' ?>');">
+                                            <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
+                                            <input type="hidden" name="category_index" value="<?= (int)$cat['category_index'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
