@@ -33,13 +33,13 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
             <div class="stock-admin-market-tabs">
                 <?php foreach ($marketLabels as $marketCode => $marketLabel): ?>
                     <?php $marketQuery = $queryBase; $marketQuery['market'] = $marketCode; $marketQuery['page'] = 1; ?>
-                    <a class="stock-admin-market-tab <?= $currentMarket === $marketCode ? 'active' : '' ?>" href="/admin/stock?<?= http_build_query($marketQuery) ?>">
+                    <a class="stock-admin-market-tab <?= $currentMarket === $marketCode ? 'active' : '' ?>" href="/admin/stocks?<?= http_build_query($marketQuery) ?>">
                         <?= $view->escape($marketLabel) ?>
                     </a>
                 <?php endforeach; ?>
             </div>
 
-            <form class="stock-admin-search-form" method="get" action="/admin/stock">
+            <form class="stock-admin-search-form" method="get" action="/admin/stocks">
                 <input type="hidden" name="market" value="<?= $view->escape($currentMarket) ?>">
                 <input type="text" name="search" placeholder="종목명 또는 코드 검색" value="<?= $view->escape($searchQuery) ?>">
                 <button type="submit" class="btn btn-primary">검색</button>
@@ -51,7 +51,7 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
             </div>
         </div>
 
-        <form class="stock-admin-table-form" method="post" action="/admin/stock/subscriptions" id="stockAdminForm">
+        <form class="stock-admin-table-form" method="post" action="/admin/stocks/subscriptions" id="stockAdminForm">
             <input type="hidden" name="csrf_token" value="<?= $view->csrfToken() ?>">
             <input type="hidden" name="current_market" value="<?= $view->escape($currentMarket) ?>">
             <input type="hidden" name="current_search" value="<?= $view->escape($searchQuery) ?>">
@@ -122,7 +122,7 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
                 <div class="pagination">
                     <?php if ($currentPage > 1): ?>
                         <?php $previousQuery = $queryBase; $previousQuery['page'] = $currentPage - 1; ?>
-                        <a class="page-btn" href="/admin/stock?<?= http_build_query($previousQuery) ?>">&lt;</a>
+                        <a class="page-btn" href="/admin/stocks?<?= http_build_query($previousQuery) ?>" aria-label="이전 페이지" title="이전 페이지">&lt;</a>
                     <?php endif; ?>
 
                     <?php
@@ -132,14 +132,14 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
                         $pageQuery = $queryBase;
                         $pageQuery['page'] = $pageNumber;
                     ?>
-                        <a class="page-btn <?= $pageNumber === $currentPage ? 'active' : '' ?>" href="/admin/stock?<?= http_build_query($pageQuery) ?>">
+                        <a class="page-btn <?= $pageNumber === $currentPage ? 'active' : '' ?>" href="/admin/stocks?<?= http_build_query($pageQuery) ?>">
                             <?= $pageNumber ?>
                         </a>
                     <?php endfor; ?>
 
                     <?php if ($currentPage < $totalPages): ?>
                         <?php $nextQuery = $queryBase; $nextQuery['page'] = $currentPage + 1; ?>
-                        <a class="page-btn" href="/admin/stock?<?= http_build_query($nextQuery) ?>">&gt;</a>
+                        <a class="page-btn" href="/admin/stocks?<?= http_build_query($nextQuery) ?>" aria-label="다음 페이지" title="다음 페이지">&gt;</a>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>

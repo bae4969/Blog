@@ -640,30 +640,44 @@ li.category-selected::before {
 /* ===========================================
    페이지네이션
    =========================================== */
-#pages { 
-    margin: 10px 0 30px 0; 
-    text-align: center; 
+#pages {
+    margin: 10px 0 30px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
 }
 
-button.page, .page-link { 
-    width: 35px; 
-    height: 30px; 
-    margin: 0 2px; 
-    color: var(--text-primary); 
-    border: 1px solid var(--border-color); 
-    border-radius: 5px; 
-    font-size: 2ex; 
-    background: var(--bg-tertiary);
+button.page,
+.page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    margin: 0;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-quaternary);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
     transition: var(--transition);
+    cursor: pointer;
 }
 
-#selectedPage, .page-link.active { 
-    background: var(--bg-hover); 
+button.page.selectedPage,
+.page-link.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
 }
 
-button.page:hover, .page-link:hover {
+button.page:hover,
+.page-link:hover {
     background: var(--bg-hover);
-    border-color: var(--border-hover);
 }
 
 /* ===========================================
