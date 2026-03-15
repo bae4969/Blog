@@ -134,12 +134,6 @@ jobs:
           git checkout "$DEPLOY_BRANCH"
           git reset --hard "origin/$DEPLOY_BRANCH"
 
-      - name: Install production dependencies
-        run: |
-          set -e
-          cd "$APP_DIR"
-          composer install --no-dev --optimize-autoloader --no-interaction
-
       - name: Ensure writable directories
         run: |
           set -e
