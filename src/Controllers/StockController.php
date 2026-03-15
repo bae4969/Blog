@@ -40,7 +40,7 @@ class StockController extends BaseController
         // 인기 주식
         $topStocks = $this->stockModel->getTopStocks(10, $market);
 
-        $this->renderLayout('main', 'stocks/index', [
+        $this->renderLayout('stock', 'stock/index', [
             'stocks' => $stocks,
             'topStocks' => $topStocks,
             'marketStats' => $marketStats,
@@ -107,7 +107,7 @@ class StockController extends BaseController
         }
 
         // 캔들/체결 데이터는 클라이언트에서 API로 비동기 로딩 (페이지 렌더 차단 방지)
-        $this->renderLayout('main', 'stocks/show', [
+        $this->renderLayout('stock', 'stock/show', [
             'stock' => $stock,
             'candleData' => [],
             'recentExecutions' => [],
@@ -184,4 +184,5 @@ class StockController extends BaseController
             'count' => count($stocks)
         ]);
     }
+
 }

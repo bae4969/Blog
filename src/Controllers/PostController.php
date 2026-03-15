@@ -68,7 +68,7 @@ class PostController extends BaseController
             $userPostingInfo = $this->userModel->getPostingLimitInfo($userIndex);
         }
         
-        $this->renderLayout('main', 'posts/show', [
+        $this->renderLayout('blog', 'blog/show', [
             'post' => $post,
             'categories' => $categories,
             'visitorCount' => $visitorCount,
@@ -101,7 +101,7 @@ class PostController extends BaseController
         
         $categories = $this->categoryModel->getWriteAll($userLevel);
         
-        $this->renderLayout('main', 'posts/editor', [
+        $this->renderLayout('blog', 'blog/editor', [
             'categories' => $categories,
             'selectedCategory' => $categoryId > 0 ? $categoryId : null,
             'csrfToken' => $this->view->csrfToken(),
@@ -114,11 +114,13 @@ class PostController extends BaseController
         $this->auth->requireWritePermission();
 
         if (!$this->isPost()) {
+            $this->auditPostAction('post.create', ['reason' => 'not_post_request'], 'rejected');
             Logger::warn('BlogPost', 'create not_post_request', ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->redirect('/writer.php');
         }
 
         if (!$this->validateCsrfToken()) {
+            $this->auditPostAction('post.create', ['reason' => 'csrf_invalid'], 'denied');
             Logger::warn('BlogPost', 'create csrf_invalid', ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
             $this->redirect('/writer.php');
@@ -129,6 +131,11 @@ class PostController extends BaseController
         $userPostingInfo = $this->userModel->getPostingLimitInfo($userIndex);
         
         if ($userPostingInfo && $userPostingInfo['is_limited']) {
+            $this->auditPostAction('post.create', [
+                'reason' => 'posting_limit_reached',
+                'current_count' => $userPostingInfo['current_count'],
+                'limit' => $userPostingInfo['limit'],
+            ], 'denied');
             Logger::warn('BlogPost', "create blocked_by_limit user={$userIndex} count={$userPostingInfo['current_count']} limit={$userPostingInfo['limit']}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 제한에 도달했습니다. (' . $userPostingInfo['current_count'] . '/' . $userPostingInfo['limit'] . ')');
             $this->redirect('/blog');
@@ -146,12 +153,14 @@ class PostController extends BaseController
         ], ['title', 'content', 'category_index']);
 
         if (!empty($errors)) {
+            $this->auditPostAction('post.create', ['category_index' => $categoryId, 'reason' => 'validation_error'], 'rejected');
             Logger::warn('BlogPost', "create validation_error user={$userIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '모든 필드를 입력해주세요.');
             $this->redirect('/writer.php');
         }
 
         if ($categoryId <= 0) {
+            $this->auditPostAction('post.create', ['category_index' => $categoryId, 'reason' => 'invalid_category'], 'rejected');
             Logger::warn('BlogPost', "create invalid_category user={$userIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '카테고리를 선택해주세요.');
             $this->redirect('/writer.php');
@@ -169,12 +178,19 @@ class PostController extends BaseController
                 'user_level' => $userLevel
             ]);
 
+            $this->auditPostAction('post.create', [
+                'post_id' => $postId,
+                'category_index' => $categoryId,
+                'title_length' => mb_strlen($title, 'UTF-8'),
+                'content_length' => mb_strlen((string)$content, 'UTF-8'),
+            ]);
             
             Logger::info('BlogPost', "create success post={$postId} user={$userIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
 
             $this->session->setFlash('success', '게시글이 작성되었습니다.');
             $this->redirect("/reader.php?posting_index={$postId}");
         } catch (\Exception $e) {
+            $this->auditPostAction('post.create', ['category_index' => $categoryId, 'reason' => 'exception', 'error' => $e->getMessage()], 'error');
             Logger::error('BlogPost', "create fail user={$userIndex} category={$categoryId} error=" . $e->getMessage(), ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 중 오류가 발생했습니다.');
             $this->redirect('/writer.php');
@@ -216,7 +232,7 @@ class PostController extends BaseController
 
         $categories = $this->categoryModel->getWriteAll($userLevel);
         
-        $this->renderLayout('main', 'posts/editor', [
+        $this->renderLayout('blog', 'blog/editor', [
             'post' => $post,
             'categories' => $categories,
             'csrfToken' => $this->view->csrfToken(),
@@ -232,11 +248,13 @@ class PostController extends BaseController
         $postId = (int)$postId;
 
         if (!$this->isPost()) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'reason' => 'not_post_request'], 'rejected');
             Logger::warn('BlogPost', "update not_post_request id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->redirect("/post/edit/{$postId}");
         }
 
         if (!$this->validateCsrfToken()) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'reason' => 'csrf_invalid'], 'denied');
             Logger::warn('BlogPost', "update csrf_invalid id={$postId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
             $this->redirect("/post/edit/{$postId}");
@@ -246,6 +264,7 @@ class PostController extends BaseController
         $post = $this->postModel->getDetailById($userLevel, $postId);
         
         if (!$post) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'reason' => 'post_not_found'], 'rejected');
             Logger::warn('BlogPost', "update not_found id={$postId} level={$userLevel}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
             $this->redirect('/blog');
@@ -253,6 +272,11 @@ class PostController extends BaseController
 
         $currentUserIndex = $this->auth->getCurrentUserIndex();
         if ($post['user_index'] !== $currentUserIndex) {
+            $this->auditPostAction('post.update', [
+                'post_id' => $postId,
+                'owner_user_index' => (int)$post['user_index'],
+                'reason' => 'no_permission',
+            ], 'denied');
             Logger::warn('BlogPost', "update no_permission id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '수정 권한이 없습니다.');
             $this->redirect('/blog');
@@ -262,6 +286,12 @@ class PostController extends BaseController
         $userPostingInfo = $this->userModel->getPostingLimitInfo($currentUserIndex);
         
         if ($userPostingInfo && $userPostingInfo['is_limited']) {
+            $this->auditPostAction('post.update', [
+                'post_id' => $postId,
+                'reason' => 'posting_limit_reached',
+                'current_count' => $userPostingInfo['current_count'],
+                'limit' => $userPostingInfo['limit'],
+            ], 'denied');
             Logger::warn('BlogPost', "update blocked_by_limit user={$currentUserIndex} count={$userPostingInfo['current_count']} limit={$userPostingInfo['limit']}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 작성 제한에 도달했습니다. (' . $userPostingInfo['current_count'] . '/' . $userPostingInfo['limit'] . ')');
             $this->redirect('/blog');
@@ -279,12 +309,14 @@ class PostController extends BaseController
         ], ['title', 'content', 'category_index']);
 
         if (!empty($errors)) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'category_index' => $categoryId, 'reason' => 'validation_error'], 'rejected');
             Logger::warn('BlogPost', "update validation_error id={$postId} user={$currentUserIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '모든 필드를 입력해주세요.');
             $this->redirect("/post/edit/{$postId}");
         }
 
         if ($categoryId <= 0) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'category_index' => $categoryId, 'reason' => 'invalid_category'], 'rejected');
             Logger::warn('BlogPost', "update invalid_category id={$postId} user={$currentUserIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '카테고리를 선택해주세요.');
             $this->redirect("/post/edit/{$postId}");
@@ -297,14 +329,85 @@ class PostController extends BaseController
                 'category_index' => $categoryId
             ]);
 
+            $this->auditPostAction('post.update', [
+                'post_id' => $postId,
+                'category_index' => $categoryId,
+                'title_length' => mb_strlen($title, 'UTF-8'),
+                'content_length' => mb_strlen((string)$content, 'UTF-8'),
+            ]);
             Logger::info('BlogPost', "update success id={$postId} user={$currentUserIndex} category={$categoryId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('success', '게시글이 수정되었습니다.');
             $this->redirect("/reader.php?posting_index={$postId}");
         } catch (\Exception $e) {
+            $this->auditPostAction('post.update', ['post_id' => $postId, 'category_index' => $categoryId, 'reason' => 'exception', 'error' => $e->getMessage()], 'error');
             Logger::error('BlogPost', "update fail id={$postId} user={$currentUserIndex} error=" . $e->getMessage(), ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 수정 중 오류가 발생했습니다.');
             $this->redirect("/post/edit/{$postId}");
         }
+    }
+
+    private function auditPostAction(string $action, array $details = [], string $result = 'success'): void
+    {
+        $logPayload = [
+            'action' => $action,
+            'result' => $result,
+            'actor_user_index' => $this->auth->getCurrentUserIndex(),
+            'actor_user_id' => $this->auth->getCurrentUserId(),
+            'actor_user_level' => $this->auth->getCurrentUserLevel(),
+            'ip' => $this->getClientIp(),
+            'method' => $this->getRequestMethod(),
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'details' => $details,
+        ];
+
+        $message = json_encode($logPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($message === false) {
+            $message = sprintf(
+                'action=%s result=%s actor=%s(%s) details=encode_failed',
+                $action,
+                $result,
+                (string)$this->auth->getCurrentUserId(),
+                (string)$this->auth->getCurrentUserIndex()
+            );
+        }
+
+        if ($result === 'error') {
+            Logger::error('post_audit', $message);
+            return;
+        }
+
+        if ($result === 'rejected' || $result === 'denied') {
+            Logger::warn('post_audit', $message);
+            return;
+        }
+
+        Logger::info('post_audit', $message);
+    }
+
+    private function getClientIp(): string
+    {
+        $keys = ['HTTP_X_FORWARDED_FOR', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
+
+        foreach ($keys as $key) {
+            if (!isset($_SERVER[$key])) {
+                continue;
+            }
+
+            $raw = trim((string)$_SERVER[$key]);
+            if ($raw === '') {
+                continue;
+            }
+
+            if ($key === 'HTTP_X_FORWARDED_FOR') {
+                $parts = explode(',', $raw);
+                $candidate = trim((string)$parts[0]);
+                return mb_substr($candidate, 0, 100, 'UTF-8');
+            }
+
+            return mb_substr($raw, 0, 100, 'UTF-8');
+        }
+
+        return '';
     }
 
     public function enable($postId): void

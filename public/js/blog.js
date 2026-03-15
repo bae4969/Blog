@@ -116,12 +116,26 @@ function updateLoginStatus() {
     }
     
     if (topWrite) {
-        if (userInfo && userInfo.state === 0 && userInfo.can_write === 1) {
+        const buttonRole = topWrite.dataset.buttonRole || 'blog-write';
+
+        if (!(userInfo && userInfo.state === 0)) {
+            topWrite.style.display = 'none';
+            return;
+        }
+
+        if (buttonRole === 'stock-admin') {
+            topWrite.textContent = '관리자';
+            topWrite.style.display = 'block';
+            return;
+        }
+
+        if (userInfo.can_write === 1) {
             topWrite.textContent = '글쓰기';
             topWrite.style.display = 'block';
-        } else {
-            topWrite.style.display = 'none';
+            return;
         }
+
+        topWrite.style.display = 'none';
     }
 }
 

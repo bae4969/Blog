@@ -1,8 +1,6 @@
 <div id="inputLayout">
-    <div class="title">
-        <img id="mainTitle" onclick="location.href='/blog'" src="/res/title.png" alt="Blog Page" />
-    </div>
-
+    <img id="blogTitle" onclick="location.href='/blog'" src="/res/title.png" alt="Blog Page" style="display: block; margin: 0 auto 30px; cursor: pointer;" />
+	
     <form method="POST" action="/login.php" class="login-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
         
@@ -19,7 +17,7 @@
         </div>
 
         <div class="input">
-            <button id="btn_login" type="submit">Login</button>
+            <button id="btn_login" class="btn btn-primary" type="submit">Login</button>
         </div>
     </form>
 </div>

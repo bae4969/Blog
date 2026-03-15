@@ -26,6 +26,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     mbstring \
     exif \
     bcmath \
+    sockets \
     gd \
     opcache
 

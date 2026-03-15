@@ -177,4 +177,87 @@ class User
         
         return true;
     }
+
+    // ================================
+    // 관리자용 메서드
+    // ================================
+
+    public function getAllUsers(): array
+    {
+        return $this->getAllUsersBySearch('');
+    }
+
+    public function getAllUsersBySearch(string $searchQuery = ''): array
+    {
+        $sql = "SELECT user_index, user_id, user_level, user_state, user_posting_count, user_posting_limit, user_last_action_datetime FROM user_list";
+        $params = [];
+
+        if ($searchQuery !== '') {
+            $sql .= " WHERE user_id LIKE ?";
+            $params[] = '%' . $searchQuery . '%';
+
+            if (ctype_digit($searchQuery)) {
+                $sql .= " OR user_index = ?";
+                $params[] = (int)$searchQuery;
+            }
+        }
+
+        $sql .= " ORDER BY user_level ASC, user_id ASC";
+
+        return $this->db->fetchAll($sql, $params);
+    }
+
+    public function getUserByIndex(int $userIndex): ?array
+    {
+        $sql = "SELECT user_index, user_id, user_level, user_state, user_posting_count, user_posting_limit, user_last_action_datetime FROM user_list WHERE user_index = ?";
+        return $this->db->fetch($sql, [$userIndex]);
+    }
+
+    public function createUser(string $userId, string $hashedPassword, int $level = 4, int $postingLimit = 10): int
+    {
+        $sql = "INSERT INTO user_list (user_id, user_pw, user_level, user_state, user_posting_count, user_posting_limit) VALUES (?, ?, ?, 0, 0, ?)";
+        $this->db->query($sql, [$userId, $hashedPassword, $level, $postingLimit]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    public function isUserIdExists(string $userId): bool
+    {
+        $sql = "SELECT COUNT(*) as cnt FROM user_list WHERE user_id = ?";
+        $result = $this->db->fetch($sql, [$userId]);
+        return $result && (int)$result['cnt'] > 0;
+    }
+
+    public function updateUserLevel(int $userIndex, int $level): void
+    {
+        $sql = "UPDATE user_list SET user_level = ? WHERE user_index = ?";
+        $this->db->query($sql, [$level, $userIndex]);
+        $this->invalidateUserCache($userIndex);
+    }
+
+    public function updateUserState(int $userIndex, int $state): void
+    {
+        $sql = "UPDATE user_list SET user_state = ? WHERE user_index = ?";
+        $this->db->query($sql, [$state, $userIndex]);
+        $this->invalidateUserCache($userIndex);
+    }
+
+    public function updateUserPostingLimit(int $userIndex, int $limit): void
+    {
+        $sql = "UPDATE user_list SET user_posting_limit = ? WHERE user_index = ?";
+        $this->db->query($sql, [$limit, $userIndex]);
+        $this->cache->delete(Cache::key('user_posting_limit', $userIndex));
+    }
+
+    public function resetUserPassword(int $userIndex, string $hashedPassword): void
+    {
+        $sql = "UPDATE user_list SET user_pw = ? WHERE user_index = ?";
+        $this->db->query($sql, [$hashedPassword, $userIndex]);
+    }
+
+    private function invalidateUserCache(int $userIndex): void
+    {
+        $this->cache->delete(Cache::key('user_can_write', $userIndex));
+        $this->cache->delete(Cache::key('user_posting_limit', $userIndex));
+        $this->cache->deletePattern('user_');
+    }
 }
