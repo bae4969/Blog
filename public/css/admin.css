@@ -249,6 +249,7 @@
 .admin-table td {
     color: var(--text-secondary);
     vertical-align: middle;
+    height: auto;
 }
 
 .admin-table tbody td:nth-child(1),
@@ -262,6 +263,7 @@
 }
 
 .admin-table tbody tr {
+    height: 40px;
     transition: var(--transition);
 }
 
@@ -411,33 +413,15 @@
 }
 
 .action-cell {
-    display: grid;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.action-buttons {
+    display: inline-grid;
     grid-template-columns: 50px 50px;
-    gap: 6px;
-    height: 60px;
+    gap: 4px;
     align-items: center;
-    align-content: center;
-    justify-content: center;
-}
-
-.action-cell > button,
-.action-cell > .inline-form {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.action-cell > button {
-    width: 100%;
-    max-height: 34px;
-}
-
-.action-cell > .inline-form > button {
-    width: 100%;
-    max-height: 34px;
-    flex: 1;
-    justify-content: center;
 }
 
 /* ===========================================
@@ -460,8 +444,8 @@
     align-items: center;
     justify-content: center;
     width: 28px;
-    height: 22px;
-    font-size: 11px;
+    height: 16px;
+    font-size: 10px;
     background: var(--bg-quaternary);
     color: var(--text-primary);
     border: none;
