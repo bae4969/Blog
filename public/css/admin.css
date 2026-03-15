@@ -16,7 +16,7 @@
     font-weight: 800;
     color: var(--text-primary);
     margin: 0;
-    padding: 10px 25px;
+    padding: 5px;
     background: transparent;
 }
 
@@ -559,6 +559,11 @@
     font-weight: 500;
 }
 
+.cache-table th,
+.cache-table td {
+    text-align: center;
+}
+
 /* ===========================================
    WOL 장치 목록
    =========================================== */
@@ -733,6 +738,361 @@
 .admin-form-field input::placeholder {
     color: var(--text-muted);
     font-weight: 400;
+}
+
+/* ===========================================
+   주식 관리자 페이지
+   =========================================== */
+
+.stock-admin-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    margin-left: auto;
+    flex: 0 0 auto;
+    margin-bottom: 8px;
+}
+
+.stock-admin-actions .btn {
+    width: 160px;
+    text-align: center;
+}
+
+.stock-admin-action {
+    margin-right: 8px;
+}
+
+.stock-admin-action:last-child {
+    margin-right: 0px;
+}
+
+.stock-admin-management-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stock-admin-search-form input {
+    padding: 10px 14px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+    min-width: 200px;
+}
+
+.stock-admin-search-form input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+    background: #2f3133;
+}
+
+.stock-admin-search-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.stock-admin-toolbar {
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    flex-wrap: wrap;
+}
+
+.stock-admin-market-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.stock-admin-market-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 4px 20px;
+    border-radius: 15px;
+    border: none;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: var(--transition);
+    margin-right: 8px;
+}
+
+.stock-admin-market-tab:last-child {
+    margin-right: 0;
+}
+
+.stock-admin-market-tab.active,
+.stock-admin-market-tab:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.stock-admin-search-form {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-left: 12px;
+    margin-bottom: 8px;
+}
+
+.stock-admin-selection-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.stock-admin-table-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stock-admin-table-form .stocks-table table {
+    min-width: 0 !important;
+    width: 100%;
+    table-layout: fixed !important;
+}
+
+.stocks-table.admin-table th:nth-child(1),
+.stocks-table.admin-table td:nth-child(1) {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    padding-left: 12px;
+    text-align: center;
+}
+
+.stock-admin-table-form .stocks-table.admin-table th:nth-child(1),
+.stock-admin-table-form .stocks-table.admin-table td:nth-child(1) {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+}
+
+.stocks-table.admin-table th:nth-child(2),
+.stocks-table.admin-table td:nth-child(2) {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    text-align: left;
+}
+
+.stocks-table.admin-table th:nth-child(3),
+.stocks-table.admin-table td:nth-child(3) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(4),
+.stocks-table.admin-table td:nth-child(4) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(5),
+.stocks-table.admin-table td:nth-child(5) {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.stocks-table.admin-table th:nth-child(6),
+.stocks-table.admin-table td:nth-child(6) {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+}
+
+.stocks-table.admin-table th:nth-child(7),
+.stocks-table.admin-table td:nth-child(7) {
+    width: 110px;
+    min-width: 110px;
+    max-width: 110px;
+}
+
+.stocks-table.admin-table th:nth-child(8),
+.stocks-table.admin-table td:nth-child(8) {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+    text-align: center;
+}
+
+.admin-select-cell input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #8f959c;
+}
+
+.admin-table-row.is-selected {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.stock-admin-view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: none;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stock-admin-view-link:hover {
+    background: var(--bg-hover);
+}
+
+/* 툴바: 중간 화면 — 2행 (탭+검색 / 액션) */
+@media (max-width: 1200px) {
+    .stock-admin-market-tabs {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .stock-admin-search-form {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    .stock-admin-actions {
+        flex: 1 0 100%;
+    }
+}
+
+/* 툴바: 모바일 — 3행 (탭 / 검색 / 액션) */
+@media (max-width: 600px) {
+    .stock-admin-market-tabs {
+        flex: 1 0 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-right: 10px;
+    }
+
+    .stock-admin-market-tab {
+        width: 100%;
+    }
+
+    .stock-admin-market-tabs .stock-admin-market-tab:last-child {
+        margin-right: 0;
+    }
+
+    .stock-admin-search-form {
+        margin-left: 0px;
+        flex: 1 0 100%;
+    }
+
+    .stock-admin-search-form input {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .stock-admin-actions {
+        flex: 1 0 100%;
+    }
+
+    .stock-admin-actions .btn {
+        width: auto;
+        min-width: 0;
+        flex: 1 1 0;
+    }
+}
+
+/* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
+@media (max-width: 1200px) {
+    .stocks-table.admin-table th:nth-child(6),
+    .stocks-table.admin-table td:nth-child(6) {
+        display: none !important;
+    }
+
+    .stock-admin-view-link {
+        min-height: 30px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 1120px) {
+    .stocks-table.admin-table th:nth-child(8),
+    .stocks-table.admin-table td:nth-child(8) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 900px) {
+    .stocks-table.admin-table th:nth-child(4),
+    .stocks-table.admin-table td:nth-child(4) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 768px) {
+    .stocks-table.admin-table th:nth-child(5),
+    .stocks-table.admin-table td:nth-child(5) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
+}
+
+@media (max-width: 640px) {
+    .stocks-table.admin-table th:nth-child(3),
+    .stocks-table.admin-table td:nth-child(3) {
+        display: none !important;
+    }
+
+    .stocks-table.admin-table th:nth-child(7),
+    .stocks-table.admin-table td:nth-child(7) {
+        display: table-cell !important;
+    }
+
 }
 
 /* ===========================================

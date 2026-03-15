@@ -1,5 +1,7 @@
 <div class="admin-content">
-    <h2>WOL (Wake-on-LAN)</h2>
+    <div class="admin-card">
+        <h2>WOL (Wake-on-LAN)</h2>
+    </div>
 
     <div class="admin-card">
         <div class="stat-row">
