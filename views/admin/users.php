@@ -9,7 +9,9 @@ foreach ($users as $u) {
 }
 ?>
 <div class="admin-content">
-    <h2>사용자 관리</h2>
+    <div class="admin-card">
+        <h2>사용자 관리</h2>
+    </div>
 
     <div class="admin-card">
         <div class="stat-row">

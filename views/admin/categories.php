@@ -6,7 +6,9 @@ foreach ($categories as $c) {
 }
 ?>
 <div class="admin-content">
-    <h2>블로그 카테고리 관리</h2>
+    <div class="admin-card">
+        <h2>블로그 카테고리 관리</h2>
+    </div>
 
     <div class="admin-card">
         <div class="stat-row">
@@ -101,25 +103,25 @@ foreach ($categories as $c) {
                                         <input type="text" name="category_name" value="<?= $view->escape($cat['category_name']) ?>" required maxlength="50" class="inline-input">
                                 </td>
                                 <td>
-                                        <select name="category_read_level" class="inline-select">
-                                            <?php foreach ($levelOptions as $lv => $label): ?>
-                                                <option value="<?= $lv ?>" <?= (int)$cat['category_read_level'] === $lv ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                    <select name="category_read_level" class="inline-select">
+                                        <?php foreach ($levelOptions as $lv => $label): ?>
+                                            <option value="<?= $lv ?>" <?= (int)$cat['category_read_level'] === $lv ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </td>
                                 <td>
-                                        <select name="category_write_level" class="inline-select">
-                                            <?php foreach ($levelOptions as $lv => $label): ?>
-                                                <option value="<?= $lv ?>" <?= (int)$cat['category_write_level'] === $lv ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                    <select name="category_write_level" class="inline-select">
+                                        <?php foreach ($levelOptions as $lv => $label): ?>
+                                            <option value="<?= $lv ?>" <?= (int)$cat['category_write_level'] === $lv ? 'selected' : '' ?>><?= $view->escape($label) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </td>
                                 <td><?= (int)$cat['post_count'] ?></td>
                                 <td class="action-cell">
-                                        <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">저장</button>
                                     </form>
                                     <form method="post" action="/admin/categories/delete" class="inline-form"
-                                          onsubmit="return confirm('카테고리 \'<?= $view->escape($cat['category_name']) ?>\'을(를) 삭제하시겠습니까?<?= (int)$cat['post_count'] > 0 ? ' (게시글 ' . (int)$cat['post_count'] . '개 존재)' : '' ?>');">
+                                        onsubmit="return confirm('카테고리 \'<?= $view->escape($cat['category_name']) ?>\'을(를) 삭제하시겠습니까?<?= (int)$cat['post_count'] > 0 ? ' (게시글 ' . (int)$cat['post_count'] . '개 존재)' : '' ?>');">
                                         <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
                                         <input type="hidden" name="category_index" value="<?= (int)$cat['category_index'] ?>">
                                         <button type="submit" class="btn btn-sm btn-danger">삭제</button>

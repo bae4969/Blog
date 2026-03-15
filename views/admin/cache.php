@@ -1,5 +1,7 @@
 <div class="admin-content">
-    <h2>캐시 관리</h2>
+    <div class="admin-card">
+        <h2>캐시 관리</h2>
+    </div>
 
     <!-- 캐시 현황 -->
     <div class="admin-card">
@@ -48,7 +50,7 @@
     <div class="admin-card">
         <h3>캐시 TTL 설정</h3>
         <div class="admin-table-wrap">
-            <table class="admin-table">
+            <table class="admin-table cache-table">
                 <thead>
                     <tr>
                         <th>캐시 키</th>
@@ -89,7 +91,7 @@
     <div class="admin-card">
         <h3>캐시 무효화 규칙</h3>
         <div class="admin-table-wrap">
-            <table class="admin-table">
+            <table class="admin-table cache-table">
                 <thead>
                     <tr>
                         <th>이벤트</th>
