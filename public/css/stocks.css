@@ -483,36 +483,6 @@
     color: var(--text-muted);
 }
 
-/* 페이지네이션 */
-.pagination {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 20px;
-}
-
-.page-btn {
-    padding: 8px 12px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 14px;
-}
-
-.page-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--primary-color);
-}
-
-.page-btn.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: white;
-}
-
 /* ===========================================
    주식 상세 페이지
    =========================================== */
@@ -1230,7 +1200,7 @@
         gap: 4px;
     }
 
-    .page-btn {
+    .page-link {
         padding: 6px 10px;
         font-size: 13px;
     }

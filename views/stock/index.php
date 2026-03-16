@@ -125,24 +125,43 @@
 
         <!-- 페이지네이션 -->
         <?php if ($totalPages > 1): ?>
+            <?php
+            $stockQuery = function($p) use ($currentMarket, $searchQuery) {
+                $params = array_filter([
+                    'page' => $p > 1 ? $p : null,
+                    'market' => $currentMarket ?: null,
+                    'search' => $searchQuery ?: null,
+                ]);
+                return $params ? '?' . http_build_query($params) : '';
+            };
+            $start = max(1, $currentPage - 4);
+            $end = min($totalPages, $currentPage + 4);
+            ?>
             <div class="pagination">
                 <?php if ($currentPage > 1): ?>
-                    <button class="page-btn" onclick="location.href='?page=<?= $currentPage - 1 ?><?= $currentMarket ? '&market=' . urlencode($currentMarket) : '' ?><?= $searchQuery ? '&search=' . urlencode($searchQuery) : '' ?>'">&lt;</button>
+                    <a href="<?= $stockQuery($currentPage - 1) ?>" class="page-link">←</a>
                 <?php endif; ?>
-                
-                <?php 
-                $startPage = max(1, $currentPage - 2);
-                $endPage = min($totalPages, $currentPage + 2);
-                for ($i = $startPage; $i <= $endPage; $i++): 
-                ?>
-                    <button class="page-btn <?= $i === $currentPage ? 'active' : '' ?>" 
-                            onclick="location.href='?page=<?= $i ?><?= $currentMarket ? '&market=' . urlencode($currentMarket) : '' ?><?= $searchQuery ? '&search=' . urlencode($searchQuery) : '' ?>'">
-                        <?= $i ?>
-                    </button>
+
+                <?php if ($start > 1): ?>
+                    <a href="<?= $stockQuery(1) ?>" class="page-link">1</a>
+                    <?php if ($start > 2): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                <?php endif; ?>
+
+                <?php for ($i = $start; $i <= $end; $i++): ?>
+                    <?php if ($i === $currentPage): ?>
+                        <span class="page-link page-current"><?= $i ?></span>
+                    <?php else: ?>
+                        <a href="<?= $stockQuery($i) ?>" class="page-link"><?= $i ?></a>
+                    <?php endif; ?>
                 <?php endfor; ?>
-                
+
+                <?php if ($end < $totalPages): ?>
+                    <?php if ($end < $totalPages - 1): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                    <a href="<?= $stockQuery($totalPages) ?>" class="page-link"><?= $totalPages ?></a>
+                <?php endif; ?>
+
                 <?php if ($currentPage < $totalPages): ?>
-                    <button class="page-btn" onclick="location.href='?page=<?= $currentPage + 1 ?><?= $currentMarket ? '&market=' . urlencode($currentMarket) : '' ?><?= $searchQuery ? '&search=' . urlencode($searchQuery) : '' ?>'">&gt;</button>
+                    <a href="<?= $stockQuery($currentPage + 1) ?>" class="page-link">→</a>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
