@@ -158,4 +158,132 @@ class Logger
 
         self::$ensuredTables[$ensureKey] = true;
     }
+
+    private static $allowedSortColumns = [
+        'log_datetime', 'log_name', 'log_type', 'log_function', 'log_file',
+    ];
+
+    /**
+     * Log DB의 모든 로그 테이블명 반환 (동일 스키마만)
+     */
+    public static function getLogTableNames(): array
+    {
+        $db = Database::getInstance();
+        $rows = $db->fetchAll(
+            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'Log' ORDER BY TABLE_NAME"
+        );
+
+        $tables = [];
+        foreach ($rows as $row) {
+            $name = $row['TABLE_NAME'];
+            if (preg_match('/^[A-Za-z0-9_]+$/', $name)) {
+                $tables[] = $name;
+            }
+        }
+        return $tables;
+    }
+
+    /**
+     * 모든 로그 테이블을 UNION ALL하는 서브쿼리 생성
+     */
+    private static function buildUnionSubquery(array $tableNames): string
+    {
+        $parts = [];
+        foreach ($tableNames as $name) {
+            $quoted = 'Log.`' . $name . '`';
+            $parts[] = "SELECT log_datetime, log_name COLLATE utf8mb4_unicode_ci AS log_name, log_type COLLATE utf8mb4_unicode_ci AS log_type, log_message COLLATE utf8mb4_unicode_ci AS log_message, log_function COLLATE utf8mb4_unicode_ci AS log_function, log_file COLLATE utf8mb4_unicode_ci AS log_file, log_line FROM {$quoted}";
+        }
+        return '(' . implode(' UNION ALL ', $parts) . ') AS combined_logs';
+    }
+
+    /**
+     * 로그 조회 (페이지네이션 + 필터 + 정렬) — Log DB 전체 테이블 합산
+     */
+    public static function getLogs(array $filters = [], string $sort = 'log_datetime', string $order = 'DESC', int $page = 1, int $perPage = 50): array
+    {
+        $db = Database::getInstance();
+        $year = (int)date('Y');
+        self::ensureBlogLogTableInnoDb($db, $year);
+
+        $tables = self::getLogTableNames();
+        if (empty($tables)) {
+            return ['total' => 0, 'logs' => []];
+        }
+
+        if (!empty($filters['table'])) {
+            $filterTables = (array)$filters['table'];
+            $queryTables = array_values(array_intersect($filterTables, $tables));
+            if (empty($queryTables)) {
+                $queryTables = $tables;
+            }
+        } else {
+            $queryTables = $tables;
+        }
+
+        $source = self::buildUnionSubquery($queryTables);
+
+        if (!in_array($sort, self::$allowedSortColumns, true)) {
+            $sort = 'log_datetime';
+        }
+        $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
+
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['name'])) {
+            $where[] = 'log_name = ?';
+            $params[] = $filters['name'];
+        }
+        if (!empty($filters['type'])) {
+            $types = (array)$filters['type'];
+            $placeholders = implode(',', array_fill(0, count($types), '?'));
+            $where[] = "log_type IN ({$placeholders})";
+            array_push($params, ...$types);
+        }
+        if (!empty($filters['date_from'])) {
+            $where[] = 'log_datetime >= ?';
+            $params[] = $filters['date_from'] . ' 00:00:00';
+        }
+        if (!empty($filters['date_to'])) {
+            $where[] = 'log_datetime <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+        if (!empty($filters['q'])) {
+            $where[] = 'log_message LIKE ?';
+            $params[] = '%' . $filters['q'] . '%';
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $countSql = "SELECT COUNT(*) AS cnt FROM {$source} {$whereSql}";
+        $row = $db->fetch($countSql, $params);
+        $total = $row ? (int)$row['cnt'] : 0;
+
+        $offset = ($page - 1) * $perPage;
+        $dataSql = "SELECT log_datetime, log_name, log_type, log_message, log_function, log_file, log_line FROM {$source} {$whereSql} ORDER BY {$sort} {$order} LIMIT {$perPage} OFFSET {$offset}";
+        $logs = $db->fetchAll($dataSql, $params);
+
+        return ['total' => $total, 'logs' => $logs];
+    }
+
+    /**
+     * 고유 log_name 목록 반환 (최근 90일) — Log DB 전체 테이블 합산
+     */
+    public static function getDistinctLogNames(): array
+    {
+        $db = Database::getInstance();
+        $year = (int)date('Y');
+        self::ensureBlogLogTableInnoDb($db, $year);
+
+        $tables = self::getLogTableNames();
+        if (empty($tables)) {
+            return [];
+        }
+
+        $source = self::buildUnionSubquery($tables);
+        $sql = "SELECT DISTINCT log_name FROM {$source} WHERE log_datetime >= DATE_SUB(NOW(), INTERVAL 90 DAY) ORDER BY log_name";
+        $rows = $db->fetchAll($sql);
+
+        return array_column($rows, 'log_name');
+    }
 }

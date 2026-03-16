@@ -603,49 +603,6 @@ li.category-selected::before {
 }
 
 /* ===========================================
-   페이지네이션
-   =========================================== */
-#pages {
-    margin: 10px 0 30px 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-}
-
-button.page,
-.page-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 36px;
-    height: 36px;
-    padding: 0 10px;
-    margin: 0;
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    background: var(--bg-quaternary);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1;
-    transition: var(--transition);
-    cursor: pointer;
-}
-
-button.page.selectedPage,
-.page-link.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: #fff;
-}
-
-button.page:hover,
-.page-link:hover {
-    background: var(--bg-hover);
-}
-
-/* ===========================================
    알림
    =========================================== */
 .alert { 

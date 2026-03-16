@@ -116,3 +116,54 @@
     --btn-enable: #3a5a8a;
     --btn-enable-hover: #30407a;
 }
+
+/* ===========================================
+   공통 페이지네이션
+   =========================================== */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+
+.page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
+    border-radius: var(--border-radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    background: var(--bg-quaternary);
+    transition: var(--transition);
+}
+
+.page-link:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.page-current {
+    background: var(--primary-color);
+    color: #fff;
+    font-weight: 700;
+}
+
+.page-current:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.page-ellipsis {
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 0 4px;
+}
