@@ -37,7 +37,83 @@ class AdminController extends BaseController
 
     public function index(): void
     {
-        $this->redirect('/admin/users');
+        $this->redirect('/admin/logs');
+    }
+
+    public function logs(): void
+    {
+        $allowedSorts = ['log_datetime', 'log_name', 'log_type', 'log_function', 'log_file'];
+        $allowedOrders = ['ASC', 'DESC'];
+
+        $name = $this->sanitizeInput((string)$this->getParam('name', ''));
+        $rawType = $_GET['type'] ?? [];
+        if (is_string($rawType)) {
+            $rawType = $rawType !== '' ? [$rawType] : [];
+        }
+        $type = array_values(array_intersect(array_map(fn($t) => $this->sanitizeInput((string)$t), (array)$rawType), ['I', 'W', 'E', 'N']));
+        $q = mb_substr($this->sanitizeInput((string)$this->getParam('q', '')), 0, 200);
+        $rawTable = $_GET['table'] ?? [];
+        if (is_string($rawTable)) {
+            $rawTable = $rawTable !== '' ? [$rawTable] : [];
+        }
+        $tableArr = array_map(fn($t) => $this->sanitizeInput((string)$t), (array)$rawTable);
+        $dateFrom = $this->sanitizeInput((string)$this->getParam('date_from', ''));
+        $dateTo = $this->sanitizeInput((string)$this->getParam('date_to', ''));
+        $page = max(1, (int)$this->getParam('page', 1));
+        $sort = $this->sanitizeInput((string)$this->getParam('sort', 'log_datetime'));
+        $order = strtoupper($this->sanitizeInput((string)$this->getParam('order', 'DESC')));
+
+        if (!in_array($sort, $allowedSorts, true)) {
+            $sort = 'log_datetime';
+        }
+        if (!in_array($order, $allowedOrders, true)) {
+            $order = 'DESC';
+        }
+
+        // 날짜 형식 검증 (YYYY-MM-DD)
+        if ($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+            $dateFrom = '';
+        }
+        if ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+            $dateTo = '';
+        }
+        // type is already validated above as array
+
+        $logTableNames = Logger::getLogTableNames();
+        $table = array_values(array_intersect($tableArr, $logTableNames));
+
+        $filters = array_filter([
+            'name' => $name,
+            'type' => $type,
+            'q' => $q,
+            'table' => $table,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ], fn($v) => $v !== '' && $v !== []);
+
+        $perPage = 50;
+        $result = Logger::getLogs($filters, $sort, $order, $page, $perPage);
+        $logNames = Logger::getDistinctLogNames();
+
+        $totalPages = max(1, (int)ceil($result['total'] / $perPage));
+
+        $this->renderLayout('admin', 'admin/logs', $this->adminData('logs', [
+            'logs' => $result['logs'],
+            'total' => $result['total'],
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+            'logNames' => $logNames,
+            'logTableNames' => $logTableNames,
+            'filterName' => $name,
+            'filterTable' => $table,
+            'filterType' => $type,
+            'filterQ' => $q,
+            'filterDateFrom' => $dateFrom,
+            'filterDateTo' => $dateTo,
+            'sort' => $sort,
+            'order' => $order,
+        ]));
     }
 
     public function users(): void
