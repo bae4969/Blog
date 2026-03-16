@@ -119,27 +119,42 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
             </div>
 
             <?php if ($totalPages > 1): ?>
+                <?php
+                $start = max(1, $currentPage - 4);
+                $end = min($totalPages, $currentPage + 4);
+                ?>
                 <div class="pagination">
                     <?php if ($currentPage > 1): ?>
-                        <?php $previousQuery = $queryBase; $previousQuery['page'] = $currentPage - 1; ?>
-                        <a class="page-btn" href="/admin/stocks?<?= http_build_query($previousQuery) ?>" aria-label="이전 페이지" title="이전 페이지">&lt;</a>
+                        <?php $prevQuery = $queryBase; $prevQuery['page'] = $currentPage - 1; ?>
+                        <a href="/admin/stocks?<?= http_build_query($prevQuery) ?>" class="page-link">←</a>
                     <?php endif; ?>
 
-                    <?php
-                    $startPage = max(1, $currentPage - 2);
-                    $endPage = min($totalPages, $currentPage + 2);
-                    for ($pageNumber = $startPage; $pageNumber <= $endPage; $pageNumber++):
+                    <?php if ($start > 1): ?>
+                        <?php $firstQuery = $queryBase; $firstQuery['page'] = 1; ?>
+                        <a href="/admin/stocks?<?= http_build_query($firstQuery) ?>" class="page-link">1</a>
+                        <?php if ($start > 2): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($pageNumber = $start; $pageNumber <= $end; $pageNumber++):
                         $pageQuery = $queryBase;
                         $pageQuery['page'] = $pageNumber;
                     ?>
-                        <a class="page-btn <?= $pageNumber === $currentPage ? 'active' : '' ?>" href="/admin/stocks?<?= http_build_query($pageQuery) ?>">
-                            <?= $pageNumber ?>
-                        </a>
+                        <?php if ($pageNumber === $currentPage): ?>
+                            <span class="page-link page-current"><?= $pageNumber ?></span>
+                        <?php else: ?>
+                            <a href="/admin/stocks?<?= http_build_query($pageQuery) ?>" class="page-link"><?= $pageNumber ?></a>
+                        <?php endif; ?>
                     <?php endfor; ?>
+
+                    <?php if ($end < $totalPages): ?>
+                        <?php if ($end < $totalPages - 1): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                        <?php $lastQuery = $queryBase; $lastQuery['page'] = $totalPages; ?>
+                        <a href="/admin/stocks?<?= http_build_query($lastQuery) ?>" class="page-link"><?= $totalPages ?></a>
+                    <?php endif; ?>
 
                     <?php if ($currentPage < $totalPages): ?>
                         <?php $nextQuery = $queryBase; $nextQuery['page'] = $currentPage + 1; ?>
-                        <a class="page-btn" href="/admin/stocks?<?= http_build_query($nextQuery) ?>" aria-label="다음 페이지" title="다음 페이지">&gt;</a>
+                        <a href="/admin/stocks?<?= http_build_query($nextQuery) ?>" class="page-link">→</a>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>

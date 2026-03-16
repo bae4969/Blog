@@ -52,20 +52,43 @@
     </div>
     
     <?php if ($totalPages > 1): ?>
-        <div id="pages">
+        <?php
+        $blogQuery = function($p) use ($currentCategory, $search) {
+            $params = array_filter([
+                'page' => $p > 1 ? $p : null,
+                'category_index' => $currentCategory ?: null,
+                'search_string' => $search ?: null,
+            ]);
+            return $params ? '?' . http_build_query($params) : '';
+        };
+        $start = max(1, $currentPage - 4);
+        $end = min($totalPages, $currentPage + 4);
+        ?>
+        <div class="pagination">
             <?php if ($currentPage > 1): ?>
-                <button class="page" onclick="location.href='?page=<?= $currentPage - 1 ?><?= $currentCategory ? '&category_index=' . $currentCategory : '' ?><?= $search ? '&search_string=' . urlencode($search) : '' ?>'">&lt;</button>
+                <a href="<?= $blogQuery($currentPage - 1) ?>" class="page-link">←</a>
             <?php endif; ?>
-            
-            <?php for ($i = max(1, $currentPage - 2); $i <= min($totalPages, $currentPage + 2); $i++): ?>
-                <button class="page <?= $i === $currentPage ? 'selectedPage' : '' ?>" 
-                        onclick="location.href='?page=<?= $i ?><?= $currentCategory ? '&category_index=' . $currentCategory : '' ?><?= $search ? '&search_string=' . urlencode($search) : '' ?>'">
-                    <?= $i ?>
-                </button>
+
+            <?php if ($start > 1): ?>
+                <a href="<?= $blogQuery(1) ?>" class="page-link">1</a>
+                <?php if ($start > 2): ?><span class="page-ellipsis">…</span><?php endif; ?>
+            <?php endif; ?>
+
+            <?php for ($i = $start; $i <= $end; $i++): ?>
+                <?php if ($i === $currentPage): ?>
+                    <span class="page-link page-current"><?= $i ?></span>
+                <?php else: ?>
+                    <a href="<?= $blogQuery($i) ?>" class="page-link"><?= $i ?></a>
+                <?php endif; ?>
             <?php endfor; ?>
-            
+
+            <?php if ($end < $totalPages): ?>
+                <?php if ($end < $totalPages - 1): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                <a href="<?= $blogQuery($totalPages) ?>" class="page-link"><?= $totalPages ?></a>
+            <?php endif; ?>
+
             <?php if ($currentPage < $totalPages): ?>
-                <button class="page" onclick="location.href='?page=<?= $currentPage + 1 ?><?= $currentCategory ? '&category_index=' . $currentCategory : '' ?><?= $search ? '&search_string=' . urlencode($search) : '' ?>'">&gt;</button>
+                <a href="<?= $blogQuery($currentPage + 1) ?>" class="page-link">→</a>
             <?php endif; ?>
         </div>
     <?php endif; ?>

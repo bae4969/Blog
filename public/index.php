@@ -48,6 +48,7 @@ $router->post('/post/disable/:id', [PostController::class, 'disable', '/post/dis
 
 // 관리자 컨트롤러 라우트
 $router->get('/admin', [AdminController::class, 'index']);
+$router->get('/admin/logs', [AdminController::class, 'logs']);
 $router->get('/admin/users', [AdminController::class, 'users']);
 $router->post('/admin/users/create', [AdminController::class, 'createUser']);
 $router->post('/admin/users/update', [AdminController::class, 'updateUser']);
