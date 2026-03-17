@@ -14,11 +14,8 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
 ?>
 
 <div class="admin-content">
-    <div class="admin-card">
+    <div class="admin-card stock-admin-management-card">
         <h2>주식 구독 관리</h2>
-    </div>
-
-    <div class="admin-card">
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">현재 필터 결과</span> <span class="stat-value"><?= number_format($totalCount) ?></span></div>
             <span class="stat-sep">·</span>
@@ -26,9 +23,8 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">현재 시장 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
         </div>
-    </div>
-
-    <div class="admin-card stock-admin-management-card">
+        <hr>
+        
         <div class="stock-admin-toolbar">
             <div class="stock-admin-market-tabs">
                 <?php foreach ($marketLabels as $marketCode => $marketLabel): ?>

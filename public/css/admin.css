@@ -15,7 +15,7 @@
     font-size: 1.8rem;
     font-weight: 800;
     color: var(--text-primary);
-    margin: 0;
+    margin: 5px;
     padding: 5px;
     background: transparent;
 }
@@ -43,9 +43,69 @@
     color: var(--text-primary);
     font-size: 1.1rem;
     font-weight: 700;
-    margin-bottom: 20px;
-    padding-bottom: 0;
     border-bottom: none;
+}
+
+/* ===========================================
+   접기/펼치기 카드 (collapsible-card)
+   =========================================== */
+.collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 0;
+    padding: 12px 12px;
+    border-radius: var(--border-radius);
+    transition: background 0.2s ease;
+}
+
+.collapsible-header:hover {
+    background: var(--bg-hover);
+}
+
+.collapsible-icon {
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    border-radius: var(--border-radius);
+    background: var(--bg-quaternary);
+    color: var(--text-secondary);
+}
+
+.collapsible-header:hover .collapsible-icon {
+    background: var(--primary-bg-subtle);
+    color: var(--primary-color);
+}
+
+.collapsible-card:not(.collapsed) .collapsible-icon {
+    transform: rotate(180deg);
+}
+
+.collapsible-body {
+    overflow: hidden;
+    max-height: 600px;
+    opacity: 1;
+    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.3s ease, margin 0.3s ease;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.collapsible-card:not(.collapsed) .collapsible-body {
+    overflow: visible;
+}
+
+.collapsible-card.collapsed .collapsible-body {
+    max-height: 0;
+    opacity: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    margin-top: 0;
 }
 
 .admin-card-header {
@@ -64,6 +124,7 @@
    요약 통계 (admin-card 내부 stat-row)
    =========================================== */
 .stat-row {
+    margin: 15px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -747,7 +808,6 @@
     flex-wrap: nowrap;
     margin-left: auto;
     flex: 0 0 auto;
-    margin-bottom: 8px;
 }
 
 .stock-admin-actions .btn {
@@ -761,12 +821,6 @@
 
 .stock-admin-action:last-child {
     margin-right: 0px;
-}
-
-.stock-admin-management-card {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
 }
 
 .stock-admin-search-form input {
@@ -796,12 +850,13 @@
     background: transparent;
     border: none;
     flex-wrap: wrap;
+    margin: 20px 5px 5px 5px;
+    gap: 8px;
 }
 
 .stock-admin-market-tabs {
     display: flex;
     flex-wrap: wrap;
-    margin-bottom: 8px;
 }
 
 .stock-admin-market-tab {
@@ -809,7 +864,7 @@
     align-items: center;
     justify-content: center;
     min-height: 40px;
-    padding: 4px 20px;
+    padding: 0px 20px;
     border-radius: var(--border-radius-pill);
     border: none;
     background: var(--bg-tertiary);
@@ -837,7 +892,6 @@
     flex-wrap: nowrap;
     gap: 8px;
     margin-left: 12px;
-    margin-bottom: 8px;
 }
 
 .stock-admin-selection-note {
