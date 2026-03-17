@@ -111,6 +111,8 @@
                 <div class="execution-body" id="executionList">
                     <div class="execution-loading">체결 데이터를 불러오는 중...</div>
                 </div>
+                <!-- 모바일: 축약 미리보기 하단 그라데이션 -->
+                <div class="execution-fade-overlay"></div>
             </div>
             
             <button class="btn btn-primary" onclick="refreshExecutions()">
@@ -118,6 +120,14 @@
                     <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                 </svg>
                 새로고침
+            </button>
+
+            <!-- 모바일 전용: 자세히 보기 버튼 -->
+            <button class="btn btn-ghost execution-mobile-trigger" onclick="openExecutionOverlay()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+                자세히 보기
             </button>
         </div>
     </div>
@@ -195,6 +205,38 @@
                 <div class="info-label">최종 업데이트</div>
                 <div class="info-value"><?= date('Y-m-d H:i:s', strtotime($stock['stock_update'])) ?></div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 모바일 체결내역 오버레이 -->
+<div class="execution-overlay-backdrop" id="executionOverlayBackdrop" onclick="closeExecutionOverlay()"></div>
+<div class="execution-overlay" id="executionOverlay">
+    <div class="execution-overlay-handle"></div>
+    <div class="execution-overlay-header">
+        <h3>최근 체결</h3>
+        <div class="execution-overlay-actions">
+            <button class="btn btn-ghost btn-sm" onclick="refreshExecutions()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                </svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="closeExecutionOverlay()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="execution-overlay-content">
+        <div class="execution-header">
+            <div>시간</div>
+            <div>가격</div>
+            <div>수량</div>
+            <div>구분</div>
+        </div>
+        <div class="execution-body" id="executionOverlayList">
+            <div class="execution-loading">체결 데이터를 불러오는 중...</div>
         </div>
     </div>
 </div>

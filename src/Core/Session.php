@@ -123,11 +123,25 @@ class Session
     }
 
     /**
-     * 세션 활동 시간 업데이트
+     * 세션 활동 시간 업데이트 및 쿠키 만료 연장
      */
     public function updateActivity(): void
     {
         $_SESSION['last_activity'] = time();
+
+        // 세션 쿠키 만료시간도 함께 갱신 (슬라이딩 세션)
+        if (session_status() === PHP_SESSION_ACTIVE && ini_get('session.use_cookies')) {
+            $lifetime = $this->config['session_lifetime'] ?? 3600;
+            $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+            setcookie(session_name(), session_id(), [
+                'expires' => time() + $lifetime,
+                'path' => '/',
+                'domain' => '',
+                'secure' => $isSecure,
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+        }
     }
 
     /**

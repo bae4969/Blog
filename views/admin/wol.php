@@ -1,17 +1,15 @@
 <div class="admin-content">
-    <div class="admin-card">
+    <div class="admin-card collapsible-card collapsed">
         <h2>WOL (Wake-on-LAN)</h2>
-    </div>
-
-    <div class="admin-card">
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value"><?= count($devices) ?></span></div>
         </div>
-    </div>
-
-    <!-- 장치 등록 -->
-    <div class="admin-card">
-        <h3>새 장치 등록</h3>
+        <hr>
+        <h3 class="collapsible-header">
+            새 장치 등록
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
         <form method="post" action="/admin/wol/create" class="admin-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
             <div class="admin-form-grid">
@@ -32,11 +30,9 @@
                 <button type="submit" class="btn btn-primary">등록</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <!-- 장치 목록 -->
-    <div class="admin-card">
-        <h3>장치 목록</h3>
+        <!-- 장치 목록 -->
         <?php if (empty($devices)): ?>
             <p class="admin-placeholder">등록된 장치가 없습니다.</p>
         <?php else: ?>

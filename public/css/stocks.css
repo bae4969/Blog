@@ -785,6 +785,36 @@
     scrollbar-gutter: stable;
 }
 
+/* 체결 리스트 스크롤바 (Webkit + Firefox) */
+.execution-body,
+.execution-overlay-content .execution-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.execution-body::-webkit-scrollbar,
+.execution-overlay-content .execution-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.execution-body::-webkit-scrollbar-track,
+.execution-overlay-content .execution-body::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+}
+
+.execution-body::-webkit-scrollbar-thumb,
+.execution-overlay-content .execution-body::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.execution-body::-webkit-scrollbar-thumb:hover,
+.execution-overlay-content .execution-body::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
 .execution-item {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
@@ -1290,7 +1320,7 @@
     }
 
     .info-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
     }
 
@@ -1304,5 +1334,181 @@
 
     .info-value {
         font-size: 14px;
+    }
+}
+
+/* ===========================================
+   모바일 체결내역 오버레이 (바텀시트)
+   =========================================== */
+
+/* 기본: 모바일 전용 요소 숨김 */
+.execution-mobile-trigger {
+    display: none;
+}
+
+.execution-fade-overlay {
+    display: none;
+}
+
+.execution-overlay-backdrop {
+    display: none;
+}
+
+.execution-overlay {
+    display: none;
+}
+
+.execution-overlay-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    opacity: 0.4;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+}
+
+.execution-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 8px;
+    flex-shrink: 0;
+}
+
+.execution-overlay-header h3 {
+    margin: 0;
+    font-size: 17px;
+    color: var(--text-primary);
+}
+
+.execution-overlay-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.execution-overlay-actions .btn-sm {
+    padding: 6px;
+    min-width: 0;
+    border-radius: var(--border-radius);
+}
+
+.execution-overlay-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0 16px 16px;
+    min-height: 0;
+}
+
+.execution-overlay-content .execution-header {
+    margin-right: 0;
+}
+
+.execution-overlay-content .execution-body {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ====== 768px 이하: 모바일 체결 축약 + 오버레이 활성화 ====== */
+@media (max-width: 768px) {
+    /* 인라인 체결 리스트 축약 미리보기 */
+    .execution-section .execution-list {
+        position: relative;
+        min-height: auto;
+    }
+
+    .execution-section .execution-body {
+        max-height: 200px;
+        overflow: hidden;
+    }
+
+    .execution-fade-overlay {
+        display: block;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: linear-gradient(to bottom, transparent, var(--bg-tertiary));
+        pointer-events: none;
+        border-radius: 0 0 var(--border-radius) var(--border-radius);
+        z-index: 1;
+    }
+
+    /* 인라인 새로고침 버튼 숨김 (오버레이에 있음) */
+    .execution-section > .btn-primary {
+        display: none;
+    }
+
+    /* 모바일 자세히 보기 버튼 표시 */
+    .execution-mobile-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        padding: 10px;
+        font-size: 13px;
+        color: var(--primary-color);
+        border: 1px dashed var(--primary-color);
+        border-radius: var(--border-radius);
+        background: transparent;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    .execution-mobile-trigger:hover {
+        background: var(--primary-bg-subtle);
+    }
+
+    /* 오버레이: 비활성 상태 (visibility로 숨김 → 트랜지션 가능) */
+    .execution-overlay-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: var(--shadow-overlay);
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.3s ease, visibility 0s 0.3s;
+    }
+
+    .execution-overlay-backdrop.active {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition: opacity 0.3s ease, visibility 0s 0s;
+    }
+
+    .execution-overlay {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 85vh;
+        z-index: 1001;
+        background: var(--bg-secondary);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+        flex-direction: column;
+        transform: translateY(100%);
+        visibility: hidden;
+        pointer-events: none;
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0.3s;
+    }
+
+    .execution-overlay.active {
+        transform: translateY(0);
+        visibility: visible;
+        pointer-events: auto;
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0s;
     }
 }

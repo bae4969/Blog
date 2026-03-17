@@ -9,11 +9,8 @@ foreach ($users as $u) {
 }
 ?>
 <div class="admin-content">
-    <div class="admin-card">
+    <div class="admin-card collapsible-card collapsed">
         <h2>사용자 관리</h2>
-    </div>
-
-    <div class="admin-card">
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">전체 사용자</span> <span class="stat-value"><?= $totalUsers ?></span></div>
             <span class="stat-sep">·</span>
@@ -21,11 +18,13 @@ foreach ($users as $u) {
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">비활성</span> <span class="stat-value" style="color:#f44336"><?= $inactiveUsers ?></span></div>
         </div>
-    </div>
+        <hr>
 
-    <!-- 사용자 생성 폼 -->
-    <div class="admin-card">
-        <h3>새 사용자 생성</h3>
+        <h3 class="collapsible-header">
+            새 사용자 생성
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
         <form method="post" action="/admin/users/create" class="admin-form" id="createUserForm">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
             <input type="hidden" name="q" value="<?= $view->escape($searchQuery) ?>">
@@ -55,12 +54,10 @@ foreach ($users as $u) {
                 <button type="submit" class="btn btn-primary">생성</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <!-- 사용자 목록 -->
-    <div class="admin-card">
+        <!-- 사용자 목록 -->
         <div class="admin-card-header">
-            <h3>사용자 목록</h3>
             <form method="get" action="/admin/users" class="admin-search-form">
                 <input type="text" name="q" value="<?= $view->escape($searchQuery) ?>" placeholder="아이디 또는 ID로 검색" maxlength="50">
                 <button type="submit" class="btn btn-primary">검색</button>
