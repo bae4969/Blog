@@ -6,21 +6,20 @@ foreach ($categories as $c) {
 }
 ?>
 <div class="admin-content">
-    <div class="admin-card">
+    <div class="admin-card collapsible-card collapsed">
         <h2>블로그 카테고리 관리</h2>
-    </div>
-
-    <div class="admin-card">
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">전체 카테고리</span> <span class="stat-value"><?= $totalCategories ?></span></div>
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">전체 게시글</span> <span class="stat-value"><?= number_format($totalPosts) ?></span></div>
         </div>
-    </div>
-
-    <!-- 카테고리 생성 폼 -->
-    <div class="admin-card">
-        <h3>새 카테고리 생성</h3>
+        <hr>
+        
+        <h3 class="collapsible-header">
+            새 카테고리 생성
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
         <form method="post" action="/admin/categories/create" class="admin-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
             <div class="admin-form-grid">
@@ -49,11 +48,9 @@ foreach ($categories as $c) {
                 <button type="submit" class="btn btn-primary">생성</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <!-- 카테고리 목록 -->
-    <div class="admin-card">
-        <h3>카테고리 목록</h3>
+        <!-- 카테고리 목록 -->
         <?php if (empty($categories)): ?>
             <p class="admin-placeholder">등록된 카테고리가 없습니다.</p>
         <?php else: ?>

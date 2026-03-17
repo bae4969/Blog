@@ -67,6 +67,13 @@
                 toggleButton.classList.add('collapsed');
             }
         }
+
+        // 접기/펼치기 카드 토글
+        document.querySelectorAll('.collapsible-header').forEach(function(header) {
+            header.addEventListener('click', function() {
+                this.closest('.collapsible-card').classList.toggle('collapsed');
+            });
+        });
     });
     </script>
 </body>

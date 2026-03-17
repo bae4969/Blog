@@ -1,10 +1,7 @@
 <div class="admin-content">
     <div class="admin-card">
         <h2>캐시 관리</h2>
-    </div>
 
-    <!-- 캐시 현황 -->
-    <div class="admin-card">
         <div class="stat-row cache-stat-row">
             <div class="stat-item"><span class="stat-label">파일 수</span> <span class="stat-value"><?= (int)$fileDetails['file_count'] ?></span></div>
             <span class="stat-sep">·</span>
@@ -16,10 +13,9 @@
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">디렉토리</span> <span class="stat-value"><?= $fileDetails['cache_dir_writable'] ? '쓰기 가능' : '쓰기 불가' ?></span></div>
         </div>
-    </div>
 
-    <!-- 캐시 작업 (통합) -->
-    <div class="admin-card">
+        <hr>
+
         <h3>캐시 작업</h3>
         <div class="cache-actions">
             <form method="post" action="/admin/cache/clear-expired" class="inline-form">

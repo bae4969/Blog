@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     syncExecutionHeaderSpacing();
     window.addEventListener('resize', syncExecutionHeaderSpacing);
+
+    // ESC 키로 오버레이 닫기
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeExecutionOverlay();
+    });
     
     // 기간 선택 박스에 휠 이벤트 추가
     setupPeriodWheelControl();
@@ -583,25 +588,39 @@ function refreshExecutions() {
 }
 
 function syncExecutionHeaderSpacing() {
+    // 인라인 체결 헤더
     const executionBodyEl = document.getElementById('executionList');
-    if (!executionBodyEl) return;
+    if (executionBodyEl) {
+        const headerEl = executionBodyEl.parentElement?.querySelector('.execution-header');
+        if (headerEl) {
+            const scrollbarWidth = executionBodyEl.offsetWidth - executionBodyEl.clientWidth;
+            headerEl.style.paddingRight = `${15 + Math.max(0, scrollbarWidth)}px`;
+        }
+    }
 
-    const headerEl = executionBodyEl.parentElement?.querySelector('.execution-header');
-    if (!headerEl) return;
-
-    const scrollbarWidth = executionBodyEl.offsetWidth - executionBodyEl.clientWidth;
-    headerEl.style.paddingRight = `${15 + Math.max(0, scrollbarWidth)}px`;
+    // 오버레이 체결 헤더
+    const overlayBodyEl = document.getElementById('executionOverlayList');
+    if (overlayBodyEl) {
+        const overlayHeaderEl = overlayBodyEl.parentElement?.querySelector('.execution-header');
+        if (overlayHeaderEl) {
+            const scrollbarWidth = overlayBodyEl.offsetWidth - overlayBodyEl.clientWidth;
+            overlayHeaderEl.style.paddingRight = `${15 + Math.max(0, scrollbarWidth)}px`;
+        }
+    }
 }
 
 /**
- * 체결 목록 업데이트
+ * 체결 목록 업데이트 (인라인 + 오버레이 동시 갱신)
  */
 function updateExecutionList(executions) {
     const executionListEl = document.getElementById('executionList');
+    const overlayListEl = document.getElementById('executionOverlayList');
     if (!executionListEl) return;
     
     if (executions.length === 0) {
-        executionListEl.innerHTML = '<div class="execution-no-data">체결 데이터가 없습니다.</div>';
+        const emptyHtml = '<div class="execution-no-data">체결 데이터가 없습니다.</div>';
+        executionListEl.innerHTML = emptyHtml;
+        if (overlayListEl) overlayListEl.innerHTML = emptyHtml;
         return;
     }
     
@@ -625,6 +644,7 @@ function updateExecutionList(executions) {
     });
     
     executionListEl.innerHTML = html;
+    if (overlayListEl) overlayListEl.innerHTML = html;
 }
 
 /**
@@ -654,6 +674,42 @@ function formatDateTime(datetime) {
             // 분봉/시간봉
             return `${month}/${day} ${hours}:${minutes}`;
     }
+}
+
+/**
+ * 모바일 체결내역 오버레이 열기
+ */
+function openExecutionOverlay() {
+    const backdrop = document.getElementById('executionOverlayBackdrop');
+    const overlay = document.getElementById('executionOverlay');
+    if (!backdrop || !overlay) return;
+
+    // 오버레이 내용 동기화: 인라인 리스트 복사
+    const inlineList = document.getElementById('executionList');
+    const overlayList = document.getElementById('executionOverlayList');
+    if (inlineList && overlayList) {
+        overlayList.innerHTML = inlineList.innerHTML;
+    }
+
+    // 표시: requestAnimationFrame으로 CSS transition 보장
+    backdrop.classList.add('active');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    syncExecutionHeaderSpacing();
+}
+
+/**
+ * 모바일 체결내역 오버레이 닫기
+ */
+function closeExecutionOverlay() {
+    const backdrop = document.getElementById('executionOverlayBackdrop');
+    const overlay = document.getElementById('executionOverlay');
+    if (!backdrop || !overlay) return;
+
+    overlay.classList.remove('active');
+    backdrop.classList.remove('active');
+    document.body.style.overflow = '';
 }
 
 function formatTime(datetime) {

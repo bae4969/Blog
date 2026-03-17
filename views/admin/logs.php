@@ -50,22 +50,21 @@ $typeLabels = ['I' => '정보', 'W' => '경고', 'E' => '에러', 'N' => '일반
 $typeCss = ['I' => 'log-type-normal', 'W' => 'log-type-warn', 'E' => 'log-type-error', 'N' => 'log-type-notice'];
 ?>
 <div class="admin-content">
-    <div class="admin-card">
+    <div class="admin-card collapsible-card collapsed">
         <h2>로그</h2>
-    </div>
 
-    <!-- 통계 -->
-    <div class="admin-card">
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">검색 결과</span> <span class="stat-value"><?= number_format($total) ?></span></div>
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">페이지</span> <span class="stat-value"><?= (int)$page ?> / <?= (int)$totalPages ?></span></div>
         </div>
-    </div>
+        <hr>
 
-    <!-- 필터 -->
-    <div class="admin-card">
-        <h3>필터</h3>
+        <h3 class="collapsible-header">
+            필터
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
         <form method="get" action="/admin/logs" class="log-filter-form">
             <div class="log-filter-grid">
                 <div class="admin-form-field">
@@ -131,10 +130,9 @@ $typeCss = ['I' => 'log-type-normal', 'W' => 'log-type-warn', 'E' => 'log-type-e
                 <button type="submit" class="btn btn-primary">검색</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <!-- 로그 테이블 -->
-    <div class="admin-card">
+        <!-- 로그 테이블 -->
         <div class="admin-table-wrap">
             <table class="admin-table log-table">
                 <thead>
