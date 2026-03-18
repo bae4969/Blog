@@ -577,10 +577,11 @@ li.category-selected::before {
 }
 
 .post-thumbnail {
-    width: 70%;
-    min-width: 400px;
-    max-height: 400px;
+    width: auto;
     height: auto;
+    max-width: 70%;
+    display: block;
+    margin: 0 auto;
 }
 
 .posting_summary, .post-excerpt { 
@@ -593,8 +594,10 @@ li.category-selected::before {
    포스트 내용 및 이미지
    =========================================== */
 .post-content img {
-    max-width: 100%;
+    width: auto;
     height: auto;
+    max-width: 45%;
+    max-height: 60vh;
     display: block;
     margin: 20px auto;
     border-radius: var(--border-radius);
@@ -1323,6 +1326,8 @@ footer a:hover {
     
     /* 포스트 내용 이미지 최적화 */
     .post-content img {
+        max-width: 50%;
+        max-height: 55vh;
         margin: 15px auto;
         border-radius: var(--border-radius-sm);
     }
@@ -1371,6 +1376,14 @@ footer a:hover {
         right: 10px;
         left: 10px;
         text-align: center;
+    }
+}
+
+/* 중간 화면 (481px ~ 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+    .post-content img {
+        max-width: 80%;
+        max-height: 50vh;
     }
 }
 
@@ -1441,6 +1454,8 @@ footer a:hover {
     
     /* 포스트 내용 이미지 최적화 */
     .post-content img {
+        max-width: 100%;
+        max-height: 50vh;
         margin: 10px auto;
         border-radius: var(--border-radius-xs);
     }
