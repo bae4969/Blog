@@ -37,6 +37,37 @@ class Stock
     }
 
     /**
+     * 주식/코인 여부를 market 힌트와 stock_info 존재 여부로 판별
+     * stock_info에 존재하는 코드는 주식 우선 (코인과 코드가 겹치는 경우 대응)
+     */
+    private function resolveIsCoin(string $stockCode, string $market): bool
+    {
+        if ($market === 'COIN') {
+            return true;
+        }
+        if ($market !== '') {
+            return false;
+        }
+
+        $cacheKey = Cache::key('stock_code_exists', $stockCode);
+        $exists = $this->cache->get($cacheKey);
+        if ($exists === null) {
+            $row = $this->db->fetch(
+                "SELECT 1 FROM KoreaInvest.stock_info WHERE stock_code = :code LIMIT 1",
+                [':code' => $stockCode]
+            );
+            $exists = ($row !== false && $row !== null);
+            $this->cache->set($cacheKey, $exists, 1800);
+        }
+
+        if ($exists) {
+            return false;
+        }
+
+        return $this->isCoinCode($stockCode);
+    }
+
+    /**
      * candle 스키마 소스 resolve (주식: s{Symbol}, 코인: c{Symbol})
      * @return array{schema: string, table: string}|null
      */
@@ -893,7 +924,7 @@ class Stock
             return $cached === '' ? null : (float)$cached;
         }
 
-        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $isCoin = $this->resolveIsCoin($stockCode, $market);
         $prefix = $isCoin ? 'c' : 's';
         $candleSource = $this->resolveCandleSource($stockCode, $prefix);
 
@@ -987,7 +1018,7 @@ class Stock
             return $cached;
         }
 
-        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $isCoin = $this->resolveIsCoin($stockCode, $market);
         $prefix = $isCoin ? 'c' : 's';
 
         $candleSource = $this->resolveCandleSource($stockCode, $prefix);
@@ -1192,7 +1223,7 @@ class Stock
             return $cached;
         }
 
-        $isCoin = ($market === 'COIN') || $this->isCoinCode($stockCode);
+        $isCoin = $this->resolveIsCoin($stockCode, $market);
         $prefix = $isCoin ? 'c' : 's';
 
         $tickSource = $this->resolveTickSource($stockCode, $prefix);
