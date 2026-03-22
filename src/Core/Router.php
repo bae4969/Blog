@@ -2,6 +2,8 @@
 
 namespace Blog\Core;
 
+use Blog\Models\BlockedIp;
+
 class Router
 {
     private $routes = [];
@@ -36,7 +38,9 @@ class Router
             }
         }
         
-        // 404 처리
+        // 404 처리 — IP별 404 카운터 증가 및 자동 차단 체크
+        $this->track404();
+
         http_response_code(404);
         echo "페이지를 찾을 수 없습니다.";
     }
@@ -96,5 +100,49 @@ class Router
         }
         
         return $params;
+    }
+
+    /**
+     * 404 발생 시 IP별 카운터 증가, 임계치 초과 시 자동 차단
+     */
+    private function track404(): void
+    {
+        try {
+            $config = require __DIR__ . '/../../config/config.php';
+            $settings = $config['ip_block'] ?? [];
+            if (empty($settings['enabled'])) {
+                return;
+            }
+
+            $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+            if (strpos($clientIp, ',') !== false) {
+                $clientIp = trim(explode(',', $clientIp)[0]);
+            }
+            if ($clientIp === '' || in_array($clientIp, $settings['whitelist'] ?? ['127.0.0.1', '::1'], true)) {
+                return;
+            }
+
+            $cache = Cache::getInstance();
+            $window = $settings['request_window_seconds'] ?? 60;
+            $threshold = $settings['not_found_threshold'] ?? 30;
+            $countKey = Cache::key('ip_404_count', $clientIp);
+            $count = (int)($cache->get($countKey) ?? 0) + 1;
+            $cache->set($countKey, $count, $window);
+
+            if ($count > $threshold) {
+                $blockDurations = $settings['block_duration'] ?? ['low' => 300, 'medium' => 86400, 'high' => 604800];
+                $duration = $blockDurations['medium'] ?? 86400;
+                $blockedIpModel = new BlockedIp();
+                $blockedIpModel->blockIp(
+                    $clientIp,
+                    "404 반복 접근 ({$count}/{$threshold})",
+                    'auto',
+                    $duration > 0 ? $duration : null
+                );
+                Logger::warn('IpBlock', "auto-blocked ip={$clientIp} reason=404_flood count={$count}/{$threshold}");
+            }
+        } catch (\Throwable $e) {
+            error_log('[IpBlock] 404 tracking failed: ' . $e->getMessage());
+        }
     }
 }
