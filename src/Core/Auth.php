@@ -2,6 +2,7 @@
 
 namespace Blog\Core;
 
+use Blog\Core\Logger;
 use Blog\Models\User;
 
 class Auth
@@ -114,6 +115,9 @@ class Auth
     public function requireLogin(): void
     {
         if (!$this->isLoggedIn()) {
+            $uri = $_SERVER['REQUEST_URI'] ?? '/';
+            $ip = $this->getClientIp();
+            Logger::log('access', 'W', "비인증 접근: {$uri} ({$ip})");
             header('Location: /login.php');
             exit;
         }
@@ -124,6 +128,8 @@ class Auth
         $this->requireLogin();
 
         if (!$this->canWrite()) {
+            $ip = $this->getClientIp();
+            Logger::log('access', 'W', "권한 없는 글쓰기 시도: {$this->getCurrentUserId()} ({$ip})");
             $this->session->setFlash('error', '글쓰기 횟수가 초과되었습니다.');
             header('Location: /blog');
             exit;
@@ -144,9 +150,21 @@ class Auth
         $this->requireLogin();
 
         if (!$this->canManageStocks()) {
+            $uri = $_SERVER['REQUEST_URI'] ?? '/';
+            $ip = $this->getClientIp();
+            Logger::log('access', 'W', "관리자 페이지 무단 접근: {$uri} {$this->getCurrentUserId()} ({$ip})");
             $this->session->setFlash('error', '주식 관리자 페이지는 관리자만 접근할 수 있습니다.');
             header('Location: /stocks');
             exit;
         }
+    }
+
+    private function getClientIp(): string
+    {
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '-';
+        if (strpos($ip, ',') !== false) {
+            $ip = trim(explode(',', $ip)[0]);
+        }
+        return $ip;
     }
 }
