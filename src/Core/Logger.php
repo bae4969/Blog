@@ -43,13 +43,15 @@ class Logger
 
             // 기본적으로 현재 호출 스택에서 보완
             if ($func === null || $file === null || $line === null) {
-                $bt = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
-                if (isset($bt[1])) {
-                    $traceFunc = $bt[1]['function'] ?? null;
-                    $func = $func ?? self::normalizeFunctionName($traceFunc);
-                    $traceFile = $bt[1]['file'] ?? null;
-                    $file = $file ?? ($traceFile ? basename($traceFile) : null);
-                    $line = $line ?? ($bt[1]['line'] ?? null);
+                $bt = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+                $frame = $bt[2] ?? $bt[1] ?? $bt[0] ?? null;
+                $fileFallback = $bt[1] ?? $bt[0] ?? null;
+                if ($frame) {
+                    $func = $func ?? self::normalizeFunctionName($frame['function'] ?? null);
+                }
+                if ($fileFallback) {
+                    $file = $file ?? (isset($fileFallback['file']) ? basename($fileFallback['file']) : null);
+                    $line = $line ?? ($fileFallback['line'] ?? null);
                 }
             }
 

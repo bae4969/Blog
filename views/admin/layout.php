@@ -19,6 +19,7 @@
                             'cache' => ['label' => '캐시 관리', 'url' => '/admin/cache'],
                             'stocks' => ['label' => '주식 구독 관리', 'url' => '/admin/stocks'],
                             'wol' => ['label' => 'WOL', 'url' => '/admin/wol'],
+                            'ip-blocks' => ['label' => 'IP 차단 관리', 'url' => '/admin/ip-blocks'],
                         ];
                         $currentAdminMenu = $adminCurrentMenu ?? '';
                         ?>
