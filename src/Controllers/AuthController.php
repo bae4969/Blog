@@ -4,6 +4,7 @@ namespace Blog\Controllers;
 
 use Blog\Core\Cache;
 use Blog\Core\Logger;
+use Blog\Models\BlockedIp;
 
 class AuthController extends BaseController
 {
@@ -95,6 +96,9 @@ class AuthController extends BaseController
         $blockSeconds = $this->rateLimit['block_seconds'];
         if ($ipAttempts > $ipThreshold) {
             $this->cache->set($ipBlockKey, 1, $blockSeconds);
+
+            // IP 자동 차단: 로그인 실패 누적 카운터
+            $this->checkLoginFailAutoBlock($ip, $ipAttempts);
         }
         if ($userAttempts > $userThreshold) {
             $this->cache->set($userBlockKey, 1, $blockSeconds);
@@ -153,6 +157,49 @@ class AuthController extends BaseController
                 'etc' => '로그인이 필요합니다.',
                 'session_expired' => $this->session->isExpired()
             ]);
+        }
+    }
+
+    /**
+     * 로그인 실패 누적 시 IP 자동 차단 체크
+     */
+    private function checkLoginFailAutoBlock(string $ip, int $currentAttempts): void
+    {
+        try {
+            $config = require __DIR__ . '/../../config/config.php';
+            $settings = $config['ip_block'] ?? [];
+            if (empty($settings['enabled'])) {
+                return;
+            }
+
+            $whitelist = $settings['whitelist'] ?? ['127.0.0.1', '::1'];
+            if (in_array($ip, $whitelist, true)) {
+                return;
+            }
+
+            $threshold = $settings['login_fail_threshold'] ?? 20;
+
+            // 누적 블록 횟수 추적 (레이트리밋 블록이 발동될 때마다 카운트)
+            $blockCountKey = Cache::key('ip_login_block_count', $ip);
+            $blockCount = (int)($this->cache->get($blockCountKey) ?? 0) + 1;
+            $this->cache->set($blockCountKey, $blockCount, 3600); // 1시간 윈도우
+
+            if ($blockCount * ($this->rateLimit['ip_threshold'] ?? 15) >= $threshold) {
+                $blockDurations = $settings['block_duration'] ?? ['low' => 300, 'medium' => 86400, 'high' => 604800];
+                $duration = $blockDurations['high'] ?? 604800;
+                $totalAttempts = $blockCount * ($this->rateLimit['ip_threshold'] ?? 15);
+                $model = new BlockedIp();
+                $model->blockIp(
+                    $ip,
+                    "로그인 실패 반복 (누적 약 {$totalAttempts}회)",
+                    'auto',
+                    $duration > 0 ? $duration : null
+                );
+                Logger::warn('IpBlock', "auto-blocked ip={$ip} reason=login_fail total_attempts≈{$totalAttempts}");
+                $this->cache->delete($blockCountKey);
+            }
+        } catch (\Throwable $e) {
+            error_log('[IpBlock] login fail auto-block check failed: ' . $e->getMessage());
         }
     }
 }

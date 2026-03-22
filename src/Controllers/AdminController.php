@@ -6,6 +6,7 @@ use Blog\Models\Stock;
 use Blog\Models\Category;
 use Blog\Models\User;
 use Blog\Models\WolDevice;
+use Blog\Models\BlockedIp;
 use Blog\Core\Cache;
 use Blog\Core\Logger;
 
@@ -15,6 +16,7 @@ class AdminController extends BaseController
     private $categoryModel;
     private $userModel;
     private $wolDeviceModel;
+    private $blockedIpModel;
 
     public function __construct()
     {
@@ -24,6 +26,7 @@ class AdminController extends BaseController
         $this->categoryModel = new Category();
         $this->userModel = new User();
         $this->wolDeviceModel = new WolDevice();
+        $this->blockedIpModel = new BlockedIp();
     }
 
     private function adminData(string $currentMenu, array $extra = []): array
@@ -872,6 +875,135 @@ class AdminController extends BaseController
         $this->auditAdminAction('wol.device.delete', ['device_id' => $deviceId, 'device_name' => $device['wol_device_name']]);
         $this->session->setFlash('success', "'{$device['wol_device_name']}' 장치가 삭제되었습니다.");
         $this->redirect('/admin/wol');
+    }
+
+    // ============================================================
+    // IP 차단 관리
+    // ============================================================
+
+    public function ipBlocks(): void
+    {
+        $stats = $this->blockedIpModel->getStats();
+        $blocks = $this->blockedIpModel->getAll();
+
+        $config = require __DIR__ . '/../../config/config.php';
+        $ipBlockSettings = $config['ip_block'] ?? [];
+
+        $this->renderLayout('admin', 'admin/ip-blocks', $this->adminData('ip-blocks', [
+            'stats' => $stats,
+            'blocks' => $blocks,
+            'ipBlockSettings' => $ipBlockSettings,
+            'csrfToken' => $this->view->csrfToken(),
+        ]));
+    }
+
+    public function addIpBlock(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('ip_block.add', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $ip = trim($this->sanitizeInput($this->getParam('ip_address', '')));
+        $reason = trim($this->sanitizeInput($this->getParam('reason', '')));
+        $durationType = $this->sanitizeInput($this->getParam('duration_type', 'permanent'));
+        $durationHours = (int)$this->getParam('duration_hours', 0);
+
+        if (empty($ip)) {
+            $this->auditAdminAction('ip_block.add', ['reason' => 'empty_ip'], 'rejected');
+            $this->session->setFlash('error', 'IP 주소를 입력해주세요.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            $this->auditAdminAction('ip_block.add', ['ip' => $ip, 'reason' => 'invalid_ip_format'], 'rejected');
+            $this->session->setFlash('error', '유효하지 않은 IP 주소 형식입니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        // 화이트리스트 확인
+        $config = require __DIR__ . '/../../config/config.php';
+        $whitelist = $config['ip_block']['whitelist'] ?? ['127.0.0.1', '::1'];
+        if (in_array($ip, $whitelist, true)) {
+            $this->auditAdminAction('ip_block.add', ['ip' => $ip, 'reason' => 'whitelisted'], 'rejected');
+            $this->session->setFlash('error', '화이트리스트에 포함된 IP는 차단할 수 없습니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $duration = null;
+        if ($durationType === 'temporary' && $durationHours > 0) {
+            $duration = $durationHours * 3600;
+        }
+
+        if (empty($reason)) {
+            $reason = '관리자 수동 차단';
+        }
+
+        $currentUserIndex = $this->auth->getCurrentUserIndex();
+        $this->blockedIpModel->blockIp($ip, $reason, 'manual', $duration, $currentUserIndex);
+        $this->auditAdminAction('ip_block.add', [
+            'ip' => $ip,
+            'reason' => $reason,
+            'duration_type' => $durationType,
+            'duration_hours' => $durationHours,
+        ]);
+        $this->session->setFlash('success', "IP '{$ip}'이(가) 차단되었습니다.");
+        $this->redirect('/admin/ip-blocks');
+    }
+
+    public function removeIpBlock(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('ip_block.remove', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $blockId = (int)$this->getParam('block_id', 0);
+        if ($blockId <= 0) {
+            $this->auditAdminAction('ip_block.remove', ['block_id' => $blockId, 'reason' => 'invalid_id'], 'rejected');
+            $this->session->setFlash('error', '유효하지 않은 요청입니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $block = $this->blockedIpModel->getById($blockId);
+        if (!$block) {
+            $this->auditAdminAction('ip_block.remove', ['block_id' => $blockId, 'reason' => 'not_found'], 'rejected');
+            $this->session->setFlash('error', '차단 레코드를 찾을 수 없습니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $this->blockedIpModel->unblockById($blockId);
+        $this->auditAdminAction('ip_block.remove', [
+            'block_id' => $blockId,
+            'ip' => $block['ip_address'],
+            'block_type' => $block['block_type'],
+        ]);
+        $this->session->setFlash('success', "IP '{$block['ip_address']}'의 차단이 해제되었습니다.");
+        $this->redirect('/admin/ip-blocks');
+    }
+
+    public function cleanExpiredBlocks(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('ip_block.clean', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/ip-blocks');
+            return;
+        }
+
+        $count = $this->blockedIpModel->cleanExpired();
+        $this->auditAdminAction('ip_block.clean', ['deleted_count' => $count]);
+        $this->session->setFlash('success', "만료된 차단 {$count}건이 정리되었습니다.");
+        $this->redirect('/admin/ip-blocks');
     }
 
     private function auditAdminAction(string $action, array $details = [], string $result = 'success'): void
