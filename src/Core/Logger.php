@@ -131,6 +131,15 @@ class Logger
             $db->query("ALTER TABLE {$quotedTable} ENGINE=InnoDB");
         }
 
+        // log_name 컬럼이 없으면 추가 (기존 테이블 마이그레이션)
+        $colInfo = $db->fetch(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'Log' AND TABLE_NAME = ? AND COLUMN_NAME = 'log_name' LIMIT 1",
+            [$tableName]
+        );
+        if (empty($colInfo)) {
+            $db->query("ALTER TABLE {$quotedTable} ADD COLUMN log_name VARCHAR(255) DEFAULT NULL AFTER log_datetime");
+        }
+
         $partitionInfo = $db->fetch(
             "SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL LIMIT 1",
             ['Log', $tableName]
@@ -166,23 +175,11 @@ class Logger
     ];
 
     /**
-     * Log DB의 모든 로그 테이블명 반환 (동일 스키마만)
+     * Logger가 관리하는 로그 테이블명 반환 (blog_log만 해당)
      */
     public static function getLogTableNames(): array
     {
-        $db = Database::getInstance();
-        $rows = $db->fetchAll(
-            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'Log' ORDER BY TABLE_NAME"
-        );
-
-        $tables = [];
-        foreach ($rows as $row) {
-            $name = $row['TABLE_NAME'];
-            if (preg_match('/^[A-Za-z0-9_]+$/', $name)) {
-                $tables[] = $name;
-            }
-        }
-        return $tables;
+        return ['blog_log'];
     }
 
     /**
