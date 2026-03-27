@@ -472,6 +472,10 @@
     color: var(--color-etn);
 }
 
+.type-badge.type-coin {
+    color: var(--color-coin);
+}
+
 .update-time {
     font-size: 12px;
     color: var(--text-muted);
