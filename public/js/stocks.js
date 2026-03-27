@@ -726,17 +726,16 @@ function formatDateForAPI(date) {
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    return `${year}-${month}-${day} ${hours}:${minutes}:00`;
 }
 
 function formatNumber(num) {
     return new Intl.NumberFormat('ko-KR').format(num);
 }
 
-// 자동 새로고침 (30초마다)
+// 자동 새로고침 (30초마다, 페이지가 보일 때만)
 setInterval(function() {
-    if (typeof stockCode !== 'undefined' && document.getElementById('executionList')) {
+    if (document.visibilityState === 'visible' && typeof stockCode !== 'undefined' && document.getElementById('executionList')) {
         refreshExecutions();
     }
 }, 30000);
