@@ -124,8 +124,12 @@ class StockController extends BaseController
     public function apiCandleData(): void
     {
         $stockCode = isset($_GET['code']) ? $this->sanitizeInput($_GET['code']) : '';
-        $startDate = isset($_GET['start']) ? $this->sanitizeInput($_GET['start']) : date('Y-m-d H:i:s', strtotime('-30 days'));
-        $endDate = isset($_GET['end']) ? $this->sanitizeInput($_GET['end']) : date('Y-m-d H:i:s');
+        $startDate = isset($_GET['start']) ? $this->sanitizeInput($_GET['start']) : date('Y-m-d H:i:00', strtotime('-30 days'));
+        $endDate = isset($_GET['end']) ? $this->sanitizeInput($_GET['end']) : date('Y-m-d H:i:00');
+
+        // 캐시 적중률 향상을 위해 초 단위 제거 (분 단위 정규화)
+        $startDate = preg_replace('/:\d{2}$/', ':00', $startDate);
+        $endDate = preg_replace('/:\d{2}$/', ':00', $endDate);
         $limit = isset($_GET['limit']) ? min(1000, max(1, intval($_GET['limit']))) : 500;
         $timeframe = isset($_GET['timeframe']) ? $this->sanitizeInput($_GET['timeframe']) : '1h';
         $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
@@ -137,6 +141,7 @@ class StockController extends BaseController
 
         $candleData = $this->stockModel->getCandleData($stockCode, $startDate, $endDate, $limit, $timeframe, $market);
         
+        header('Cache-Control: private, max-age=60');
         $this->jsonResponse([
             'success' => true,
             'data' => $candleData,
@@ -160,6 +165,7 @@ class StockController extends BaseController
 
         $executions = $this->stockModel->getRecentExecutions($stockCode, $limit, $market);
         
+        header('Cache-Control: private, max-age=10');
         $this->jsonResponse([
             'success' => true,
             'data' => $executions,

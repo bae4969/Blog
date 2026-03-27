@@ -31,7 +31,7 @@ class Stock
             foreach ($rows as $row) {
                 $coinSet[$row['coin_code']] = true;
             }
-            $this->cache->set($cacheKey, $coinSet, 1800);
+            $this->cache->set($cacheKey, $coinSet, $this->cache->getTtl('coin_code_set'));
         }
         return isset($coinSet[$code]);
     }
@@ -57,7 +57,7 @@ class Stock
                 [':code' => $stockCode]
             );
             $exists = ($row !== false && $row !== null);
-            $this->cache->set($cacheKey, $exists, 1800);
+            $this->cache->set($cacheKey, $exists, $this->cache->getTtl('stock_code_exists'));
         }
 
         if ($exists) {
@@ -112,7 +112,7 @@ class Stock
             }
         }
 
-        $this->cache->set($cacheKey, $source ?? '', 3600);
+        $this->cache->set($cacheKey, $source ?? '', $this->cache->getTtl('stock_candle_source'));
         return $source;
     }
 
@@ -160,7 +160,7 @@ class Stock
             }
         }
 
-        $this->cache->set($cacheKey, $source ?? '', 3600);
+        $this->cache->set($cacheKey, $source ?? '', $this->cache->getTtl('stock_tick_source'));
         return $source;
     }
 
@@ -197,7 +197,7 @@ class Stock
             ? $this->getAdminCoinListWithCount($offset, $perPage, $search)
             : $this->getAdminMarketStockListWithCount($offset, $perPage, $market, $search);
 
-        $this->cache->set($cacheKey, $result, 120);
+        $this->cache->set($cacheKey, $result, $this->cache->getTtl('stock_admin_list'));
 
         return $result;
     }
@@ -225,7 +225,7 @@ class Stock
             }
         }
 
-        $this->cache->set($cacheKey, $set, 60);
+        $this->cache->set($cacheKey, $set, $this->cache->getTtl('stock_admin_registered'));
 
         return $set;
     }
@@ -266,7 +266,7 @@ class Stock
             $map['COIN:' . $coinCode] = 'COIN';
         }
 
-        $this->cache->set($cacheKey, $map, 300);
+        $this->cache->set($cacheKey, $map, $this->cache->getTtl('stock_admin_market_map'));
 
         return $map;
     }
@@ -512,7 +512,7 @@ class Stock
         $stocks = $this->applyLatestCloseToStockRows($stocks, '');
         
         $result = ['stocks' => $stocks, 'total' => $total];
-        $this->cache->set($cacheKey, $result, 300); // 5분 캐시
+        $this->cache->set($cacheKey, $result, $this->cache->getTtl('stock_list_count'));
         
         return $result;
     }
@@ -571,7 +571,7 @@ class Stock
         $stocks = $this->applyLatestCloseToStockRows($stocks, 'COIN');
 
         $result = ['stocks' => $stocks, 'total' => $total];
-        $this->cache->set($cacheKey, $result, 300);
+        $this->cache->set($cacheKey, $result, $this->cache->getTtl('coin_list_count'));
 
         return $result;
     }
@@ -888,7 +888,7 @@ class Stock
             // 코인 우선 조회
             $coin = $this->fetchCoinByCode($stockCode);
             if ($coin) {
-                $this->cache->set($cacheKey, $coin, 300);
+                $this->cache->set($cacheKey, $coin, $this->cache->getTtl('stock_detail'));
                 return $coin;
             }
         }
@@ -897,7 +897,7 @@ class Stock
         $stock = $this->db->fetch($sql, [':stock_code' => $stockCode]);
         
         if ($stock) {
-            $this->cache->set($cacheKey, $stock, 300);
+            $this->cache->set($cacheKey, $stock, $this->cache->getTtl('stock_detail'));
             return $stock;
         }
 
@@ -905,7 +905,7 @@ class Stock
         if ($market !== 'COIN') {
             $coin = $this->fetchCoinByCode($stockCode);
             if ($coin) {
-                $this->cache->set($cacheKey, $coin, 300);
+                $this->cache->set($cacheKey, $coin, $this->cache->getTtl('stock_detail'));
                 return $coin;
             }
         }
@@ -929,7 +929,7 @@ class Stock
         $candleSource = $this->resolveCandleSource($stockCode, $prefix);
 
         if ($candleSource === null) {
-            $this->cache->set($cacheKey, '', 60);
+            $this->cache->set($cacheKey, '', $this->cache->getTtl('stock_latest_close'));
             return null;
         }
 
@@ -947,12 +947,12 @@ class Stock
         }
 
         if (!$row || !isset($row['execution_close'])) {
-            $this->cache->set($cacheKey, '', 60);
+            $this->cache->set($cacheKey, '', $this->cache->getTtl('stock_latest_close'));
             return null;
         }
 
         $latestClose = (float)$row['execution_close'];
-        $this->cache->set($cacheKey, $latestClose, 60);
+        $this->cache->set($cacheKey, $latestClose, $this->cache->getTtl('stock_latest_close'));
 
         return $latestClose;
     }
@@ -1028,7 +1028,7 @@ class Stock
 
         $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin);
         
-        $this->cache->set($cacheKey, $candles, 60); // 1분 캐시
+        $this->cache->set($cacheKey, $candles, $this->cache->getTtl('stock_candle'));
         
         return $candles;
     }
@@ -1241,7 +1241,7 @@ class Stock
             $executions = $this->db->fetchAll($sql, [':limit' => $limit]);
 
             if (!empty($executions)) {
-                $this->cache->set($cacheKey, $executions, 10); // 10초 캐시
+                $this->cache->set($cacheKey, $executions, $this->cache->getTtl('stock_executions'));
             }
 
             return $executions;
@@ -1293,7 +1293,7 @@ class Stock
         
         $stats = $this->db->fetchAll($sql);
         
-        $this->cache->set($cacheKey, $stats, 1800);
+        $this->cache->set($cacheKey, $stats, $this->cache->getTtl('market_stats'));
         
         return $stats;
     }
@@ -1313,7 +1313,7 @@ class Stock
         $stocks = $this->getTopStocksByTradingAmount($limit, $market);
         $stocks = $this->applyLatestCloseToStockRows($stocks, $market === 'COIN' ? 'COIN' : '');
 
-        $this->cache->set($cacheKey, $stocks, 600); // 10분 캐시
+        $this->cache->set($cacheKey, $stocks, $this->cache->getTtl('top_stocks'));
 
         return $stocks;
     }
