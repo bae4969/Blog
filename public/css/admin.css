@@ -231,7 +231,7 @@
 .admin-form select[name="category_write_level"] option,
 .inline-form select[name="category_read_level"] option,
 .inline-form select[name="category_write_level"] option {
-    text-align: center;
+    text-align: left;
 }
 
 .admin-form-actions {
