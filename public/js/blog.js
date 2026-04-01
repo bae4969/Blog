@@ -9,8 +9,8 @@ let pageCount = 0;
 let loadCount = 0;
 
 // 레이아웃 전환 제어(히스테리시스 & 디바운스)
-const BREAKPOINT = 1600;
-const HYSTERESIS = 50; // px 여유 구간: 1550~1650에서는 기존 레이아웃 유지
+const BREAKPOINT = 1200;
+const HYSTERESIS = 50; // px 여유 구간: 1150~1250에서는 기존 레이아웃 유지
 let resizeTimer = null;
 let relayoutTimer = null;
 
