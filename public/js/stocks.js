@@ -252,7 +252,7 @@ const candleDrawPlugin = {
    초기화
    ======================================== */
 document.addEventListener('DOMContentLoaded', function() {
-    waitForChartReady().then(() => {
+    loadChartModules().then(() => {
         if (typeof Chart !== 'undefined') {
             Chart.register(crosshairPlugin, candleDrawPlugin);
         }
@@ -338,12 +338,23 @@ function loadScript(src) {
     });
 }
 
+function hasZoomSupport() {
+    if (typeof Chart === 'undefined' || !Chart.registry || typeof Chart.registry.getPlugin !== 'function') return false;
+    try { return !!Chart.registry.getPlugin('zoom'); } catch(e) { return false; }
+}
+
 async function loadChartModules() {
     try {
         if (typeof Chart === 'undefined') await loadScript('/vendor/chart.umd.min.js');
         if (!hasCandlestickSupport()) {
             try { await loadScript('/vendor/chartjs-chart-financial.min.js'); }
             catch (e) { console.warn('캔들 플러그인 로드 실패, 라인 차트로 대체합니다.', e); }
+        }
+        if (!hasZoomSupport()) {
+            try {
+                if (typeof Hammer === 'undefined') await loadScript('/vendor/hammer.min.js');
+                await loadScript('/vendor/chartjs-plugin-zoom.min.js');
+            } catch (e) { console.warn('줌 플러그인 로드 실패:', e); }
         }
     } catch (error) { console.error('차트 모듈 로드 실패:', error); throw error; }
 }
@@ -352,13 +363,7 @@ async function loadChartModules() {
    줌 리셋 버튼
    ======================================== */
 function updateZoomResetButton() {
-    const btn = document.getElementById('chartZoomReset');
-    if (!btn) return;
-    if (stockChart && typeof stockChart.isZoomedOrPanned === 'function' && stockChart.isZoomedOrPanned()) {
-        btn.classList.add('visible');
-    } else {
-        btn.classList.remove('visible');
-    }
+    // 리셋 버튼은 항상 보이므로 별도 토글 불필요
 }
 
 function resetChartZoom() {
@@ -731,9 +736,10 @@ function getChartOptions(chartType, dataRange) {
 
     // 줌/팬 설정 (플러그인이 로드된 경우에만)
     if (hasZoomPlugin) {
+        var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         options.plugins.zoom = {
             pan: {
-                enabled: true,
+                enabled: isTouchDevice,
                 mode: 'x',
                 onPanComplete: function() {
                     updateZoomResetButton();
@@ -744,6 +750,12 @@ function getChartOptions(chartType, dataRange) {
             zoom: {
                 wheel: { enabled: true, speed: 0.1 },
                 pinch: { enabled: true },
+                drag: isTouchDevice ? { enabled: false } : {
+                    enabled: true,
+                    backgroundColor: 'rgba(59,130,246,0.15)',
+                    borderColor: 'rgba(59,130,246,0.6)',
+                    borderWidth: 1
+                },
                 mode: 'x',
                 onZoomComplete: function() {
                     updateZoomResetButton();

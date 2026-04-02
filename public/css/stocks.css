@@ -572,34 +572,34 @@
 
 .chart-controls {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    gap: 12px;
+    gap: 8px;
 }
 
 /* 기간 드롭다운 */
 .chart-period-select-wrapper {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
 }
 
 .period-label {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
     white-space: nowrap;
-    margin-left: 12px;
 }
 
 .period-select {
-    padding: 8px 8px 8px 12px;
+    padding: 8px 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-sm);
     color: var(--text-primary);
     font-size: 13px;
+    line-height: 1.2;
+    box-sizing: border-box;
     cursor: pointer;
     transition: var(--transition);
     height: 36px;
@@ -608,8 +608,8 @@
     -moz-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: left 10px center;
-    min-width: 80px;
+    background-position: left 8px center;
+    min-width: 70px;
     text-align: center;
     text-align-last: center;
 }
@@ -634,20 +634,21 @@
     display: flex;
     gap: 8px;
     margin-right: auto;
-    margin-left: 12px;
 }
 
 .chart-zoom-reset {
-    padding: 6px 12px;
+    padding: 8px 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-sm);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     cursor: pointer;
     transition: var(--transition);
     font-size: 13px;
+    line-height: 1.2;
+    box-sizing: border-box;
     height: 36px;
-    display: none;
+    display: flex;
     align-items: center;
     gap: 4px;
     white-space: nowrap;
@@ -657,10 +658,6 @@
     background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--primary-color);
-}
-
-.chart-zoom-reset.visible {
-    display: flex;
 }
 
 .chart-type-btn {
