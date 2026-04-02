@@ -1251,8 +1251,18 @@ footer a:hover {
     
     /* 포스트 목록 제목 크기 조정 */
     .posting_title {
-        font-size: 3ex;
+        font-size: 2.5ex;
         padding: 12px 1% 0 1%;
+    }
+    
+    /* 포스팅 카드 본문/메타 글자 크기 조정 */
+    .posting_summary, .post-excerpt {
+        font-size: 1.7ex;
+        line-height: 180%;
+    }
+    
+    .posting .post-meta {
+        font-size: 0.85rem;
     }
     
     /* 포스팅 카드 여백 줄이기 */
@@ -1474,8 +1484,18 @@ footer a:hover {
     
     /* 포스트 목록 제목 크기 조정 */
     .posting_title {
-        font-size: 2.5ex;
+        font-size: 2.2ex;
         padding: 10px 1% 0 1%;
+    }
+    
+    /* 포스팅 카드 본문/메타 글자 크기 조정 */
+    .posting_summary, .post-excerpt {
+        font-size: 1.4ex;
+        line-height: 170%;
+    }
+    
+    .posting .post-meta {
+        font-size: 0.8rem;
     }
     
     /* 포스팅 카드 여백 더 줄이기 */
