@@ -4,6 +4,7 @@
  */
 
 let stockChart = null;
+let initialXMax = null;
 let currentChartType = 'candle';
 let currentPeriod = '1D';
 let currentTimeframe = '1d';
@@ -367,11 +368,54 @@ function updateZoomResetButton() {
 }
 
 function resetChartZoom() {
-    if (stockChart && typeof stockChart.resetZoom === 'function') {
+    if (!stockChart) return;
+    if (typeof stockChart.resetZoom === 'function') {
         stockChart.resetZoom();
-        updateZoomResetButton();
-        updateYAxisRange();
     }
+    // 초기 x 범위로 복원
+    if (initialXMax !== null && stockChart.options.scales.x) {
+        var totalLabels = stockChart.data.labels ? stockChart.data.labels.length : 0;
+        var offset = totalLabels - 1 - initialXMax;
+        if (offset > 0) {
+            stockChart.options.scales.x.min = offset;
+            stockChart.options.scales.x.max = totalLabels - 1;
+        }
+    }
+    stockChart.update('none');
+    updateZoomResetButton();
+    updateYAxisRange();
+}
+
+function resetYAxisRange() {
+    if (!stockChart) return;
+    var ohlc = stockChart._ohlcData;
+    var priceData = (!ohlc && stockChart.data && stockChart.data.datasets)
+        ? stockChart.data.datasets[0].data : null;
+    var total = ohlc ? ohlc.length : (priceData ? priceData.length : 0);
+    if (total === 0) return;
+
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < total; i++) {
+        if (ohlc) {
+            if (ohlc[i].l < lo) lo = ohlc[i].l;
+            if (ohlc[i].h > hi) hi = ohlc[i].h;
+        } else if (priceData) {
+            var v = priceData[i];
+            if (typeof v === 'number' && !isNaN(v)) {
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
+        }
+    }
+    if (lo === Infinity || hi === -Infinity) return;
+
+    var padding = (hi - lo) * 0.08;
+    if (padding === 0) padding = hi * 0.02 || 1;
+    stockChart.options.scales.y.min = Math.max(0, lo - padding);
+    stockChart.options.scales.y.max = hi + padding;
+    requestAnimationFrame(function() {
+        if (stockChart) stockChart.update('none');
+    });
 }
 
 /* ========================================
@@ -486,6 +530,7 @@ function initChart() {
         options: getChartOptions(currentChartType, dataRange)
     });
     stockChart._ohlcData = chartData._ohlcData || null;
+    initialXMax = (chartData.labels ? chartData.labels.length : 0) - 1;
 
     updateZoomResetButton();
 }
