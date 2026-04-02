@@ -32,6 +32,16 @@
     --border-color: #464646;
     --border-hover: #5b5f63;
 
+    /* 차트 색상 */
+    --chart-up-color: #ef5350;
+    --chart-down-color: #26a69a;
+    --chart-unchanged-color: #999;
+    --chart-grid-color: #333;
+    --chart-crosshair-color: rgba(255, 255, 255, 0.4);
+    --chart-volume-up: rgba(239, 83, 80, 0.35);
+    --chart-volume-down: rgba(38, 166, 154, 0.35);
+    --chart-tooltip-bg: rgba(20, 20, 20, 0.92);
+
     /* 그림자 */
     --shadow-light: 0 1px 3px rgba(0,0,0,0.15);
     --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
