@@ -748,6 +748,7 @@ function getChartOptions(chartType, dataRange) {
                 onZoomComplete: function() {
                     updateZoomResetButton();
                     updateYAxisRange();
+                    checkAndLoadMoreData();
                 }
             },
             limits: {
