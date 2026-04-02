@@ -70,6 +70,13 @@
                     <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
                     <button class="chart-type-btn" onclick="setChartType('line', this)">라인</button>
                 </div>
+                <button id="chartZoomReset" class="chart-zoom-reset" onclick="resetChartZoom()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                    리셋
+                </button>
                 <div class="chart-period-select-wrapper">
                     <label for="periodSelect" class="period-label">기간</label>
                     <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
@@ -244,6 +251,8 @@
 <!-- 차트 라이브러리 프리로드 (페이지 렌더와 병렬 다운로드) -->
 <script defer src="/vendor/chart.umd.min.js"></script>
 <script defer src="/vendor/chartjs-chart-financial.min.js"></script>
+<script defer src="/vendor/hammer.min.js"></script>
+<script defer src="/vendor/chartjs-plugin-zoom.min.js"></script>
 
 <script>
 // 차트 데이터를 JavaScript 변수로 전달

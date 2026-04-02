@@ -1026,7 +1026,7 @@ class Stock
             return [];
         }
 
-        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin);
+        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin, $market);
         
         $this->cache->set($cacheKey, $candles, $this->cache->getTtl('stock_candle'));
         
@@ -1037,13 +1037,14 @@ class Stock
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
      * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
      */
-    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false): array
+    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false, string $market = ''): array
     {
         $currentStart = $startDate;
         $allRows = [];
         $maxAttempts = 5;
         $attemptCount = 0;
         $previousStart = $endDate;
+        $isKR = in_array($market, ['KR', ''], true) && !$isCoin;
 
         $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
         
@@ -1083,9 +1084,9 @@ class Stock
                     });
                 }
 
-                // 필터링 + 집계 (코인은 24시간 거래이므로 정규장 필터 제외)
+                // 필터링 + 집계 (코인/US는 정규장 필터 제외, KR만 적용)
                 $candles = $allRows;
-                if (!$isCoin && $this->isSubDailyTimeframe($timeframe)) {
+                if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                     $candles = array_values($this->filterRegularTradingHours($candles));
                 }
                 $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
@@ -1099,12 +1100,12 @@ class Stock
                 }
 
                 $attemptCount++;
-                $currentStart = $this->expandStartDateByTimeframe($currentStart, $timeframe);
+                $currentStart = $this->expandStartDateByTimeframe($currentStart, $timeframe, $isKR);
             }
 
             // 마지막 결과 반환
             $candles = $allRows;
-            if (!$isCoin && $this->isSubDailyTimeframe($timeframe)) {
+            if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                 $candles = array_values($this->filterRegularTradingHours($candles));
             }
             $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
@@ -1116,36 +1117,33 @@ class Stock
     }
 
     /**
-     * timeframe에 따라 조회 시작일을 더 이전 영업일로 확장 (한국 정규장: 9:00 ~ 15:30)
+     * timeframe에 따라 조회 시작일을 더 이전 영업일로 확장
+     * KR 정규장: 9:00 ~ 15:30 (6.5h), US/기타: 4:00 ~ 20:00 (16h)
      */
-    private function expandStartDateByTimeframe(string $startDate, string $timeframe): string
+    private function expandStartDateByTimeframe(string $startDate, string $timeframe, bool $isKR = true): string
     {
         $date = new \DateTime($startDate);
         $businessDaysToMove = 1;
 
         if (preg_match('/^(\\d+)m$/', $timeframe, $matches)) {
-            // 분봉: 하루에 약 330분(9:00~15:30) 거래 가능이므로, 60 구간 = 약 12일
-            $businessDaysToMove = 12;
+            // 분봉: KR 하루 330분, US 하루 960분
+            $businessDaysToMove = $isKR ? 12 : 5;
         } elseif (preg_match('/^(\\d+)h$/', $timeframe, $matches)) {
-            // 시간봉: 하루에 약 6.5시간 거래 가능이므로, 60 구간 = 약 10일
-            $businessDaysToMove = 10;
+            // 시간봉: KR 하루 6.5h, US 하루 16h
+            $businessDaysToMove = $isKR ? 10 : 4;
         } else {
-            // 일/주/월 봉: 직접 설정
             switch ($timeframe) {
                 case '1d':
-                    // 60개 일봉 = 60 영업일
                     $businessDaysToMove = 60;
                     break;
                 case '1w':
-                    // 60개 주봉 = 60주 × 5영업일/주 = 300 영업일
                     $businessDaysToMove = 300;
                     break;
                 case '1M':
-                    // 60개 월봉 = 60개월 × 21영업일/월 ≈ 1260 영업일
                     $businessDaysToMove = 1260;
                     break;
                 default:
-                    $businessDaysToMove = 12;
+                    $businessDaysToMove = $isKR ? 12 : 5;
                     break;
             }
         }
@@ -1154,15 +1152,14 @@ class Stock
         $moveDays = 0;
         while ($moveDays < $businessDaysToMove) {
             $date->modify('-1 day');
-            $dayOfWeek = (int)$date->format('w');  // 0=일, 1=월, ..., 6=토
-            // 월~금만 카운트
+            $dayOfWeek = (int)$date->format('w');
             if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
                 $moveDays++;
             }
         }
 
-        // 정규장 시간대 시작 시점(9:00)으로 설정
-        $date->setTime(9, 0, 0);
+        // KR: 정규장 시작 9:00, US/기타: 프리마켓 시작 4:00 (ET)
+        $date->setTime($isKR ? 9 : 4, 0, 0);
         return $date->format('Y-m-d H:i:s');
     }
 
