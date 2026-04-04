@@ -120,7 +120,7 @@ class Router
             if (strpos($clientIp, ',') !== false) {
                 $clientIp = trim(explode(',', $clientIp)[0]);
             }
-            if ($clientIp === '' || in_array($clientIp, $settings['whitelist'] ?? ['127.0.0.1', '::1'], true)) {
+            if ($clientIp === '' || BlockedIp::isIpWhitelisted($clientIp, $settings['whitelist'] ?? ['127.0.0.1', '::1'])) {
                 return;
             }
 
