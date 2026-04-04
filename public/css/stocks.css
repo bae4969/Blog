@@ -560,20 +560,26 @@
     display: grid;
     grid-template-columns: 1fr 350px;
     gap: 10px;
+    align-items: stretch;
 }
 
 /* 차트 섹션 */
 .chart-section {
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
-    padding: 20px;
+    padding: 10px;
     border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
 }
 
 .chart-controls {
     display: flex;
     align-items: center;
-    margin-bottom: 20px;
+    margin: 10px;
     gap: 0;
 }
 
@@ -833,10 +839,12 @@
 
 .chart-wrapper {
     position: relative;
-    height: 500px;
+    height: auto;
+    min-height: 500px;
+    flex: 1;
     background: var(--bg-tertiary);
     border-radius: var(--border-radius);
-    padding: 20px;
+    padding: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -918,6 +926,8 @@
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
 }
 
 .execution-section h3 {
@@ -927,13 +937,15 @@
 }
 
 .execution-list {
-    flex: 1;
-    min-height: 400px;
+    flex: 1 1 auto;
+    min-height: 0;
     background: var(--bg-tertiary);
     border-radius: var(--border-radius);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
     overflow-x: hidden;
-    margin-bottom: 15px;
+    margin-bottom: 0;
 }
 
 .execution-header {
@@ -952,7 +964,7 @@
 }
 
 .execution-body {
-    max-height: 420px;
+    max-height: 490px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-gutter: stable;
@@ -1434,7 +1446,7 @@
 
     /* 차트 */
     .chart-section {
-        padding: 12px;
+        padding: 7px;
     }
 
     .period-select {

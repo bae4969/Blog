@@ -16,6 +16,7 @@ let displayedCandleData = [];
 let isLoadingMoreData = false;
 let allDataLoaded = false;
 let useLogScale = false;
+let yAxisRangeRafId = null;
 const CHART_LOG_SCALE_STORAGE_KEY = 'stockChart.useLogScale';
 const MAX_CANDLES = 360;
 
@@ -108,8 +109,8 @@ function buildFixedLogarithmicTicks(scale, tickCount) {
     }
 
     var safeTickCount = Math.max(2, tickCount || 2);
-    var logMin = Math.log10(scale.min);
-    var logMax = Math.log10(scale.max);
+    var logMin = Math.log(scale.min);
+    var logMax = Math.log(scale.max);
     var ticks = [];
     var used = Object.create(null);
 
@@ -119,7 +120,7 @@ function buildFixedLogarithmicTicks(scale, tickCount) {
 
     for (var i = 0; i < safeTickCount; i++) {
         var ratio = safeTickCount === 1 ? 0 : i / (safeTickCount - 1);
-        var rawValue = Math.pow(10, logMin + ((logMax - logMin) * ratio));
+        var rawValue = Math.exp(logMin + ((logMax - logMin) * ratio));
         var key = rawValue.toPrecision(12);
         if (used[key]) continue;
         used[key] = true;
@@ -530,9 +531,46 @@ function enforceVisibleRangeBounds() {
     }
 }
 
+function calculatePriceAxisBounds(range) {
+    if (!range || !isFiniteNumber(range.min) || !isFiniteNumber(range.max)) return null;
+
+    if (useLogScale) {
+        // 로그 스케일: ln 공간에서 패딩 계산
+        var safeMin = Math.max(range.min, 0.01);
+        var safeMax = Math.max(range.max, 0.02);
+        var logMin = Math.log(safeMin);
+        var logMax = Math.log(safeMax);
+        var logSpan = logMax - logMin;
+        var logBasePadding = logSpan * 0.08;
+        if (logBasePadding === 0) logBasePadding = 0.02;
+
+        var logMinPadding = logBasePadding * 1.8;
+        var logMaxPadding = logBasePadding * 0.75;
+
+        return {
+            min: Math.exp(logMin - logMinPadding),
+            max: Math.exp(logMax + logMaxPadding),
+            threshold: Math.exp(logBasePadding * 0.1)
+        };
+    }
+
+    var span = range.max - range.min;
+    var basePadding = span * 0.08;
+    if (basePadding === 0) basePadding = range.max * 0.02 || 1;
+
+    // 거래량 패널과 시각적으로 분리되도록 하단 패딩을 더 크게 부여
+    var minPadding = basePadding * 1.8;
+    var maxPadding = basePadding * 0.75;
+
+    return {
+        min: Math.max(0, range.min - minPadding),
+        max: range.max + maxPadding,
+        threshold: basePadding * 0.1
+    };
+}
+
 function resetYAxisRange() {
     if (!stockChart) return;
-    if (useLogScale) return;
     var labels = (stockChart.data && stockChart.data.labels) ? stockChart.data.labels : [];
     var total = labels.length;
     if (total === 0) return;
@@ -540,12 +578,51 @@ function resetYAxisRange() {
     var range = getVisiblePriceRange(0, total - 1);
     if (!range) return;
 
-    var padding = (range.max - range.min) * 0.08;
-    if (padding === 0) padding = range.max * 0.02 || 1;
-    stockChart.options.scales.y.min = Math.max(0, range.min - padding);
-    stockChart.options.scales.y.max = range.max + padding;
+    var bounds = calculatePriceAxisBounds(range);
+    if (!bounds) return;
+    stockChart.options.scales.y.min = bounds.min;
+    stockChart.options.scales.y.max = bounds.max;
     requestAnimationFrame(function() {
         if (stockChart) stockChart.update('none');
+    });
+}
+
+function getVisibleIndexRangeFromPixels() {
+    if (!stockChart || !stockChart.chartArea) return null;
+
+    var area = stockChart.chartArea;
+    var datasets = (stockChart.data && stockChart.data.datasets) ? stockChart.data.datasets : [];
+    for (var di = 0; di < datasets.length; di++) {
+        var ds = datasets[di];
+        if (!ds || ds.yAxisID === 'y2') continue;
+        var meta = stockChart.getDatasetMeta(di);
+        if (!meta || !meta.data || meta.data.length === 0) continue;
+
+        var minIdx = Infinity;
+        var maxIdx = -Infinity;
+        for (var i = 0; i < meta.data.length; i++) {
+            var point = meta.data[i];
+            if (!point || typeof point.x !== 'number') continue;
+            if (point.x < area.left || point.x > area.right) continue;
+            if (i < minIdx) minIdx = i;
+            if (i > maxIdx) maxIdx = i;
+        }
+
+        if (isFinite(minIdx) && isFinite(maxIdx)) {
+            return { min: minIdx, max: maxIdx };
+        }
+    }
+
+    return null;
+}
+
+function scheduleYAxisRangeUpdate(forceUpdate) {
+    if (yAxisRangeRafId !== null) {
+        cancelAnimationFrame(yAxisRangeRafId);
+    }
+    yAxisRangeRafId = requestAnimationFrame(function() {
+        yAxisRangeRafId = null;
+        updateYAxisRange(forceUpdate);
     });
 }
 
@@ -554,7 +631,6 @@ function resetYAxisRange() {
    ======================================== */
 function updateYAxisRange(forceUpdate) {
     if (!stockChart) return;
-    if (useLogScale) return;
     forceUpdate = !!forceUpdate;
     var xScale = stockChart.scales ? stockChart.scales.x : null;
     if (!xScale) return;
@@ -565,7 +641,11 @@ function updateYAxisRange(forceUpdate) {
 
     var visibleMin = 0;
     var visibleMax = total - 1;
-    if (typeof xScale.min === 'number' && typeof xScale.max === 'number'
+    var pixelRange = getVisibleIndexRangeFromPixels();
+    if (pixelRange) {
+        visibleMin = Math.max(0, pixelRange.min);
+        visibleMax = Math.min(total - 1, pixelRange.max);
+    } else if (typeof xScale.min === 'number' && typeof xScale.max === 'number'
         && !isNaN(xScale.min) && !isNaN(xScale.max)) {
         visibleMin = Math.max(0, Math.floor(xScale.min));
         visibleMax = Math.min(total - 1, Math.ceil(xScale.max));
@@ -574,15 +654,15 @@ function updateYAxisRange(forceUpdate) {
     var range = getVisiblePriceRange(visibleMin, visibleMax);
     if (!range) return;
 
-    var padding = (range.max - range.min) * 0.08;
-    if (padding === 0) padding = range.max * 0.02 || 1;
-    var newMin = Math.max(0, range.min - padding);
-    var newMax = range.max + padding;
+    var bounds = calculatePriceAxisBounds(range);
+    if (!bounds) return;
+    var newMin = bounds.min;
+    var newMax = bounds.max;
 
     var yScale = stockChart.options.scales.y;
     if (forceUpdate
-        || Math.abs((yScale.min || 0) - newMin) > padding * 0.1
-        || Math.abs((yScale.max || 0) - newMax) > padding * 0.1) {
+        || Math.abs((yScale.min || 0) - newMin) > bounds.threshold
+        || Math.abs((yScale.max || 0) - newMax) > bounds.threshold) {
         yScale.min = newMin;
         yScale.max = newMax;
         requestAnimationFrame(function() {
@@ -696,6 +776,8 @@ function getVisiblePriceRange(startIndex, endIndex) {
     for (var dsIdx = 0; dsIdx < datasets.length; dsIdx++) {
         var dataset = datasets[dsIdx];
         if (dataset.yAxisID === 'y2') continue;
+        var dsLabel = dataset.label || '';
+        if (dsLabel.indexOf('SMA') === 0 || dsLabel.indexOf('BB ') === 0) continue;
         if (!dataset.data || !Array.isArray(dataset.data)) continue;
 
         for (i = startIndex; i <= endIndex; i++) {
@@ -785,6 +867,8 @@ function initChart() {
         for (var di = 0; di < chartData.datasets.length; di++) {
             var ds = chartData.datasets[di];
             if (ds.yAxisID === 'y2') continue;
+            var dsLbl = ds.label || '';
+            if (dsLbl.indexOf('SMA') === 0 || dsLbl.indexOf('BB ') === 0) continue;
             if (!ds.data || !Array.isArray(ds.data)) continue;
             for (var ri = visStart; ri <= visEnd; ri++) {
                 var val = ds.data[ri];
@@ -887,6 +971,32 @@ function prepareChartData(data, chartType) {
         categoryPercentage: 0.9
     };
 
+    if (chartType === 'line') {
+        var lineDatasets = [
+            {
+                label: '종가',
+                data: closePrices,
+                borderColor: chartColors.primary,
+                backgroundColor: getCSSVar('--primary-bg-light'),
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHitRadius: 8,
+                borderWidth: 2,
+                order: 1
+            }
+        ];
+
+        return {
+            labels: labels,
+            datasets: lineDatasets,
+            _indicatorSeries: {
+                priceSeries: [],
+                volumeSeries: []
+            }
+        };
+    }
+
     var sma5 = calculateSMA(fullClosePrices, INDICATOR_PERIODS.smaFast).slice(displayStartIndex);
     var sma20 = calculateSMA(fullClosePrices, INDICATOR_PERIODS.smaMid).slice(displayStartIndex);
     var sma60 = calculateSMA(fullClosePrices, INDICATOR_PERIODS.smaSlow).slice(displayStartIndex);
@@ -983,72 +1093,37 @@ function prepareChartData(data, chartType) {
         order: 4
     };
 
-    if (chartType === 'line') {
-        var lineDatasets = [
+    // 커스텀 캔들 렌더링 (candleDrawPlugin)
+    // 투명 라인 (y축 스케일링 + 툴팁 인터랙션) + 거래량 바 + OHLC 데이터
+    var ohlcData = displayedCandleData.map(function(d) {
+        return {
+            o: parseFloat(d.execution_open),
+            h: parseFloat(d.execution_max),
+            l: parseFloat(d.execution_min),
+            c: parseFloat(d.execution_close)
+        };
+    });
+
+    return {
+        labels: labels,
+        datasets: [
             {
-                label: '종가',
+                label: '캔들',
                 data: closePrices,
-                borderColor: chartColors.primary,
-                backgroundColor: getCSSVar('--primary-bg-light'),
-                fill: true,
-                tension: 0.3,
+                borderWidth: 0,
+                borderColor: 'transparent',
                 pointRadius: 0,
-                pointHitRadius: 8,
-                borderWidth: 2,
+                pointHitRadius: 10,
+                fill: false,
                 order: 1
-            }
-        ].concat(priceIndicatorDatasets, [volumeMaDataset, volumeDataset]);
-
-        return {
-            labels: labels,
-            datasets: lineDatasets,
-            _indicatorSeries: {
-                priceSeries: [sma5, sma20, sma60, bollinger.upper, bollinger.middle, bollinger.lower],
-                volumeSeries: [volumeMa20]
-            }
-        };
-    } else {
-        // 커스텀 캔들 렌더링 (candleDrawPlugin)
-        // 투명 라인 (y축 스케일링 + 툴팁 인터랙션) + 거래량 바 + OHLC 데이터
-        var ohlcData = data.map(function(d) {
-            return {
-                o: parseFloat(d.execution_open),
-                h: parseFloat(d.execution_max),
-                l: parseFloat(d.execution_min),
-                c: parseFloat(d.execution_close)
-            };
-        });
-
-        ohlcData = displayedCandleData.map(function(d) {
-            return {
-                o: parseFloat(d.execution_open),
-                h: parseFloat(d.execution_max),
-                l: parseFloat(d.execution_min),
-                c: parseFloat(d.execution_close)
-            };
-        });
-
-        return {
-            labels: labels,
-            datasets: [
-                {
-                    label: '캔들',
-                    data: closePrices,
-                    borderWidth: 0,
-                    borderColor: 'transparent',
-                    pointRadius: 0,
-                    pointHitRadius: 10,
-                    fill: false,
-                    order: 1
-                },
-            ].concat(priceIndicatorDatasets, [volumeMaDataset, volumeDataset]),
-            _ohlcData: ohlcData,
-            _indicatorSeries: {
-                priceSeries: [sma5, sma20, sma60, bollinger.upper, bollinger.middle, bollinger.lower],
-                volumeSeries: [volumeMa20]
-            }
-        };
-    }
+            },
+        ].concat(priceIndicatorDatasets, [volumeMaDataset, volumeDataset]),
+        _ohlcData: ohlcData,
+        _indicatorSeries: {
+            priceSeries: [sma5, sma20, sma60, bollinger.upper, bollinger.middle, bollinger.lower],
+            volumeSeries: [volumeMa20]
+        }
+    };
 }
 
 /* ========================================
@@ -1170,6 +1245,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 }
             },
             y2: {
+                display: chartType !== 'line',
                 position: 'left',
                 beginAtZero: true,
                 grid: { display: false },
@@ -1200,10 +1276,12 @@ function getChartOptions(chartType, dataRange, initialRange) {
     }
 
     // 데이터 범위가 제공되면 y축 범위 설정
-    if (!useLogScale && dataRange && dataRange.min !== undefined && dataRange.max !== undefined) {
-        var padding = (dataRange.max - dataRange.min) * 0.08;
-        options.scales.y.min = Math.max(0, dataRange.min - padding);
-        options.scales.y.max = dataRange.max + padding;
+    if (dataRange && dataRange.min !== undefined && dataRange.max !== undefined) {
+        var initBounds = calculatePriceAxisBounds(dataRange);
+        if (initBounds) {
+            options.scales.y.min = initBounds.min;
+            options.scales.y.max = initBounds.max;
+        }
     }
 
     if (initialRange) {
@@ -1226,7 +1304,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 mode: 'x',
                 onPanComplete: function() {
                     updateZoomResetButton();
-                    updateYAxisRange();
+                    scheduleYAxisRangeUpdate();
                     checkAndLoadMoreData();
                 }
             },
@@ -1243,7 +1321,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 mode: 'x',
                 onZoomComplete: function() {
                     updateZoomResetButton();
-                    updateYAxisRange();
+                    scheduleYAxisRangeUpdate();
                     checkAndLoadMoreData();
                 }
             },

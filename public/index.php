@@ -112,7 +112,7 @@ $ipBlockConfig = require __DIR__ . '/../config/config.php';
 $ipBlockSettings = $ipBlockConfig['ip_block'] ?? [];
 if (!empty($ipBlockSettings['enabled']) && !in_array($clientIp, ['127.0.0.1', '::1', '-'], true)) {
     $whitelist = $ipBlockSettings['whitelist'] ?? ['127.0.0.1', '::1'];
-    if (!in_array($clientIp, $whitelist, true)) {
+    if (!BlockedIp::isIpWhitelisted($clientIp, $whitelist)) {
         try {
             $blockedIpModel = new BlockedIp();
             if ($blockedIpModel->isBlocked($clientIp)) {
