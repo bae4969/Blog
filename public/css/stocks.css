@@ -196,7 +196,7 @@
     height: 22px;
     border-radius: var(--border-radius-circle);
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -208,7 +208,7 @@
 
 .top-stock-item:nth-child(1) .top-stock-rank { background: var(--rank-1st); }
 .top-stock-item:nth-child(2) .top-stock-rank { background: var(--rank-2nd); }
-.top-stock-item:nth-child(3) .top-stock-rank { background: var(--rank-3rd); color: #333; }
+.top-stock-item:nth-child(3) .top-stock-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
 
 .top-stock-item .stock-info {
     flex: 1;
@@ -572,34 +572,33 @@
 
 .chart-controls {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    gap: 12px;
+    gap: 0;
 }
 
 /* 기간 드롭다운 */
 .chart-period-select-wrapper {
     display: flex;
     align-items: center;
-    gap: 8px;
 }
 
 .period-label {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
     white-space: nowrap;
-    margin-left: 12px;
 }
 
 .period-select {
-    padding: 8px 8px 8px 12px;
+    padding: 8px 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-sm);
     color: var(--text-primary);
     font-size: 13px;
+    line-height: 1.2;
+    box-sizing: border-box;
     cursor: pointer;
     transition: var(--transition);
     height: 36px;
@@ -608,8 +607,8 @@
     -moz-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: left 10px center;
-    min-width: 80px;
+    background-position: left 8px center;
+    min-width: 70px;
     text-align: center;
     text-align-last: center;
 }
@@ -634,7 +633,176 @@
     display: flex;
     gap: 8px;
     margin-right: auto;
-    margin-left: 12px;
+}
+
+.chart-top-buttons {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 12;
+    display: flex;
+    gap: 4px;
+    align-items: flex-start;
+}
+
+.chart-indicator-help {
+    position: relative;
+}
+
+.chart-indicator-help-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--border-radius-circle);
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    transition: var(--transition);
+    opacity: 0.7;
+}
+
+.chart-indicator-help:hover .chart-indicator-help-btn {
+    border-color: var(--info-color);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.chart-indicator-tooltip {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 15;
+    min-width: 160px;
+    padding: 10px 12px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.5;
+    box-shadow: var(--shadow-subtle);
+    opacity: 0;
+    transform: translateY(-2px);
+    pointer-events: none;
+    transition: var(--transition);
+}
+
+.chart-indicator-help:hover .chart-indicator-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.chart-indicator-tooltip strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.chart-indicator-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0;
+}
+
+.chart-indicator-dot {
+    display: inline-block;
+    width: 10px;
+    height: 3px;
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+
+.chart-indicator-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 6px 0;
+}
+
+.chart-indicator-tooltip-section + .chart-indicator-tooltip-section {
+    margin-top: 0;
+}
+
+/* 차트 설정 버튼 & 패널 */
+.chart-settings {
+    position: relative;
+}
+
+.chart-settings-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--border-radius-circle);
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition: var(--transition);
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.chart-settings-btn:hover {
+    border-color: var(--info-color);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.chart-settings-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 15;
+    min-width: 140px;
+    padding: 10px 12px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.5;
+    box-shadow: var(--shadow-subtle);
+    opacity: 0;
+    transform: translateY(-2px);
+    pointer-events: none;
+    transition: var(--transition);
+}
+
+.chart-settings-panel.open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.chart-settings-panel strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.chart-settings-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 0;
+    color: var(--text-secondary);
+}
+
+.chart-settings-option input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    margin: 0;
+    cursor: pointer;
 }
 
 .chart-type-btn {
@@ -682,6 +850,7 @@
     height: 100% !important;
     display: block !important;
     position: relative;
+    cursor: crosshair;
 }
 
 .chart-no-data {
@@ -1092,7 +1261,7 @@
 
     /* 차트 컨트롤 */
     .chart-controls {
-        gap: 10px;
+        gap: 0;
     }
 
     .period-select {
@@ -1287,7 +1456,7 @@
     }
 
     .chart-wrapper {
-        height: 280px;
+        height: 320px;
         padding: 8px;
     }
 
@@ -1338,6 +1507,12 @@
 
     .info-value {
         font-size: 14px;
+    }
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .chart-top-buttons {
+        display: none;
     }
 }
 

@@ -22,6 +22,7 @@
                                 elseif ($cap >= 1e16) { $capValue = $cap / 1e16; $capUnit = '경'; }
                                 elseif ($cap >= 1e12) { $capValue = $cap / 1e12; $capUnit = '조'; }
                                 elseif ($cap >= 1e8) { $capValue = $cap / 1e8; $capUnit = '억'; }
+                                elseif ($cap >= 1e4) { $capValue = $cap / 1e4; $capUnit = '만'; }
                                 else { $capValue = $cap; $capUnit = ''; }
                             }
                             ?>
@@ -94,6 +95,8 @@
                                         echo number_format($cap / 1e12, 2) . '조';
                                     } elseif ($cap >= 1e8) {
                                         echo number_format($cap / 1e8, 0) . '억';
+                                    } elseif ($cap >= 1e4) {
+                                        echo number_format($cap / 1e4, 0) . '만';
                                     } else {
                                         echo number_format($cap, 0);
                                     }

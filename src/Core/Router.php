@@ -2,6 +2,8 @@
 
 namespace Blog\Core;
 
+use Blog\Core\Cache;
+use Blog\Core\Logger;
 use Blog\Models\BlockedIp;
 
 class Router
