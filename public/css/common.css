@@ -32,6 +32,26 @@
     --border-color: #464646;
     --border-hover: #5b5f63;
 
+    /* 차트 색상 */
+    --chart-up-color: #ef5350;
+    --chart-down-color: #26a69a;
+    --chart-unchanged-color: #999;
+    --chart-grid-color: #333;
+    --chart-crosshair-color: rgba(255, 255, 255, 0.4);
+    --chart-volume-up: rgba(239, 83, 80, 0.35);
+    --chart-volume-down: rgba(38, 166, 154, 0.35);
+    --chart-tooltip-bg: rgba(20, 20, 20, 0.92);
+    --chart-zoom-drag-bg: rgba(33, 150, 243, 0.15);
+    --chart-zoom-drag-border: rgba(33, 150, 243, 0.6);
+    --chart-sma5-color: rgba(251, 192, 45, 0.68);
+    --chart-sma20-color: rgba(255, 112, 67, 0.66);
+    --chart-sma60-color: rgba(38, 198, 218, 0.66);
+    --chart-bb-upper-color: rgba(144, 202, 249, 0.58);
+    --chart-bb-middle-color: rgba(176, 190, 197, 0.52);
+    --chart-bb-lower-color: rgba(144, 202, 249, 0.58);
+    --chart-bb-fill: rgba(144, 202, 249, 0.06);
+    --chart-volume-ma20-color: rgba(255, 224, 130, 0.60);
+
     /* 그림자 */
     --shadow-light: 0 1px 3px rgba(0,0,0,0.15);
     --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
@@ -71,6 +91,25 @@
     --color-etf: #ff9800;
     --color-etn: #9c27b0;
     --color-coin: #f7931a;
+    --text-on-primary: #fff;
+    --text-rank-dark: #333;
+
+    /* 로그 타입 색상 */
+    --log-warn-color: #ffc107;
+    --log-warn-bg: rgba(255, 193, 7, 0.15);
+    --log-warn-row-bg: rgba(255, 193, 7, 0.04);
+    --log-error-bg: rgba(244, 67, 54, 0.15);
+    --log-error-row-bg: rgba(244, 67, 54, 0.05);
+    --log-normal-color: #64b5f6;
+    --log-normal-bg: rgba(100, 181, 246, 0.15);
+    --log-notice-color: #9e9e9e;
+    --log-notice-bg: rgba(158, 158, 158, 0.15);
+
+    /* IP 뱃지 색상 */
+    --ip-badge-auto-bg: #fff3e0;
+    --ip-badge-auto-color: #e65100;
+    --ip-badge-manual-bg: #e3f2fd;
+    --ip-badge-manual-color: #1565c0;
 
     /* 테이블 배경 */
     --bg-table-header: rgba(255, 255, 255, 0.03);
@@ -154,13 +193,13 @@
 
 .page-current {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     font-weight: 700;
 }
 
 .page-current:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
 }
 
 .page-ellipsis {
