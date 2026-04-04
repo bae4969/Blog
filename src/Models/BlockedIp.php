@@ -17,6 +17,54 @@ class BlockedIp
     }
 
     /**
+     * 화이트리스트에 포함된 IP인지 확인 (단일 IP와 CIDR 대역 모두 지원)
+     */
+    public static function isIpWhitelisted(string $ip, array $whitelist): bool
+    {
+        foreach ($whitelist as $entry) {
+            if ($ip === $entry) {
+                return true;
+            }
+
+            if (strpos($entry, '/') === false) {
+                continue;
+            }
+
+            [$subnet, $prefix] = explode('/', $entry, 2);
+            $prefix = (int)$prefix;
+
+            $ipBin = @inet_pton($ip);
+            $subnetBin = @inet_pton($subnet);
+            if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
+                continue;
+            }
+
+            $maxBits = strlen($ipBin) * 8;
+            if ($prefix < 0 || $prefix > $maxBits) {
+                continue;
+            }
+
+            $fullBytes = intdiv($prefix, 8);
+            $remainingBits = $prefix % 8;
+
+            if ($fullBytes > 0 && substr($ipBin, 0, $fullBytes) !== substr($subnetBin, 0, $fullBytes)) {
+                continue;
+            }
+
+            if ($remainingBits > 0) {
+                $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+                if ((ord($ipBin[$fullBytes]) & $mask) !== (ord($subnetBin[$fullBytes]) & $mask)) {
+                    continue;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * 해당 IP가 현재 차단 중인지 확인 (캐시 적용)
      */
     public function isBlocked(string $ip): bool
