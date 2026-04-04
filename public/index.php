@@ -23,6 +23,17 @@ if (getenv('APP_ENV') === 'development') {
 // 타임존 설정
 date_default_timezone_set('Asia/Seoul');
 
+// 403 차단 응답 헬퍼
+function renderBlockedPage(string $message = '접근이 차단되었습니다.'): never
+{
+    http_response_code(403);
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>403 Forbidden</title>';
+    echo '<link rel="stylesheet" href="/css/common.css"></head>';
+    echo '<body style="font-family:sans-serif;text-align:center;padding:50px;background:var(--bg-primary);color:var(--text-secondary)">';
+    echo '<h1 style="color:var(--text-primary)">403 Forbidden</h1><p>' . htmlspecialchars($message) . '</p></body></html>';
+    exit;
+}
+
 // 라우터 설정
 $router = new Router();
 
@@ -105,12 +116,7 @@ if (!empty($ipBlockSettings['enabled']) && !in_array($clientIp, ['127.0.0.1', ':
         try {
             $blockedIpModel = new BlockedIp();
             if ($blockedIpModel->isBlocked($clientIp)) {
-                http_response_code(403);
-                echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>403 Forbidden</title>';
-                echo '<link rel="stylesheet" href="/css/common.css"></head>';
-                echo '<body style="font-family:sans-serif;text-align:center;padding:50px;background:var(--bg-primary);color:var(--text-secondary)">';
-                echo '<h1 style="color:var(--text-primary)">403 Forbidden</h1><p>접근이 차단되었습니다.</p></body></html>';
-                exit;
+                renderBlockedPage('접근이 차단되었습니다.');
             }
 
             $blockDurations = $ipBlockSettings['block_duration'] ?? ['low' => 300, 'medium' => 86400, 'high' => 604800];
@@ -128,12 +134,7 @@ if (!empty($ipBlockSettings['enabled']) && !in_array($clientIp, ['127.0.0.1', ':
                         $duration > 0 ? $duration : null
                     );
                     Logger::warn('IpBlock', "auto-blocked ip={$clientIp} reason=suspicious_url path={$requestPath}");
-                    http_response_code(403);
-                    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>403 Forbidden</title>';
-                    echo '<link rel="stylesheet" href="/css/common.css"></head>';
-                    echo '<body style="font-family:sans-serif;text-align:center;padding:50px;background:var(--bg-primary);color:var(--text-secondary)">';
-                    echo '<h1 style="color:var(--text-primary)">403 Forbidden</h1><p>비정상적인 접근이 감지되어 차단되었습니다.</p></body></html>';
-                    exit;
+                    renderBlockedPage('비정상적인 접근이 감지되어 차단되었습니다.');
                 }
             }
 
@@ -154,12 +155,7 @@ if (!empty($ipBlockSettings['enabled']) && !in_array($clientIp, ['127.0.0.1', ':
                     $duration > 0 ? $duration : null
                 );
                 Logger::warn('IpBlock', "auto-blocked ip={$clientIp} reason=request_flood count={$reqCount}/{$reqThreshold}");
-                http_response_code(403);
-                echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>403 Forbidden</title>';
-                echo '<link rel="stylesheet" href="/css/common.css"></head>';
-                echo '<body style="font-family:sans-serif;text-align:center;padding:50px;background:var(--bg-primary);color:var(--text-secondary)">';
-                echo '<h1 style="color:var(--text-primary)">403 Forbidden</h1><p>비정상적인 접근이 감지되어 차단되었습니다.</p></body></html>';
-                exit;
+                renderBlockedPage('비정상적인 접근이 감지되어 차단되었습니다.');
             }
         } catch (\Throwable $e) {
             // 차단 체크 실패 시에도 서비스는 계속 제공

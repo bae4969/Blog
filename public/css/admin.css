@@ -985,7 +985,7 @@
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: #8f959c;
+    accent-color: var(--text-muted);
 }
 
 .admin-table-row.is-selected {
@@ -1590,34 +1590,34 @@
 }
 
 .log-type-warn {
-    background: rgba(255, 193, 7, 0.15);
-    color: #ffc107;
+    background: var(--log-warn-bg);
+    color: var(--log-warn-color);
 }
 
 .log-type-error {
-    background: rgba(244, 67, 54, 0.15);
-    color: #f44336;
+    background: var(--log-error-bg);
+    color: var(--danger-color);
 }
 
 .log-type-normal {
-    background: rgba(100, 181, 246, 0.15);
-    color: #64b5f6;
+    background: var(--log-normal-bg);
+    color: var(--log-normal-color);
 }
 
 .log-type-notice {
-    background: rgba(158, 158, 158, 0.15);
-    color: #9e9e9e;
+    background: var(--log-notice-bg);
+    color: var(--log-notice-color);
 }
 
 /* 행 하이라이트 */
 
 
 .log-row-error {
-    background: rgba(244, 67, 54, 0.05) !important;
+    background: var(--log-error-row-bg) !important;
 }
 
 .log-row-warn {
-    background: rgba(255, 193, 7, 0.04) !important;
+    background: var(--log-warn-row-bg) !important;
 }
 
 /* JSON 메시지 */
@@ -1660,7 +1660,7 @@
 }
 
 .log-result-fail {
-    color: #f44336;
+    color: var(--danger-color);
     font-weight: 600;
     font-size: 12px;
 }
@@ -1725,10 +1725,10 @@
     font-weight: 500;
 }
 .ip-badge-auto {
-    background: #fff3e0;
-    color: #e65100;
+    background: var(--ip-badge-auto-bg);
+    color: var(--ip-badge-auto-color);
 }
 .ip-badge-manual {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--ip-badge-manual-bg);
+    color: var(--ip-badge-manual-color);
 }
