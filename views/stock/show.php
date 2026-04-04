@@ -84,16 +84,48 @@
                         <option value="1M">1M</option>
                     </select>
                 </div>
-                <button id="chartZoomReset" class="chart-zoom-reset" onclick="resetChartZoom()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                        <path d="M3 3v5h5"/>
-                    </svg>
-                    리셋
-                </button>
             </div>
             
             <div class="chart-wrapper">
+                <div class="chart-top-buttons">
+                    <div class="chart-indicator-help">
+                        <button type="button" class="chart-indicator-help-btn">i</button>
+                        <div class="chart-indicator-tooltip">
+                        <div class="chart-indicator-tooltip-section">
+                            <strong>보조지표</strong>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma5-color)"></span>SMA5</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma20-color)"></span>SMA20</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma60-color)"></span>SMA60</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-upper-color)"></span>BB 상단</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-middle-color)"></span>BB 중앙</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-lower-color)"></span>BB 하단</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-volume-ma20-color)"></span>거래량 MA20</div>
+                        </div>
+                        <hr class="chart-indicator-divider">
+                        <div class="chart-indicator-tooltip-section">
+                            <strong>조작법</strong>
+                            <div>Ctrl + 휠: 확대/축소</div>
+                            <div>Shift + 드래그: 구간 확대</div>
+                            <div>더블클릭: 리셋</div>
+                        </div>
+                        </div>
+                    </div>
+                    <div class="chart-settings">
+                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                            </svg>
+                        </button>
+                        <div class="chart-settings-panel" id="chartSettingsPanel">
+                            <strong>차트 설정</strong>
+                            <label class="chart-settings-option">
+                                <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">
+                                <span>로그 스케일</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
                 <canvas id="stockChart"></canvas>
                 <div id="chartLoading" class="chart-loading">
                     <div class="chart-loading-spinner"></div>
