@@ -155,6 +155,12 @@
     --btn-disable-hover: #7a3030;
     --btn-enable: #3a5a8a;
     --btn-enable-hover: #30407a;
+
+    /* 세션 만료 알림 */
+    --alert-session-bg: #ff4444;
+    --alert-session-text: #ffffff;
+    --alert-session-btn-bg: rgba(255, 255, 255, 0.2);
+    --alert-session-btn-border: rgba(255, 255, 255, 0.3);
 }
 
 /* ===========================================

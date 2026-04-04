@@ -7,6 +7,8 @@ let pageIndex = 0;
 let pageSize = 10;
 let pageCount = 0;
 let loadCount = 0;
+const SESSION_EXPIRED_ALERT_SHOWN_KEY = 'blog.sessionExpiredAlertShown';
+let sessionExpiredAlertVisible = false;
 
 // 레이아웃 전환 제어(히스테리시스 & 디바운스)
 const BREAKPOINT = 1200;
@@ -95,6 +97,11 @@ function verifyLogin() {
         .then(data => {
             userInfo = data;
             updateLoginStatus();
+
+            // 정상 로그인 상태라면 이전 만료 알림 표시 상태를 초기화
+            if (!data.session_expired && data && data.state === 0) {
+                clearSessionExpiredAlertShown();
+            }
             
             // 세션이 만료된 경우 알림 표시
             if (data.session_expired) {
@@ -380,6 +387,26 @@ function deleteCookie(name) {
     setCookie(name, '', -1);
 }
 
+function hasShownSessionExpiredAlert() {
+    try {
+        return window.sessionStorage.getItem(SESSION_EXPIRED_ALERT_SHOWN_KEY) === '1';
+    } catch (error) {
+        return false;
+    }
+}
+
+function markSessionExpiredAlertShown() {
+    try {
+        window.sessionStorage.setItem(SESSION_EXPIRED_ALERT_SHOWN_KEY, '1');
+    } catch (error) {}
+}
+
+function clearSessionExpiredAlertShown() {
+    try {
+        window.sessionStorage.removeItem(SESSION_EXPIRED_ALERT_SHOWN_KEY);
+    } catch (error) {}
+}
+
 // AJAX 요청 헬퍼 함수
 function makeRequest(url, options = {}) {
     const defaultOptions = {
@@ -407,13 +434,21 @@ window.addEventListener('error', function(e) {
 
 // 세션 만료 알림 표시
 function showSessionExpiredAlert() {
+    if (sessionExpiredAlertVisible || hasShownSessionExpiredAlert()) {
+        return;
+    }
+
+    sessionExpiredAlertVisible = true;
+    markSessionExpiredAlertShown();
+
+    const hostContainer = document.getElementById('blog') || document.body;
     const alertDiv = document.createElement('div');
     alertDiv.style.cssText = `
-        position: fixed;
+        position: absolute;
         top: 20px;
         right: 20px;
-        background: #ff4444;
-        color: white;
+        background: var(--alert-session-bg);
+        color: var(--alert-session-text);
         padding: 15px 20px;
         border-radius: 5px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -426,22 +461,32 @@ function showSessionExpiredAlert() {
         <div style="font-weight: bold; margin-bottom: 5px;">세션이 만료되었습니다</div>
         <div style="margin-bottom: 10px;">자동으로 로그아웃됩니다.</div>
         <button onclick="this.parentElement.remove()" style="
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
+            background: var(--alert-session-btn-bg);
+            border: 1px solid var(--alert-session-btn-border);
+            color: var(--alert-session-text);
             padding: 5px 10px;
             border-radius: 3px;
             cursor: pointer;
         ">확인</button>
     `;
     
-    document.body.appendChild(alertDiv);
-    
-    // 5초 후 자동으로 제거
-    setTimeout(() => {
+    hostContainer.appendChild(alertDiv);
+
+    const removeAlert = () => {
         if (alertDiv.parentElement) {
             alertDiv.remove();
         }
+        sessionExpiredAlertVisible = false;
+    };
+
+    const confirmButton = alertDiv.querySelector('button');
+    if (confirmButton) {
+        confirmButton.addEventListener('click', removeAlert);
+    }
+    
+    // 5초 후 자동으로 제거
+    setTimeout(() => {
+        removeAlert();
     }, 5000);
 }
 
