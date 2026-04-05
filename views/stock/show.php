@@ -1,7 +1,7 @@
 <div class="stock-detail-container">
     <!-- 헤더: 주식 정보 -->
     <div class="stock-detail-header">
-        <button class="btn btn-ghost" onclick="location.href='/stocks<?= !empty($isCoinMarket) ? '?market=COIN' : '' ?>'">
+        <button class="btn btn-ghost" onclick="goBackToStockList()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -290,4 +290,13 @@ const isUSMarket = <?= $isUSMarket ? 'true' : 'false' ?>;
 const isCoinMarket = <?= $isCoinType ? 'true' : 'false' ?>;
 let candleData = [];
 const recentExecutions = [];
+
+function goBackToStockList() {
+    const market = sessionStorage.getItem('stock_market_preference');
+    if (market === 'KR' || market === 'US' || market === 'COIN') {
+        location.href = '/stocks?market=' + encodeURIComponent(market);
+    } else {
+        location.href = '/stocks';
+    }
+}
 </script>
