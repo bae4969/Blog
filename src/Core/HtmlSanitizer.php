@@ -26,6 +26,10 @@ class HtmlSanitizer
             $config->set('URI.SafeIframeRegexp', '%^(https?:)?//(www.youtube.com/embed/|player.vimeo.com/video/)%.%');
 
             // XSS 방어 강화를 위한 추가 옵션
+            // data: URI 허용 (기존 base64 이미지 호환)
+            $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>true]);
+
+            // XSS 방어 강화를 위한 추가 옵션
             $config->set('HTML.SafeEmbed', true);
             $config->set('HTML.SafeObject', true);
             $config->set('Output.FlashCompat', true);

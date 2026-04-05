@@ -170,9 +170,12 @@ class PostController extends BaseController
         $userLevel = $this->auth->getCurrentUserLevel();
         
         try {
+            $thumbnail = $this->getParam('thumbnail', '');
+
             $postId = $this->postModel->create([
                 'title' => $title,
                 'content' => $content,
+                'thumbnail' => $thumbnail,
                 'category_index' => $categoryId,
                 'user_index' => $userIndex,
                 'user_level' => $userLevel
@@ -323,9 +326,12 @@ class PostController extends BaseController
         }
 
         try {
+            $thumbnail = $this->getParam('thumbnail', '');
+
             $this->postModel->update($postId, [
                 'title' => $title,
                 'content' => $content,
+                'thumbnail' => $thumbnail,
                 'category_index' => $categoryId
             ]);
 
@@ -501,6 +507,59 @@ class PostController extends BaseController
         } catch (\Exception $e) {
             Logger::error('BlogPost', "disable fail id={$postId} user={$currentUserIndex} error=" . $e->getMessage(), ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 삭제 중 오류가 발생했습니다.');
+        }
+
+        $this->redirect('/blog');
+    }
+
+    public function hardDelete($postId): void
+    {
+        $this->auth->requireLogin();
+
+        $postId = (int)$postId;
+
+        if (!$this->isPost()) {
+            $this->redirect('/blog');
+            return;
+        }
+
+        if (!$this->validateCsrfToken()) {
+            $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
+            $this->redirect('/blog');
+            return;
+        }
+
+        // 관리자(level <= 1)만 영구 삭제 가능
+        $userLevel = $this->auth->getCurrentUserLevel();
+        if ((int)$userLevel > 1) {
+            Logger::warn('BlogPost', "hardDelete no_admin id={$postId} level={$userLevel}", ['function'=>__METHOD__]);
+            $this->session->setFlash('error', '영구 삭제 권한이 없습니다.');
+            $this->redirect('/blog');
+            return;
+        }
+
+        $post = $this->postModel->getDetailById($userLevel, $postId);
+        if (!$post) {
+            $this->session->setFlash('error', '게시글을 찾을 수 없습니다.');
+            $this->redirect('/blog');
+            return;
+        }
+
+        // 비활성화된 글만 영구 삭제 가능
+        if ((int)$post['posting_state'] === 0) {
+            $this->session->setFlash('error', '비활성화된 게시글만 영구 삭제할 수 있습니다.');
+            $this->redirect('/reader.php?posting_index=' . $postId);
+            return;
+        }
+
+        try {
+            $currentUserIndex = $this->auth->getCurrentUserIndex();
+            $this->postModel->hardDelete($postId);
+            Logger::info('BlogPost', "hardDelete success id={$postId} title=" . mb_substr($post['posting_title'], 0, 50, 'UTF-8') . " user={$currentUserIndex}", ['function'=>__METHOD__]);
+            $this->session->setFlash('success', '게시글이 영구 삭제되었습니다.');
+        } catch (\Exception $e) {
+            Logger::error('BlogPost', "hardDelete fail id={$postId} error=" . $e->getMessage(), ['function'=>__METHOD__]);
+            $this->session->setFlash('error', '영구 삭제 중 오류가 발생했습니다.');
         }
 
         $this->redirect('/blog');

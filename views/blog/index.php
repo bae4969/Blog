@@ -24,7 +24,7 @@
                         <div class="posting_content_wrapper <?php echo empty($post['posting_thumbnail']) ? 'no-thumbnail' : ''; ?>">
                             <?php if (!empty($post['posting_thumbnail'])): ?>
                             <div class="posting_thumbnail_container">
-                                <img class="posting_thumbnail" src="data:image/webp;base64,<?= $post['posting_thumbnail'] ?>" alt="썸네일">
+                                <img class="posting_thumbnail" src="data:image/webp;base64,<?= htmlspecialchars($post['posting_thumbnail'], ENT_QUOTES, 'UTF-8') ?>" alt="썸네일">
                             </div>
                             <?php endif; ?>
                             <div class="posting_summary">
