@@ -177,7 +177,7 @@
             <div class="top-stocks-list">
                 <?php if (!empty($topStocks)): ?>
                     <?php foreach ($topStocks as $idx => $topStock): ?>
-                        <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?>'">
+                        <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?><?= ($topStock['stock_market'] === 'Bithumb') ? '&market=COIN' : '' ?>'">
                             <div class="top-stock-rank"><?= $idx + 1 ?></div>
                             <div class="stock-info">
                                 <div class="stock-name"><?= $view->escape($topStock['stock_name_kr']) ?></div>
@@ -215,6 +215,18 @@
 </div>
 
 <script>
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('market')) {
+        const m = params.get('market').toUpperCase();
+        if (m === 'KR' || m === 'US' || m === 'COIN') {
+            sessionStorage.setItem('stock_market_preference', m);
+        }
+    } else {
+        sessionStorage.removeItem('stock_market_preference');
+    }
+})();
+
 function searchStocks() {
     const searchValue = document.getElementById('stockSearchInput').value;
     const currentMarket = '<?= $view->escape($currentMarket) ?>';
