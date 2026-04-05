@@ -167,7 +167,7 @@ section.stock-page-section {
 }
 
 .content-alert-container { 
-    width: 100%; 
+    margin: 0 5px;
 }
 
 #side-panel {

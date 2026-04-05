@@ -134,7 +134,7 @@ class Post
         // Purifier 준비
         $config = HTMLPurifier_Config::createDefault();
         $config->set('Cache.SerializerPath', __DIR__ . '/../../cache/htmlpurifier'); // 웹서버 쓰기 가능 경로
-        $config->set('HTML.Allowed', 'p,br,strong,em,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
+        $config->set('HTML.Allowed', 'p,br,strong,em,s,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
         $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>true]); // data URI 허용 (base64 이미지)
         $purifier = new HTMLPurifier($config);
 
@@ -142,8 +142,8 @@ class Post
         $title_raw = (string)($data['title'] ?? '');
         $content_raw = (string)$data['content'];
 
-        // 순수 데이터로 제공되는 thumbnail 사용
-        $thumbnail = (string)($data['thumbnail'] ?? '');
+        // 순수 데이터로 제공되는 thumbnail 사용 (base64 검증)
+        $thumbnail = $this->validateThumbnail((string)($data['thumbnail'] ?? ''));
 
         // 제목 정제
         $title = htmlspecialchars(strip_tags($title_raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -189,7 +189,7 @@ class Post
         // Purifier 준비
         $config = HTMLPurifier_Config::createDefault();
         $config->set('Cache.SerializerPath', __DIR__ . '/../../cache/htmlpurifier');
-        $config->set('HTML.Allowed', 'p,br,strong,em,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
+        $config->set('HTML.Allowed', 'p,br,strong,em,s,ul,ol,li,a[href|title],img[src|alt|title],code,pre,blockquote');
         $config->set('URI.AllowedSchemes', ['http'=>true,'https'=>true,'data'=>true]); // data URI 허용 (base64 이미지)
         $purifier = new HTMLPurifier($config);
 
@@ -197,8 +197,8 @@ class Post
         $title_raw = (string)($data['title'] ?? '');
         $content_raw = (string)$data['content'];
 
-        // 순수 데이터로 제공되는 thumbnail 사용
-        $thumbnail = (string)($data['thumbnail'] ?? '');
+        // 순수 데이터로 제공되는 thumbnail 사용 (base64 검증)
+        $thumbnail = $this->validateThumbnail((string)($data['thumbnail'] ?? ''));
 
         // 제목 정제
         $title = htmlspecialchars(strip_tags($title_raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -262,6 +262,21 @@ class Post
         
         if ($stmt->rowCount() > 0) {
             // 게시글 관련 캐시 무효화
+            $this->cache->deletePattern('posts_meta');
+            $this->cache->deletePattern('post_detail');
+            $this->cache->deletePattern('post_count');
+            return true;
+        }
+        
+        return false;
+    }
+
+    public function hardDelete(int $postId): bool
+    {
+        $sql = "DELETE FROM posting_list WHERE posting_index = ?";
+        $stmt = $this->db->query($sql, [$postId]);
+        
+        if ($stmt->rowCount() > 0) {
             $this->cache->deletePattern('posts_meta');
             $this->cache->deletePattern('post_detail');
             $this->cache->deletePattern('post_count');
@@ -364,5 +379,30 @@ class Post
         $_SESSION[$sessionKey] = true;
         
         return true;
+    }
+
+    private function validateThumbnail(string $thumbnail): string
+    {
+        if ($thumbnail === '') {
+            return '';
+        }
+
+        // 최대 500KB (base64 인코딩 후 크기)
+        if (strlen($thumbnail) > 500 * 1024) {
+            return '';
+        }
+
+        // 유효한 base64 문자열인지 확인
+        if (!preg_match('/^[A-Za-z0-9+\/=]+$/', $thumbnail)) {
+            return '';
+        }
+
+        // base64 디코딩 가능한지 확인
+        $decoded = base64_decode($thumbnail, true);
+        if ($decoded === false) {
+            return '';
+        }
+
+        return $thumbnail;
     }
 }
