@@ -78,6 +78,9 @@ $router->post('/admin/cache/clear-pattern', [AdminController::class, 'clearPatte
 $router->post('/admin/cache/warmup', [AdminController::class, 'warmupCache']);
 $router->get('/admin/stocks', [AdminController::class, 'stockSubscriptions']);
 $router->post('/admin/stocks/subscriptions', [AdminController::class, 'updateStockSubscriptions']);
+$router->get('/admin/stock-splits', [AdminController::class, 'splitEvents']);
+$router->post('/admin/stock-splits/create', [AdminController::class, 'createSplitEvent', '/admin/stock-splits/create']);
+$router->post('/admin/stock-splits/delete', [AdminController::class, 'deleteSplitEvent', '/admin/stock-splits/delete']);
 $router->get('/admin/wol', [AdminController::class, 'wol']);
 $router->post('/admin/wol/execute', [AdminController::class, 'wolExecute']);
 $router->post('/admin/wol/create', [AdminController::class, 'wolCreateDevice']);

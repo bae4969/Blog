@@ -18,6 +18,7 @@
                             'categories' => ['label' => '블로그 카테고리', 'url' => '/admin/categories'],
                             'cache' => ['label' => '캐시 관리', 'url' => '/admin/cache'],
                             'stocks' => ['label' => '주식 구독 관리', 'url' => '/admin/stocks'],
+                            'stock-splits' => ['label' => '액면분할 관리', 'url' => '/admin/stock-splits'],
                             'wol' => ['label' => 'WOL', 'url' => '/admin/wol'],
                             'ip-blocks' => ['label' => 'IP 차단 관리', 'url' => '/admin/ip-blocks'],
                         ];
