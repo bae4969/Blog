@@ -215,6 +215,18 @@
 </div>
 
 <script>
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('market')) {
+        const m = params.get('market').toUpperCase();
+        if (m === 'KR' || m === 'US' || m === 'COIN') {
+            sessionStorage.setItem('stock_market_preference', m);
+        }
+    } else {
+        sessionStorage.removeItem('stock_market_preference');
+    }
+})();
+
 function searchStocks() {
     const searchValue = document.getElementById('stockSearchInput').value;
     const currentMarket = '<?= $view->escape($currentMarket) ?>';
