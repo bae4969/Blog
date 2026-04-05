@@ -38,6 +38,7 @@ return [
         'stock_admin_list' => 120,       // 관리자 종목 목록: 2분
         'stock_admin_registered' => 60,  // 관리자 등록 종목: 1분
         'stock_admin_market_map' => 300,  // 관리자 시장 맵: 5분
+        'stock_split_events' => 3600,     // 분할/병합 이벤트: 1시간
     ],
     
     // 캐시 무효화 패턴
