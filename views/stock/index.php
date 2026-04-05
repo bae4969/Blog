@@ -177,7 +177,7 @@
             <div class="top-stocks-list">
                 <?php if (!empty($topStocks)): ?>
                     <?php foreach ($topStocks as $idx => $topStock): ?>
-                        <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?>'">
+                        <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?><?= ($topStock['stock_market'] === 'Bithumb') ? '&market=COIN' : '' ?>'">
                             <div class="top-stock-rank"><?= $idx + 1 ?></div>
                             <div class="stock-info">
                                 <div class="stock-name"><?= $view->escape($topStock['stock_name_kr']) ?></div>
