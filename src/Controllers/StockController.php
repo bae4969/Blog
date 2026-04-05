@@ -141,7 +141,10 @@ class StockController extends BaseController
 
         $candleData = $this->stockModel->getCandleData($stockCode, $startDate, $endDate, $limit, $timeframe, $market);
         
-        header('Cache-Control: private, max-age=60');
+        // 과거 데이터 전용 요청이면 긴 HTTP 캐시 (브라우저 캐시 활용)
+        $todayMidnight = date('Y-m-d 00:00:00');
+        $httpMaxAge = ($endDate < $todayMidnight) ? 3600 : 60;
+        header('Cache-Control: private, max-age=' . $httpMaxAge);
         $this->jsonResponse([
             'success' => true,
             'data' => $candleData,
