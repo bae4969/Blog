@@ -1121,4 +1121,118 @@ class AdminController extends BaseController
 
         return '/admin/stocks?' . http_build_query($params);
     }
+
+    // ============================================================
+    // 액면분할/병합 관리
+    // ============================================================
+
+    public function splitEvents(): void
+    {
+        $page = max(1, (int)$this->getParam('page', 1));
+        $perPage = 50;
+
+        $result = $this->stockModel->getAllSplitEvents($page, $perPage);
+        $totalPages = (int)ceil($result['total'] / $perPage);
+
+        $this->renderLayout('admin', 'admin/stock-splits', $this->adminData('stock-splits', [
+            'events' => $result['events'],
+            'currentPage' => $page,
+            'totalPages' => $totalPages,
+            'totalCount' => $result['total'],
+            'csrfToken' => $this->view->csrfToken(),
+        ]));
+    }
+
+    public function createSplitEvent(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('split_event.create', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        $stockCode = strtoupper(trim($this->sanitizeInput($this->getParam('stock_code', ''))));
+        $market = strtoupper(trim($this->sanitizeInput($this->getParam('market', ''))));
+        $eventDate = trim($this->sanitizeInput($this->getParam('event_date', '')));
+        $ratioFrom = max(1, (int)$this->getParam('ratio_from', 0));
+        $ratioTo = max(1, (int)$this->getParam('ratio_to', 0));
+        $description = trim($this->sanitizeInput($this->getParam('description', '')));
+
+        if ($stockCode === '' || $eventDate === '') {
+            $this->auditAdminAction('split_event.create', ['reason' => 'missing_fields'], 'rejected');
+            $this->session->setFlash('error', '종목 코드와 이벤트 일시는 필수입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        if (!in_array($market, ['KR', 'US', 'COIN'], true)) {
+            $this->auditAdminAction('split_event.create', ['market' => $market, 'reason' => 'invalid_market'], 'rejected');
+            $this->session->setFlash('error', '유효하지 않은 시장입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        if ($ratioFrom === $ratioTo) {
+            $this->auditAdminAction('split_event.create', ['ratio' => "{$ratioFrom}:{$ratioTo}", 'reason' => 'same_ratio'], 'rejected');
+            $this->session->setFlash('error', '변환 전후 비율이 동일합니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}/', $eventDate)) {
+            $this->auditAdminAction('split_event.create', ['event_date' => $eventDate, 'reason' => 'invalid_date'], 'rejected');
+            $this->session->setFlash('error', '유효하지 않은 날짜 형식입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        try {
+            $this->stockModel->createSplitEvent($stockCode, $market, $eventDate, $ratioFrom, $ratioTo, $description);
+            $this->auditAdminAction('split_event.create', [
+                'stock_code' => $stockCode,
+                'market' => $market,
+                'event_date' => $eventDate,
+                'ratio' => "{$ratioFrom}:{$ratioTo}",
+            ]);
+            $this->session->setFlash('success', "'{$stockCode}' 분할/병합 이벤트가 등록되었습니다.");
+        } catch (\Exception $e) {
+            $this->auditAdminAction('split_event.create', [
+                'stock_code' => $stockCode,
+                'error' => $e->getMessage(),
+            ], 'error');
+            $this->session->setFlash('error', '이벤트 등록 실패: ' . $e->getMessage());
+        }
+
+        $this->redirect('/admin/stock-splits');
+    }
+
+    public function deleteSplitEvent(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('split_event.delete', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        $eventId = (int)$this->getParam('event_id', 0);
+        if ($eventId <= 0) {
+            $this->auditAdminAction('split_event.delete', ['event_id' => $eventId, 'reason' => 'invalid_id'], 'rejected');
+            $this->session->setFlash('error', '유효하지 않은 요청입니다.');
+            $this->redirect('/admin/stock-splits');
+            return;
+        }
+
+        $deleted = $this->stockModel->deleteSplitEvent($eventId);
+        if ($deleted) {
+            $this->auditAdminAction('split_event.delete', ['event_id' => $eventId]);
+            $this->session->setFlash('success', '이벤트가 삭제되었습니다.');
+        } else {
+            $this->auditAdminAction('split_event.delete', ['event_id' => $eventId, 'reason' => 'not_found'], 'rejected');
+            $this->session->setFlash('error', '이벤트를 찾을 수 없습니다.');
+        }
+
+        $this->redirect('/admin/stock-splits');
+    }
 }

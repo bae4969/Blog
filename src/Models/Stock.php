@@ -1026,18 +1026,27 @@ class Stock
             return [];
         }
 
-        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin, $market);
+        // 액면분할/병합 보정: 집계 전에 개별 캔들에 적용해야 하므로 fetchCandlesWithExpansion에 전달
+        $resolvedMarket = $isCoin ? 'COIN' : ($market !== '' ? $market : 'KR');
+        $splitEvents = $this->getSplitEvents($stockCode, $resolvedMarket);
+
+        $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin, $market, $splitEvents);
         
-        $this->cache->set($cacheKey, $candles, $this->cache->getTtl('stock_candle'));
+        if (!empty($candles)) {
+            $this->cache->set($cacheKey, $candles, $this->cache->getTtl('stock_candle'));
+        }
         
         return $candles;
     }
 
     /**
+     * 캔들 DB 조회 (단순 SELECT, 캐시 없음)
+     */
+    /**
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
      * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
      */
-    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false, string $market = ''): array
+    private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false, string $market = '', array $splitEvents = []): array
     {
         $currentStart = $startDate;
         $allRows = [];
@@ -1084,11 +1093,12 @@ class Stock
                     });
                 }
 
-                // 필터링 + 집계 (코인/US는 정규장 필터 제외, KR만 적용)
+                // 필터링 + 보정 + 집계 (코인/US는 정규장 필터 제외, KR만 적용)
                 $candles = $allRows;
                 if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                     $candles = array_values($this->filterRegularTradingHours($candles));
                 }
+                $candles = $this->applySplitAdjustment($candles, $splitEvents);
                 $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
 
                 if (count($candles) >= $limit) {
@@ -1108,6 +1118,7 @@ class Stock
             if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                 $candles = array_values($this->filterRegularTradingHours($candles));
             }
+            $candles = $this->applySplitAdjustment($candles, $splitEvents);
             $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
 
             return count($candles) > $limit ? array_slice($candles, -$limit) : $candles;
@@ -1777,6 +1788,172 @@ class Stock
             'execution_ask_amount' => $totalAskAmount,
             'execution_bid_amount' => $totalBidAmount,
         ];
+    }
+
+    // ========================================
+    // 액면분할/병합 보정
+    // ========================================
+
+    /**
+     * 해당 종목의 분할/병합 이벤트 조회 (캐시 적용)
+     * @return array [['event_date' => '...', 'ratio_from' => 1, 'ratio_to' => 5], ...]
+     */
+    public function getSplitEvents(string $stockCode, string $market): array
+    {
+        $cacheKey = Cache::key('stock_split_events', $stockCode, $market);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $rows = $this->db->fetchAll(
+            "SELECT event_date, ratio_from, ratio_to
+             FROM stock_split_events
+             WHERE stock_code = :code AND market = :market
+             ORDER BY event_date ASC",
+            [':code' => $stockCode, ':market' => $market]
+        );
+
+        $events = [];
+        foreach ($rows as $row) {
+            $events[] = [
+                'event_date' => $row['event_date'],
+                'ratio_from' => (int)$row['ratio_from'],
+                'ratio_to' => (int)$row['ratio_to'],
+            ];
+        }
+
+        $this->cache->set($cacheKey, $events, $this->cache->getTtl('stock_split_events'));
+        return $events;
+    }
+
+    /**
+     * 특정 캔들 시점의 보정계수 계산
+     * 해당 시점 이후에 발생한 모든 이벤트의 ratio_from/ratio_to를 누적 곱
+     */
+    private function calcAdjustmentFactor(array $splitEvents, string $candleDatetime): float
+    {
+        $factor = 1.0;
+        foreach ($splitEvents as $event) {
+            if ($candleDatetime < $event['event_date']) {
+                $factor *= $event['ratio_from'] / $event['ratio_to'];
+            }
+        }
+        return $factor;
+    }
+
+    /**
+     * 캔들 배열에 분할/병합 보정 적용
+     * - 가격(open/close/min/max): × factor
+     * - 거래량(volume): ÷ factor
+     * - 거래대금(amount): 보정 안 함 (당시 실제 금액)
+     */
+    private function applySplitAdjustment(array $candles, array $splitEvents): array
+    {
+        if (empty($splitEvents) || empty($candles)) {
+            return $candles;
+        }
+
+        foreach ($candles as &$row) {
+            $factor = $this->calcAdjustmentFactor($splitEvents, $row['execution_datetime']);
+            if (abs($factor - 1.0) < 1e-12) {
+                continue;
+            }
+
+            $row['execution_open']  *= $factor;
+            $row['execution_close'] *= $factor;
+            $row['execution_min']   *= $factor;
+            $row['execution_max']   *= $factor;
+
+            $inverseFactor = 1.0 / $factor;
+            $row['execution_non_volume'] *= $inverseFactor;
+            $row['execution_ask_volume'] *= $inverseFactor;
+            $row['execution_bid_volume'] *= $inverseFactor;
+        }
+        unset($row);
+
+        return $candles;
+    }
+
+    // ========================================
+    // 액면분할/병합 관리 (CRUD)
+    // ========================================
+
+    /**
+     * 전체 분할/병합 이벤트 목록 (페이지네이션)
+     */
+    public function getAllSplitEvents(int $page = 1, int $perPage = 50): array
+    {
+        $offset = ($page - 1) * $perPage;
+
+        $countRow = $this->db->fetch("SELECT COUNT(*) AS count FROM stock_split_events");
+        $total = (int)($countRow['count'] ?? 0);
+
+        $rows = $this->db->fetchAll(
+            "SELECT id, stock_code, market, event_date, ratio_from, ratio_to, description, created_at
+             FROM stock_split_events
+             ORDER BY event_date DESC, id DESC
+             LIMIT :limit OFFSET :offset",
+            [':limit' => $perPage, ':offset' => $offset]
+        );
+
+        return ['events' => $rows, 'total' => $total];
+    }
+
+    /**
+     * 분할/병합 이벤트 생성
+     */
+    public function createSplitEvent(string $stockCode, string $market, string $eventDate, int $ratioFrom, int $ratioTo, string $description = ''): int
+    {
+        $this->db->query(
+            "INSERT INTO stock_split_events (stock_code, market, event_date, ratio_from, ratio_to, description)
+             VALUES (:code, :market, :event_date, :ratio_from, :ratio_to, :description)",
+            [
+                ':code' => $stockCode,
+                ':market' => $market,
+                ':event_date' => $eventDate,
+                ':ratio_from' => $ratioFrom,
+                ':ratio_to' => $ratioTo,
+                ':description' => $description,
+            ]
+        );
+
+        $this->invalidateSplitCaches();
+
+        return (int)$this->db->getConnection()->lastInsertId();
+    }
+
+    /**
+     * 분할/병합 이벤트 삭제
+     */
+    public function deleteSplitEvent(int $id): bool
+    {
+        $existing = $this->db->fetch(
+            "SELECT id FROM stock_split_events WHERE id = :id",
+            [':id' => $id]
+        );
+
+        if (!$existing) {
+            return false;
+        }
+
+        $this->db->query(
+            "DELETE FROM stock_split_events WHERE id = :id",
+            [':id' => $id]
+        );
+
+        $this->invalidateSplitCaches();
+
+        return true;
+    }
+
+    /**
+     * 분할 관련 캐시 무효화
+     */
+    private function invalidateSplitCaches(): void
+    {
+        $this->cache->deletePattern('stock_split_events');
+        $this->cache->deletePattern('stock_candle');
     }
 
 }
