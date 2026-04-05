@@ -28,7 +28,6 @@ return [
         'stock_detail' => 300,           // 주식 상세: 5분
         'stock_latest_close' => 60,      // 최신 종가: 1분
         'stock_candle' => 60,            // 캔들 데이터: 1분
-        'stock_candle_historical' => 21600, // 과거 캔들 원시 데이터: 6시간
         'stock_executions' => 10,        // 체결 데이터: 10초
         'market_stats' => 600,           // 시장 통계: 10분
         'top_stocks' => 300,             // 인기 종목: 5분

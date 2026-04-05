@@ -1012,11 +1012,6 @@ class Stock
      */
     public function getCandleData(string $stockCode, string $startDate, string $endDate, int $limit = 500, string $timeframe = '1h', string $market = ''): array
     {
-        // 외부 캐시 TTL: 과거 전용 요청이면 긴 TTL, 당일 포함이면 짧은 TTL
-        $todayMidnight = date('Y-m-d 00:00:00');
-        $isHistoricalOnly = ($endDate < $todayMidnight);
-        $outerTtlKey = $isHistoricalOnly ? 'stock_candle_historical' : 'stock_candle';
-
         $cacheKey = Cache::key('stock_candle', $stockCode, $startDate, $endDate, $limit, $timeframe, $market);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
@@ -1033,7 +1028,9 @@ class Stock
 
         $candles = $this->fetchCandlesWithExpansion($candleSource, $startDate, $endDate, $limit, $timeframe, $isCoin, $market);
         
-        $this->cache->set($cacheKey, $candles, $this->cache->getTtl($outerTtlKey));
+        if (!empty($candles)) {
+            $this->cache->set($cacheKey, $candles, $this->cache->getTtl('stock_candle'));
+        }
         
         return $candles;
     }
@@ -1041,87 +1038,6 @@ class Stock
     /**
      * 캔들 DB 조회 (단순 SELECT, 캐시 없음)
      */
-    private function queryCandleRows(string $tableRef, string $startDate, string $endDate): array
-    {
-        $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
-                       execution_non_volume, execution_ask_volume, execution_bid_volume,
-                       execution_non_amount, execution_ask_amount, execution_bid_amount
-                FROM {$tableRef}
-                WHERE execution_datetime BETWEEN :start_date AND :end_date
-                ORDER BY execution_datetime ASC";
-
-        return $this->db->fetchAll($sql, [
-            ':start_date' => $startDate,
-            ':end_date' => $endDate
-        ]);
-    }
-
-    /**
-     * 날짜 인식 캐시를 적용한 캔들 원시 데이터 조회
-     * 오늘 자정 기준으로 과거/당일 데이터를 분리 캐싱:
-     * - 전체 범위가 과거 → stock_candle_historical TTL (6시간)
-     * - 전체 범위가 당일 이후 → stock_candle TTL (60초)
-     * - 혼합 범위 → 과거/당일 각각 별도 캐시 후 병합
-     */
-    private function fetchCandleRowsCached(string $tableRef, string $tableId, string $startDate, string $endDate): array
-    {
-        $todayMidnight = date('Y-m-d 00:00:00');
-        $historicalTtl = $this->cache->getTtl('stock_candle_historical');
-        $liveTtl = $this->cache->getTtl('stock_candle');
-
-        // 전체 범위가 과거인 경우
-        if ($endDate < $todayMidnight) {
-            $cacheKey = Cache::key('stock_candle_hist', $tableId, $startDate, $endDate);
-            $cached = $this->cache->get($cacheKey);
-            if ($cached !== null) {
-                return $cached;
-            }
-            $rows = $this->queryCandleRows($tableRef, $startDate, $endDate);
-            $this->cache->set($cacheKey, $rows, $historicalTtl);
-            return $rows;
-        }
-
-        // 전체 범위가 당일인 경우
-        if ($startDate >= $todayMidnight) {
-            $cacheKey = Cache::key('stock_candle_live', $tableId, $startDate, $endDate);
-            $cached = $this->cache->get($cacheKey);
-            if ($cached !== null) {
-                return $cached;
-            }
-            $rows = $this->queryCandleRows($tableRef, $startDate, $endDate);
-            $this->cache->set($cacheKey, $rows, $liveTtl);
-            return $rows;
-        }
-
-        // 혼합 범위: 과거 + 당일 분할
-        $yesterdayEnd = date('Y-m-d 23:59:59', strtotime('-1 day'));
-
-        // 과거 부분 (긴 TTL)
-        $histCacheKey = Cache::key('stock_candle_hist', $tableId, $startDate, $yesterdayEnd);
-        $histRows = $this->cache->get($histCacheKey);
-        if ($histRows === null) {
-            $histRows = $this->queryCandleRows($tableRef, $startDate, $yesterdayEnd);
-            $this->cache->set($histCacheKey, $histRows, $historicalTtl);
-        }
-
-        // 당일 부분 (짧은 TTL)
-        $liveCacheKey = Cache::key('stock_candle_live', $tableId, $todayMidnight, $endDate);
-        $liveRows = $this->cache->get($liveCacheKey);
-        if ($liveRows === null) {
-            $liveRows = $this->queryCandleRows($tableRef, $todayMidnight, $endDate);
-            $this->cache->set($liveCacheKey, $liveRows, $liveTtl);
-        }
-
-        if (empty($histRows)) {
-            return $liveRows;
-        }
-        if (empty($liveRows)) {
-            return $histRows;
-        }
-
-        return array_merge($histRows, $liveRows);
-    }
-
     /**
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
      * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
@@ -1136,7 +1052,6 @@ class Stock
         $isKR = in_array($market, ['KR', ''], true) && !$isCoin;
 
         $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
-        $tableId = $candleSource['schema'] . '.' . $candleSource['table'];
         
         try {
             while ($attemptCount <= $maxAttempts) {
@@ -1145,7 +1060,17 @@ class Stock
                 $newDataAdded = false;
 
                 try {
-                    $rows = $this->fetchCandleRowsCached($tableRef, $tableId, $fetchStart, $fetchEnd);
+                    $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
+                                   execution_non_volume, execution_ask_volume, execution_bid_volume,
+                                   execution_non_amount, execution_ask_amount, execution_bid_amount
+                            FROM {$tableRef}
+                            WHERE execution_datetime BETWEEN :start_date AND :end_date
+                            ORDER BY execution_datetime ASC";
+
+                    $rows = $this->db->fetchAll($sql, [
+                        ':start_date' => $fetchStart,
+                        ':end_date' => $fetchEnd
+                    ]);
 
                     if (!empty($rows)) {
                         $allRows = array_merge($allRows, $rows);
