@@ -90,7 +90,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 document.querySelectorAll('.wol-edit-form').forEach(function(form) {
     var btn = document.querySelector('button[form="' + form.id + '"]');
     if (!btn) return;

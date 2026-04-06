@@ -32,7 +32,12 @@ class StockController extends BaseController
         $listResult = $this->stockModel->getStockListWithCount($page, $perPage, $market, $search);
         $stocks = $listResult['stocks'];
         $totalCount = $listResult['total'];
-        $totalPages = ceil($totalCount / $perPage);
+        $totalPages = max(1, ceil($totalCount / $perPage));
+
+        // 페이지 범위 제한 (존재하지 않는 페이지 요청 차단)
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
         
         // 시장 통계
         $marketStats = $this->stockModel->getMarketStats();

@@ -5,6 +5,7 @@ namespace Blog\Controllers;
 use Blog\Models\Post;
 use Blog\Models\Category;
 use Blog\Models\User;
+use Blog\Core\Cache;
 
 class HomeController extends BaseController
 {
@@ -45,7 +46,12 @@ class HomeController extends BaseController
         $visitorCount = $this->userModel->getVisitorCount();
         
         // 페이지네이션 계산
-        $totalPages = ceil($totalCount / 10);
+        $totalPages = max(1, ceil($totalCount / 10));
+
+        // 페이지 범위 제한 (존재하지 않는 페이지 요청 차단)
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
         
         // 사용자 게시글 작성 제한 정보
         $userPostingInfo = null;
@@ -72,6 +78,17 @@ class HomeController extends BaseController
     public function search(): void
     {
         if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        // 검색 요청 Rate Limiting (IP당 분당 20회)
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cache = Cache::getInstance();
+        $searchRateKey = Cache::key('search_rate', $ip);
+        $searchCount = (int)($cache->get($searchRateKey) ?? 0) + 1;
+        $cache->set($searchRateKey, $searchCount, 60);
+        if ($searchCount > 20) {
+            $this->jsonResponse(['error' => '검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
             return;
         }
 

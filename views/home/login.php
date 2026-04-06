@@ -4,6 +4,11 @@
     <form method="POST" action="/login.php" class="login-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
         
+        <!-- Honeypot: 봇 감지용 숨김 필드 (사람은 입력하지 않음) -->
+        <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+            <input type="text" name="website_url" value="" tabindex="-1" autocomplete="off">
+        </div>
+
         <div class="input">
             <input id="text_id" name="user_id" type="text" placeholder="ID" required
                    inputmode="text" autocomplete="username"
@@ -22,8 +27,8 @@
     </form>
 </div>
 
-<script src="/js/sha256.js"></script>
-<script>
+<script nonce="<?= $view->getNonce() ?>" src="/js/sha256.js"></script>
+<script nonce="<?= $view->getNonce() ?>">
 const formEl = document.querySelector('.login-form');
 formEl.addEventListener('submit', function(e) {
     e.preventDefault();

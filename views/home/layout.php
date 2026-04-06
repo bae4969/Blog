@@ -1,3 +1,4 @@
+<?php $view->emitCspHeader(); ?>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -26,10 +27,10 @@
 		</div>
 	</div>
 
-	<script src="/js/blog.js"></script>
+	<script nonce="<?= $view->getNonce() ?>" src="/js/blog.js"></script>
 	<?php if (isset($additionalJs)): ?>
 		<?php foreach ($additionalJs as $js): ?>
-			<script src="<?= $js ?>"></script>
+			<script nonce="<?= $view->getNonce() ?>" src="<?= $js ?>"></script>
 		<?php endforeach; ?>
 	<?php endif; ?>
 </body>

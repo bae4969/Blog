@@ -18,15 +18,44 @@ class User
 
     public function authenticate(string $userId, string $password): ?array
     {
-        $sql = "SELECT * FROM user_list WHERE user_id = ? AND user_pw = ? AND user_state = 0";
-        $user = $this->db->fetch($sql, [$userId, $password]);
+        $sql = "SELECT * FROM user_list WHERE user_id = ? AND user_state = 0";
+        $user = $this->db->fetch($sql, [$userId]);
         
-        if ($user) {
+        if (!$user) {
+            return null;
+        }
+
+        $storedHash = $user['user_pw'];
+        $verified = false;
+
+        // password_hash 형식 (bcrypt/argon2) 인지 확인
+        if (str_starts_with($storedHash, '$2y$') || str_starts_with($storedHash, '$argon2')) {
+            $verified = password_verify($password, $storedHash);
+        } elseif (strlen($storedHash) === 64 && ctype_xdigit($storedHash)) {
+            // 레거시 SHA256 해시 (64자 hex) — 타이밍 공격 방지용 hash_equals
+            $verified = hash_equals($storedHash, $password);
+            // 검증 성공 시 자동으로 Argon2ID로 마이그레이션
+            if ($verified) {
+                $this->upgradePasswordHash($user['user_index'], $password);
+            }
+        }
+
+        if ($verified) {
             $this->updateLastAction($user['user_index']);
             return $user;
         }
         
         return null;
+    }
+
+    /**
+     * 레거시 SHA256 해시를 Argon2ID로 업그레이드
+     */
+    private function upgradePasswordHash(int $userIndex, string $password): void
+    {
+        $newHash = password_hash($password, PASSWORD_ARGON2ID);
+        $sql = "UPDATE user_list SET user_pw = ? WHERE user_index = ?";
+        $this->db->query($sql, [$newHash, $userIndex]);
     }
 
     public function getUserById(string $userId): ?array
@@ -213,10 +242,11 @@ class User
         return $this->db->fetch($sql, [$userIndex]);
     }
 
-    public function createUser(string $userId, string $hashedPassword, int $level = 4, int $postingLimit = 10): int
+    public function createUser(string $userId, string $clientHash, int $level = 4, int $postingLimit = 10): int
     {
+        $serverHash = password_hash($clientHash, PASSWORD_ARGON2ID);
         $sql = "INSERT INTO user_list (user_id, user_pw, user_level, user_state, user_posting_count, user_posting_limit) VALUES (?, ?, ?, 0, 0, ?)";
-        $this->db->query($sql, [$userId, $hashedPassword, $level, $postingLimit]);
+        $this->db->query($sql, [$userId, $serverHash, $level, $postingLimit]);
         return (int)$this->db->lastInsertId();
     }
 
@@ -248,10 +278,11 @@ class User
         $this->cache->delete(Cache::key('user_posting_limit', $userIndex));
     }
 
-    public function resetUserPassword(int $userIndex, string $hashedPassword): void
+    public function resetUserPassword(int $userIndex, string $clientHash): void
     {
+        $serverHash = password_hash($clientHash, PASSWORD_ARGON2ID);
         $sql = "UPDATE user_list SET user_pw = ? WHERE user_index = ?";
-        $this->db->query($sql, [$hashedPassword, $userIndex]);
+        $this->db->query($sql, [$serverHash, $userIndex]);
     }
 
     private function invalidateUserCache(int $userIndex): void

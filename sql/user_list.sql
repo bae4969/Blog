@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS `user_list` (
     `user_index` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
     `user_id` TINYTEXT NOT NULL COLLATE 'utf8mb4_general_ci',
-    `user_pw` TEXT NOT NULL COMMENT 'sha256' COLLATE 'utf8mb4_general_ci',
+    `user_pw` TEXT NOT NULL COMMENT 'argon2id (legacy: sha256, auto-migrated on login)' COLLATE 'utf8mb4_general_ci',
     `user_level` TINYINT(3) UNSIGNED NOT NULL DEFAULT '4' COMMENT '0:root\n1:Admin\n2:poster\n3:member\n4:visitor',
     `user_state` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0' COMMENT '0:normal\n1:ban',
     `user_first_action_datetime` DATETIME NOT NULL DEFAULT current_timestamp(),

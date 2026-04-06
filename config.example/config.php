@@ -26,7 +26,7 @@ return [
     'ip_block' => [
         'enabled' => true,                    // IP 차단 기능 활성화
         'request_window_seconds' => 60,       // 요청 수 집계 윈도우 (초)
-        'request_threshold' => 120,           // 윈도우당 최대 요청 수 (위험도: 낮음)
+        'request_threshold' => 60,            // 윈도우당 최대 요청 수 (위험도: 낮음)
         'login_fail_threshold' => 20,         // 로그인 실패 누적 시 자동 차단 (위험도: 높음)
         'not_found_threshold' => 30,          // 윈도우당 404 횟수 시 자동 차단 (위험도: 중간)
         'block_duration' => [                 // 위험도별 차단 기간 (초, 0=영구)
@@ -56,6 +56,24 @@ return [
         ],
         'whitelist' => ['127.0.0.1', '::1', '192.168.135.0/24'],  // 차단 제외 IP/CIDR 목록 (예: 192.168.0.0/24)
         'cache_ttl' => 300,                   // 차단 목록 캐시 TTL (초)
+        'bot_user_agents' => [                // 즉시 차단할 봇 User-Agent 패턴 (정규식)
+            '/curl\b/i',
+            '/wget\b/i',
+            '/python-requests/i',
+            '/python-urllib/i',
+            '/scrapy/i',
+            '/httpclient/i',
+            '/java\//i',
+            '/libwww-perl/i',
+            '/go-http-client/i',
+            '/node-fetch/i',
+            '/axios\//i',
+            '/headlesschrome/i',
+            '/phantomjs/i',
+            '/selenium/i',
+            '/puppeteer/i',
+            '/playwright/i',
+        ],
     ],
 
     // 로그인 레이트 리미팅 설정
