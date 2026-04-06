@@ -1,3 +1,6 @@
+# 디렉토리 리스팅 비활성화
+Options -Indexes
+
 RewriteEngine On
 
 # 디버깅/내부 파일 접근 차단
@@ -13,6 +16,19 @@ Header always set X-Content-Type-Options nosniff
 Header always set X-Frame-Options DENY
 Header always set X-XSS-Protection "1; mode=block"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+
+# HTTPS 환경에서 HSTS 헤더 설정
+<IfModule mod_setenvif.c>
+    SetEnvIf X-Forwarded-Proto "https" HTTPS_ON
+</IfModule>
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS_ON
+
+# .ht* 파일 접근 차단
+<FilesMatch "^\.ht">
+    Require all denied
+</FilesMatch>
 
 # PHP 파일 직접 접근 방지
 <Files "*.php">
