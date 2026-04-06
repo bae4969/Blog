@@ -92,7 +92,9 @@ function observePostings() {
 
 // 로그인 상태 확인
 function verifyLogin() {
-    fetch('/get/login_verify')
+    fetch('/get/login_verify', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(response => response.json())
         .then(data => {
             userInfo = data;
@@ -413,6 +415,7 @@ function makeRequest(url, options = {}) {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
         },
     };
     
