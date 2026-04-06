@@ -73,10 +73,7 @@ php -S localhost:8080 -t public
 
 ```bash
 # 프로덕션
-docker build -t blog .
-
-# 개발 (Xdebug 포함)
-docker build --build-arg APP_ENV=dev -t blog:dev .
+docker build -t php-blog:latest .
 ```
 
 - PHP 8.2-Apache, DocumentRoot: `/var/www/html/public`

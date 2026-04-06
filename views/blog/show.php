@@ -17,15 +17,15 @@
             <?php
             $content = \Blog\Core\HtmlSanitizer::sanitize($post['posting_content']);
             
-            // 썸네일이 있으면 h1, h2, h3 위치 기반으로 삽입
-            if (!empty($post['posting_thumbnail'])) {
-                $thumbnail_html = '<div class="post-thumbnail-container"><img class="post-thumbnail" src="data:image/webp;base64,' . $post['posting_thumbnail'] . '" alt="썸네일"></div>';
+            // 본문에 img가 없고 썸네일이 있으면 본문 사이에 삽입
+            if (!empty($post['posting_thumbnail']) && stripos($content, '<img') === false) {
+                $thumbnail_html = '<div class="post-thumbnail-container"><img class="post-thumbnail" src="data:image/webp;base64,' . htmlspecialchars($post['posting_thumbnail'], ENT_QUOTES, 'UTF-8') . '" alt="썸네일"></div>';
                 
                 // h1, h2, h3 열기 태그 찾기
                 $matches = [];
                 preg_match_all('/<h[1-3](?:\s[^>]*)?>(?!<\/h)/u', $content, $matches, PREG_OFFSET_CAPTURE);
                 
-                // 3개 이상이면 세 번째 헤딩 앞에 삽입, 1-2개면 맨 앞에 삽입
+                // 3개 이상이면 세 번째 헤딩 앞에 삽입, 그 외 맨 앞
                 if (count($matches[0]) >= 3) {
                     $thirdHeadingPos = $matches[0][2][1];
                     $content = substr_replace($content, $thumbnail_html, $thirdHeadingPos, 0);
@@ -51,6 +51,7 @@
             <?php else: ?>
                 <?php if ($canWriteToCategory && $userLevel <= 1): ?>
                     <button onclick="enablePost(<?= $post['posting_index'] ?>)" class="btn btn-enable">복구</button>
+                    <button onclick="hardDeletePost(<?= $post['posting_index'] ?>)" class="btn btn-danger">영구 삭제</button>
                 <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
@@ -62,6 +63,10 @@
 </form>
 
 <form id="enable-form" method="POST" style="display: none;">
+    <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
+</form>
+
+<form id="hard-delete-form" method="POST" style="display: none;">
     <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
 </form>
 
@@ -78,6 +83,14 @@ function enablePost(postId) {
     if (confirm('정말로 이 게시글을 복구하시겠습니까?')) {
         const form = document.getElementById('enable-form');
         form.action = '/post/enable/' + postId;
+        form.submit();
+    }
+}
+
+function hardDeletePost(postId) {
+    if (confirm('⚠️ 영구 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?')) {
+        const form = document.getElementById('hard-delete-form');
+        form.action = '/post/hard-delete/' + postId;
         form.submit();
     }
 }

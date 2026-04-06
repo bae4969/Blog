@@ -117,7 +117,7 @@ class Auth
         if (!$this->isLoggedIn()) {
             $uri = $_SERVER['REQUEST_URI'] ?? '/';
             $ip = $this->getClientIp();
-            Logger::log('access', 'W', "비인증 접근: {$uri} ({$ip})");
+            $this->logAccessOnce('unauth_access', "비인증 접근: {$uri} ({$ip})", $uri);
             header('Location: /login.php');
             exit;
         }
@@ -129,7 +129,7 @@ class Auth
 
         if (!$this->canWrite()) {
             $ip = $this->getClientIp();
-            Logger::log('access', 'W', "권한 없는 글쓰기 시도: {$this->getCurrentUserId()} ({$ip})");
+            $this->logAccessOnce('write_denied', "권한 없는 글쓰기 시도: {$this->getCurrentUserId()} ({$ip})", '/blog/write');
             $this->session->setFlash('error', '글쓰기 횟수가 초과되었습니다.');
             header('Location: /blog');
             exit;
@@ -152,11 +152,25 @@ class Auth
         if (!$this->canManageStocks()) {
             $uri = $_SERVER['REQUEST_URI'] ?? '/';
             $ip = $this->getClientIp();
-            Logger::log('access', 'W', "관리자 페이지 무단 접근: {$uri} {$this->getCurrentUserId()} ({$ip})");
+            $this->logAccessOnce('stock_admin_denied', "관리자 페이지 무단 접근: {$uri} {$this->getCurrentUserId()} ({$ip})", $uri);
             $this->session->setFlash('error', '주식 관리자 페이지는 관리자만 접근할 수 있습니다.');
             header('Location: /stocks');
             exit;
         }
+    }
+
+    private function logAccessOnce(string $event, string $message, string $uri = ''): void
+    {
+        $userId = (string)($this->getCurrentUserId() ?? 'guest');
+        $normalizedUri = strtok($uri ?: ($_SERVER['REQUEST_URI'] ?? '/'), '?') ?: '/';
+        $sessionKey = 'access_log_once_' . sha1($event . '|' . $normalizedUri . '|' . $userId);
+
+        if ($this->session->has($sessionKey)) {
+            return;
+        }
+
+        Logger::warn('access', $message);
+        $this->session->set($sessionKey, true);
     }
 
     private function getClientIp(): string
