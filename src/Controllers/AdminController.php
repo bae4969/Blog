@@ -530,6 +530,7 @@ class AdminController extends BaseController
 
         $this->renderLayout('admin', 'admin/cache', $this->adminData('cache', [
             'fileDetails' => $fileDetails,
+            'stockDayCacheDetails' => $cache->getStockDayCacheDetails(),
             'cacheConfig' => $config['cache'],
             'cacheTtl' => $config['cache_ttl'],
             'invalidation' => $config['cache_invalidation'],
@@ -624,6 +625,38 @@ class AdminController extends BaseController
 
         $this->auditAdminAction('cache.warmup', ['user_level' => $userLevel]);
         $this->session->setFlash('success', '캐시 워밍업이 완료되었습니다.');
+        $this->redirect('/admin/cache');
+    }
+
+    public function cleanupStockDayCache(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('cache.stock_day_cleanup', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/cache');
+            return;
+        }
+
+        $cache = Cache::getInstance();
+        $count = $cache->cleanupStockDayCache();
+        $this->auditAdminAction('cache.stock_day_cleanup', ['deleted_count' => $count]);
+        $this->session->setFlash('success', "주식 캔들 캐시 {$count}개 파일이 정리되었습니다.");
+        $this->redirect('/admin/cache');
+    }
+
+    public function clearStockDayCache(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('cache.stock_day_clear', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/cache');
+            return;
+        }
+
+        $cache = Cache::getInstance();
+        $count = $cache->clearStockDayCache();
+        $this->auditAdminAction('cache.stock_day_clear', ['deleted_count' => $count]);
+        $this->session->setFlash('success', "주식 캔들 캐시 전체 {$count}개 파일이 삭제되었습니다.");
         $this->redirect('/admin/cache');
     }
 

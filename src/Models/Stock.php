@@ -1040,81 +1040,166 @@ class Stock
     }
 
     /**
-     * 캔들 DB 조회 (단순 SELECT, 캐시 없음)
+     * 일별 캔들 데이터를 gzip 파일 캐시에서 가져오기 (인메모리 우회)
+     * 과거 날짜: 캐시 파일이 존재하면 영구 유효 (불변 데이터)
+     * 오늘: mtime 기반 TTL 체크 후 만료 시 DB 재조회
+     *
+     * @param array $candleSource ['schema' => ..., 'table' => ...]
+     * @param string $date YYYY-MM-DD 형식
+     * @return array 해당 일자의 원시 분봉 행 배열
      */
+    private function getDayCandlesFromCache(array $candleSource, string $date): array
+    {
+        if (!$this->cache->isStockDayCacheEnabled()) {
+            return $this->fetchDayCandlesFromDb($candleSource, $date);
+        }
+
+        $baseDir = $this->cache->getStockDayCacheDir();
+        $tableName = $candleSource['table'];
+        $filePath = $baseDir . '/' . $tableName . '/' . $date . '.gz';
+
+        $isToday = ($date === date('Y-m-d'));
+
+        if ($this->cache->stockCacheIsFresh($filePath, $isToday)) {
+            $cached = $this->cache->stockCacheGet($filePath);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        $rows = $this->fetchDayCandlesFromDb($candleSource, $date);
+
+        // 빈 데이터는 캐시하지 않음 (아직 데이터가 없는 날일 수 있음)
+        if (!empty($rows)) {
+            $this->cache->stockCacheSet($filePath, $rows);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * DB에서 특정 일자의 원시 분봉 데이터 조회
+     */
+    private function fetchDayCandlesFromDb(array $candleSource, string $date): array
+    {
+        $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
+        $startOfDay = $date . ' 00:00:00';
+        $endOfDay = $date . ' 23:59:59';
+
+        try {
+            $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
+                           execution_non_volume, execution_ask_volume, execution_bid_volume,
+                           execution_non_amount, execution_ask_amount, execution_bid_amount
+                    FROM {$tableRef}
+                    WHERE execution_datetime BETWEEN :start_date AND :end_date
+                    ORDER BY execution_datetime ASC";
+
+            return $this->db->fetchAll($sql, [
+                ':start_date' => $startOfDay,
+                ':end_date' => $endOfDay,
+            ]);
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * 날짜 범위를 일 단위 배열로 분할
+     * @return string[] YYYY-MM-DD 형식의 날짜 배열 (오름차순)
+     */
+    private function getDateRange(string $startDate, string $endDate): array
+    {
+        $start = new \DateTime(substr($startDate, 0, 10));
+        $end = new \DateTime(substr($endDate, 0, 10));
+        $dates = [];
+
+        while ($start <= $end) {
+            $dates[] = $start->format('Y-m-d');
+            $start->modify('+1 day');
+        }
+
+        return $dates;
+    }
     /**
      * 범위를 확장하며 캔들 데이터 조회 (limit에 미달하면 자동으로 이전 시간대 포함)
-     * 단일 테이블(candle.s{Symbol})에서 날짜 범위만 조정하여 조회
+     * 일 단위 gzip 캐시를 활용하여 과거 데이터는 DB 쿼리 없이 반환
      */
     private function fetchCandlesWithExpansion(array $candleSource, string $startDate, string $endDate, int $limit, string $timeframe, bool $isCoin = false, string $market = '', array $splitEvents = []): array
     {
         $currentStart = $startDate;
-        $allRows = [];
         $maxAttempts = 5;
         $attemptCount = 0;
-        $previousStart = $endDate;
         $isKR = in_array($market, ['KR', ''], true) && !$isCoin;
+        $previousCandleCount = 0;
 
-        $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
-        
         try {
             while ($attemptCount <= $maxAttempts) {
-                $fetchStart = $currentStart;
-                $fetchEnd = ($attemptCount === 0) ? $endDate : $previousStart;
-                $newDataAdded = false;
-
-                try {
-                    $sql = "SELECT execution_datetime, execution_open, execution_close, execution_min, execution_max,
-                                   execution_non_volume, execution_ask_volume, execution_bid_volume,
-                                   execution_non_amount, execution_ask_amount, execution_bid_amount
-                            FROM {$tableRef}
-                            WHERE execution_datetime BETWEEN :start_date AND :end_date
-                            ORDER BY execution_datetime ASC";
-
-                    $rows = $this->db->fetchAll($sql, [
-                        ':start_date' => $fetchStart,
-                        ':end_date' => $fetchEnd
-                    ]);
-
-                    if (!empty($rows)) {
-                        $allRows = array_merge($allRows, $rows);
-                        $newDataAdded = true;
+                // 날짜 범위를 일 단위로 분할하여 캐시/DB 조회
+                $dates = $this->getDateRange($currentStart, $endDate);
+                $allRows = [];
+                foreach ($dates as $date) {
+                    $dayRows = $this->getDayCandlesFromCache($candleSource, $date);
+                    if (!empty($dayRows)) {
+                        foreach ($dayRows as $row) {
+                            $allRows[] = $row;
+                        }
                     }
-                } catch (\Exception $e) {
-                    return [];
                 }
 
-                $previousStart = $fetchStart;
-
-                // 정렬 (새 데이터 추가 시에만)
-                if ($newDataAdded && count($allRows) > 1) {
-                    usort($allRows, function ($left, $right) {
-                        return strcmp($left['execution_datetime'], $right['execution_datetime']);
-                    });
+                // 시간 범위 내 데이터만 필터 (날짜 단위보다 세밀한 시분초 범위)
+                if (!empty($allRows)) {
+                    $allRows = array_values(array_filter($allRows, function ($row) use ($currentStart, $endDate) {
+                        return $row['execution_datetime'] >= $currentStart && $row['execution_datetime'] <= $endDate;
+                    }));
                 }
 
-                // 필터링 + 보정 + 집계 (코인/US는 정규장 필터 제외, KR만 적용)
+                // 필터링 + 보정 + 집계
                 $candles = $allRows;
+                unset($allRows); // 메모리 즉시 해제
+
                 if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                     $candles = array_values($this->filterRegularTradingHours($candles));
                 }
                 $candles = $this->applySplitAdjustment($candles, $splitEvents);
                 $candles = $this->aggregateCandlesByTimeframe($candles, $timeframe);
 
-                if (count($candles) >= $limit) {
+                $currentCandleCount = count($candles);
+
+                if ($currentCandleCount >= $limit) {
                     return array_slice($candles, -$limit);
                 }
 
-                if (!$newDataAdded && $attemptCount > 0) {
+                // 확장해도 새 데이터가 없으면 중단
+                if ($attemptCount > 0 && $currentCandleCount <= $previousCandleCount) {
                     return $candles;
                 }
 
+                $previousCandleCount = $currentCandleCount;
                 $attemptCount++;
                 $currentStart = $this->expandStartDateByTimeframe($currentStart, $timeframe, $isKR);
             }
 
-            // 마지막 결과 반환
+            // 마지막 루프 결과 반환 (위 while에서 return 안 된 경우)
+            $dates = $this->getDateRange($currentStart, $endDate);
+            $allRows = [];
+            foreach ($dates as $date) {
+                $dayRows = $this->getDayCandlesFromCache($candleSource, $date);
+                if (!empty($dayRows)) {
+                    foreach ($dayRows as $row) {
+                        $allRows[] = $row;
+                    }
+                }
+            }
+
+            if (!empty($allRows)) {
+                $allRows = array_values(array_filter($allRows, function ($row) use ($currentStart, $endDate) {
+                    return $row['execution_datetime'] >= $currentStart && $row['execution_datetime'] <= $endDate;
+                }));
+            }
+
             $candles = $allRows;
+            unset($allRows);
+
             if ($isKR && $this->isSubDailyTimeframe($timeframe)) {
                 $candles = array_values($this->filterRegularTradingHours($candles));
             }
