@@ -145,7 +145,9 @@
     });
 
     function searchStocks(q) {
-        fetch('/stocks/api/search?q=' + encodeURIComponent(q) + '&limit=10')
+        fetch('/stocks/api/search?q=' + encodeURIComponent(q) + '&limit=10', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success || !data.data.length) {

@@ -141,6 +141,10 @@ class AuthController extends BaseController
 
     public function verify(): void
     {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
         if ($this->auth->isLoggedIn()) {
             $user = $this->auth->getCurrentUser();
             $canWrite = $this->auth->canWrite();

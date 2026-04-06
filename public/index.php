@@ -77,6 +77,8 @@ $router->post('/admin/cache/clear', [AdminController::class, 'clearAllCache']);
 $router->post('/admin/cache/clear-expired', [AdminController::class, 'clearExpiredCache']);
 $router->post('/admin/cache/clear-pattern', [AdminController::class, 'clearPatternCache']);
 $router->post('/admin/cache/warmup', [AdminController::class, 'warmupCache']);
+$router->post('/admin/cache/stock-day-cleanup', [AdminController::class, 'cleanupStockDayCache']);
+$router->post('/admin/cache/stock-day-clear', [AdminController::class, 'clearStockDayCache']);
 $router->get('/admin/stocks', [AdminController::class, 'stockSubscriptions']);
 $router->post('/admin/stocks/subscriptions', [AdminController::class, 'updateStockSubscriptions']);
 $router->get('/admin/stock-splits', [AdminController::class, 'splitEvents']);
@@ -105,10 +107,20 @@ $router->get('/stocks/api/search', [StockController::class, 'apiSearch']);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// 클라이언트 IP 추출
-$clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '-';
-if (strpos($clientIp, ',') !== false) {
-    $clientIp = trim(explode(',', $clientIp)[0]);
+// 클라이언트 IP 추출 (신뢰 프록시에서만 X-Forwarded-For 사용)
+$remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '-';
+$trustedProxies = (require __DIR__ . '/../config/config.php')['trusted_proxies'] ?? ['127.0.0.1', '::1'];
+if (in_array($remoteAddr, $trustedProxies, true)) {
+    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $remoteAddr;
+    if (strpos($clientIp, ',') !== false) {
+        $clientIp = trim(explode(',', $clientIp)[0]);
+    }
+    // IP 형식 검증
+    if (filter_var($clientIp, FILTER_VALIDATE_IP) === false) {
+        $clientIp = $remoteAddr;
+    }
+} else {
+    $clientIp = $remoteAddr;
 }
 
 // IP 차단 체크 (라우팅 전 즉시 차단)
@@ -174,7 +186,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 if (empty($_SESSION['access_logged'])) {
     if (!in_array($clientIp, ['127.0.0.1', '::1', '-'], true)) {
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '-';
+        $ua = substr(preg_replace('/[\x00-\x1f\x7f]/', '', $_SERVER['HTTP_USER_AGENT'] ?? '-'), 0, 500);
         Logger::log('access', 'N', "{$clientIp} | {$ua}");
     }
     $_SESSION['access_logged'] = true;
