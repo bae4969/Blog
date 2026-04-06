@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /login.php
+Disallow: /logout.php
+Disallow: /writer.php
+Disallow: /admin/
+Disallow: /post/
+Disallow: /stocks/api/
+Disallow: /get/
+Disallow: /uploads/
+Disallow: /entrance.php

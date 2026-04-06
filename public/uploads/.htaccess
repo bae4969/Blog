@@ -1,0 +1,7 @@
+# 디렉토리 리스팅 방지
+Options -Indexes
+
+# 이미지 파일만 허용
+<FilesMatch "\.(?!(jpg|jpeg|png|gif|webp)$)[^.]+$">
+    Require all denied
+</FilesMatch>
