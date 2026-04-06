@@ -125,7 +125,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 (function() {
     var searchTimer = null;
     var searchInput = document.getElementById('splitStockSearch');

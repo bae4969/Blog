@@ -28,6 +28,11 @@ class Auth
             $this->session->set('user_id', $user['user_id']);
             $this->session->set('user_level', $user['user_level']);
             $this->session->set('user_state', $user['user_state']);
+
+            // 세션 바인딩: IP + User-Agent 핑거프린트 저장
+            $this->session->set('session_ip', $this->getClientIp());
+            $this->session->set('session_ua_hash', hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? ''));
+
             return true;
         }
 
@@ -45,6 +50,26 @@ class Auth
         if ($this->session->isExpired()) {
             $this->logout();
             return false;
+        }
+
+        // 세션 바인딩 검증: User-Agent 불일치 시 세션 무효화
+        if ($this->session->has('session_ua_hash')) {
+            $currentUaHash = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
+            if (!hash_equals($this->session->get('session_ua_hash'), $currentUaHash)) {
+                Logger::warn('BlogAuth', 'session_ua_mismatch ip=' . $this->getClientIp() . ' user=' . ($this->session->get('user_id') ?? 'unknown'));
+                $this->logout();
+                return false;
+            }
+        }
+
+        // 세션 바인딩 검증: IP 변경 시 세션 무효화
+        if ($this->session->has('session_ip')) {
+            $currentIp = $this->getClientIp();
+            if ($this->session->get('session_ip') !== $currentIp) {
+                Logger::warn('BlogAuth', "session_ip_mismatch stored={$this->session->get('session_ip')} current={$currentIp} user=" . ($this->session->get('user_id') ?? 'unknown'));
+                $this->logout();
+                return false;
+            }
         }
         
         // 세션 활동 시간 업데이트

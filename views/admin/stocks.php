@@ -158,7 +158,7 @@ $currentRegisteredCount = (int)($registeredCountsByMarket[$currentMarket] ?? 0);
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 const stockAdminStorageKey = 'stock-admin-selection-draft';
 const stockAdminServerSelections = <?= json_encode(array_values($draftSelections), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 const stockAdminSelectionMarketMap = <?= json_encode($selectionMarketMap ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;

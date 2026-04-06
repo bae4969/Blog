@@ -23,6 +23,18 @@ if (getenv('APP_ENV') === 'development') {
 // 타임존 설정
 date_default_timezone_set('Asia/Seoul');
 
+// HTTPS 강제 리다이렉트 (개발 환경 제외)
+if (getenv('APP_ENV') !== 'development') {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    if (!$isHttps) {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $uri = $_SERVER['REQUEST_URI'] ?? '/';
+        header('Location: https://' . $host . $uri, true, 301);
+        exit;
+    }
+}
+
 // 403 차단 응답 헬퍼
 function renderBlockedPage(string $message = '접근이 차단되었습니다.'): never
 {
@@ -150,6 +162,23 @@ if (!empty($ipBlockSettings['enabled']) && !in_array($clientIp, ['127.0.0.1', ':
                         $duration > 0 ? $duration : null
                     );
                     Logger::warn('IpBlock', "auto-blocked ip={$clientIp} reason=suspicious_url path={$requestPath}");
+                    renderBlockedPage('비정상적인 접근이 감지되어 차단되었습니다.');
+                }
+            }
+
+            // 봇 User-Agent 패턴 체크 (위험도: 높음)
+            $botPatterns = $ipBlockSettings['bot_user_agents'] ?? [];
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            foreach ($botPatterns as $pattern) {
+                if ($userAgent !== '' && preg_match($pattern, $userAgent)) {
+                    $duration = $blockDurations['high'] ?? 604800;
+                    $blockedIpModel->blockIp(
+                        $clientIp,
+                        "봇 User-Agent 감지: " . substr($userAgent, 0, 100),
+                        'auto',
+                        $duration > 0 ? $duration : null
+                    );
+                    Logger::warn('IpBlock', "auto-blocked ip={$clientIp} reason=bot_ua ua=" . substr($userAgent, 0, 100));
                     renderBlockedPage('비정상적인 접근이 감지되어 차단되었습니다.');
                 }
             }

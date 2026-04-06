@@ -8,3 +8,4 @@ Disallow: /stocks/api/
 Disallow: /get/
 Disallow: /uploads/
 Disallow: /entrance.php
+Crawl-delay: 10

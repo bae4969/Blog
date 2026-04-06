@@ -70,7 +70,7 @@
     <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
 </form>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 function disablePost(postId) {
     if (confirm('정말로 이 게시글을 삭제하시겠습니까?')) {
         const form = document.getElementById('disable-form');

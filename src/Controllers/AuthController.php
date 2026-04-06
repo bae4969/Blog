@@ -57,6 +57,17 @@ class AuthController extends BaseController
             $this->redirect('/login.php');
         }
 
+        // Honeypot 필드 체크 (봇이 자동으로 채우는 숨김 필드)
+        $honeypot = $this->getParam('website_url', '');
+        if ($honeypot !== '') {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+            Logger::warn('BlogAuth', "honeypot triggered ip={$ip}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
+            // 봇에게는 성공한 것처럼 보이게 지연 후 리다이렉트
+            usleep(random_int(500, 1500) * 1000);
+            $this->redirect('/blog');
+            return;
+        }
+
         $userId = $this->sanitizeInput($this->getParam('user_id', ''));
         $password = $this->getParam('user_pw', '');
 

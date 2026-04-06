@@ -46,7 +46,7 @@
     </div>
 
     <?php include __DIR__ . '/../home/partials-footer-scripts.php'; ?>
-    <script>
+    <script nonce="<?= $view->getNonce() ?>">
     function toggleSidebar() {
         const sidebarContent = document.querySelector('.sidebar-content');
         const toggleButton = document.querySelector('.sidebar-toggle');
