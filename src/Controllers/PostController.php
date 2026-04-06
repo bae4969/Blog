@@ -452,9 +452,14 @@ class PostController extends BaseController
 
         try {
             $this->postModel->enable($postId);
+            $this->auditPostAction('post.enable', [
+                'post_id' => $postId,
+                'title' => mb_substr($post['posting_title'] ?? '', 0, 50, 'UTF-8'),
+            ]);
             Logger::info('BlogPost', "enable success id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('success', '게시글이 복구되었습니다.');
         } catch (\Exception $e) {
+            $this->auditPostAction('post.enable', ['post_id' => $postId, 'reason' => 'exception', 'error' => $e->getMessage()], 'error');
             Logger::error('BlogPost', "enable fail id={$postId} user={$currentUserIndex} error=" . $e->getMessage(), ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 복구 중 오류가 발생했습니다.');
         }
@@ -502,9 +507,14 @@ class PostController extends BaseController
 
         try {
             $this->postModel->disable($postId);
+            $this->auditPostAction('post.disable', [
+                'post_id' => $postId,
+                'title' => mb_substr($post['posting_title'] ?? '', 0, 50, 'UTF-8'),
+            ]);
             Logger::info('BlogPost', "disable success id={$postId} user={$currentUserIndex}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('success', '게시글이 삭제되었습니다.');
         } catch (\Exception $e) {
+            $this->auditPostAction('post.disable', ['post_id' => $postId, 'reason' => 'exception', 'error' => $e->getMessage()], 'error');
             Logger::error('BlogPost', "disable fail id={$postId} user={$currentUserIndex} error=" . $e->getMessage(), ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '게시글 삭제 중 오류가 발생했습니다.');
         }

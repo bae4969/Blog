@@ -5,10 +5,40 @@ namespace Blog\Core;
 class View
 {
     private $config;
+    private static ?string $cspNonce = null;
 
     public function __construct()
     {
         $this->config = require __DIR__ . '/../../config/config.php';
+    }
+
+    /**
+     * CSP nonce 반환 (요청당 1회 생성, 동일 요청 내 모든 View 인스턴스에서 공유)
+     */
+    public function getNonce(): string
+    {
+        if (self::$cspNonce === null) {
+            self::$cspNonce = base64_encode(random_bytes(16));
+        }
+        return self::$cspNonce;
+    }
+
+    /**
+     * CSP 헤더 전송 (출력 전 1회만 호출)
+     */
+    public function emitCspHeader(): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+        $nonce = $this->getNonce();
+        $csp = "default-src 'self'; "
+             . "script-src 'self' 'nonce-{$nonce}'; "
+             . "script-src-attr 'unsafe-inline'; "
+             . "style-src 'self' 'unsafe-inline'; "
+             . "img-src 'self' data: https:; "
+             . "font-src 'self' data:;";
+        header("Content-Security-Policy: {$csp}");
     }
 
     public function render(string $viewName, array $data = []): void

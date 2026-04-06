@@ -96,7 +96,7 @@
     <div id="temp"></div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 function loginoutClick() {
     <?php if ($auth->isLoggedIn()): ?>
         if (confirm('로그아웃하시겠습니까?')) {

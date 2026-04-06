@@ -105,11 +105,12 @@ class Post
             return $cached;
         }
 
+        $stateCondition = ($userLevel > 1) ? " AND P.posting_state = 0" : "";
         $sql = "SELECT P.*, C.category_name, U.user_id as user_name 
                 FROM posting_list P 
                 LEFT JOIN category_list C ON P.category_index = C.category_index 
                 LEFT JOIN user_list U ON P.user_index = U.user_index 
-                WHERE C.category_read_level >= ? AND P.posting_index = ?" ;
+                WHERE C.category_read_level >= ? AND P.posting_index = ?{$stateCondition}" ;
         
         $post = $this->db->fetch($sql, [$userLevel, $postId]);
         

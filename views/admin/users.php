@@ -166,8 +166,8 @@ foreach ($users as $u) {
     </div>
 </div>
 
-<script src="/js/sha256.js"></script>
-<script>
+<script nonce="<?= $view->getNonce() ?>" src="/js/sha256.js"></script>
+<script nonce="<?= $view->getNonce() ?>">
 document.getElementById('createUserForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const pwField = document.getElementById('createPasswordField');

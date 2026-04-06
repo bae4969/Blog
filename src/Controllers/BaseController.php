@@ -104,7 +104,7 @@ abstract class BaseController
     }
 
     /**
-     * 내부 AJAX 요청인지 검증 (X-Requested-With 헤더 체크)
+     * 내부 AJAX 요청인지 검증 (X-Requested-With 헤더 + Origin/Referer 체크)
      * 외부에서 URL 직접 접근/크롤링 방지용
      */
     protected function requireInternalRequest(): bool
@@ -114,6 +114,27 @@ abstract class BaseController
             $this->jsonResponse(['error' => 'Forbidden'], 403);
             return false;
         }
+
+        // Origin 또는 Referer 헤더로 자사 도메인 요청인지 검증
+        $config = require __DIR__ . '/../../config/config.php';
+        $appUrl = $config['app_url'] ?? '';
+        $appHost = parse_url($appUrl, PHP_URL_HOST) ?: '';
+
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        $referer = $_SERVER['HTTP_REFERER'] ?? '';
+
+        $originHost = $origin ? (parse_url($origin, PHP_URL_HOST) ?: '') : '';
+        $refererHost = $referer ? (parse_url($referer, PHP_URL_HOST) ?: '') : '';
+
+        // Origin 또는 Referer 중 하나라도 자사 도메인이면 허용
+        if ($appHost !== '') {
+            $isValidOrigin = ($originHost === $appHost || $refererHost === $appHost);
+            if (!$isValidOrigin) {
+                $this->jsonResponse(['error' => 'Forbidden'], 403);
+                return false;
+            }
+        }
+
         return true;
     }
 }
