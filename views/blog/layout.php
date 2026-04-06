@@ -68,7 +68,7 @@
     </div>
 
     <?php include __DIR__ . '/../home/partials-footer-scripts.php'; ?>
-    <script>
+    <script nonce="<?= $view->getNonce() ?>">
     function writePostingClick() {
         <?php if (isset($userPostingInfo) && $userPostingInfo && $userPostingInfo['is_limited']): ?>
             alert('게시글 작성 제한에 도달했습니다. (<?= $userPostingInfo['current_count'] ?>/<?= $userPostingInfo['limit'] ?>)');

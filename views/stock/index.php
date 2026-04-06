@@ -214,7 +214,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 (function() {
     const params = new URLSearchParams(window.location.search);
     if (params.has('market')) {

@@ -1,11 +1,11 @@
 <?php $blogJsVersion = @filemtime(__DIR__ . '/../../public/js/blog.js') ?: time(); ?>
-<script src="/js/blog.js?v=<?= $blogJsVersion ?>"></script>
+<script nonce="<?= $view->getNonce() ?>" src="/js/blog.js?v=<?= $blogJsVersion ?>"></script>
 <?php if ($auth->isLoggedIn()): ?>
 <form id="logout-form" method="POST" action="/logout.php" style="display:none;">
     <input type="hidden" name="csrf_token" value="<?= $view->csrfToken() ?>">
 </form>
 <?php endif; ?>
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 (function() {
     const topNav = document.getElementById('topNav');
     const topNavSelected = document.getElementById('topNavSelected');
@@ -28,6 +28,6 @@
             $jsPublicPath = __DIR__ . '/../../public' . $js;
             $jsVersion = @filemtime($jsPublicPath) ?: $blogJsVersion;
         ?>
-        <script src="<?= $js ?>?v=<?= $jsVersion ?>"></script>
+        <script nonce="<?= $view->getNonce() ?>" src="<?= $js ?>?v=<?= $jsVersion ?>"></script>
     <?php endforeach; ?>
 <?php endif; ?>

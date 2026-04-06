@@ -51,9 +51,9 @@
 
 <!-- Quill.js 로컬 파일 -->
 <link href="/vendor/quill/quill.snow.css" rel="stylesheet">
-<script src="/vendor/quill/quill.min.js"></script>
+<script nonce="<?= $view->getNonce() ?>" src="/vendor/quill/quill.min.js"></script>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 // Quill 에디터 초기화
 let quill;
 let hasUnsavedChanges = false;

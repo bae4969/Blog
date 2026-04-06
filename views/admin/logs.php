@@ -248,7 +248,7 @@ $typeCss = ['I' => 'log-type-normal', 'W' => 'log-type-warn', 'E' => 'log-type-e
         <?php endif; ?>
     </div>
 </div>
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 function toggleLogDetail(id) {
     var el = document.getElementById(id);
     if (!el) return;

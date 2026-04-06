@@ -167,7 +167,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 function toggleDurationInput() {
     var type = document.getElementById('ipblock-duration-type').value;
     var field = document.getElementById('ipblock-duration-hours-field');

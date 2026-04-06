@@ -283,7 +283,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="<?= $view->getNonce() ?>">
 // 차트 데이터를 JavaScript 변수로 전달
 const stockCode = '<?= $view->escape($stock['stock_code']) ?>';
 const isUSMarket = <?= $isUSMarket ? 'true' : 'false' ?>;
