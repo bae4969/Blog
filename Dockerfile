@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     --no-install-recommends \
-    && if [ "$APP_ENV" = "dev" ]; then apt-get install -y --no-install-recommends $PHPIZE_DEPS; fi \
+    && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. PHP 확장 모듈 설치 (DB 및 이미지 처리)
@@ -30,12 +30,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     gd \
     opcache
 
-# 2-1. 개발 환경에서만 Xdebug 설치
-RUN if [ "$APP_ENV" = "dev" ]; then \
-            pecl install xdebug \
-            && docker-php-ext-enable xdebug \
-            && apt-get purge -y --auto-remove $PHPIZE_DEPS; \
-        fi
+# 2-1. Xdebug 설치
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
 
 # 3. Apache 설정: DocumentRoot를 /public으로 변경
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
@@ -64,6 +61,9 @@ RUN if [ "$APP_ENV" = "prod" ]; then \
 # 8. 애플리케이션 소스 복사
 COPY . .
 
-# 9. Apache/PHP 상태 확인
+# 9. PHP POST 크기 설정 (base64 이미지 포함 콘텐츠 전송)
+RUN echo "upload_max_filesize = 10M\npost_max_size = 20M" > /usr/local/etc/php/conf.d/uploads.ini
+
+# 10. Apache/PHP 상태 확인
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
         CMD curl -fsS http://localhost/ || exit 1

@@ -59,6 +59,7 @@ $router->get('/post/edit/:id', [PostController::class, 'editForm', '/post/edit/:
 $router->post('/post/update/:id', [PostController::class, 'update', '/post/update/:id']);
 $router->post('/post/enable/:id', [PostController::class, 'enable', '/post/enable/:id']);
 $router->post('/post/disable/:id', [PostController::class, 'disable', '/post/disable/:id']);
+$router->post('/post/hard-delete/:id', [PostController::class, 'hardDelete', '/post/hard-delete/:id']);
 
 // 관리자 컨트롤러 라우트
 $router->get('/admin', [AdminController::class, 'index']);
