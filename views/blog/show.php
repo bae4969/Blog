@@ -16,6 +16,24 @@
         <div class="post-content">
             <?php
             $content = \Blog\Core\HtmlSanitizer::sanitize($post['posting_content']);
+            
+            // 본문에 img가 없고 썸네일이 있으면 본문 사이에 삽입
+            if (!empty($post['posting_thumbnail']) && stripos($content, '<img') === false) {
+                $thumbnail_html = '<div class="post-thumbnail-container"><img class="post-thumbnail" src="data:image/webp;base64,' . htmlspecialchars($post['posting_thumbnail'], ENT_QUOTES, 'UTF-8') . '" alt="썸네일"></div>';
+                
+                // h1, h2, h3 열기 태그 찾기
+                $matches = [];
+                preg_match_all('/<h[1-3](?:\s[^>]*)?>(?!<\/h)/u', $content, $matches, PREG_OFFSET_CAPTURE);
+                
+                // 3개 이상이면 세 번째 헤딩 앞에 삽입, 그 외 맨 앞
+                if (count($matches[0]) >= 3) {
+                    $thirdHeadingPos = $matches[0][2][1];
+                    $content = substr_replace($content, $thumbnail_html, $thirdHeadingPos, 0);
+                } else {
+                    $content = $thumbnail_html . $content;
+                }
+            }
+            
             echo $content;
             ?>
         </div>
