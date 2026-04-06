@@ -77,6 +77,8 @@ $router->post('/admin/cache/clear', [AdminController::class, 'clearAllCache']);
 $router->post('/admin/cache/clear-expired', [AdminController::class, 'clearExpiredCache']);
 $router->post('/admin/cache/clear-pattern', [AdminController::class, 'clearPatternCache']);
 $router->post('/admin/cache/warmup', [AdminController::class, 'warmupCache']);
+$router->post('/admin/cache/stock-day-cleanup', [AdminController::class, 'cleanupStockDayCache']);
+$router->post('/admin/cache/stock-day-clear', [AdminController::class, 'clearStockDayCache']);
 $router->get('/admin/stocks', [AdminController::class, 'stockSubscriptions']);
 $router->post('/admin/stocks/subscriptions', [AdminController::class, 'updateStockSubscriptions']);
 $router->get('/admin/stock-splits', [AdminController::class, 'splitEvents']);

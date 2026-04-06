@@ -615,6 +615,57 @@
     text-align: center;
 }
 
+.cache-ttl-group {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: 8px;
+}
+
+.cache-ttl-group summary {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--hover-bg);
+    border-radius: var(--border-radius);
+    user-select: none;
+    list-style: none;
+}
+
+.cache-ttl-group summary::-webkit-details-marker {
+    display: none;
+}
+
+.cache-ttl-group summary::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 11px;
+    transition: transform 0.2s;
+}
+
+.cache-ttl-group[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.cache-ttl-group[open] summary {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.cache-ttl-group .admin-table-wrap {
+    margin: 0;
+}
+
+.cache-ttl-group .cache-table {
+    margin: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.cache-ttl-group .cache-table th {
+    background: var(--hover-bg);
+}
+
 /* ===========================================
    WOL 장치 목록
    =========================================== */
