@@ -123,6 +123,10 @@ class StockController extends BaseController
      */
     public function apiCandleData(): void
     {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
         $stockCode = isset($_GET['code']) ? $this->sanitizeInput($_GET['code']) : '';
         $startDate = isset($_GET['start']) ? $this->sanitizeInput($_GET['start']) : date('Y-m-d H:i:00', strtotime('-30 days'));
         $endDate = isset($_GET['end']) ? $this->sanitizeInput($_GET['end']) : date('Y-m-d H:i:00');
@@ -154,6 +158,10 @@ class StockController extends BaseController
      */
     public function apiRecentExecutions(): void
     {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
         $stockCode = isset($_GET['code']) ? $this->sanitizeInput($_GET['code']) : '';
         $limit = isset($_GET['limit']) ? min(200, max(1, intval($_GET['limit']))) : 100;
         $market = isset($_GET['market']) ? strtoupper(trim($this->sanitizeInput($_GET['market']))) : '';
@@ -178,6 +186,10 @@ class StockController extends BaseController
      */
     public function apiSearch(): void
     {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
         $search = isset($_GET['q']) ? $this->sanitizeInput($_GET['q']) : '';
         $market = isset($_GET['market']) ? $this->sanitizeInput($_GET['market']) : '';
         $limit = isset($_GET['limit']) ? min(100, max(1, intval($_GET['limit']))) : 20;

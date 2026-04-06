@@ -431,7 +431,9 @@ function getMarketParam() {
 }
 
 function loadInitialExecutions() {
-    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam())
+    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -1402,7 +1404,9 @@ function loadChartData(period) {
 
     showChartLoading(true);
     
-    fetch('/stocks/api/candle?code=' + encodeURIComponent(stockCode) + '&start=' + startDateStr + '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam())
+    fetch('/stocks/api/candle?code=' + encodeURIComponent(stockCode) + '&start=' + startDateStr + '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(function(response) { return response.json(); })
         .then(function(data) {
             showChartLoading(false);
@@ -1469,7 +1473,9 @@ function loadMoreHistoricalData() {
 
     fetch('/stocks/api/candle?code=' + encodeURIComponent(stockCode) +
           '&start=' + startDateStr + '&end=' + endDateStr +
-          '&timeframe=' + currentTimeframe + '&limit=' + fetchCount + getMarketParam())
+          '&timeframe=' + currentTimeframe + '&limit=' + fetchCount + getMarketParam(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(function(response) { return response.json(); })
         .then(function(data) {
             isLoadingMoreData = false;
@@ -1633,7 +1639,9 @@ function toggleLogScale(enabled) {
    체결 정보
    ======================================== */
 function refreshExecutions() {
-    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam())
+    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.success) {
