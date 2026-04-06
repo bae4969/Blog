@@ -20,7 +20,8 @@ class Database
             $dsn = "mysql:host={$config['host']};dbname={$config['dbname']};charset={$config['charset']}";
             $this->connection = new PDO($dsn, $config['username'], $config['password'], $config['options']);
         } catch (PDOException $e) {
-            throw new \Exception("데이터베이스 연결 실패: " . $e->getMessage());
+            error_log('Database connection failed: ' . $e->getMessage());
+            throw new \Exception("데이터베이스 연결 실패");
         }
     }
 

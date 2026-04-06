@@ -19,6 +19,9 @@ return [
         'us_max_subscriptions' => 400,
     ],
 
+    // 신뢰할 수 있는 프록시 IP 목록 (이 IP에서만 X-Forwarded-For 헤더를 신뢰)
+    'trusted_proxies' => ['127.0.0.1', '::1', '192.168.135.0/24'],
+
     // IP 자동 차단 설정
     'ip_block' => [
         'enabled' => true,                    // IP 차단 기능 활성화

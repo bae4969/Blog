@@ -19,8 +19,8 @@ class View
             throw new \Exception("View file not found: {$viewPath}");
         }
 
-        // 데이터를 변수로 추출
-        extract($data);
+        // 데이터를 변수로 추출 (기존 변수 덮어쓰기 방지)
+        extract($data, EXTR_SKIP);
         
         // 공통 데이터 추가
         $config = $this->config;
@@ -44,8 +44,8 @@ class View
             throw new \Exception("Layout file not found: {$layoutPath}");
         }
 
-        // 데이터를 변수로 추출
-        extract($data);
+        // 데이터를 변수로 추출 (기존 변수 덮어쓰기 방지)
+        extract($data, EXTR_SKIP);
         
         // 공통 데이터 추가
         $config = $this->config;

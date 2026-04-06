@@ -256,6 +256,7 @@ class AdminController extends BaseController
                 }
                 $this->userModel->updateUserLevel($userIndex, $newLevel);
                 $this->auditAdminAction('user.update_level', ['target_user_index' => $userIndex, 'target_user_id' => $user['user_id'], 'new_level' => $newLevel]);
+                $this->session->regenerate();
                 $this->session->setFlash('success', "'{$user['user_id']}'의 권한이 변경되었습니다.");
                 break;
 
@@ -293,6 +294,7 @@ class AdminController extends BaseController
                 }
                 $this->userModel->resetUserPassword($userIndex, $newPassword);
                 $this->auditAdminAction('user.reset_password', ['target_user_index' => $userIndex, 'target_user_id' => $user['user_id']]);
+                $this->session->regenerate();
                 $this->session->setFlash('success', "'{$user['user_id']}'의 비밀번호가 초기화되었습니다.");
                 break;
 

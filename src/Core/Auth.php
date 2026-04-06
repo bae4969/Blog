@@ -175,10 +175,20 @@ class Auth
 
     private function getClientIp(): string
     {
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '-';
-        if (strpos($ip, ',') !== false) {
-            $ip = trim(explode(',', $ip)[0]);
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '-';
+        $config = require __DIR__ . '/../../config/config.php';
+        $trustedProxies = $config['trusted_proxies'] ?? ['127.0.0.1', '::1'];
+
+        if (in_array($remoteAddr, $trustedProxies, true)) {
+            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $remoteAddr;
+            if (strpos($ip, ',') !== false) {
+                $ip = trim(explode(',', $ip)[0]);
+            }
+            if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                return $ip;
+            }
         }
-        return $ip;
+
+        return $remoteAddr;
     }
 }
