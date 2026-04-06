@@ -71,6 +71,10 @@ class HomeController extends BaseController
 
     public function search(): void
     {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
         $categoryId = (int)$this->getParam('category_index', -1);
         $search = $this->getParam('search_string', '');
         $userLevel = $this->auth->getCurrentUserLevel();
