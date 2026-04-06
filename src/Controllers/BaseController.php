@@ -102,4 +102,18 @@ abstract class BaseController
         $token = $this->getParam('csrf_token');
         return $this->view->verifyCsrfToken($token);
     }
+
+    /**
+     * 내부 AJAX 요청인지 검증 (X-Requested-With 헤더 체크)
+     * 외부에서 URL 직접 접근/크롤링 방지용
+     */
+    protected function requireInternalRequest(): bool
+    {
+        $header = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+        if ($header !== 'XMLHttpRequest') {
+            $this->jsonResponse(['error' => 'Forbidden'], 403);
+            return false;
+        }
+        return true;
+    }
 }
