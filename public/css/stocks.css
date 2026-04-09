@@ -497,26 +497,76 @@
     padding: 0;
 }
 
+/* 뒤로가기 버튼 */
+.stock-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-bottom: 6px;
+    padding: 2px 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    transition: var(--transition);
+}
+
+.stock-back-btn:hover {
+    color: var(--primary-color);
+}
+
 /* 헤더 */
 .stock-detail-header {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 0;
     margin-bottom: 10px;
-    padding: 20px;
+    padding: 16px 20px;
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
 }
 
+.stock-header-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.stock-header-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.code-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: monospace;
+    background: var(--bg-quaternary);
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+}
+
 .stock-title-section {
     flex: 1;
+    min-width: 0;
 }
 
 .stock-title-section h2 {
-    margin: 0 0 8px 0;
-    font-size: 32px;
+    margin: 0;
+    margin-left: 8px;
+    font-size: 28px;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .stock-subtitle {
@@ -532,19 +582,46 @@
 
 .stock-price-section {
     text-align: right;
+    flex-shrink: 0;
 }
 
 .current-price {
-    font-size: 32px;
+    font-size: 30px;
     font-weight: 700;
     color: var(--primary-color);
-    margin-bottom: 8px;
 }
 
 .current-price .currency {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 400;
-    margin-left: 4px;
+    margin-left: 2px;
+}
+
+.stock-header-stats {
+    display: flex;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.stock-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    font-size: 13px;
+}
+
+.stock-stat-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.stock-stat-value {
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 .stock-meta {
@@ -840,7 +917,8 @@
 .chart-wrapper {
     position: relative;
     height: auto;
-    min-height: 500px;
+    min-height: 400px;
+    max-height: 600px;
     flex: 1;
     background: var(--bg-tertiary);
     border-radius: var(--border-radius);
@@ -1150,13 +1228,11 @@
 
     /* 상세 헤더 줄바꿈 */
     .stock-detail-header {
-        flex-wrap: wrap;
-        gap: 12px;
-        padding: 15px;
+        padding: 14px 16px;
     }
 
     .stock-title-section h2 {
-        font-size: 26px;
+        font-size: 24px;
     }
 
     .current-price {
@@ -1246,23 +1322,43 @@
 
     /* 상세 페이지 헤더: 세로 배치 */
     .stock-detail-header {
-        flex-direction: column;
-        align-items: flex-start;
+        padding: 12px 14px;
+    }
+
+    .stock-back-btn {
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+
+    .stock-header-main {
+        margin-bottom: 10px;
         gap: 12px;
-        padding: 15px;
     }
 
     .stock-price-section {
-        text-align: left;
-        width: 100%;
+        text-align: right;
+        width: auto;
     }
 
     .stock-title-section h2 {
-        font-size: 24px;
+        font-size: 22px;
     }
 
     .current-price {
         font-size: 24px;
+    }
+
+    .stock-header-stats {
+        gap: 8px;
+        padding-top: 10px;
+    }
+
+    .stock-stat-chip {
+        flex: 1;
+        justify-content: center;
+        padding: 5px 10px;
+        font-size: 12px;
+        gap: 6px;
     }
 
     .stock-meta {
@@ -1295,7 +1391,8 @@
     }
 
     .chart-wrapper {
-        height: 350px;
+        height: 400px;
+        min-height: 300px;
         padding: 10px;
     }
 
@@ -1315,12 +1412,30 @@
 
     /* 종목 정보 그리드 */
     .info-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
     }
 
     .info-item {
-        padding: 12px;
+        padding: 10px;
+    }
+
+    .info-label {
+        font-size: 10px;
+        margin-bottom: 4px;
+    }
+
+    .info-value {
+        font-size: 13px;
+    }
+
+    .stock-info-section h3 {
+        font-size: 17px;
+        margin-bottom: 14px;
+    }
+
+    .stock-info-section {
+        padding: 14px;
     }
 }
 
@@ -1422,13 +1537,39 @@
 
     /* 상세 헤더 */
     .stock-detail-header {
-        padding: 12px;
-        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .stock-back-btn {
+        font-size: 11px;
+        margin-bottom: 4px;
+        padding: 2px 4px;
+    }
+
+    .stock-header-badges {
+        gap: 4px;
+    }
+
+    .stock-header-badges .market-badge,
+    .stock-header-badges .type-badge,
+    .stock-header-badges .code-badge {
+        font-size: 10px;
+        padding: 3px 6px;
+    }
+
+    .stock-header-main {
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 8px;
+    }
+
+    .stock-price-section {
+        text-align: left;
     }
 
     .stock-title-section h2 {
-        font-size: 22px;
-        margin-bottom: 4px;
+        font-size: 20px;
+        margin-bottom: 0;
     }
 
     .stock-subtitle {
@@ -1442,6 +1583,19 @@
 
     .current-price .currency {
         font-size: 14px;
+    }
+
+    .stock-header-stats {
+        gap: 6px;
+        padding-top: 8px;
+    }
+
+    .stock-stat-chip {
+        flex: 1;
+        justify-content: center;
+        padding: 4px 8px;
+        font-size: 11px;
+        gap: 4px;
     }
 
     /* 차트 */
@@ -1468,7 +1622,8 @@
     }
 
     .chart-wrapper {
-        height: 320px;
+        height: 340px;
+        min-height: 260px;
         padding: 8px;
     }
 
@@ -1496,29 +1651,30 @@
 
     /* 종목 정보 */
     .stock-info-section {
-        padding: 12px;
-    }
-
-    .stock-info-section h3 {
-        font-size: 16px;
-        margin-bottom: 12px;
-    }
-
-    .info-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
-
-    .info-item {
         padding: 10px;
     }
 
+    .stock-info-section h3 {
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    .info-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .info-item {
+        padding: 6px 8px;
+    }
+
     .info-label {
-        font-size: 11px;
+        font-size: 9px;
+        margin-bottom: 2px;
     }
 
     .info-value {
-        font-size: 14px;
+        font-size: 11px;
     }
 }
 

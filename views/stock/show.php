@@ -1,28 +1,34 @@
 <div class="stock-detail-container">
+    <?php $isUSMarket = in_array($stock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
+    <?php $isCoinType = (($stock['stock_type'] ?? '') === 'COIN'); ?>
+    <!-- 네비게이션 -->
+    <button class="btn btn-ghost stock-back-btn" onclick="goBackToStockList()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        목록으로
+    </button>
     <!-- 헤더: 주식 정보 -->
     <div class="stock-detail-header">
-        <button class="btn btn-ghost" onclick="goBackToStockList()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            목록으로
-        </button>
-        <div class="stock-title-section">
-            <h2><?= $view->escape($stock['stock_name_kr']) ?></h2>
-            <div class="stock-subtitle">
-                <span class="stock-code"><?= $view->escape($stock['stock_code']) ?></span>
+        <div class="stock-header-main">
+            <div class="stock-title-section">
+                <h2><?= $view->escape($stock['stock_name_kr']) ?></h2>
+            </div>
+            <div class="stock-header-badges">
+                <span class="code-badge"><?= $view->escape($stock['stock_code']) ?></span>
                 <span class="market-badge"><?= $view->escape($stock['stock_market']) ?></span>
                 <span class="type-badge type-<?= strtolower($stock['stock_type']) ?>"><?= $view->escape($stock['stock_type']) ?></span>
             </div>
-        </div>
-        <?php $isUSMarket = in_array($stock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']); ?>
-        <?php $isCoinType = (($stock['stock_type'] ?? '') === 'COIN'); ?>
-        <div class="stock-price-section">
-            <div class="current-price">
-                <span id="currentPriceMainValue"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?></span><?= $isUSMarket ? '' : '<span class="currency">원</span>' ?>
+            <div class="stock-price-section">
+                <div class="current-price">
+                    <span id="currentPriceMainValue"><?= $isUSMarket ? '$' : '' ?><?= number_format($stock['stock_price'], $isUSMarket ? 2 : 0) ?></span><?= $isUSMarket ? '' : '<span class="currency">원</span>' ?>
+                </div>
             </div>
-            <div class="stock-meta">
-                <span>시가총액: <?php
+        </div>
+        <div class="stock-header-stats">
+            <div class="stock-stat-chip">
+                <span class="stock-stat-label">시가총액</span>
+                <span class="stock-stat-value"><?php
                     $cap = (float)$stock['stock_capitalization'];
                     if ($isUSMarket) {
                         echo '$' . number_format($cap / 1e9, 2) . 'B';
@@ -40,7 +46,10 @@
                         echo number_format($cap, 0) . '원';
                     }
                 ?></span>
-                <span><?= $isCoinType ? '총 발행량' : '상장주식수' ?>: <?php 
+            </div>
+            <div class="stock-stat-chip">
+                <span class="stock-stat-label"><?= $isCoinType ? '총 발행량' : '상장주식수' ?></span>
+                <span class="stock-stat-value"><?php
                     if (!empty($stock['stock_count']) && $stock['stock_count'] > 0) {
                         $count = (float)$stock['stock_count'];
                         $suffix = $isCoinType ? '' : '주';
