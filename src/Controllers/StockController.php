@@ -187,6 +187,19 @@ class StockController extends BaseController
     }
 
     /**
+     * 포트폴리오 백테스팅 시뮬레이터 페이지
+     */
+    public function backtest(): void
+    {
+        $this->renderLayout('stock', 'stock/backtest', [
+            'pageTitle' => '포트폴리오 백테스팅',
+            'isStockPage' => true,
+            'additionalCss' => ['/css/stocks.css'],
+            'additionalJs' => ['/vendor/chart.umd.min.js', '/js/backtest.js']
+        ]);
+    }
+
+    /**
      * API: 주식 검색 (JSON)
      */
     public function apiSearch(): void

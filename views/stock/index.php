@@ -33,19 +33,14 @@
             <?php endif; ?>
     </div>
 
-    <!-- 사이드바: 검색 -->
+    <!-- 백테스팅 버튼 -->
     <div class="sidebar-search-bar">
-        <div class="stocks-search-bar">
-            <input type="text" id="stockSearchInput" placeholder="종목명 또는 코드 검색..." 
-                   value="<?= $view->escape($searchQuery) ?>"
-                   onkeyup="if(event.keyCode==13){searchStocks()}">
-            <button onclick="searchStocks()" class="search-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-            </button>
-        </div>
+        <a href="/stocks/backtest" class="backtest-link-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            포트폴리오 백테스팅
+        </a>
     </div>
 
     <!-- 메인 컨텐츠: 주식 목록 -->
@@ -170,8 +165,21 @@
         <?php endif; ?>
     </div>
     
-    <!-- 사이드바: 거래대금 TOP 10 -->
+    <!-- 사이드바 -->
     <div class="stocks-sidebar-right">
+        <div class="stocks-search-bar sidebar-search">
+            <input type="text" id="stockSearchInput" placeholder="종목명 또는 코드 검색..." 
+                   value="<?= $view->escape($searchQuery) ?>"
+                   onkeyup="if(event.keyCode==13){searchStocks()}">
+            <button onclick="searchStocks()" class="search-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- 거래대금 TOP 10 -->
         <div class="top-stocks-section">
             <h3>거래대금 TOP 10</h3>
             <div class="top-stocks-list">
