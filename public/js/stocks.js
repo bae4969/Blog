@@ -17,6 +17,7 @@ let isLoadingMoreData = false;
 let allDataLoaded = false;
 let useLogScale = false;
 let yAxisRangeRafId = null;
+let axisDragState = null;
 const CHART_LOG_SCALE_STORAGE_KEY = 'stockChart.useLogScale';
 const MAX_CANDLES = 360;
 
@@ -374,9 +375,157 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var chartCanvas = document.getElementById('stockChart');
     if (chartCanvas) {
-        chartCanvas.addEventListener('dblclick', function() {
+        chartCanvas.addEventListener('dblclick', function(e) {
+            if (!stockChart || !stockChart.chartArea) {
+                resetChartZoom();
+                return;
+            }
+            var rect = chartCanvas.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+            var area = stockChart.chartArea;
+            // 축 라벨 영역 더블클릭도 전체 리셋
+            if ((mx > area.right && my >= area.top && my <= area.bottom) ||
+                (my > area.bottom && mx >= area.left && mx <= area.right)) {
+                resetChartZoom();
+                return;
+            }
             resetChartZoom();
         });
+
+        /* ========================================
+           축 라벨 드래그: Y축(기간 줌) / X축(기간 팬)
+           ======================================== */
+        function getAxisHitZone(e) {
+            if (!stockChart || !stockChart.chartArea) return null;
+            var rect = chartCanvas.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+            var area = stockChart.chartArea;
+            // Y축 라벨 영역 (차트 오른쪽)
+            if (mx > area.right && my >= area.top && my <= area.bottom) return 'y';
+            // X축 라벨 영역 (차트 아래쪽)
+            if (my > area.bottom && mx >= area.left && mx <= area.right) return 'x';
+            return null;
+        }
+
+        function getPixelsPerCandle() {
+            if (!stockChart || !stockChart.chartArea || !stockChart.scales || !stockChart.scales.x) return 10;
+            var xScale = stockChart.scales.x;
+            var range = (typeof xScale.max === 'number' && typeof xScale.min === 'number')
+                ? (xScale.max - xScale.min) : 60;
+            if (range <= 0) range = 60;
+            return (stockChart.chartArea.right - stockChart.chartArea.left) / range;
+        }
+
+        chartCanvas.addEventListener('mousedown', function(e) {
+            var zone = getAxisHitZone(e);
+            if (!zone || !stockChart || !stockChart.scales || !stockChart.scales.x) return;
+            var xScale = stockChart.scales.x;
+            var xMin = typeof xScale.min === 'number' ? xScale.min : 0;
+            var xMax = typeof xScale.max === 'number' ? xScale.max : (displayedCandleData.length - 1);
+            if (zone === 'y') {
+                axisDragState = {
+                    type: 'zoom',
+                    startPos: e.clientY,
+                    startXMin: xMin,
+                    startXMax: xMax
+                };
+            } else {
+                axisDragState = {
+                    type: 'pan',
+                    startPos: e.clientX,
+                    startXMin: xMin,
+                    startXMax: xMax
+                };
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        chartCanvas.addEventListener('mousemove', function(e) {
+            // 커서 변경 (드래그 중이 아닐 때)
+            if (!axisDragState) {
+                var zone = getAxisHitZone(e);
+                if (zone === 'y') {
+                    chartCanvas.style.cursor = 'ns-resize';
+                } else if (zone === 'x') {
+                    chartCanvas.style.cursor = 'ew-resize';
+                } else {
+                    chartCanvas.style.cursor = '';
+                }
+                return;
+            }
+
+            if (!stockChart || !stockChart.options || !stockChart.options.scales || !stockChart.options.scales.x) return;
+
+            var totalLabels = (stockChart.data && stockChart.data.labels) ? stockChart.data.labels.length : 0;
+            if (totalLabels === 0) return;
+
+            var xOpts = stockChart.options.scales.x;
+
+            if (axisDragState.type === 'zoom') {
+                // Y축 라벨 위아래 드래그 → 시간 기간 확대/축소
+                var deltaY = e.clientY - axisDragState.startPos;
+                // 위로 드래그(deltaY < 0) → factor > 1 → 범위 확대(축소) = 더 많은 캔들
+                // 아래로 드래그(deltaY > 0) → factor < 1 → 범위 축소(확대) = 더 적은 캔들
+                var scaleFactor = Math.pow(1.006, -deltaY);
+                var center = (axisDragState.startXMin + axisDragState.startXMax) / 2;
+                var halfRange = (axisDragState.startXMax - axisDragState.startXMin) / 2;
+                var newHalf = halfRange * scaleFactor;
+                // 최소 범위 제한 (minRange: 5)
+                if (newHalf < 2.5) newHalf = 2.5;
+                var newMin = Math.round(center - newHalf);
+                var newMax = Math.round(center + newHalf);
+                // visibleRangeLimit 클램프
+                if (newMin < visibleRangeMinLimit) {
+                    newMin = visibleRangeMinLimit;
+                }
+                if (visibleRangeMaxLimit !== null && newMax > visibleRangeMaxLimit) {
+                    newMax = visibleRangeMaxLimit;
+                }
+                if (newMax - newMin < 5) {
+                    if (newMax < totalLabels - 1) newMax = newMin + 5;
+                    else newMin = newMax - 5;
+                }
+                xOpts.min = newMin;
+                xOpts.max = newMax;
+            } else {
+                // X축 라벨 좌우 드래그 → 시간 구간 이동(팬)
+                var deltaX = e.clientX - axisDragState.startPos;
+                var ppc = getPixelsPerCandle();
+                var deltaIndex = Math.round(-deltaX / ppc);
+                var rangeSize = axisDragState.startXMax - axisDragState.startXMin;
+                var newMin = axisDragState.startXMin + deltaIndex;
+                var newMax = axisDragState.startXMax + deltaIndex;
+                // visibleRangeLimit 클램프 (범위 크기 유지)
+                if (newMin < visibleRangeMinLimit) {
+                    newMin = visibleRangeMinLimit;
+                    newMax = newMin + rangeSize;
+                }
+                if (visibleRangeMaxLimit !== null && newMax > visibleRangeMaxLimit) {
+                    newMax = visibleRangeMaxLimit;
+                    newMin = newMax - rangeSize;
+                }
+                xOpts.min = Math.round(newMin);
+                xOpts.max = Math.round(newMax);
+            }
+
+            stockChart.update('none');
+            scheduleYAxisRangeUpdate();
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        function endAxisDrag() {
+            if (!axisDragState) return;
+            axisDragState = null;
+            chartCanvas.style.cursor = '';
+            checkAndLoadMoreData();
+        }
+
+        chartCanvas.addEventListener('mouseup', endAxisDrag);
+        chartCanvas.addEventListener('mouseleave', endAxisDrag);
     }
 
     syncExecutionHeaderSpacing();
