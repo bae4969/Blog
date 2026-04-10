@@ -123,7 +123,7 @@
                     <input type="text" id="stockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
                     <div id="stockSearchResults" class="stock-search-dropdown"></div>
                 </div>
-                <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span></h4>
+                <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span><button type="button" class="btn btn-sm btn-outline equalize-btn" id="equalizeWeights" style="display:none">균등 배분</button></h4>
                 <div id="selectedStocks" class="selected-stocks-list">
                     <p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>
                 </div>

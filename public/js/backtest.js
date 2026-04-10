@@ -102,6 +102,11 @@
     /* =========================================
        유틸리티
        ========================================= */
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
     function formatNumber(n, decimals) {
         if (decimals === undefined) decimals = 0;
         if (n === null || n === undefined || isNaN(n)) return '-';
@@ -284,12 +289,12 @@
                             var market = s.stock_type === 'COIN' ? 'COIN' : (
                                 ['NYSE', 'NASDAQ', 'AMEX'].indexOf(s.stock_market) >= 0 ? 'US' : 'KR'
                             );
-                            html += '<div class="search-result-item" data-code="' + s.stock_code +
-                                '" data-name="' + (s.stock_name_kr || s.stock_code) +
-                                '" data-market="' + market + '">' +
-                                '<span class="sr-name">' + (s.stock_name_kr || s.stock_code) + '</span>' +
-                                '<span class="sr-code">' + s.stock_code + '</span>' +
-                                '<span class="sr-market badge-' + market.toLowerCase() + '">' + market + '</span>' +
+                            html += '<div class="search-result-item" data-code="' + escapeHtml(s.stock_code) +
+                                '" data-name="' + escapeHtml(s.stock_name_kr || s.stock_code) +
+                                '" data-market="' + escapeHtml(market) + '">' +
+                                '<span class="sr-name">' + escapeHtml(s.stock_name_kr || s.stock_code) + '</span>' +
+                                '<span class="sr-code">' + escapeHtml(s.stock_code) + '</span>' +
+                                '<span class="sr-market badge-' + escapeHtml(market.toLowerCase()) + '">' + escapeHtml(market) + '</span>' +
                                 '<span class="sr-actions">' +
                                 '<button type="button" class="sr-add-btn sr-add-portfolio" title="포트폴리오에 추가">+ 포트폴리오</button>' +
                                 '<button type="button" class="sr-add-btn sr-add-benchmark" title="벤치마크에 추가">+ 벤치마크</button>' +
@@ -333,12 +338,16 @@
             container.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
             return;
         }
+        var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
+        var weightOk = Math.abs(totalWeight - 100) <= 0.01;
+        var eqBtnHeader = document.getElementById('equalizeWeights');
+        if (eqBtnHeader) eqBtnHeader.style.display = portfolio.length > 0 ? '' : 'none';
         var html = '';
         portfolio.forEach(function (s, idx) {
             html += '<div class="portfolio-stock-item">' +
-                '<span class="ps-name">' + s.name + '</span>' +
-                '<span class="ps-code">' + s.code + '</span>' +
-                '<span class="ps-market badge-' + s.market.toLowerCase() + '">' + s.market + '</span>' +
+                '<span class="ps-name">' + escapeHtml(s.name) + '</span>' +
+                '<span class="ps-code">' + escapeHtml(s.code) + '</span>' +
+                '<span class="ps-market badge-' + escapeHtml(s.market.toLowerCase()) + '">' + escapeHtml(s.market) + '</span>' +
                 '<div class="ps-weight-wrap">' +
                 '<input type="number" class="backtest-input ps-weight" data-idx="' + idx + '" value="' + s.weight + '" min="0" max="100" step="1">' +
                 '<span class="input-unit">%</span>' +
@@ -346,10 +355,7 @@
                 '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
                 '</div>';
         });
-        var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-        var weightOk = Math.abs(totalWeight - 100) <= 0.01;
         html += '<div class="portfolio-weight-total">' +
-            '<button type="button" class="btn btn-sm btn-outline" id="equalizeWeights">균등 배분</button>' +
             '<span class="weight-total-text' + (weightOk ? '' : ' weight-warning') + '">합계: ' + totalWeight.toFixed(1) + '% ' + (weightOk ? '✓' : '✗') + '</span>' +
             '</div>';
         container.innerHTML = html;
@@ -372,9 +378,9 @@
                 updateDateRange();
             });
         });
-        var eqBtn = document.getElementById('equalizeWeights');
-        if (eqBtn) {
-            eqBtn.addEventListener('click', function () {
+        if (eqBtnHeader && !eqBtnHeader._bound) {
+            eqBtnHeader._bound = true;
+            eqBtnHeader.addEventListener('click', function () {
                 var n = portfolio.length;
                 var base = Math.floor(10000 / n);
                 var remainder = 10000 - base * n;
@@ -458,9 +464,9 @@
             var color = BMK_COLORS[idx % BMK_COLORS.length];
             html += '<div class="benchmark-item">' +
                 '<span class="bmk-color-dot" style="background:' + color + '"></span>' +
-                '<span class="ps-name">' + b.name + '</span>' +
-                '<span class="ps-code">' + b.code + '</span>' +
-                '<span class="ps-market badge-' + b.market.toLowerCase() + '">' + b.market + '</span>' +
+                '<span class="ps-name">' + escapeHtml(b.name) + '</span>' +
+                '<span class="ps-code">' + escapeHtml(b.code) + '</span>' +
+                '<span class="ps-market badge-' + escapeHtml(b.market.toLowerCase()) + '">' + escapeHtml(b.market) + '</span>' +
                 '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
                 '</div>';
         });
@@ -508,12 +514,13 @@
                 if (!bmkItem.metrics) return;
                 var bm = bmkItem.metrics;
                 var colorStyle = ' style="color:' + bmkItem.color + '"';
-                bmkLines.bmkTotalReturn.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bm.totalReturn) + '</span>');
-                bmkLines.bmkAvgAnnual.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bm.avgAnnual) + '</span>');
-                bmkLines.bmkCAGR.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bm.cagr) + '</span>');
-                bmkLines.bmkMDD.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(-bm.mdd) + '</span>');
-                bmkLines.bmkSharpe.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + (bm.sharpe === null || !isFinite(bm.sharpe) ? '∞' : bm.sharpe.toFixed(2)) + '</span>');
-                bmkLines.bmkSortino.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + (bm.sortino === null || !isFinite(bm.sortino) ? '∞' : bm.sortino.toFixed(2)) + '</span>');
+                var safeName = escapeHtml(bmkItem.name);
+                bmkLines.bmkTotalReturn.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.totalReturn) + '</span>');
+                bmkLines.bmkAvgAnnual.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.avgAnnual) + '</span>');
+                bmkLines.bmkCAGR.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.cagr) + '</span>');
+                bmkLines.bmkMDD.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(-bm.mdd) + '</span>');
+                bmkLines.bmkSharpe.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sharpe === null || !isFinite(bm.sharpe) ? '∞' : bm.sharpe.toFixed(2)) + '</span>');
+                bmkLines.bmkSortino.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sortino === null || !isFinite(bm.sortino) ? '∞' : bm.sortino.toFixed(2)) + '</span>');
             });
             bmkMetricIds.forEach(function (id) {
                 var el = document.getElementById(id);
