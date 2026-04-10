@@ -1577,7 +1577,7 @@
 }
 
 .log-col-message {
-    min-width: 200px;
+    min-width: 0;
 }
 
 .log-col-location {
@@ -1598,6 +1598,10 @@
 .log-table td.log-col-location code {
     font-size: 12px;
     color: var(--text-secondary);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .log-empty {
@@ -1745,6 +1749,16 @@
     font-size: 13px;
     line-height: 1.5;
     color: var(--text-secondary);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.log-message-text.log-msg-expanded {
+    white-space: normal;
+    overflow: visible;
 }
 
 /* 반응형 */
@@ -1753,59 +1767,21 @@
         grid-template-columns: 1fr;
     }
 
-    .log-table {
-        table-layout: auto;
-    }
-
     .log-col-datetime {
-        width: auto;
+        width: 130px;
         font-size: 12px;
-        white-space: nowrap !important;
     }
 
     .log-col-name {
-        width: auto;
-        max-width: 80px;
+        width: 80px;
     }
 
-    .log-col-name code {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .log-col-message {
-        min-width: 0;
-        max-width: 220px;
+    .log-col-location {
+        width: 140px;
     }
 
     .log-message-text {
         font-size: 12px;
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .log-message-text.log-msg-expanded {
-        white-space: normal;
-        overflow: visible;
-    }
-
-    .log-json-summary .log-summary-text {
-        font-size: 12px;
-    }
-
-    .log-col-location {
-        max-width: 140px;
-    }
-
-    .log-col-location code {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
     }
 
     .log-json {
