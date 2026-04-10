@@ -296,8 +296,8 @@
                                 '<span class="sr-code">' + escapeHtml(s.stock_code) + '</span>' +
                                 '<span class="sr-market badge-' + escapeHtml(market.toLowerCase()) + '">' + escapeHtml(market) + '</span>' +
                                 '<span class="sr-actions">' +
-                                '<button type="button" class="sr-add-btn sr-add-portfolio" title="포트폴리오에 추가">+ 포트폴리오</button>' +
-                                '<button type="button" class="sr-add-btn sr-add-benchmark" title="벤치마크에 추가">+ 벤치마크</button>' +
+                                '<button type="button" class="sr-add-btn sr-add-portfolio" title="포트폴리오에 추가">+ 포폴</button>' +
+                                '<button type="button" class="sr-add-btn sr-add-benchmark" title="벤치마크에 추가">+ 벤치</button>' +
                                 '</span>' +
                                 '</div>';
                         });
