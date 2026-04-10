@@ -2063,8 +2063,8 @@ details[open] > .config-section-title.clickable {
 .search-result-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 4px;
+    padding: 8px 6px;
     font-size: 0.82rem;
     transition: background 0.15s;
 }
