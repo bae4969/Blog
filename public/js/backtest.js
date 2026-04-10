@@ -1182,7 +1182,7 @@
        ========================================= */
 
     // 종목 검색 — 자동완성
-    function initStockSearch(inputId, resultsId, onSelect) {
+    function initStockSearch(inputId, resultsId, onAddPortfolio, onAddBenchmark) {
         var input = document.getElementById(inputId);
         var resultsDiv = document.getElementById(resultsId);
         if (!input || !resultsDiv) return;
@@ -1214,20 +1214,28 @@
                                 '<span class="sr-name">' + (s.stock_name_kr || s.stock_code) + '</span>' +
                                 '<span class="sr-code">' + s.stock_code + '</span>' +
                                 '<span class="sr-market badge-' + market.toLowerCase() + '">' + market + '</span>' +
+                                '<span class="sr-actions">' +
+                                '<button type="button" class="sr-add-btn sr-add-portfolio" title="포트폴리오에 추가">+ 포트폴리오</button>' +
+                                '<button type="button" class="sr-add-btn sr-add-benchmark" title="벤치마크에 추가">+ 벤치마크</button>' +
+                                '</span>' +
                                 '</div>';
                         });
                         resultsDiv.innerHTML = html;
                         resultsDiv.style.display = 'block';
 
                         resultsDiv.querySelectorAll('.search-result-item').forEach(function (item) {
-                            item.addEventListener('click', function () {
-                                onSelect({
-                                    code: item.dataset.code,
-                                    name: item.dataset.name,
-                                    market: item.dataset.market
-                                });
-                                input.value = '';
-                                resultsDiv.style.display = 'none';
+                            var stock = {
+                                code: item.dataset.code,
+                                name: item.dataset.name,
+                                market: item.dataset.market
+                            };
+                            item.querySelector('.sr-add-portfolio').addEventListener('click', function (e) {
+                                e.stopPropagation();
+                                onAddPortfolio(stock);
+                            });
+                            item.querySelector('.sr-add-benchmark').addEventListener('click', function (e) {
+                                e.stopPropagation();
+                                onAddBenchmark(stock);
                             });
                         });
                     });
@@ -1247,7 +1255,7 @@
         var container = document.getElementById('selectedStocks');
         if (!container) return;
         if (portfolio.length === 0) {
-            container.innerHTML = '<p class="empty-hint">종목을 검색하여 추가하세요 (최대 10개)</p>';
+            container.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
             return;
         }
         var html = '';
@@ -1260,14 +1268,14 @@
                 '<input type="number" class="backtest-input ps-weight" data-idx="' + idx + '" value="' + s.weight + '" min="0" max="100" step="1">' +
                 '<span class="input-unit">%</span>' +
                 '</div>' +
-                '<button type="button" class="btn btn-sm btn-danger ps-remove" data-idx="' + idx + '">&times;</button>' +
+                '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
                 '</div>';
         });
         var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-        html += '<div class="portfolio-weight-total' + (Math.abs(totalWeight - 100) > 0.01 ? ' weight-warning' : '') + '">' +
-            '합계: ' + totalWeight.toFixed(1) + '% ' +
-            (Math.abs(totalWeight - 100) > 0.01 ? '<span class="weight-warn-text">(100%가 되어야 합니다)</span>' : '<span class="weight-ok">✓</span>') +
-            ' <button type="button" class="btn btn-sm btn-outline" id="equalizeWeights">균등 배분</button>' +
+        var weightOk = Math.abs(totalWeight - 100) <= 0.01;
+        html += '<div class="portfolio-weight-total">' +
+            '<button type="button" class="btn btn-sm btn-outline" id="equalizeWeights">균등 배분</button>' +
+            '<span class="weight-total-text' + (weightOk ? '' : ' weight-warning') + '">합계: ' + totalWeight.toFixed(1) + '% ' + (weightOk ? '✓' : '✗') + '</span>' +
             '</div>';
         container.innerHTML = html;
 
@@ -1282,7 +1290,7 @@
             });
         });
         // 삭제 이벤트
-        container.querySelectorAll('.ps-remove').forEach(function (btn) {
+        container.querySelectorAll('.picker-remove').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 portfolio.splice(parseInt(this.dataset.idx), 1);
                 renderPortfolio();
@@ -1354,7 +1362,21 @@
         });
     }
 
-    // DCA 유예 — 별도 초기화 불필요 (콤보박스는 simParamIds에서 change 이벤트 등록)
+    // DCA 유예 힌트 업데이트
+    var DCA_DEFER_HINTS = {
+        none: '매월 적립금을 즉시 투입합니다.',
+        macd_death: 'MACD 단기선이 장기선 아래로 교차(데드크로스)하면 해당 종목의 적립을 유예합니다.',
+        rsi_overbought: 'RSI가 70 이상(과매수 구간)이면 해당 종목의 적립을 유예합니다.',
+        bb_upper: '가격이 볼린저 밴드 상단을 돌파하면 해당 종목의 적립을 유예합니다.',
+        sma_death: '단기 SMA가 장기 SMA 아래로 교차(데드크로스)하면 해당 종목의 적립을 유예합니다.'
+    };
+
+    function updateDcaDeferHint() {
+        var sel = document.getElementById('dcaDeferIndicator');
+        var hint = document.getElementById('dcaDeferHint');
+        if (!sel || !hint) return;
+        hint.textContent = DCA_DEFER_HINTS[sel.value] || '';
+    }
 
     // 벤치마크 렌더링
     function renderBenchmark() {
@@ -1369,11 +1391,11 @@
                 '<span class="ps-name">' + b.name + '</span>' +
                 '<span class="ps-code">' + b.code + '</span>' +
                 '<span class="ps-market badge-' + b.market.toLowerCase() + '">' + b.market + '</span>' +
-                '<button type="button" class="btn btn-sm btn-danger bmk-remove" data-idx="' + idx + '">&times;</button>' +
+                '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
                 '</div>';
         });
         container.innerHTML = html;
-        container.querySelectorAll('.bmk-remove').forEach(function (btn) {
+        container.querySelectorAll('.picker-remove').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 benchmarks.splice(parseInt(this.dataset.idx), 1);
                 renderBenchmark();
@@ -1849,6 +1871,7 @@
             document.getElementById('initialCapital').value = data.initialCapital || '1000';
             document.getElementById('monthlyDCA').value = data.monthlyDCA || '100';
             document.getElementById('dcaDeferIndicator').value = data.dcaDeferIndicator || (data.dcaDeferEnabled ? 'macd_death' : 'none');
+            updateDcaDeferHint();
             document.getElementById('feeKR').value = data.feeKR || '0.015';
             document.getElementById('feeUS').value = data.feeUS || '0.2';
             document.getElementById('feeCOIN').value = data.feeCOIN || '0.015';
@@ -1891,39 +1914,41 @@
        초기화
        ========================================= */
     function init() {
-        // 종목 검색 초기화
-        initStockSearch('stockSearchInput', 'stockSearchResults', function (stock) {
-            if (portfolio.length >= MAX_STOCKS) { alert('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
-            if (portfolio.some(function (s) { return s.code === stock.code; })) { alert('이미 추가된 종목입니다.'); return; }
-            // 균등 배분 (정수 기반으로 오차 방지)
-            var n = portfolio.length + 1;
-            var base = Math.floor(10000 / n);
-            var remainder = 10000 - base * n;
-            portfolio.forEach(function (s, i) {
-                s.weight = (base + (i < remainder ? 1 : 0)) / 100;
-            });
-            stock.weight = (base + (portfolio.length < remainder ? 1 : 0)) / 100;
-            portfolio.push(stock);
-            renderPortfolio();
-            updateSignalTargets();
-            updateRunButtonState();
-            updateDateRange();
-        });
-
-        // 벤치마크 검색 초기화
-        initStockSearch('benchmarkSearch', 'benchmarkSearchResults', function (stock) {
-            if (benchmarks.length >= MAX_BENCHMARKS) { alert('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
-            if (benchmarks.some(function (b) { return b.code === stock.code; })) { alert('이미 추가된 벤치마크입니다.'); return; }
-            benchmarks.push(stock);
-            renderBenchmark();
-            updateRunButtonState();
-            updateDateRange();
-        });
+        // 종목 검색 초기화 (포트폴리오 + 벤치마크 통합)
+        initStockSearch('stockSearchInput', 'stockSearchResults',
+            function (stock) {
+                if (portfolio.length >= MAX_STOCKS) { alert('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
+                if (portfolio.some(function (s) { return s.code === stock.code; })) { alert('이미 추가된 종목입니다.'); return; }
+                // 균등 배분 (정수 기반으로 오차 방지)
+                var n = portfolio.length + 1;
+                var base = Math.floor(10000 / n);
+                var remainder = 10000 - base * n;
+                portfolio.forEach(function (s, i) {
+                    s.weight = (base + (i < remainder ? 1 : 0)) / 100;
+                });
+                stock.weight = (base + (portfolio.length < remainder ? 1 : 0)) / 100;
+                portfolio.push(stock);
+                renderPortfolio();
+                updateSignalTargets();
+                updateRunButtonState();
+                updateDateRange();
+            },
+            function (stock) {
+                if (benchmarks.length >= MAX_BENCHMARKS) { alert('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
+                if (benchmarks.some(function (b) { return b.code === stock.code; })) { alert('이미 추가된 벤치마크입니다.'); return; }
+                benchmarks.push(stock);
+                renderBenchmark();
+                updateRunButtonState();
+                updateDateRange();
+            }
+        );
 
         // 전략 탭
         initStrategyTabs();
 
-        // DCA 유예 — 콤보박스 change는 simParamIds에서 처리
+        // DCA 유예 힌트
+        var dcaDeferSel = document.getElementById('dcaDeferIndicator');
+        if (dcaDeferSel) dcaDeferSel.addEventListener('change', updateDcaDeferHint);
 
         // 시그널 규칙 추가 버튼
         var addBtn = document.getElementById('addSignalRule');

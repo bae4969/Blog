@@ -109,7 +109,7 @@
     <!-- 설정 패널 -->
     <div class="backtest-config">
 
-        <!-- 종목 선택 -->
+        <!-- 종목 선택 (포트폴리오 + 벤치마크 통합) -->
         <div class="config-section">
             <h3 class="config-section-title">종목 구성</h3>
             <div class="stock-picker">
@@ -117,21 +117,12 @@
                     <input type="text" id="stockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
                     <div id="stockSearchResults" class="stock-search-dropdown"></div>
                 </div>
+                <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span></h4>
                 <div id="selectedStocks" class="selected-stocks-list">
-                    <p class="empty-hint">종목을 검색하여 추가하세요 (최대 10개)</p>
+                    <p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>
                 </div>
-            </div>
-        </div>
-
-        <!-- 벤치마크 -->
-        <div class="config-section">
-            <h3 class="config-section-title">벤치마크</h3>
-            <div class="config-field">
-                <label class="config-label" for="benchmarkSearch">벤치마크 (선택, 최대 5개)</label>
-                <div class="stock-search-row">
-                    <input type="text" id="benchmarkSearch" class="backtest-input" placeholder="벤치마크 종목 검색..." autocomplete="off">
-                    <div id="benchmarkSearchResults" class="stock-search-dropdown"></div>
-                </div>
+                <hr class="picker-divider">
+                <h4 class="picker-sub-title">벤치마크 <span class="picker-sub-hint">(선택, 최대 5개)</span></h4>
                 <div id="selectedBenchmark" class="selected-benchmark"></div>
             </div>
         </div>
@@ -206,13 +197,13 @@
             <div class="config-field" style="margin-top:10px">
                 <label class="config-label" for="dcaDeferIndicator">적립 유예 조건</label>
                 <select id="dcaDeferIndicator" class="backtest-select">
-                    <option value="none">사용 안 함 (매월 즉시 투입)</option>
+                    <option value="none">사용 안 함</option>
                     <option value="macd_death">MACD 데스크로스 시 유예</option>
                     <option value="rsi_overbought">RSI 과매수 시 유예</option>
                     <option value="bb_upper">BB 상단 돌파 시 유예</option>
                     <option value="sma_death">SMA 데스크로스 시 유예</option>
                 </select>
-                <p class="config-hint">각 종목의 개별 시그널 기준으로 유예됩니다.</p>
+                <p class="config-hint" id="dcaDeferHint">매월 적립금을 즉시 투입합니다.</p>
             </div>
         </div>
 
