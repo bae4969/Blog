@@ -85,6 +85,11 @@ class AdminController extends BaseController
         $logTableNames = Logger::getLogTableNames();
         $table = array_values(array_intersect($tableArr, $logTableNames));
 
+        // 날짜 필터 미지정 시 기본 최근 7일 (전체 풀스캔 방지)
+        if ($dateFrom === '' && $dateTo === '' && $name === '' && empty($type) && $q === '') {
+            $dateFrom = date('Y-m-d', strtotime('-7 days'));
+        }
+
         $filters = array_filter([
             'name' => $name,
             'type' => $type,

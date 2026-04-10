@@ -262,6 +262,13 @@ function toggleLogDetail(id) {
     }
 }
 
+// 모바일: 메시지 텍스트 클릭 시 확장/접기
+document.querySelectorAll('.log-message-text').forEach(function(el) {
+    el.addEventListener('click', function() {
+        this.classList.toggle('log-msg-expanded');
+    });
+});
+
 // Checkbox dropdown
 document.querySelectorAll('.checkbox-dropdown-toggle').forEach(function(btn) {
     btn.addEventListener('click', function(e) {

@@ -4,6 +4,8 @@ namespace Blog\Controllers;
 
 use Blog\Models\Stock;
 use Blog\Models\Category;
+use Blog\Services\BacktestService;
+use Blog\Core\Cache;
 
 class StockController extends BaseController
 {
@@ -187,6 +189,77 @@ class StockController extends BaseController
     }
 
     /**
+     * 포트폴리오 백테스팅 시뮬레이터 페이지
+     */
+    public function backtest(): void
+    {
+        $this->renderLayout('stock', 'stock/backtest', [
+            'isStockPage' => true,
+            'additionalCss' => ['/css/stocks.css'],
+            'additionalJs' => ['/vendor/chart.umd.min.js', '/js/backtest.js']
+        ]);
+    }
+
+    /**
+     * API: 종목 코드들의 공통 날짜 범위 조회 (JSON)
+     */
+    public function apiDateRange(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        // Rate Limiting (IP당 분당 30회)
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cache = Cache::getInstance();
+        $rateKey = Cache::key('daterange_rate', $ip);
+        $rateCount = (int)($cache->get($rateKey) ?? 0) + 1;
+        $cache->set($rateKey, $rateCount, 60);
+        if ($rateCount > 30) {
+            $this->jsonResponse(['success' => false, 'error' => '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
+            return;
+        }
+
+        $codesParam = isset($_GET['codes']) ? $this->sanitizeInput($_GET['codes']) : '';
+        $marketsParam = isset($_GET['markets']) ? $this->sanitizeInput($_GET['markets']) : '';
+        if (empty($codesParam)) {
+            $this->jsonResponse(['success' => true, 'data' => null]);
+            return;
+        }
+
+        $codes = array_slice(array_filter(explode(',', $codesParam)), 0, 15);
+        $markets = array_filter(explode(',', $marketsParam));
+
+        $globalMin = null;
+        $globalMax = null;
+
+        foreach ($codes as $i => $code) {
+            $market = isset($markets[$i]) ? $markets[$i] : '';
+            $range = $this->stockModel->getCandleDateRange(trim($code), trim($market));
+            if ($range === null) {
+                continue;
+            }
+            if ($globalMin === null || $range['min'] > $globalMin) {
+                $globalMin = $range['min'];
+            }
+            if ($globalMax === null || $range['max'] < $globalMax) {
+                $globalMax = $range['max'];
+            }
+        }
+
+        if ($globalMin === null || $globalMax === null || $globalMin > $globalMax) {
+            $this->jsonResponse(['success' => true, 'data' => null]);
+            return;
+        }
+
+        header('Cache-Control: private, max-age=300');
+        $this->jsonResponse([
+            'success' => true,
+            'data' => ['min' => $globalMin, 'max' => $globalMax]
+        ]);
+    }
+
+    /**
      * API: 주식 검색 (JSON)
      */
     public function apiSearch(): void
@@ -205,6 +278,164 @@ class StockController extends BaseController
             'success' => true,
             'data' => $stocks,
             'count' => count($stocks)
+        ]);
+    }
+
+    /**
+     * API: 포트폴리오 백테스트 시뮬레이션 (POST, JSON)
+     */
+    public function apiBacktest(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        // Rate Limiting (IP당 분당 5회 — CPU/DB 집약적 API)
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cache = Cache::getInstance();
+        $rateKey = Cache::key('backtest_rate', $ip);
+        $rateCount = (int)($cache->get($rateKey) ?? 0) + 1;
+        $cache->set($rateKey, $rateCount, 60);
+        if ($rateCount > 5) {
+            $this->jsonResponse(['success' => false, 'error' => '백테스트 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+        if (!is_array($input)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid JSON'], 400);
+            return;
+        }
+
+        // 필수 필드 검증
+        if (empty($input['stocks']) || !is_array($input['stocks'])) {
+            $this->jsonResponse(['success' => false, 'error' => 'stocks is required'], 400);
+            return;
+        }
+        if (empty($input['startDate']) || empty($input['endDate'])) {
+            $this->jsonResponse(['success' => false, 'error' => 'startDate and endDate are required'], 400);
+            return;
+        }
+
+        // 종목 수 제한
+        $maxStocks = 10;
+        $maxBenchmarks = 5;
+        if (count($input['stocks']) > $maxStocks) {
+            $this->jsonResponse(['success' => false, 'error' => 'Maximum ' . $maxStocks . ' stocks allowed'], 400);
+            return;
+        }
+        if (isset($input['benchmarks']) && count($input['benchmarks']) > $maxBenchmarks) {
+            $this->jsonResponse(['success' => false, 'error' => 'Maximum ' . $maxBenchmarks . ' benchmarks allowed'], 400);
+            return;
+        }
+
+        // 날짜 형식 검증
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['startDate']) ||
+            !preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['endDate'])) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid date format'], 400);
+            return;
+        }
+        if ($input['startDate'] >= $input['endDate']) {
+            $this->jsonResponse(['success' => false, 'error' => 'startDate must be before endDate'], 400);
+            return;
+        }
+
+        // 전략 검증
+        $validStrategies = ['buyhold', 'rebalance', 'signal'];
+        $strategy = $input['strategy'] ?? 'buyhold';
+        if (!in_array($strategy, $validStrategies, true)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid strategy'], 400);
+            return;
+        }
+
+        // 입력 정제
+        $config = [
+            'stocks' => array_map(function ($s) {
+                return [
+                    'code' => $this->sanitizeInput($s['code'] ?? ''),
+                    'market' => $this->sanitizeInput($s['market'] ?? ''),
+                    'weight' => (float)($s['weight'] ?? 0),
+                ];
+            }, array_slice($input['stocks'], 0, $maxStocks)),
+            'benchmarks' => array_map(function ($b) {
+                return [
+                    'code' => $this->sanitizeInput($b['code'] ?? ''),
+                    'market' => $this->sanitizeInput($b['market'] ?? ''),
+                    'name' => $this->sanitizeInput($b['name'] ?? $b['code'] ?? ''),
+                ];
+            }, array_slice($input['benchmarks'] ?? [], 0, $maxBenchmarks)),
+            'startDate' => $input['startDate'],
+            'endDate' => $input['endDate'],
+            'strategy' => $strategy,
+            'rebalancePeriod' => in_array($input['rebalancePeriod'] ?? '', ['monthly', 'quarterly', 'semiannual', 'annual'], true)
+                ? $input['rebalancePeriod'] : 'quarterly',
+            'signalRules' => array_map(function ($r) {
+                return [
+                    'indicator' => $this->sanitizeInput($r['indicator'] ?? ''),
+                    'targetCode' => $this->sanitizeInput($r['targetCode'] ?? ''),
+                ];
+            }, array_slice($input['signalRules'] ?? [], 0, 20)),
+            'signalCombine' => in_array($input['signalCombine'] ?? '', ['and', 'or'], true)
+                ? $input['signalCombine'] : 'or',
+            'initialCapital' => max(0, min(1e12, (float)($input['initialCapital'] ?? 0))),
+            'monthlyDCA' => max(0, min(1e10, (float)($input['monthlyDCA'] ?? 0))),
+            'dcaDefer' => [
+                'enabled' => (bool)($input['dcaDefer']['enabled'] ?? false),
+                'indicator' => $this->sanitizeInput($input['dcaDefer']['indicator'] ?? 'none'),
+            ],
+            'fees' => [
+                'KR' => max(0, min(10, (float)($input['fees']['KR'] ?? 0.015))),
+                'US' => max(0, min(10, (float)($input['fees']['US'] ?? 0.2))),
+                'COIN' => max(0, min(10, (float)($input['fees']['COIN'] ?? 0.015))),
+            ],
+            'riskFreeRate' => max(0, min(100, (float)($input['riskFreeRate'] ?? 3))),
+        ];
+
+        // 기간 초과 사전 차단 (최대 30년)
+        $periodYears = (strtotime($config['endDate']) - strtotime($config['startDate'])) / (365.25 * 86400);
+        if ($periodYears > 30) {
+            $this->jsonResponse(['success' => false, 'error' => '최대 30년까지 시뮬레이션 가능합니다.'], 400);
+            return;
+        }
+
+        // 동시 실행 제한 (파일 기반 세마포어)
+        $maxConcurrent = 2;
+        $lockDir = __DIR__ . '/../../cache/data';
+        $lockHandle = null;
+        $lockPath = null;
+        for ($slot = 0; $slot < $maxConcurrent; $slot++) {
+            $path = $lockDir . '/backtest_slot_' . $slot . '.lock';
+            $fh = fopen($path, 'c');
+            if ($fh && flock($fh, LOCK_EX | LOCK_NB)) {
+                $lockHandle = $fh;
+                $lockPath = $path;
+                break;
+            }
+            if ($fh) fclose($fh);
+        }
+        if ($lockHandle === null) {
+            $this->jsonResponse(['success' => false, 'error' => '서버가 바쁩니다. 잠시 후 다시 시도해주세요.'], 503);
+            return;
+        }
+
+        try {
+            $service = new BacktestService();
+            $result = $service->run($config);
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
+
+        if ($result === null) {
+            $this->jsonResponse(['success' => false, 'error' => 'No data available for the selected stocks and period'], 404);
+            return;
+        }
+
+        header('Cache-Control: private, no-cache');
+        $this->jsonResponse([
+            'success' => true,
+            'data' => $result,
         ]);
     }
 

@@ -111,9 +111,12 @@ $router->post('/admin/ip-blocks/clean', [AdminController::class, 'cleanExpiredBl
 // 주식 컨트롤러 라우트
 $router->get('/stocks', [StockController::class, 'index']);
 $router->get('/stocks/view', [StockController::class, 'show']);
+$router->get('/stocks/backtest', [StockController::class, 'backtest']);
 $router->get('/stocks/api/candle', [StockController::class, 'apiCandleData']);
 $router->get('/stocks/api/executions', [StockController::class, 'apiRecentExecutions']);
 $router->get('/stocks/api/search', [StockController::class, 'apiSearch']);
+$router->get('/stocks/api/date-range', [StockController::class, 'apiDateRange']);
+$router->post('/stocks/api/backtest', [StockController::class, 'apiBacktest']);
 
 // 요청 처리
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
