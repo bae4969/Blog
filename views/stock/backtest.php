@@ -19,32 +19,38 @@
 
         <!-- 핵심 지표 카드 -->
         <div class="metrics-cards" id="metricsCards">
-            <div class="metric-card" title="(최종 포트폴리오 가치 − 총 투자금) ÷ 총 투자금&#10;&#10;참고: S&amp;P500 10년 평균 ~170%, 올웨더 포트폴리오 10년 평균 ~80%">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">(최종 가치 − 투자금) ÷ 투자금<br><br>참고 (10년 평균):<br>S&amp;P500 ~170%<br>나스닥100 ~350%<br>60/40 ~100%<br>올웨더 ~80%</span></span>
                 <span class="metric-label">총 수익률</span>
                 <span class="metric-value" id="metricTotalReturn">-</span>
                 <span class="metric-bmk" id="bmkTotalReturn"></span>
             </div>
-            <div class="metric-card" title="각 연도별 수익률의 산술 평균&#10;&#10;참고: S&amp;P500 장기 평균 ~12%, 올웨더 포트폴리오 ~8%">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">연도별 수익률의 산술 평균<br><br>참고 (장기 평균):<br>S&amp;P500 ~12%<br>나스닥100 ~18%<br>60/40 ~9%<br>올웨더 ~8%</span></span>
                 <span class="metric-label">연간수익률 평균</span>
                 <span class="metric-value" id="metricAvgAnnual">-</span>
                 <span class="metric-bmk" id="bmkAvgAnnual"></span>
             </div>
-            <div class="metric-card" title="연평균 복합 성장률. 매년 일정하게 성장했다면 얼마인지를 나타냄&#10;&#10;참고: S&amp;P500 장기 평균 ~10%, 올웨더 포트폴리오 ~7%">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">연평균 복합 성장률<br>매년 일정하게 성장한 가정치<br><br>참고 (장기 평균):<br>S&amp;P500 ~10%<br>나스닥100 ~16%<br>60/40 ~8%<br>올웨더 ~7%</span></span>
                 <span class="metric-label">CAGR</span>
                 <span class="metric-value" id="metricCAGR">-</span>
                 <span class="metric-bmk" id="bmkCAGR"></span>
             </div>
-            <div class="metric-card" title="최대 낙폭. 고점 대비 최대 하락 폭&#10;&#10;참고: S&amp;P500 평균 MDD ~-33%, 올웨더 포트폴리오 ~-12%">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">고점 대비 최대 하락 폭<br><br>참고:<br>S&amp;P500 ~-33%<br>나스닥100 ~-49%<br>60/40 ~-22%<br>올웨더 ~-12%</span></span>
                 <span class="metric-label">MDD</span>
                 <span class="metric-value" id="metricMDD">-</span>
                 <span class="metric-bmk" id="bmkMDD"></span>
             </div>
-            <div class="metric-card" title="위험 대비 초과 수익. 높을수록 같은 변동성에서 더 많이 벌었다는 의미&#10;1 이상이면 양호, 2 이상이면 우수&#10;&#10;참고: S&amp;P500 장기 ~0.8, 올웨더 포트폴리오 ~1.0">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">위험 대비 초과 수익<br>1↑ 양호 / 2↑ 우수<br><br>참고:<br>S&amp;P500 ~0.8<br>나스닥100 ~0.7<br>60/40 ~0.8<br>올웨더 ~1.0</span></span>
                 <span class="metric-label">샤프 비율</span>
                 <span class="metric-value" id="metricSharpe">-</span>
                 <span class="metric-bmk" id="bmkSharpe"></span>
             </div>
-            <div class="metric-card" title="하락 위험 대비 초과 수익. 샤프와 비슷하지만 하락 변동성만 고려&#10;높을수록 비대칭적으로 수익이 우세&#10;&#10;참고: S&amp;P500 장기 ~1.0, 올웨더 포트폴리오 ~1.2">
+            <div class="metric-card">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">하락 변동성만 고려한 초과 수익<br>높을수록 수익이 비대칭적 우세<br><br>참고:<br>S&amp;P500 ~1.0<br>나스닥100 ~0.9<br>60/40 ~1.0<br>올웨더 ~1.2</span></span>
                 <span class="metric-label">소르티노 비율</span>
                 <span class="metric-value" id="metricSortino">-</span>
                 <span class="metric-bmk" id="bmkSortino"></span>

@@ -2481,6 +2481,61 @@ details[open] > .config-section-title.clickable {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    position: relative;
+}
+
+.metric-info {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+    z-index: 1;
+}
+
+.metric-info:hover,
+.metric-info:focus {
+    background: var(--primary-color, #3b82f6);
+    color: #fff;
+    outline: none;
+}
+
+.metric-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 200px;
+    max-width: 300px;
+    padding: 10px 12px;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius, 6px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.metric-info:hover .metric-tooltip,
+.metric-info:focus .metric-tooltip {
+    display: block;
 }
 
 .metric-label {
