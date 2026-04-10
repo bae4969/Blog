@@ -105,7 +105,8 @@ class BlockedIp
     {
         $sql = "SELECT * FROM blocked_ip_list 
                 WHERE expires_at IS NULL OR expires_at > NOW() 
-                ORDER BY blocked_at DESC";
+                ORDER BY blocked_at DESC
+                LIMIT 1000";
         return $this->db->fetchAll($sql);
     }
 
@@ -114,7 +115,7 @@ class BlockedIp
      */
     public function getAll(): array
     {
-        $sql = "SELECT * FROM blocked_ip_list ORDER BY blocked_at DESC";
+        $sql = "SELECT * FROM blocked_ip_list ORDER BY blocked_at DESC LIMIT 1000";
         return $this->db->fetchAll($sql);
     }
 
