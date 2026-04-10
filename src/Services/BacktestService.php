@@ -19,9 +19,9 @@ class BacktestService
     private const WARMUP_DAYS = 60;
 
     /** CPU yield: N 반복마다 usleep 호출 */
-    private const YIELD_INTERVAL = 50;
+    private const YIELD_INTERVAL = 200;
     /** CPU yield: usleep 시간 (마이크로초) */
-    private const YIELD_USLEEP = 5000;
+    private const YIELD_USLEEP = 2000;
     /** 차트 데이터 최대 포인트 수 */
     private const MAX_CHART_POINTS = 500;
     /** 최대 시뮬레이션 기간 (년) */
@@ -171,7 +171,7 @@ class BacktestService
      */
     private function fetchSingleCandle(string $code, string $market, string $start, string $end): ?array
     {
-        $candles = $this->stockModel->getCandleData($code, $start, $end, 1000, '1d', $market);
+        $candles = $this->stockModel->getCandleData($code, $start, $end, 15000, '1d', $market);
         if (empty($candles)) {
             return null;
         }

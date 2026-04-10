@@ -204,6 +204,15 @@ class Logger
             return $cached;
         }
 
+        // 크로스-리퀘스트 캐시 (10분 TTL)
+        $fileCache = Cache::getInstance();
+        $cacheKey = Cache::key('log_table_names');
+        $fileCached = $fileCache->get($cacheKey);
+        if ($fileCached !== null && is_array($fileCached)) {
+            $cached = $fileCached;
+            return $cached;
+        }
+
         try {
             $db = Database::getInstance();
             $rows = $db->fetchAll(
@@ -225,6 +234,7 @@ class Logger
             }
 
             $cached = $tables;
+            $fileCache->set($cacheKey, $tables, 600);
             return $cached;
         } catch (\Throwable $e) {
             error_log('[Logger] getLogTableNames failed: ' . $e->getMessage());

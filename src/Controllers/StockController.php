@@ -5,6 +5,7 @@ namespace Blog\Controllers;
 use Blog\Models\Stock;
 use Blog\Models\Category;
 use Blog\Services\BacktestService;
+use Blog\Core\Cache;
 
 class StockController extends BaseController
 {
@@ -208,6 +209,17 @@ class StockController extends BaseController
             return;
         }
 
+        // Rate Limiting (IP당 분당 30회)
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cache = Cache::getInstance();
+        $rateKey = Cache::key('daterange_rate', $ip);
+        $rateCount = (int)($cache->get($rateKey) ?? 0) + 1;
+        $cache->set($rateKey, $rateCount, 60);
+        if ($rateCount > 30) {
+            $this->jsonResponse(['success' => false, 'error' => '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
+            return;
+        }
+
         $codesParam = isset($_GET['codes']) ? $this->sanitizeInput($_GET['codes']) : '';
         $marketsParam = isset($_GET['markets']) ? $this->sanitizeInput($_GET['markets']) : '';
         if (empty($codesParam)) {
@@ -275,6 +287,17 @@ class StockController extends BaseController
     public function apiBacktest(): void
     {
         if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        // Rate Limiting (IP당 분당 5회 — CPU/DB 집약적 API)
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cache = Cache::getInstance();
+        $rateKey = Cache::key('backtest_rate', $ip);
+        $rateCount = (int)($cache->get($rateKey) ?? 0) + 1;
+        $cache->set($rateKey, $rateCount, 60);
+        if ($rateCount > 5) {
+            $this->jsonResponse(['success' => false, 'error' => '백테스트 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
             return;
         }
 

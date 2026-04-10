@@ -2138,6 +2138,8 @@ details[open] > .config-section-title.clickable {
 
 /* 포트폴리오/벤치마크 소제목 */
 .picker-sub-title {
+    display: flex;
+    align-items: center;
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--text-secondary);
@@ -2216,6 +2218,16 @@ details[open] > .config-section-title.clickable {
     padding: 2px 6px !important;
     font-size: 0.9rem;
     line-height: 1;
+    min-height: auto !important;
+    margin: 2px 0;
+}
+
+.equalize-btn {
+    font-size: 0.65rem !important;
+    padding: 4px 10px !important;
+    min-height: auto !important;
+    margin-left: auto;
+    margin-right: 38px;
 }
 
 .portfolio-weight-total {
