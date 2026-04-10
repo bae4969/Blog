@@ -16,9 +16,10 @@
         </div>
 
         <div class="input">
-            <input id="text_pw" name="user_pw" type="password" placeholder="PW" required
+            <input id="text_pw" type="password" placeholder="PW" required
                    autocomplete="current-password"
                    onkeyup="if(window.event.keyCode==13){loginClick()}" />
+            <input type="hidden" id="hashed_pw" name="user_pw" value="" />
         </div>
 
         <div class="input">
@@ -46,7 +47,7 @@ function loginClick() {
     
     // 비밀번호 해시화
     const hashedPassword = sha256(password);
-    document.getElementById("text_pw").value = hashedPassword;
+    document.getElementById("hashed_pw").value = hashedPassword;
     
     // 폼 제출
     formEl.submit();
