@@ -313,10 +313,12 @@
                             item.querySelector('.sr-add-portfolio').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddPortfolio(stock);
+                                resultsDiv.style.display = 'none';
                             });
                             item.querySelector('.sr-add-benchmark').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddBenchmark(stock);
+                                resultsDiv.style.display = 'none';
                             });
                         });
                     });
