@@ -606,6 +606,12 @@ class Stock
         $countRow = $this->db->fetch("SELECT COUNT(*) AS count FROM {$fromSql} {$whereSql}", $params);
         $total = (int)($countRow['count'] ?? 0);
 
+        $codeOrderSql = '';
+        if ($search !== '') {
+            $params[':stock_admin_code_order'] = $search . '%';
+            $codeOrderSql = "CASE WHEN si.stock_code LIKE :stock_admin_code_order THEN 0 ELSE 1 END, ";
+        }
+
         $sql = "SELECT si.stock_code,
                        si.stock_name_kr,
                        si.stock_name_en,
@@ -619,7 +625,7 @@ class Stock
                        CASE WHEN wsq.stock_code IS NULL THEN 0 ELSE 1 END AS is_registered
                 FROM {$fromSql}
                 {$whereSql}
-                ORDER BY is_registered DESC, si.stock_market ASC, si.stock_capitalization DESC, si.stock_code ASC
+                ORDER BY {$codeOrderSql}is_registered DESC, si.stock_market ASC, si.stock_capitalization DESC, si.stock_code ASC
                 LIMIT :limit OFFSET :offset";
 
         $params[':limit'] = $perPage;
@@ -655,6 +661,12 @@ class Stock
         $countRow = $this->db->fetch("SELECT COUNT(*) AS count FROM {$fromSql} {$whereSql}", $params);
         $total = (int)($countRow['count'] ?? 0);
 
+        $codeOrderSql = '';
+        if ($search !== '') {
+            $params[':coin_admin_code_order'] = $search . '%';
+            $codeOrderSql = "CASE WHEN ci.coin_code LIKE :coin_admin_code_order THEN 0 ELSE 1 END, ";
+        }
+
         $sql = "SELECT ci.coin_code AS stock_code,
                        ci.coin_name_kr AS stock_name_kr,
                        ci.coin_name_en AS stock_name_en,
@@ -668,7 +680,7 @@ class Stock
                        CASE WHEN cwq.coin_code IS NULL THEN 0 ELSE 1 END AS is_registered
                 FROM {$fromSql}
                 {$whereSql}
-                ORDER BY is_registered DESC, (ci.coin_price * ci.coin_amount) DESC, ci.coin_code ASC
+                ORDER BY {$codeOrderSql}is_registered DESC, (ci.coin_price * ci.coin_amount) DESC, ci.coin_code ASC
                 LIMIT :limit OFFSET :offset";
 
         $params[':limit'] = $perPage;

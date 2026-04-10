@@ -1753,17 +1753,64 @@
         grid-template-columns: 1fr;
     }
 
-    .log-col-location {
-        display: none;
+    .log-table {
+        table-layout: auto;
     }
 
     .log-col-datetime {
-        width: 130px;
+        width: auto;
         font-size: 12px;
+        white-space: nowrap !important;
     }
 
     .log-col-name {
-        width: 80px;
+        width: auto;
+        max-width: 80px;
+    }
+
+    .log-col-name code {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .log-col-message {
+        min-width: 0;
+        max-width: 220px;
+    }
+
+    .log-message-text {
+        font-size: 12px;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .log-message-text.log-msg-expanded {
+        white-space: normal;
+        overflow: visible;
+    }
+
+    .log-json-summary .log-summary-text {
+        font-size: 12px;
+    }
+
+    .log-col-location {
+        max-width: 140px;
+    }
+
+    .log-col-location code {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .log-json {
+        font-size: 11px;
+        max-height: 150px;
     }
 }
 

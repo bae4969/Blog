@@ -167,6 +167,26 @@ class Logger
             }
         }
 
+        // 인덱스 생성 (log_datetime, log_name)
+        try {
+            $indexCheck = $db->fetch(
+                "SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'Log' AND TABLE_NAME = ? AND INDEX_NAME = 'idx_log_datetime' LIMIT 1",
+                [$tableName]
+            );
+            if (empty($indexCheck)) {
+                $db->query("CREATE INDEX idx_log_datetime ON {$quotedTable} (log_datetime)");
+            }
+            $indexCheck2 = $db->fetch(
+                "SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'Log' AND TABLE_NAME = ? AND INDEX_NAME = 'idx_log_name_datetime' LIMIT 1",
+                [$tableName]
+            );
+            if (empty($indexCheck2)) {
+                $db->query("CREATE INDEX idx_log_name_datetime ON {$quotedTable} (log_name, log_datetime)");
+            }
+        } catch (\Throwable $e) {
+            // 인덱스 생성 실패 시 무시
+        }
+
         self::$ensuredTables[$ensureKey] = true;
     }
 
@@ -175,11 +195,41 @@ class Logger
     ];
 
     /**
-     * Logger가 관리하는 로그 테이블명 반환 (blog_log만 해당)
+     * Log 스키마에서 로그 구조를 가진 모든 테이블명 반환
      */
     public static function getLogTableNames(): array
     {
-        return ['blog_log'];
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        try {
+            $db = Database::getInstance();
+            $rows = $db->fetchAll(
+                "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'Log' AND TABLE_NAME REGEXP '^[A-Za-z0-9_]+$' ORDER BY TABLE_NAME"
+            );
+
+            $tables = [];
+            $requiredColumns = ['log_datetime', 'log_name', 'log_type', 'log_message'];
+            foreach ($rows as $row) {
+                $tableName = $row['TABLE_NAME'];
+                $cols = $db->fetchAll(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'Log' AND TABLE_NAME = ?",
+                    [$tableName]
+                );
+                $colNames = array_column($cols, 'COLUMN_NAME');
+                if (count(array_intersect($requiredColumns, $colNames)) === count($requiredColumns)) {
+                    $tables[] = $tableName;
+                }
+            }
+
+            $cached = $tables;
+            return $cached;
+        } catch (\Throwable $e) {
+            error_log('[Logger] getLogTableNames failed: ' . $e->getMessage());
+            return ['blog_log'];
+        }
     }
 
     /**
@@ -228,6 +278,13 @@ class Logger
 
         $where = [];
         $params = [];
+
+        // 필터가 전혀 없으면 기본 7일 제한 (전체 풀스캔 방지)
+        $hasAnyFilter = !empty($filters['name']) || !empty($filters['type']) || !empty($filters['date_from']) || !empty($filters['date_to']) || !empty($filters['q']);
+        if (!$hasAnyFilter) {
+            $where[] = 'log_datetime >= ?';
+            $params[] = date('Y-m-d H:i:s', strtotime('-7 days'));
+        }
 
         if (!empty($filters['name'])) {
             $where[] = 'log_name = ?';
@@ -280,7 +337,7 @@ class Logger
         }
 
         $source = self::buildUnionSubquery($tables);
-        $sql = "SELECT DISTINCT log_name FROM {$source} WHERE log_datetime >= DATE_SUB(NOW(), INTERVAL 90 DAY) ORDER BY log_name";
+        $sql = "SELECT DISTINCT log_name FROM {$source} WHERE log_datetime >= DATE_SUB(NOW(), INTERVAL 90 DAY) ORDER BY log_name LIMIT 200";
         $rows = $db->fetchAll($sql);
 
         return array_column($rows, 'log_name');
