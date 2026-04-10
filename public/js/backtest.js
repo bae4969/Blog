@@ -145,17 +145,21 @@
      * 가중치: CAGR 20, avgAnnual 10, totalReturn 10, MDD 20, Sharpe 20, Sortino 20
      */
     function calculateTotalScore(metrics) {
+        // 비정상 값(Infinity, null 등)은 중립 점수 50으로 처리하여 총 점수 왜곡 방지
         function normalize(value, minVal, maxVal) {
             if (value === null || value === undefined || !isFinite(value)) return 50;
             var score = (value - minVal) / (maxVal - minVal) * 100;
             return Math.max(0, Math.min(100, score));
         }
 
+        // MDD는 낮을수록 좋으므로 역전 정규화: 100 - 정방향 점수
+        var mddNormalized = 100 - normalize(metrics.mdd, 5, 60);
+
         var scores = {
             cagr:        normalize(metrics.cagr, -5, 20),
             avgAnnual:   normalize(metrics.avgAnnual, -5, 25),
             totalReturn: normalize(metrics.totalReturn, -30, 300),
-            mdd:         normalize(metrics.mdd, 60, 5),   // 역전: 60→0점, 5→100점
+            mdd:         mddNormalized,
             sharpe:      normalize(metrics.sharpe, -0.5, 2.5),
             sortino:     normalize(metrics.sortino, -0.5, 3.0)
         };
@@ -166,7 +170,9 @@
         };
         var totalWeight = 0;
         var weightedSum = 0;
-        for (var key in weights) {
+        var keys = Object.keys(weights);
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
             weightedSum += scores[key] * weights[key];
             totalWeight += weights[key];
         }
@@ -586,7 +592,9 @@
         var breakdownEl = document.getElementById('scoreBreakdown');
         if (breakdownEl) {
             breakdownEl.innerHTML = '';
-            for (var key in breakdownLabels) {
+            var bdKeys = Object.keys(breakdownLabels);
+            for (var i = 0; i < bdKeys.length; i++) {
+                var key = bdKeys[i];
                 var s = Math.round(scoreResult.scores[key]);
                 var barClass = s >= 70 ? 'bar-high' : (s >= 40 ? 'bar-mid' : 'bar-low');
                 breakdownEl.innerHTML +=
