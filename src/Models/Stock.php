@@ -1019,6 +1019,48 @@ class Stock
     }
 
     /**
+     * 주식/코인 캔들 데이터의 최소/최대 날짜 조회
+     */
+    public function getCandleDateRange(string $stockCode, string $market = ''): ?array
+    {
+        $cacheKey = Cache::key('stock_date_range', $stockCode, $market);
+        $cached = $this->cache->get($cacheKey);
+        if ($cached !== null) {
+            return $cached ?: null;
+        }
+
+        $isCoin = $this->resolveIsCoin($stockCode, $market);
+        $prefix = $isCoin ? 'c' : 's';
+        $candleSource = $this->resolveCandleSource($stockCode, $prefix);
+
+        if ($candleSource === null) {
+            $this->cache->set($cacheKey, '', $this->cache->getTtl('stock_latest_close'));
+            return null;
+        }
+
+        $tableRef = "`{$candleSource['schema']}`.`{$candleSource['table']}`";
+
+        try {
+            $row = $this->db->fetch(
+                "SELECT DATE(MIN(execution_datetime)) AS min_date,
+                        DATE(MAX(execution_datetime)) AS max_date
+                 FROM {$tableRef}"
+            );
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        if (!$row || !$row['min_date'] || !$row['max_date']) {
+            $this->cache->set($cacheKey, '', $this->cache->getTtl('stock_latest_close'));
+            return null;
+        }
+
+        $result = ['min' => $row['min_date'], 'max' => $row['max_date']];
+        $this->cache->set($cacheKey, $result, $this->cache->getTtl('stock_latest_close'));
+        return $result;
+    }
+
+    /**
      * 주식/코인 캔들 데이터 조회 (차트용)
      * limit에 미달하면 자동으로 이전 시간대를 포함해서 조회
      */
