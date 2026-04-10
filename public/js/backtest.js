@@ -10,10 +10,138 @@
        상수 & 상태
        ========================================= */
     var MAX_STOCKS = 10;
+    var MAX_BENCHMARKS = 5;
     var WARMUP_DAYS = 60; // 지표 계산을 위한 워밍업 기간
     var portfolio = [];    // [{ code, name, market, weight }]
-    var benchmark = null;  // { code, name, market }
+    var benchmarks = [];   // [{ code, name, market }]
     var backtestChart = null;
+
+    // 데이터 캐시 & 자동 재계산
+    var cachedFetchResult = null;  // fetchAll 결과 { stockData, benchmarkDataMap, commonDates }
+    var cachedFetchKey = null;     // 캐시 키 문자열 (종목+기간 해시)
+    var hasRunOnce = false;        // 최초 실행 여부 (자동 재계산 활성화 조건)
+    var autoRecalcTimer = null;    // debounce 타이머
+    var dateRangeTimer = null;     // 날짜 범위 fetch debounce
+
+    /**
+     * 포트폴리오+벤치마크 종목의 공통 날짜 범위를 조회하여 date picker 제한 적용
+     */
+    function updateDateRange() {
+        clearTimeout(dateRangeTimer);
+        dateRangeTimer = setTimeout(function () {
+            var allStocks = portfolio.concat(benchmarks);
+            var startEl = document.getElementById('startDate');
+            var endEl = document.getElementById('endDate');
+            if (!startEl || !endEl) return;
+
+            if (allStocks.length === 0) {
+                startEl.removeAttribute('min');
+                startEl.removeAttribute('max');
+                endEl.removeAttribute('min');
+                endEl.removeAttribute('max');
+                return;
+            }
+
+            var codes = allStocks.map(function (s) { return s.code; }).join(',');
+            var markets = allStocks.map(function (s) { return s.market || ''; }).join(',');
+
+            fetch('/stocks/api/date-range?codes=' + encodeURIComponent(codes) + '&markets=' + encodeURIComponent(markets), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (json) {
+                    if (json.success && json.data) {
+                        startEl.setAttribute('min', json.data.min);
+                        startEl.setAttribute('max', json.data.max);
+                        endEl.setAttribute('min', json.data.min);
+                        endEl.setAttribute('max', json.data.max);
+                        // 현재 값이 범위 밖이면 보정
+                        if (startEl.value && startEl.value < json.data.min) startEl.value = json.data.min;
+                        if (startEl.value && startEl.value > json.data.max) startEl.value = json.data.max;
+                        if (endEl.value && endEl.value < json.data.min) endEl.value = json.data.min;
+                        if (endEl.value && endEl.value > json.data.max) endEl.value = json.data.max;
+                    } else {
+                        startEl.removeAttribute('min');
+                        startEl.removeAttribute('max');
+                        endEl.removeAttribute('min');
+                        endEl.removeAttribute('max');
+                    }
+                })
+                .catch(function () { /* 무시 */ });
+        }, 300);
+    }
+
+    /**
+     * 캐시 키 생성: 종목 코드 + 벤치마크 코드 + 기간으로 구성
+     * 데이터에 영향을 주는 파라미터만 포함
+     */
+    function buildFetchKey(stocks, bmks, startDate, endDate) {
+        var stockCodes = stocks.map(function (s) { return s.code + ':' + (s.market || ''); }).sort().join(',');
+        var bmkCodes = (bmks || []).map(function (b) { return b.code + ':' + (b.market || ''); }).sort().join(',');
+        return stockCodes + '|' + bmkCodes + '|' + startDate + '|' + endDate;
+    }
+
+    /**
+     * 증분 fetch에 필요한 diff 계산
+     * @returns { toFetchStocks, toFetchBmks, toRemoveStocks, toRemoveBmks, dateChanged }
+     */
+    function computeFetchDiff(newStocks, newBmks, newStart, newEnd) {
+        if (!cachedFetchResult || !cachedFetchKey) {
+            return { toFetchStocks: newStocks, toFetchBmks: newBmks || [], toRemoveStocks: [], toRemoveBmks: [], dateChanged: true };
+        }
+        // 기간이 변경되었으면 전체 re-fetch
+        var oldParts = cachedFetchKey.split('|');
+        var oldStart = oldParts[2], oldEnd = oldParts[3];
+        if (newStart !== oldStart || newEnd !== oldEnd) {
+            return { toFetchStocks: newStocks, toFetchBmks: newBmks || [], toRemoveStocks: [], toRemoveBmks: [], dateChanged: true };
+        }
+        var cachedStockCodes = new Set(Object.keys(cachedFetchResult.stockData));
+        var cachedBmkCodes = new Set(Object.keys(cachedFetchResult.benchmarkDataMap || {}));
+        var newStockCodes = new Set(newStocks.map(function (s) { return s.code; }));
+        var newBmkCodes = new Set((newBmks || []).map(function (b) { return b.code; }));
+
+        var toFetchStocks = newStocks.filter(function (s) { return !cachedStockCodes.has(s.code); });
+        var toFetchBmks = (newBmks || []).filter(function (b) { return !cachedBmkCodes.has(b.code); });
+        var toRemoveStocks = Array.from(cachedStockCodes).filter(function (c) { return !newStockCodes.has(c); });
+        var toRemoveBmks = Array.from(cachedBmkCodes).filter(function (c) { return !newBmkCodes.has(c); });
+
+        return { toFetchStocks: toFetchStocks, toFetchBmks: toFetchBmks, toRemoveStocks: toRemoveStocks, toRemoveBmks: toRemoveBmks, dateChanged: false };
+    }
+
+    /**
+     * 실행 버튼 상태를 현재 캐시와 설정에 따라 업데이트
+     */
+    function updateRunButtonState() {
+        var btn = document.getElementById('runBacktest');
+        if (!btn || btn.disabled) return;
+
+        if (!hasRunOnce || !cachedFetchResult) {
+            btn.textContent = '백테스트 실행';
+            btn.className = 'btn btn-primary btn-lg btn-block';
+            return;
+        }
+        // 현재 설정으로 캐시 키를 비교
+        var startDate = document.getElementById('startDate').value;
+        var endDate = document.getElementById('endDate').value;
+        var currentStocks = portfolio.map(function (s) { return { code: s.code, market: s.market }; });
+        var currentKey = buildFetchKey(currentStocks, benchmarks, startDate, endDate);
+        if (currentKey === cachedFetchKey) {
+            btn.textContent = '재계산';
+            btn.className = 'btn btn-primary btn-lg btn-block btn-recalc';
+        } else {
+            btn.textContent = '데이터 새로 불러오기';
+            btn.className = 'btn btn-primary btn-lg btn-block btn-refetch';
+        }
+    }
+
+    // 벤치마크 차트 색상 팔레트
+    var BMK_COLORS = [
+        'rgb(249, 115, 22)',   // orange
+        'rgb(168, 85, 247)',   // purple
+        'rgb(34, 197, 94)',    // green
+        'rgb(236, 72, 153)',   // pink
+        'rgb(6, 182, 212)'    // cyan
+    ];
 
     /* =========================================
        유틸리티
@@ -111,14 +239,14 @@
          * @param onProgress 콜백(loaded, total)
          * @returns Promise<{ stockData:{code→{dates,ohlcv}}, benchmarkData, commonDates }>
          */
-        fetchAll: function (stocks, bmk, startDate, endDate, onProgress) {
-            var total = stocks.length + (bmk ? 1 : 0);
+        fetchAll: function (stocks, bmks, startDate, endDate, onProgress) {
+            var total = stocks.length + (bmks ? bmks.length : 0);
             var loaded = 0;
             var allItems = stocks.map(function (s) { return { code: s.code, market: s.market, isBmk: false }; });
-            if (bmk) allItems.push({ code: bmk.code, market: bmk.market, isBmk: true });
+            if (bmks) bmks.forEach(function (b) { allItems.push({ code: b.code, market: b.market, isBmk: true }); });
 
             var stockData = {};
-            var benchmarkData = null;
+            var benchmarkDataMap = {}; // code → {dates, ohlcv}
 
             var promises = allItems.map(function (item) {
                 return BacktestData.fetchCandle(item.code, item.market, startDate, endDate)
@@ -126,7 +254,7 @@
                         loaded++;
                         if (onProgress) onProgress(loaded, total);
                         if (item.isBmk) {
-                            benchmarkData = data;
+                            benchmarkDataMap[item.code] = data;
                         } else {
                             stockData[item.code] = data;
                         }
@@ -134,26 +262,81 @@
             });
 
             return Promise.all(promises).then(function () {
-                // 공통 날짜 계산 (모든 종목에 데이터 있는 날만)
-                var dateSets = [];
-                Object.keys(stockData).forEach(function (code) {
-                    if (stockData[code]) dateSets.push(new Set(stockData[code].dates));
-                });
-                if (dateSets.length === 0) return null;
-
-                var common = Array.from(dateSets[0]);
-                for (var i = 1; i < dateSets.length; i++) {
-                    common = common.filter(function (d) { return dateSets[i].has(d); });
-                }
-                // 시작일 이후만 필터 (워밍업 기간 포함)
-                common.sort();
-
-                return {
-                    stockData: stockData,
-                    benchmarkData: benchmarkData,
-                    commonDates: common
-                };
+                return BacktestData._buildResult(stockData, benchmarkDataMap);
             });
+        },
+
+        /**
+         * 증분 fetch: 변경된 종목만 fetch하고 기존 캐시에 병합
+         * @param diff computeFetchDiff() 결과
+         * @returns Promise<{ stockData, benchmarkDataMap, commonDates }>
+         */
+        fetchIncremental: function (diff, startDate, endDate, onProgress) {
+            var total = diff.toFetchStocks.length + diff.toFetchBmks.length;
+            var loaded = 0;
+
+            // 기존 캐시 복사
+            var stockData = {};
+            var benchmarkDataMap = {};
+            Object.keys(cachedFetchResult.stockData).forEach(function (k) {
+                stockData[k] = cachedFetchResult.stockData[k];
+            });
+            Object.keys(cachedFetchResult.benchmarkDataMap || {}).forEach(function (k) {
+                benchmarkDataMap[k] = cachedFetchResult.benchmarkDataMap[k];
+            });
+
+            // 삭제
+            diff.toRemoveStocks.forEach(function (code) { delete stockData[code]; });
+            diff.toRemoveBmks.forEach(function (code) { delete benchmarkDataMap[code]; });
+
+            if (total === 0) {
+                // fetch 필요 없음 — 삭제만 처리 후 commonDates 재계산
+                if (onProgress) onProgress(1, 1);
+                return Promise.resolve(BacktestData._buildResult(stockData, benchmarkDataMap));
+            }
+
+            var allItems = diff.toFetchStocks.map(function (s) { return { code: s.code, market: s.market, isBmk: false }; });
+            diff.toFetchBmks.forEach(function (b) { allItems.push({ code: b.code, market: b.market, isBmk: true }); });
+
+            var promises = allItems.map(function (item) {
+                return BacktestData.fetchCandle(item.code, item.market, startDate, endDate)
+                    .then(function (data) {
+                        loaded++;
+                        if (onProgress) onProgress(loaded, total);
+                        if (item.isBmk) {
+                            benchmarkDataMap[item.code] = data;
+                        } else {
+                            stockData[item.code] = data;
+                        }
+                    });
+            });
+
+            return Promise.all(promises).then(function () {
+                return BacktestData._buildResult(stockData, benchmarkDataMap);
+            });
+        },
+
+        /**
+         * stockData에서 공통 날짜 계산하여 결과 객체 생성
+         */
+        _buildResult: function (stockData, benchmarkDataMap) {
+            var dateSets = [];
+            Object.keys(stockData).forEach(function (code) {
+                if (stockData[code]) dateSets.push(new Set(stockData[code].dates));
+            });
+            if (dateSets.length === 0) return null;
+
+            var common = Array.from(dateSets[0]);
+            for (var i = 1; i < dateSets.length; i++) {
+                common = common.filter(function (d) { return dateSets[i].has(d); });
+            }
+            common.sort();
+
+            return {
+                stockData: stockData,
+                benchmarkDataMap: benchmarkDataMap,
+                commonDates: common
+            };
         }
     };
 
@@ -439,7 +622,7 @@
          *   signalCombine: 'and'|'or',
          *   initialCapital: number,
          *   monthlyDCA: number,
-         *   dcaDefer: { enabled, indicator, targetCode },
+         *   dcaDefer: { enabled, indicator },
          *   fees: { KR, US, COIN },
          *   riskFreeRate: number
          * }
@@ -482,12 +665,15 @@
                 });
             }
 
-            // DCA 유예 시그널 계산
-            var dcaDeferSignals = null;
+            // DCA 유예 시그널 계산 — 종목별 독립 시그널
+            var dcaDeferMap = null; // code → boolean[]
             if (config.dcaDefer && config.dcaDefer.enabled) {
-                var deferCode = config.dcaDefer.targetCode || stocks[0].code;
-                var deferCloses = closesMap[deferCode] || closesMap[stocks[0].code];
-                dcaDeferSignals = SignalGenerator.generateDCADefer(deferCloses, config.dcaDefer.indicator);
+                dcaDeferMap = {};
+                stocks.forEach(function (s) {
+                    if (closesMap[s.code]) {
+                        dcaDeferMap[s.code] = SignalGenerator.generateDCADefer(closesMap[s.code], config.dcaDefer.indicator);
+                    }
+                });
             }
 
             // 시뮬레이션 상태
@@ -496,7 +682,8 @@
             stocks.forEach(function (s) { holdings[s.code] = 0; });
             var totalFees = 0;
             var totalInvested = config.initialCapital || 0;
-            var deferredCash = 0; // 유예된 DCA 금액
+            var deferredCash = {}; // code → 유예된 DCA 금액
+            stocks.forEach(function (s) { deferredCash[s.code] = 0; });
             var trades = [];
             var dailySeries = [];
             var lastDCAMonth = null;
@@ -519,19 +706,44 @@
                 var fullIdx = fullDates.indexOf(date);
                 var curMonth = date.substring(0, 7);
 
-                // 1) DCA: 월 첫 거래일 현금 주입
+                // 1) DCA: 월 첫 거래일 현금 주입 (종목별 유예)
                 if (config.monthlyDCA > 0 && curMonth !== lastDCAMonth) {
                     lastDCAMonth = curMonth;
-                    var shouldDefer = dcaDeferSignals && fullIdx >= 0 && dcaDeferSignals[fullIdx];
-                    if (shouldDefer) {
-                        deferredCash += config.monthlyDCA;
+                    if (dcaDeferMap) {
+                        // 종목별로 유예 여부 판단
+                        stocks.forEach(function (s) {
+                            var stockDCA = config.monthlyDCA * (s.weight / 100);
+                            var isDeferred = dcaDeferMap[s.code] && fullIdx >= 0 && dcaDeferMap[s.code][fullIdx];
+                            if (isDeferred) {
+                                deferredCash[s.code] += stockDCA;
+                            } else {
+                                var amount = stockDCA + deferredCash[s.code];
+                                deferredCash[s.code] = 0;
+                                totalInvested += amount;
+                                // 즉시 매수
+                                if (config.strategy !== 'signal') {
+                                    var price = data[s.code] && data[s.code].ohlcv[date] ? data[s.code].ohlcv[date].c : 0;
+                                    if (price > 0) {
+                                        var feeRate = PortfolioSimulator._getFeeRate(s.market, config.fees);
+                                        var fee = amount * feeRate;
+                                        var qty = (amount - fee) / price;
+                                        if (qty > 0) {
+                                            holdings[s.code] += qty;
+                                            totalFees += fee;
+                                            trades.push({ date: date, code: s.code, type: 'buy', qty: qty, price: price, fee: fee });
+                                        }
+                                    } else {
+                                        cash += amount; // 가격 없으면 현금 보유
+                                    }
+                                } else {
+                                    cash += amount; // signal 전략은 현금 보유 후 시그널 매수
+                                }
+                            }
+                        });
                     } else {
-                        var dcaAmount = config.monthlyDCA + deferredCash;
-                        deferredCash = 0;
-                        cash += dcaAmount;
-                        totalInvested += dcaAmount;
-
-                        // DCA 금액으로 즉시 매수 (buy & hold / rebalance 전략)
+                        // 유예 OFF — 기존 로직
+                        cash += config.monthlyDCA;
+                        totalInvested += config.monthlyDCA;
                         if (config.strategy !== 'signal' && cash > 0) {
                             PortfolioSimulator._buyByWeight(stocks, data, date, holdings, config.fees, function (fee) { totalFees += fee; }, cash, trades);
                             cash = 0;
@@ -539,17 +751,32 @@
                     }
                 }
 
-                // DCA 유예 해제 체크 (월 첫 거래일 아닌데 유예 풀릴 때)
-                if (deferredCash > 0 && dcaDeferSignals && fullIdx >= 0 && !dcaDeferSignals[fullIdx]) {
-                    cash += deferredCash + config.monthlyDCA * 0; // 누적분만
-                    totalInvested += deferredCash;
-                    var releasedCash = deferredCash;
-                    deferredCash = 0;
-                    if (config.strategy !== 'signal' && releasedCash > 0) {
-                        PortfolioSimulator._buyByWeight(stocks, data, date, holdings, config.fees, function (fee) { totalFees += fee; }, releasedCash, trades);
-                        cash -= releasedCash;
-                        if (cash < 0) cash = 0;
-                    }
+                // DCA 유예 해제 체크 (월 첫 거래일 아닌데 유예 풀릴 때) — 종목별
+                if (dcaDeferMap && fullIdx >= 0) {
+                    stocks.forEach(function (s) {
+                        if (deferredCash[s.code] > 0 && dcaDeferMap[s.code] && !dcaDeferMap[s.code][fullIdx]) {
+                            var amount = deferredCash[s.code];
+                            deferredCash[s.code] = 0;
+                            totalInvested += amount;
+                            if (config.strategy !== 'signal') {
+                                var price = data[s.code] && data[s.code].ohlcv[date] ? data[s.code].ohlcv[date].c : 0;
+                                if (price > 0) {
+                                    var feeRate = PortfolioSimulator._getFeeRate(s.market, config.fees);
+                                    var fee = amount * feeRate;
+                                    var qty = (amount - fee) / price;
+                                    if (qty > 0) {
+                                        holdings[s.code] += qty;
+                                        totalFees += fee;
+                                        trades.push({ date: date, code: s.code, type: 'buy', qty: qty, price: price, fee: fee });
+                                    }
+                                } else {
+                                    cash += amount;
+                                }
+                            } else {
+                                cash += amount;
+                            }
+                        }
+                    });
                 }
 
                 // 2) 전략별 매매
@@ -557,20 +784,42 @@
                     if (PortfolioSimulator._shouldRebalance(date, lastRebalanceDate, config.rebalancePeriod)) {
                         lastRebalanceDate = date;
                         var totalValue = cash + PortfolioSimulator._portfolioValue(stocks, data, date, holdings);
-                        // 전량 매도 후 비중대로 재매수
+                        // 차액 리밸런싱: 목표 비중과의 차이만큼만 매도/매수
+                        // 1단계: 초과 비중 종목 매도
                         stocks.forEach(function (s) {
-                            if (holdings[s.code] > 0) {
-                                var price = data[s.code] && data[s.code].ohlcv[date] ? data[s.code].ohlcv[date].c : 0;
-                                var sellValue = holdings[s.code] * price;
-                                var fee = sellValue * PortfolioSimulator._getFeeRate(s.market, config.fees);
-                                cash += sellValue - fee;
+                            var price = data[s.code] && data[s.code].ohlcv[date] ? data[s.code].ohlcv[date].c : 0;
+                            if (price <= 0) return;
+                            var currentVal = holdings[s.code] * price;
+                            var targetVal = totalValue * (s.weight / 100);
+                            if (currentVal > targetVal) {
+                                var excessVal = currentVal - targetVal;
+                                var sellQty = excessVal / price;
+                                var fee = excessVal * PortfolioSimulator._getFeeRate(s.market, config.fees);
+                                holdings[s.code] -= sellQty;
+                                cash += excessVal - fee;
                                 totalFees += fee;
-                                trades.push({ date: date, code: s.code, type: 'sell', qty: holdings[s.code], price: price, fee: fee });
-                                holdings[s.code] = 0;
+                                trades.push({ date: date, code: s.code, type: 'sell', qty: sellQty, price: price, fee: fee });
                             }
                         });
-                        PortfolioSimulator._buyByWeight(stocks, data, date, holdings, config.fees, function (fee) { totalFees += fee; }, cash, trades);
-                        cash = 0;
+                        // 2단계: 부족 비중 종목 매수 (매도로 확보된 현금 사용)
+                        stocks.forEach(function (s) {
+                            var price = data[s.code] && data[s.code].ohlcv[date] ? data[s.code].ohlcv[date].c : 0;
+                            if (price <= 0) return;
+                            var currentVal = holdings[s.code] * price;
+                            var targetVal = totalValue * (s.weight / 100);
+                            if (currentVal < targetVal && cash > 0) {
+                                var deficitVal = Math.min(targetVal - currentVal, cash);
+                                var feeRate = PortfolioSimulator._getFeeRate(s.market, config.fees);
+                                var fee = deficitVal * feeRate;
+                                var buyQty = (deficitVal - fee) / price;
+                                if (buyQty > 0) {
+                                    holdings[s.code] += buyQty;
+                                    cash -= deficitVal;
+                                    totalFees += fee;
+                                    trades.push({ date: date, code: s.code, type: 'buy', qty: buyQty, price: price, fee: fee });
+                                }
+                            }
+                        });
                     }
                 } else if (config.strategy === 'signal') {
                     stocks.forEach(function (s) {
@@ -689,9 +938,18 @@
             var first = series[0];
             var last = series[series.length - 1];
             var years = (parseDate(last.date) - parseDate(first.date)) / (365.25 * 86400000);
-            if (years <= 0 || last.invested <= 0) return 0;
-            // 적립식의 경우 CAGR 근사: 최종가치 / 총투자로 계산
-            return (Math.pow(last.value / last.invested, 1 / years) - 1) * 100;
+            if (years <= 0) return 0;
+            // TWR(시간가중수익률) 기반 CAGR: 외부 현금흐름(DCA) 영향 제거
+            var twr = 1;
+            for (var i = 1; i < series.length; i++) {
+                var prevVal = series[i - 1].value;
+                var cashFlow = series[i].invested - series[i - 1].invested; // 당일 DCA 주입분
+                var base = prevVal + cashFlow; // 현금흐름 보정된 기준 가치
+                if (base > 0) {
+                    twr *= (series[i].value / base);
+                }
+            }
+            return (Math.pow(twr, 1 / years) - 1) * 100;
         },
 
         maxDrawdown: function (series) {
@@ -743,7 +1001,17 @@
             var result = [];
             Object.keys(years).sort().forEach(function (y) {
                 var yr = years[y];
-                var ret = yr.last.invested > 0 ? ((yr.last.value - yr.last.invested) / yr.last.invested * 100) : 0;
+                // TWR 기반 연도별 수익률: 해당 연도의 일별 수익률 연쇄곱
+                var twr = 1;
+                for (var i = 1; i < yr.values.length; i++) {
+                    var prevVal = yr.values[i - 1].value;
+                    var cashFlow = yr.values[i].invested - yr.values[i - 1].invested;
+                    var base = prevVal + cashFlow;
+                    if (base > 0) {
+                        twr *= (yr.values[i].value / base);
+                    }
+                }
+                var ret = (twr - 1) * 100;
                 // 연중 MDD
                 var peak = -Infinity, mdd = 0;
                 yr.values.forEach(function (d) {
@@ -754,8 +1022,9 @@
                 result.push({
                     year: y,
                     returnPct: ret,
+                    startValue: yr.first.value,
+                    endValue: yr.last.value,
                     invested: yr.last.invested,
-                    value: yr.last.value,
                     mdd: mdd
                 });
             });
@@ -765,8 +1034,11 @@
         _dailyReturns: function (series) {
             var returns = [];
             for (var i = 1; i < series.length; i++) {
-                if (series[i - 1].value > 0) {
-                    returns.push((series[i].value - series[i - 1].value) / series[i - 1].value);
+                var prevVal = series[i - 1].value;
+                var cashFlow = series[i].invested - series[i - 1].invested; // DCA 현금흐름 보정
+                var base = prevVal + cashFlow;
+                if (base > 0) {
+                    returns.push(series[i].value / base - 1);
                 }
             }
             return returns;
@@ -787,16 +1059,26 @@
             }
 
             var labels = series.map(function (d) { return d.date; });
-            var portfolioReturns = series.map(function (d) {
-                return d.invested > 0 ? ((d.value - d.invested) / d.invested * 100) : 0;
-            });
-            var investedLine = series.map(function (d) {
-                return d.invested > 0 ? 0 : 0; // 투자 원금선 (0% 기준선)
+            // TWR 기반 누적 수익률 (DCA 현금흐름 보정)
+            var portfolioReturns = [];
+            var twrCum = 1;
+            portfolioReturns.push(0); // 첫날 0%
+            for (var i = 1; i < series.length; i++) {
+                var prevVal = series[i - 1].value;
+                var cashFlow = series[i].invested - series[i - 1].invested;
+                var base = prevVal + cashFlow;
+                if (base > 0) {
+                    twrCum *= (series[i].value / base);
+                }
+                portfolioReturns.push((twrCum - 1) * 100);
+            }
+            var investedLine = series.map(function () {
+                return 0; // 투자 원금선 (0% 기준선)
             });
 
             var datasets = [
                 {
-                    label: '포트폴리오 수익률',
+                    label: '포트폴리오',
                     data: portfolioReturns,
                     borderColor: 'rgb(59, 130, 246)',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -818,24 +1100,27 @@
             ];
 
             if (benchmarkSeries && benchmarkSeries.length > 0) {
-                var bmkMap = {};
-                benchmarkSeries.forEach(function (d) { bmkMap[d.date] = d.returnPct; });
-                // carry-forward: 날짜 불일치 시 직전 값 사용 (KR/US 거래일 차이 보정)
-                var lastBmkVal = 0;
-                var bmkReturns = labels.map(function (d) {
-                    if (bmkMap[d] !== undefined) lastBmkVal = bmkMap[d];
-                    return lastBmkVal;
-                });
-                datasets.push({
-                    label: '벤치마크 수익률',
-                    data: bmkReturns,
-                    borderColor: 'rgb(249, 115, 22)',
-                    backgroundColor: 'rgba(249, 115, 22, 0.05)',
-                    borderWidth: 2,
-                    borderDash: [4, 4],
-                    pointRadius: 0,
-                    fill: false,
-                    tension: 0.1
+                benchmarkSeries.forEach(function (bmkItem, bmkIdx) {
+                    var bmkMap = {};
+                    bmkItem.data.forEach(function (d) { bmkMap[d.date] = d.returnPct; });
+                    // carry-forward: 날짜 불일치 시 직전 값 사용 (KR/US 거래일 차이 보정)
+                    var lastBmkVal = 0;
+                    var bmkReturns = labels.map(function (d) {
+                        if (bmkMap[d] !== undefined) lastBmkVal = bmkMap[d];
+                        return lastBmkVal;
+                    });
+                    var color = BMK_COLORS[bmkIdx % BMK_COLORS.length];
+                    datasets.push({
+                        label: bmkItem.name,
+                        data: bmkReturns,
+                        borderColor: color,
+                        backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.05)'),
+                        borderWidth: 2,
+                        borderDash: [4, 4],
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.1
+                    });
                 });
             }
 
@@ -993,6 +1278,7 @@
                 portfolio[idx].weight = parseFloat(this.value) || 0;
                 renderPortfolio();
                 updateSignalTargets();
+                scheduleAutoRecalc();
             });
         });
         // 삭제 이벤트
@@ -1001,6 +1287,8 @@
                 portfolio.splice(parseInt(this.dataset.idx), 1);
                 renderPortfolio();
                 updateSignalTargets();
+                updateRunButtonState();
+                updateDateRange();
             });
         });
         // 균등 배분
@@ -1041,9 +1329,14 @@
         var clone = template.content.cloneNode(true);
         container.appendChild(clone);
         updateSignalTargets();
+        // 시그널 변경 시 자동 재계산
+        var rules = container.querySelectorAll('.signal-rule');
+        var lastRule = rules[rules.length - 1];
+        lastRule.querySelector('.signal-indicator').addEventListener('change', scheduleAutoRecalc);
+        lastRule.querySelector('.signal-target').addEventListener('change', scheduleAutoRecalc);
         // 삭제 버튼
         container.querySelectorAll('.signal-remove').forEach(function (btn) {
-            btn.onclick = function () { btn.closest('.signal-rule').remove(); };
+            btn.onclick = function () { btn.closest('.signal-rule').remove(); scheduleAutoRecalc(); };
         });
     }
 
@@ -1056,40 +1349,42 @@
                 var strategy = tab.dataset.strategy;
                 document.getElementById('rebalanceConfig').style.display = strategy === 'rebalance' ? '' : 'none';
                 document.getElementById('signalConfig').style.display = strategy === 'signal' ? '' : 'none';
+                scheduleAutoRecalc();
             });
         });
     }
 
-    // DCA 유예 토글
-    function initDCADefer() {
-        var cb = document.getElementById('dcaDeferEnabled');
-        var cfg = document.getElementById('dcaDeferConfig');
-        if (cb && cfg) {
-            cb.addEventListener('change', function () {
-                cfg.style.display = cb.checked ? '' : 'none';
-            });
-        }
-    }
+    // DCA 유예 — 별도 초기화 불필요 (콤보박스는 simParamIds에서 change 이벤트 등록)
 
     // 벤치마크 렌더링
     function renderBenchmark() {
         var container = document.getElementById('selectedBenchmark');
         if (!container) return;
-        if (!benchmark) { container.innerHTML = ''; return; }
-        container.innerHTML = '<div class="benchmark-item">' +
-            '<span class="ps-name">' + benchmark.name + '</span>' +
-            '<span class="ps-code">' + benchmark.code + '</span>' +
-            '<span class="ps-market badge-' + benchmark.market.toLowerCase() + '">' + benchmark.market + '</span>' +
-            '<button type="button" class="btn btn-sm btn-danger bmk-remove">&times;</button>' +
-            '</div>';
-        container.querySelector('.bmk-remove').addEventListener('click', function () {
-            benchmark = null;
-            renderBenchmark();
+        if (benchmarks.length === 0) { container.innerHTML = ''; return; }
+        var html = '';
+        benchmarks.forEach(function (b, idx) {
+            var color = BMK_COLORS[idx % BMK_COLORS.length];
+            html += '<div class="benchmark-item">' +
+                '<span class="bmk-color-dot" style="background:' + color + '"></span>' +
+                '<span class="ps-name">' + b.name + '</span>' +
+                '<span class="ps-code">' + b.code + '</span>' +
+                '<span class="ps-market badge-' + b.market.toLowerCase() + '">' + b.market + '</span>' +
+                '<button type="button" class="btn btn-sm btn-danger bmk-remove" data-idx="' + idx + '">&times;</button>' +
+                '</div>';
+        });
+        container.innerHTML = html;
+        container.querySelectorAll('.bmk-remove').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                benchmarks.splice(parseInt(this.dataset.idx), 1);
+                renderBenchmark();
+                updateRunButtonState();
+                updateDateRange();
+            });
         });
     }
 
     // 결과 표시
-    function displayResults(result, benchmarkResult) {
+    function displayResults(result, benchmarkResults) {
         var panel = document.getElementById('backtestResults');
         panel.style.display = '';
 
@@ -1118,17 +1413,64 @@
         document.getElementById('metricSortino').textContent = sortino === Infinity ? '∞' : sortino.toFixed(2);
         document.getElementById('metricTotalFees').textContent = formatCurrency(result.totalFees);
 
-        // 차트 — 벤치마크도 동일 DCA 시뮬레이션 결과 사용
-        var bmkSeries = null;
-        if (benchmarkResult && benchmarkResult.dailySeries && benchmarkResult.dailySeries.length > 0) {
-            bmkSeries = benchmarkResult.dailySeries.map(function (d) {
-                return {
-                    date: d.date,
-                    returnPct: d.invested > 0 ? ((d.value - d.invested) / d.invested * 100) : 0
-                };
+        // 벤치마크 지표 계산 및 표시 (복수)
+        var bmkMetricIds = ['bmkTotalReturn', 'bmkAvgAnnual', 'bmkCAGR', 'bmkMDD', 'bmkSharpe', 'bmkSortino'];
+        bmkMetricIds.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) { el.innerHTML = ''; el.classList.remove('visible'); }
+        });
+        if (benchmarkResults && benchmarkResults.length > 0) {
+            var bmkLines = { bmkTotalReturn: [], bmkAvgAnnual: [], bmkCAGR: [], bmkMDD: [], bmkSharpe: [], bmkSortino: [] };
+            benchmarkResults.forEach(function (bmkItem) {
+                if (!bmkItem.result || !bmkItem.result.dailySeries || bmkItem.result.dailySeries.length < 2) return;
+                var bmkS = bmkItem.result.dailySeries;
+                var bTotalRet = MetricsCalculator.totalReturn(bmkS);
+                var bCagr = MetricsCalculator.cagr(bmkS);
+                var bMdd = MetricsCalculator.maxDrawdown(bmkS);
+                var bSharpe = MetricsCalculator.sharpeRatio(bmkS, riskFreeRate);
+                var bSortino = MetricsCalculator.sortinoRatio(bmkS, riskFreeRate);
+                var bAnnuals = MetricsCalculator.annualReturns(bmkS);
+                var bAvgAnnual = bAnnuals.length > 0 ? bAnnuals.reduce(function (s, a) { return s + a.returnPct; }, 0) / bAnnuals.length : 0;
+
+                var colorStyle = ' style="color:' + bmkItem.color + '"';
+                bmkLines.bmkTotalReturn.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bTotalRet) + '</span>');
+                bmkLines.bmkAvgAnnual.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bAvgAnnual) + '</span>');
+                bmkLines.bmkCAGR.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(bCagr) + '</span>');
+                bmkLines.bmkMDD.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + formatPercent(-bMdd) + '</span>');
+                bmkLines.bmkSharpe.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + (bSharpe === Infinity ? '∞' : bSharpe.toFixed(2)) + '</span>');
+                bmkLines.bmkSortino.push('<span class="bmk-val"' + colorStyle + '>' + bmkItem.name + ' ' + (bSortino === Infinity ? '∞' : bSortino.toFixed(2)) + '</span>');
+            });
+            bmkMetricIds.forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el && bmkLines[id].length > 0) {
+                    el.innerHTML = bmkLines[id].join('<br>');
+                    el.classList.add('visible');
+                }
             });
         }
-        BacktestChart.render(series, bmkSeries);
+
+        // 차트 — 벤치마크도 동일 DCA 시뮬레이션 결과 사용 (TWR 기반)
+        var bmkChartSeries = [];
+        if (benchmarkResults && benchmarkResults.length > 0) {
+            benchmarkResults.forEach(function (bmkItem) {
+                if (!bmkItem.result || !bmkItem.result.dailySeries || bmkItem.result.dailySeries.length < 1) return;
+                var bmkDs = bmkItem.result.dailySeries;
+                var twrData = [];
+                var bmkTwr = 1;
+                twrData.push({ date: bmkDs[0].date, returnPct: 0 });
+                for (var bi = 1; bi < bmkDs.length; bi++) {
+                    var bPrevVal = bmkDs[bi - 1].value;
+                    var bCashFlow = bmkDs[bi].invested - bmkDs[bi - 1].invested;
+                    var bBase = bPrevVal + bCashFlow;
+                    if (bBase > 0) {
+                        bmkTwr *= (bmkDs[bi].value / bBase);
+                    }
+                    twrData.push({ date: bmkDs[bi].date, returnPct: (bmkTwr - 1) * 100 });
+                }
+                bmkChartSeries.push({ name: bmkItem.name, color: bmkItem.color, data: twrData });
+            });
+        }
+        BacktestChart.render(series, bmkChartSeries);
 
         // 연도별 수익률 테이블
         var annuals = MetricsCalculator.annualReturns(series);
@@ -1138,8 +1480,8 @@
             var tr = document.createElement('tr');
             tr.innerHTML = '<td>' + a.year + '</td>' +
                 '<td class="' + (a.returnPct >= 0 ? 'positive' : 'negative') + '">' + formatPercent(a.returnPct) + '</td>' +
-                '<td>' + formatCurrency(a.invested) + '</td>' +
-                '<td>' + formatCurrency(a.value) + '</td>' +
+                '<td>' + formatCurrency(a.startValue) + '</td>' +
+                '<td>' + formatCurrency(a.endValue) + '</td>' +
                 '<td class="negative">' + formatPercent(-a.mdd) + '</td>';
             tbody.appendChild(tr);
         });
@@ -1199,9 +1541,8 @@
             initialCapital: (parseFloat(document.getElementById('initialCapital').value) || 0) * 10000,
             monthlyDCA: (parseFloat(document.getElementById('monthlyDCA').value) || 0) * 10000,
             dcaDefer: {
-                enabled: document.getElementById('dcaDeferEnabled').checked,
-                indicator: document.getElementById('dcaDeferIndicator').value,
-                targetCode: document.getElementById('dcaDeferTarget').value === 'benchmark' && benchmark ? benchmark.code : (portfolio[0] ? portfolio[0].code : '')
+                enabled: document.getElementById('dcaDeferIndicator').value !== 'none',
+                indicator: document.getElementById('dcaDeferIndicator').value
             },
             fees: {
                 KR: parseFloat(document.getElementById('feeKR').value) || 0,
@@ -1212,7 +1553,97 @@
         };
     }
 
-    // 백테스트 실행
+    // 시뮬레이션 실행 + 렌더링 (캐시된 데이터 사용)
+    function rerunSimulation() {
+        if (!cachedFetchResult || !hasRunOnce) return;
+        var config = collectConfig();
+        if (!config) return;
+
+        config.stockData = cachedFetchResult.stockData;
+        config.commonDates = cachedFetchResult.commonDates;
+
+        var result = PortfolioSimulator.run(config);
+        if (!result || result.dailySeries.length === 0) return;
+
+        // 벤치마크 시뮬레이션
+        var bmkResults = simulateBenchmarks(config, result, cachedFetchResult.benchmarkDataMap);
+        displayResults(result, bmkResults);
+    }
+
+    // 벤치마크 시뮬레이션 공통 함수
+    function simulateBenchmarks(config, portfolioResult, benchmarkDataMap) {
+        var bmkResults = [];
+        if (benchmarks.length === 0 || !benchmarkDataMap) return bmkResults;
+
+        var portfolioFirstDate = portfolioResult.dailySeries[0].date;
+        var portfolioDates = portfolioResult.dailySeries.map(function (d) { return d.date; });
+
+        benchmarks.forEach(function (bmk, bmkIdx) {
+            var bmkData = benchmarkDataMap[bmk.code];
+            if (!bmkData) return;
+
+            var bmkStockData = {};
+            // 깊은 복사하여 원본 캐시 보호
+            bmkStockData[bmk.code] = { dates: bmkData.dates.slice(), ohlcv: Object.assign({}, bmkData.ohlcv) };
+            var bmkDates = bmkData.dates;
+            var unionDates = [];
+            var seen = {};
+            portfolioDates.concat(bmkDates).forEach(function (d) {
+                if (!seen[d] && d >= portfolioFirstDate && d <= config.endDate) {
+                    seen[d] = true;
+                    unionDates.push(d);
+                }
+            });
+            unionDates.sort();
+            // carry-forward
+            var bmkOhlcv = bmkStockData[bmk.code].ohlcv;
+            var lastCarry = null;
+            unionDates.forEach(function (d) {
+                if (bmkOhlcv[d]) {
+                    lastCarry = bmkOhlcv[d];
+                } else if (lastCarry) {
+                    bmkOhlcv[d] = { o: lastCarry.c, h: lastCarry.c, l: lastCarry.c, c: lastCarry.c, v: 0 };
+                }
+            });
+            bmkStockData[bmk.code].dates = unionDates;
+            var bmkConfig = {
+                stocks: [{ code: bmk.code, market: bmk.market, weight: 100 }],
+                stockData: bmkStockData,
+                commonDates: unionDates,
+                startDate: portfolioFirstDate,
+                endDate: config.endDate,
+                strategy: 'buyhold',
+                rebalancePeriod: 'quarterly',
+                signalRules: [],
+                signalCombine: 'or',
+                initialCapital: config.initialCapital,
+                monthlyDCA: config.monthlyDCA,
+                dcaDefer: { enabled: false },
+                fees: config.fees,
+                riskFreeRate: config.riskFreeRate
+            };
+            var bmkResult = PortfolioSimulator.run(bmkConfig);
+            if (bmkResult) {
+                bmkResults.push({
+                    name: bmk.name,
+                    color: BMK_COLORS[bmkIdx % BMK_COLORS.length],
+                    result: bmkResult
+                });
+            }
+        });
+        return bmkResults;
+    }
+
+    // 자동 재계산 트리거 (debounce)
+    function scheduleAutoRecalc() {
+        if (!hasRunOnce || !cachedFetchResult) return;
+        clearTimeout(autoRecalcTimer);
+        autoRecalcTimer = setTimeout(function () {
+            rerunSimulation();
+        }, 300);
+    }
+
+    // 백테스트 실행 (fetch 필요 여부 자동 판단)
     function runBacktest() {
         var config = collectConfig();
         if (!config) return;
@@ -1225,26 +1656,80 @@
         var progressFill = document.getElementById('progressFill');
         var progressText = document.getElementById('progressText');
         var resultsPanel = document.getElementById('backtestResults');
-        progressDiv.style.display = '';
 
-        BacktestData.fetchAll(
-            config.stocks,
-            benchmark,
-            config.startDate,
-            config.endDate,
-            function (loaded, total) {
-                var pct = Math.round(loaded / total * 100);
-                progressFill.style.width = pct + '%';
-                progressText.textContent = '데이터 로딩 중... (' + loaded + '/' + total + ')';
+        var newKey = buildFetchKey(config.stocks, benchmarks, config.startDate, config.endDate);
+
+        // 캐시 적중: fetch 없이 즉시 재계산
+        if (cachedFetchKey === newKey && cachedFetchResult) {
+            config.stockData = cachedFetchResult.stockData;
+            config.commonDates = cachedFetchResult.commonDates;
+
+            var result = PortfolioSimulator.run(config);
+            if (!result || result.dailySeries.length === 0) {
+                alert('시뮬레이션 결과가 없습니다. 기간에 데이터가 충분한지 확인하세요.');
+                btn.disabled = false;
+                updateRunButtonState();
+                return;
             }
-        ).then(function (allData) {
+            var bmkResults = simulateBenchmarks(config, result, cachedFetchResult.benchmarkDataMap);
+            displayResults(result, bmkResults);
+            hasRunOnce = true;
+            btn.disabled = false;
+            updateRunButtonState();
+            document.getElementById('metricsCards').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
+        // 증분 fetch 판단
+        var diff = computeFetchDiff(config.stocks, benchmarks, config.startDate, config.endDate);
+        var fetchPromise;
+
+        if (!diff.dateChanged && cachedFetchResult) {
+            // 증분 fetch (종목 추가/삭제만)
+            var incTotal = diff.toFetchStocks.length + diff.toFetchBmks.length;
+            if (incTotal === 0 && diff.toRemoveStocks.length === 0 && diff.toRemoveBmks.length === 0) {
+                // 아무 변화 없음 — 즉시 완료
+                fetchPromise = Promise.resolve(cachedFetchResult);
+            } else {
+                progressDiv.style.display = '';
+                progressText.textContent = '추가 데이터 로딩 중...';
+                progressFill.style.width = '0%';
+                fetchPromise = BacktestData.fetchIncremental(diff, config.startDate, config.endDate, function (loaded, total) {
+                    var pct = Math.round(loaded / total * 100);
+                    progressFill.style.width = pct + '%';
+                    progressText.textContent = '추가 데이터 로딩 중... (' + loaded + '/' + total + ')';
+                });
+            }
+        } else {
+            // 전체 re-fetch
+            progressDiv.style.display = '';
+            progressFill.style.width = '0%';
+            progressText.textContent = '데이터 로딩 중...';
+            fetchPromise = BacktestData.fetchAll(
+                config.stocks,
+                benchmarks.length > 0 ? benchmarks : null,
+                config.startDate,
+                config.endDate,
+                function (loaded, total) {
+                    var pct = Math.round(loaded / total * 100);
+                    progressFill.style.width = pct + '%';
+                    progressText.textContent = '데이터 로딩 중... (' + loaded + '/' + total + ')';
+                }
+            );
+        }
+
+        fetchPromise.then(function (allData) {
             if (!allData || allData.commonDates.length === 0) {
                 alert('선택한 기간에 공통 데이터가 없습니다. 기간을 조정하거나 다른 종목을 선택하세요.');
                 btn.disabled = false;
-                btn.textContent = '백테스트 실행';
+                updateRunButtonState();
                 progressDiv.style.display = 'none';
                 return;
             }
+
+            // 캐시 저장
+            cachedFetchResult = allData;
+            cachedFetchKey = newKey;
 
             progressText.textContent = '시뮬레이션 계산 중...';
             progressFill.style.width = '100%';
@@ -1258,42 +1743,19 @@
                 if (!result || result.dailySeries.length === 0) {
                     alert('시뮬레이션 결과가 없습니다. 기간에 데이터가 충분한지 확인하세요.');
                     btn.disabled = false;
-                    btn.textContent = '백테스트 실행';
+                    updateRunButtonState();
                     progressDiv.style.display = 'none';
                     return;
                 }
 
-                // 벤치마크: 동일 DCA/수수료로 Buy & Hold 시뮬레이션
-                // 포트폴리오의 실제 첫 거래일로 시작일을 정렬하여 둘 다 0%에서 시작
-                var bmkResult = null;
-                if (allData.benchmarkData && benchmark) {
-                    var portfolioFirstDate = result.dailySeries[0].date;
-                    var bmkStockData = {};
-                    bmkStockData[benchmark.code] = allData.benchmarkData;
-                    var bmkConfig = {
-                        stocks: [{ code: benchmark.code, market: benchmark.market, weight: 100 }],
-                        stockData: bmkStockData,
-                        commonDates: allData.benchmarkData.dates,
-                        startDate: portfolioFirstDate,
-                        endDate: config.endDate,
-                        strategy: 'buyhold',
-                        rebalancePeriod: 'quarterly',
-                        signalRules: [],
-                        signalCombine: 'or',
-                        initialCapital: config.initialCapital,
-                        monthlyDCA: config.monthlyDCA,
-                        dcaDefer: { enabled: false },
-                        fees: config.fees,
-                        riskFreeRate: config.riskFreeRate
-                    };
-                    bmkResult = PortfolioSimulator.run(bmkConfig);
-                }
+                var bmkResults = simulateBenchmarks(config, result, allData.benchmarkDataMap);
 
                 progressDiv.style.display = 'none';
-                displayResults(result, bmkResult);
+                displayResults(result, bmkResults);
 
+                hasRunOnce = true;
                 btn.disabled = false;
-                btn.textContent = '백테스트 실행';
+                updateRunButtonState();
 
                 // 결과 패널로 스크롤
                 document.getElementById('metricsCards').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1302,7 +1764,7 @@
             console.error('백테스트 에러:', err);
             alert('데이터 로딩 중 오류가 발생했습니다.');
             btn.disabled = false;
-            btn.textContent = '백테스트 실행';
+            updateRunButtonState();
             progressDiv.style.display = 'none';
         });
     }
@@ -1310,7 +1772,7 @@
     /* =========================================
        설정 저장/불러오기 (localStorage)
        ========================================= */
-    var STORAGE_KEY = 'backtest_config_v1';
+    var STORAGE_KEY = 'backtest_config_v2';
 
     function saveConfigToStorage() {
         var activeTab = document.querySelector('.strategy-tab.active');
@@ -1324,16 +1786,15 @@
 
         var data = {
             portfolio: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
-            benchmark: benchmark ? { code: benchmark.code, name: benchmark.name, market: benchmark.market } : null,
+            benchmark: benchmarks.length > 0 ? { code: benchmarks[0].code, name: benchmarks[0].name, market: benchmarks[0].market } : null,
+            benchmarks: benchmarks.map(function (b) { return { code: b.code, name: b.name, market: b.market }; }),
             strategy: activeTab ? activeTab.dataset.strategy : 'buyhold',
             rebalancePeriod: document.getElementById('rebalancePeriod').value,
             signalRules: signalRules,
             signalCombine: document.getElementById('signalCombine').value,
             initialCapital: document.getElementById('initialCapital').value,
             monthlyDCA: document.getElementById('monthlyDCA').value,
-            dcaDeferEnabled: document.getElementById('dcaDeferEnabled').checked,
             dcaDeferIndicator: document.getElementById('dcaDeferIndicator').value,
-            dcaDeferTarget: document.getElementById('dcaDeferTarget').value,
             feeKR: document.getElementById('feeKR').value,
             feeUS: document.getElementById('feeUS').value,
             feeCOIN: document.getElementById('feeCOIN').value,
@@ -1363,8 +1824,16 @@
             });
             renderPortfolio();
 
-            // 벤치마크 복원
-            benchmark = data.benchmark ? { code: data.benchmark.code, name: data.benchmark.name, market: data.benchmark.market } : null;
+            // 벤치마크 복원 (복수 우선, 단수 호환)
+            if (data.benchmarks && data.benchmarks.length > 0) {
+                benchmarks = data.benchmarks.map(function (b) {
+                    return { code: b.code, name: b.name, market: b.market };
+                });
+            } else if (data.benchmark) {
+                benchmarks = [{ code: data.benchmark.code, name: data.benchmark.name, market: data.benchmark.market }];
+            } else {
+                benchmarks = [];
+            }
             renderBenchmark();
 
             // 전략 탭
@@ -1379,10 +1848,7 @@
             document.getElementById('signalCombine').value = data.signalCombine || 'or';
             document.getElementById('initialCapital').value = data.initialCapital || '1000';
             document.getElementById('monthlyDCA').value = data.monthlyDCA || '100';
-            document.getElementById('dcaDeferEnabled').checked = !!data.dcaDeferEnabled;
-            document.getElementById('dcaDeferConfig').style.display = data.dcaDeferEnabled ? '' : 'none';
-            document.getElementById('dcaDeferIndicator').value = data.dcaDeferIndicator || 'macd_death';
-            document.getElementById('dcaDeferTarget').value = data.dcaDeferTarget || 'first';
+            document.getElementById('dcaDeferIndicator').value = data.dcaDeferIndicator || (data.dcaDeferEnabled ? 'macd_death' : 'none');
             document.getElementById('feeKR').value = data.feeKR || '0.015';
             document.getElementById('feeUS').value = data.feeUS || '0.2';
             document.getElementById('feeCOIN').value = data.feeCOIN || '0.015';
@@ -1401,9 +1867,8 @@
                 if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
             });
 
-            var savedDate = data.savedAt ? new Date(data.savedAt) : null;
-            var timeStr = savedDate ? savedDate.toLocaleDateString('ko-KR') + ' ' + savedDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
-            showSaveStatus('불러옴 (' + timeStr + ')');
+            showSaveStatus('설정 복원됨');
+            updateDateRange();
         } catch (e) {
             alert('설정 불러오기에 실패했습니다.');
         }
@@ -1430,29 +1895,35 @@
         initStockSearch('stockSearchInput', 'stockSearchResults', function (stock) {
             if (portfolio.length >= MAX_STOCKS) { alert('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
             if (portfolio.some(function (s) { return s.code === stock.code; })) { alert('이미 추가된 종목입니다.'); return; }
-            stock.weight = Math.round(100 / (portfolio.length + 1) * 100) / 100;
-            // 기존 종목 비중 재조정
-            var totalOld = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-            if (totalOld > 0) {
-                var factor = (100 - stock.weight) / totalOld;
-                portfolio.forEach(function (s) { s.weight = Math.round(s.weight * factor * 100) / 100; });
-            }
+            // 균등 배분 (정수 기반으로 오차 방지)
+            var n = portfolio.length + 1;
+            var base = Math.floor(10000 / n);
+            var remainder = 10000 - base * n;
+            portfolio.forEach(function (s, i) {
+                s.weight = (base + (i < remainder ? 1 : 0)) / 100;
+            });
+            stock.weight = (base + (portfolio.length < remainder ? 1 : 0)) / 100;
             portfolio.push(stock);
             renderPortfolio();
             updateSignalTargets();
+            updateRunButtonState();
+            updateDateRange();
         });
 
         // 벤치마크 검색 초기화
         initStockSearch('benchmarkSearch', 'benchmarkSearchResults', function (stock) {
-            benchmark = stock;
+            if (benchmarks.length >= MAX_BENCHMARKS) { alert('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
+            if (benchmarks.some(function (b) { return b.code === stock.code; })) { alert('이미 추가된 벤치마크입니다.'); return; }
+            benchmarks.push(stock);
             renderBenchmark();
+            updateRunButtonState();
+            updateDateRange();
         });
 
         // 전략 탭
         initStrategyTabs();
 
-        // DCA 유예
-        initDCADefer();
+        // DCA 유예 — 콤보박스 change는 simParamIds에서 처리
 
         // 시그널 규칙 추가 버튼
         var addBtn = document.getElementById('addSignalRule');
@@ -1472,8 +1943,33 @@
             if (confirm('저장된 설정을 삭제하시겠습니까?')) clearStoredConfig();
         });
 
-        // 저장된 설정이 있으면 자동 복원
-        if (localStorage.getItem(STORAGE_KEY)) {
+        // 시뮬레이션 파라미터 변경 시 자동 재계산 이벤트 리스너
+        var simParamIds = [
+            'rebalancePeriod', 'signalCombine',
+            'initialCapital', 'monthlyDCA',
+            'dcaDeferIndicator',
+            'feeKR', 'feeUS', 'feeCOIN',
+            'riskFreeRate'
+        ];
+        simParamIds.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var eventType = (el.type === 'checkbox') ? 'change' : 'input';
+            el.addEventListener(eventType, scheduleAutoRecalc);
+        });
+
+        // 기간 변경 시 버튼 상태만 업데이트 (데이터 re-fetch 필요하므로 자동 재계산 아님)
+        ['startDate', 'endDate'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', updateRunButtonState);
+        });
+
+        // 저장된 설정이 있으면 자동 복원 (구버전 키 호환)
+        if (localStorage.getItem(STORAGE_KEY) || localStorage.getItem('backtest_config_v1')) {
+            if (!localStorage.getItem(STORAGE_KEY) && localStorage.getItem('backtest_config_v1')) {
+                localStorage.setItem(STORAGE_KEY, localStorage.getItem('backtest_config_v1'));
+                localStorage.removeItem('backtest_config_v1');
+            }
             loadConfigFromStorage();
         }
     }

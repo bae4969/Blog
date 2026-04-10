@@ -192,10 +192,57 @@ class StockController extends BaseController
     public function backtest(): void
     {
         $this->renderLayout('stock', 'stock/backtest', [
-            'pageTitle' => '포트폴리오 백테스팅',
             'isStockPage' => true,
             'additionalCss' => ['/css/stocks.css'],
             'additionalJs' => ['/vendor/chart.umd.min.js', '/js/backtest.js']
+        ]);
+    }
+
+    /**
+     * API: 종목 코드들의 공통 날짜 범위 조회 (JSON)
+     */
+    public function apiDateRange(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        $codesParam = isset($_GET['codes']) ? $this->sanitizeInput($_GET['codes']) : '';
+        $marketsParam = isset($_GET['markets']) ? $this->sanitizeInput($_GET['markets']) : '';
+        if (empty($codesParam)) {
+            $this->jsonResponse(['success' => true, 'data' => null]);
+            return;
+        }
+
+        $codes = array_slice(array_filter(explode(',', $codesParam)), 0, 15);
+        $markets = array_filter(explode(',', $marketsParam));
+
+        $globalMin = null;
+        $globalMax = null;
+
+        foreach ($codes as $i => $code) {
+            $market = isset($markets[$i]) ? $markets[$i] : '';
+            $range = $this->stockModel->getCandleDateRange(trim($code), trim($market));
+            if ($range === null) {
+                continue;
+            }
+            if ($globalMin === null || $range['min'] > $globalMin) {
+                $globalMin = $range['min'];
+            }
+            if ($globalMax === null || $range['max'] < $globalMax) {
+                $globalMax = $range['max'];
+            }
+        }
+
+        if ($globalMin === null || $globalMax === null || $globalMin > $globalMax) {
+            $this->jsonResponse(['success' => true, 'data' => null]);
+            return;
+        }
+
+        header('Cache-Control: private, max-age=300');
+        $this->jsonResponse([
+            'success' => true,
+            'data' => ['min' => $globalMin, 'max' => $globalMax]
         ]);
     }
 

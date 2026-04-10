@@ -528,7 +528,7 @@
     align-items: center;
     gap: 3px;
     margin-bottom: 6px;
-    padding: 2px 4px;
+    padding: 0px 14px;
     font-size: 11px;
     color: var(--text-muted);
     background: transparent;
@@ -1896,13 +1896,26 @@
     color: var(--text-primary);
 }
 
+.stock-detail-title {
+    margin: 0 0 12px;
+    padding: 14px 20px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--primary-color);
+}
+
 .backtest-container {
     display: grid;
-    grid-template-columns: 400px 1fr;
+    grid-template-columns: 1fr 400px;
     gap: 16px;
     max-width: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
 }
 
 /* 설정 패널 */
@@ -1910,6 +1923,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
+    min-width: 0;
 }
 
 .config-section {
@@ -1932,6 +1946,13 @@
 .config-section-title.clickable {
     cursor: pointer;
     user-select: none;
+}
+
+.config-subsection-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0 8px 0;
 }
 
 .config-label {
@@ -2245,6 +2266,13 @@
     font-size: 0.82rem;
 }
 
+.bmk-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
 /* 설정 저장/불러오기 */
 .config-save-section {
     padding: 10px 14px;
@@ -2294,6 +2322,14 @@
     cursor: not-allowed;
 }
 
+.btn-recalc {
+    background: var(--success-color, #22c55e);
+}
+
+.btn-refetch {
+    background: var(--warning-color, #f59e0b);
+}
+
 .btn-outline {
     background: transparent;
     border: 1px solid var(--border-color);
@@ -2328,6 +2364,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    min-width: 0;
 }
 
 /* 진행률 바 */
@@ -2398,6 +2435,21 @@
 
 .metric-value.negative {
     color: var(--danger-color, #ef4444);
+}
+
+.metric-bmk {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    display: none;
+}
+
+.metric-bmk.visible {
+    display: block;
+}
+
+.metric-bmk .bmk-val {
+    color: rgb(249, 115, 22);
+    font-weight: 600;
 }
 
 /* 차트 영역 */
@@ -2497,7 +2549,7 @@
 }
 
 /* 반응형 */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .backtest-container {
         grid-template-columns: 1fr;
     }
@@ -2511,7 +2563,7 @@
     }
 
     .metrics-cards {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
     }
 
     .config-grid-3 {
@@ -2519,9 +2571,45 @@
     }
 }
 
+@media (max-width: 768px) {
+    .metrics-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .strategy-tabs {
+        flex-wrap: wrap;
+    }
+
+    .strategy-tab {
+        flex: 0 0 calc(50% - 2px);
+    }
+
+    .trade-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .config-grid-3 {
+        gap: 6px;
+    }
+
+    .config-section {
+        padding: 10px;
+    }
+}
+
 @media (max-width: 480px) {
     .metrics-cards {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .metric-card {
+        padding: 10px;
+    }
+
+    .metric-value {
+        font-size: 1rem;
     }
 
     .config-grid {
@@ -2532,16 +2620,20 @@
         grid-template-columns: 1fr 1fr 1fr;
     }
 
-    .strategy-tabs {
+    .signal-rule {
         flex-wrap: wrap;
     }
 
-    .trade-summary-grid {
-        grid-template-columns: 1fr;
+    .signal-rule .backtest-select {
+        flex: 1 1 100%;
     }
 
     .backtest-chart-wrapper {
         height: 250px;
+    }
+
+    .trade-stat {
+        grid-template-columns: 1fr auto;
     }
 }
 }

@@ -115,6 +115,7 @@ $router->get('/stocks/backtest', [StockController::class, 'backtest']);
 $router->get('/stocks/api/candle', [StockController::class, 'apiCandleData']);
 $router->get('/stocks/api/executions', [StockController::class, 'apiRecentExecutions']);
 $router->get('/stocks/api/search', [StockController::class, 'apiSearch']);
+$router->get('/stocks/api/date-range', [StockController::class, 'apiDateRange']);
 
 // 요청 처리
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

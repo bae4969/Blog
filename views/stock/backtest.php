@@ -1,4 +1,111 @@
+<button class="btn btn-ghost stock-back-btn" onclick="location.href='/stocks'">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+    목록으로
+</button>
+<h2 class="stock-detail-title">포트폴리오 백테스팅</h2>
 <div class="backtest-container">
+    <!-- 결과 패널 -->
+    <div class="backtest-results" id="backtestResults">
+        <!-- 진행률 -->
+        <div id="backtestProgress" class="backtest-progress" style="display:none">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+
+            </div>
+            <span class="progress-text" id="progressText">데이터 로딩 중...</span>
+        </div>
+
+        <!-- 핵심 지표 카드 -->
+        <div class="metrics-cards" id="metricsCards">
+            <div class="metric-card" title="(최종 포트폴리오 가치 − 총 투자금) ÷ 총 투자금&#10;&#10;참고: S&amp;P500 10년 평균 ~170%, 올웨더 포트폴리오 10년 평균 ~80%">
+                <span class="metric-label">총 수익률</span>
+                <span class="metric-value" id="metricTotalReturn">-</span>
+                <span class="metric-bmk" id="bmkTotalReturn"></span>
+            </div>
+            <div class="metric-card" title="각 연도별 수익률의 산술 평균&#10;&#10;참고: S&amp;P500 장기 평균 ~12%, 올웨더 포트폴리오 ~8%">
+                <span class="metric-label">연간수익률 평균</span>
+                <span class="metric-value" id="metricAvgAnnual">-</span>
+                <span class="metric-bmk" id="bmkAvgAnnual"></span>
+            </div>
+            <div class="metric-card" title="연평균 복합 성장률. 매년 일정하게 성장했다면 얼마인지를 나타냄&#10;&#10;참고: S&amp;P500 장기 평균 ~10%, 올웨더 포트폴리오 ~7%">
+                <span class="metric-label">CAGR</span>
+                <span class="metric-value" id="metricCAGR">-</span>
+                <span class="metric-bmk" id="bmkCAGR"></span>
+            </div>
+            <div class="metric-card" title="최대 낙폭. 고점 대비 최대 하락 폭&#10;&#10;참고: S&amp;P500 평균 MDD ~-33%, 올웨더 포트폴리오 ~-12%">
+                <span class="metric-label">MDD</span>
+                <span class="metric-value" id="metricMDD">-</span>
+                <span class="metric-bmk" id="bmkMDD"></span>
+            </div>
+            <div class="metric-card" title="위험 대비 초과 수익. 높을수록 같은 변동성에서 더 많이 벌었다는 의미&#10;1 이상이면 양호, 2 이상이면 우수&#10;&#10;참고: S&amp;P500 장기 ~0.8, 올웨더 포트폴리오 ~1.0">
+                <span class="metric-label">샤프 비율</span>
+                <span class="metric-value" id="metricSharpe">-</span>
+                <span class="metric-bmk" id="bmkSharpe"></span>
+            </div>
+            <div class="metric-card" title="하락 위험 대비 초과 수익. 샤프와 비슷하지만 하락 변동성만 고려&#10;높을수록 비대칭적으로 수익이 우세&#10;&#10;참고: S&amp;P500 장기 ~1.0, 올웨더 포트폴리오 ~1.2">
+                <span class="metric-label">소르티노 비율</span>
+                <span class="metric-value" id="metricSortino">-</span>
+                <span class="metric-bmk" id="bmkSortino"></span>
+            </div>
+        </div>
+
+        <!-- 누적 수익률 차트 -->
+        <div class="backtest-chart-section">
+            <h3 class="result-section-title">누적 수익률</h3>
+            <div class="backtest-chart-wrapper">
+                <canvas id="backtestChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 연도별 수익률 -->
+        <div class="annual-returns-section">
+            <h3 class="result-section-title">연도별 수익률</h3>
+            <div class="table-responsive">
+                <table class="annual-returns-table" id="annualReturnsTable">
+                    <thead>
+                        <tr>
+                            <th>연도</th>
+                            <th>수익률</th>
+                            <th>연초 가치</th>
+                            <th>연말 가치</th>
+                            <th>MDD</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 거래 요약 -->
+        <div class="trade-summary-section">
+            <h3 class="result-section-title">거래 요약</h3>
+            <div class="trade-summary-grid" id="tradeSummary">
+                <div class="trade-stat">
+                    <span class="trade-stat-label">총 거래 횟수</span>
+                    <span class="trade-stat-value" id="tradeTotalCount">-</span>
+                </div>
+                <div class="trade-stat">
+                    <span class="trade-stat-label">매수 횟수</span>
+                    <span class="trade-stat-value" id="tradeBuyCount">-</span>
+                </div>
+                <div class="trade-stat">
+                    <span class="trade-stat-label">매도 횟수</span>
+                    <span class="trade-stat-value" id="tradeSellCount">-</span>
+                </div>
+                <div class="trade-stat">
+                    <span class="trade-stat-label">총 투자금</span>
+                    <span class="trade-stat-value" id="tradeTotalInvested">-</span>
+                </div>
+                <div class="trade-stat">
+                    <span class="trade-stat-label">총 수수료</span>
+                    <span class="trade-stat-value" id="metricTotalFees">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 설정 패널 -->
     <div class="backtest-config">
 
@@ -12,6 +119,50 @@
                 </div>
                 <div id="selectedStocks" class="selected-stocks-list">
                     <p class="empty-hint">종목을 검색하여 추가하세요 (최대 10개)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 벤치마크 -->
+        <div class="config-section">
+            <h3 class="config-section-title">벤치마크</h3>
+            <div class="config-field">
+                <label class="config-label" for="benchmarkSearch">벤치마크 (선택, 최대 5개)</label>
+                <div class="stock-search-row">
+                    <input type="text" id="benchmarkSearch" class="backtest-input" placeholder="벤치마크 종목 검색..." autocomplete="off">
+                    <div id="benchmarkSearchResults" class="stock-search-dropdown"></div>
+                </div>
+                <div id="selectedBenchmark" class="selected-benchmark"></div>
+            </div>
+        </div>
+
+        <!-- 적립식(DCA) 설정 -->
+        <div class="config-section">
+            <h3 class="config-section-title">투자 설정</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label class="config-label" for="initialCapital">초기 투자금</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="initialCapital" class="backtest-input" value="1000" min="0" step="100">
+                        <span class="input-unit">만원</span>
+                    </div>
+                </div>
+                <div class="config-field">
+                    <label class="config-label" for="monthlyDCA">월 적립금</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="monthlyDCA" class="backtest-input" value="100" min="0" step="10">
+                        <span class="input-unit">만원</span>
+                    </div>
+                </div>
+            </div>
+            <div class="config-grid" style="margin-top:8px">
+                <div class="config-field">
+                    <label class="config-label" for="startDate">시작일</label>
+                    <input type="date" id="startDate" class="backtest-input" value="2024-06-01">
+                </div>
+                <div class="config-field">
+                    <label class="config-label" for="endDate">종료일</label>
+                    <input type="date" id="endDate" class="backtest-input">
                 </div>
             </div>
         </div>
@@ -50,95 +201,18 @@
                     </select>
                 </div>
             </div>
-        </div>
 
-        <!-- 적립식(DCA) 설정 -->
-        <div class="config-section">
-            <h3 class="config-section-title">투자 설정</h3>
-            <div class="config-grid">
-                <div class="config-field">
-                    <label class="config-label" for="initialCapital">초기 투자금</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="initialCapital" class="backtest-input" value="1000" min="0" step="100">
-                        <span class="input-unit">만원</span>
-                    </div>
-                </div>
-                <div class="config-field">
-                    <label class="config-label" for="monthlyDCA">월 적립금</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="monthlyDCA" class="backtest-input" value="100" min="0" step="10">
-                        <span class="input-unit">만원</span>
-                    </div>
-                </div>
-            </div>
-            <div class="config-field" style="margin-top:8px">
-                <label class="config-label">
-                    <input type="checkbox" id="dcaDeferEnabled"> DCA 유예 조건 (시그널 기반 투입 지연)
-                </label>
-                <div id="dcaDeferConfig" class="dca-defer-config" style="display:none">
-                    <select id="dcaDeferIndicator" class="backtest-select">
-                        <option value="macd_death">MACD 데스크로스 시 유예</option>
-                        <option value="rsi_overbought">RSI 과매수 시 유예</option>
-                        <option value="bb_upper">BB 상단 돌파 시 유예</option>
-                        <option value="sma_death">SMA 데스크로스 시 유예</option>
-                    </select>
-                    <select id="dcaDeferTarget" class="backtest-select" style="margin-top:4px">
-                        <option value="first">첫 번째 종목 기준</option>
-                        <option value="benchmark">벤치마크 기준</option>
-                    </select>
-                    <p class="config-hint">유예된 금액은 해제 시그널 발생 시 누적 일괄 투입됩니다.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 수수료 -->
-        <div class="config-section">
-            <h3 class="config-section-title">수수료</h3>
-            <div class="config-grid config-grid-3">
-                <div class="config-field">
-                    <label class="config-label" for="feeKR">KR</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="feeKR" class="backtest-input" value="0.015" min="0" max="10" step="0.001">
-                        <span class="input-unit">%</span>
-                    </div>
-                </div>
-                <div class="config-field">
-                    <label class="config-label" for="feeUS">US</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="feeUS" class="backtest-input" value="0.2" min="0" max="10" step="0.001">
-                        <span class="input-unit">%</span>
-                    </div>
-                </div>
-                <div class="config-field">
-                    <label class="config-label" for="feeCOIN">COIN</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="feeCOIN" class="backtest-input" value="0.015" min="0" max="10" step="0.001">
-                        <span class="input-unit">%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 기간 & 벤치마크 -->
-        <div class="config-section">
-            <h3 class="config-section-title">기간 및 벤치마크</h3>
-            <div class="config-grid">
-                <div class="config-field">
-                    <label class="config-label" for="startDate">시작일</label>
-                    <input type="date" id="startDate" class="backtest-input" value="2024-06-01">
-                </div>
-                <div class="config-field">
-                    <label class="config-label" for="endDate">종료일</label>
-                    <input type="date" id="endDate" class="backtest-input">
-                </div>
-            </div>
-            <div class="config-field" style="margin-top:8px">
-                <label class="config-label" for="benchmarkSearch">벤치마크 (선택)</label>
-                <div class="stock-search-row">
-                    <input type="text" id="benchmarkSearch" class="backtest-input" placeholder="벤치마크 종목 검색..." autocomplete="off">
-                    <div id="benchmarkSearchResults" class="stock-search-dropdown"></div>
-                </div>
-                <div id="selectedBenchmark" class="selected-benchmark"></div>
+            <!-- DCA 유예 조건 -->
+            <div class="config-field" style="margin-top:10px">
+                <label class="config-label" for="dcaDeferIndicator">적립 유예 조건</label>
+                <select id="dcaDeferIndicator" class="backtest-select">
+                    <option value="none">사용 안 함 (매월 즉시 투입)</option>
+                    <option value="macd_death">MACD 데스크로스 시 유예</option>
+                    <option value="rsi_overbought">RSI 과매수 시 유예</option>
+                    <option value="bb_upper">BB 상단 돌파 시 유예</option>
+                    <option value="sma_death">SMA 데스크로스 시 유예</option>
+                </select>
+                <p class="config-hint">각 종목의 개별 시그널 기준으로 유예됩니다.</p>
             </div>
         </div>
 
@@ -146,12 +220,38 @@
         <div class="config-section">
             <details class="advanced-settings">
                 <summary class="config-section-title clickable">고급 설정</summary>
-                <div class="config-grid" style="margin-top:8px">
-                    <div class="config-field">
-                        <label class="config-label" for="riskFreeRate">무위험 수익률 (연)</label>
-                        <div class="input-with-unit">
-                            <input type="number" id="riskFreeRate" class="backtest-input" value="3.0" min="0" max="20" step="0.1">
-                            <span class="input-unit">%</span>
+                <div style="margin-top:8px">
+                    <h4 class="config-subsection-title">수수료</h4>
+                    <div class="config-grid config-grid-3">
+                        <div class="config-field">
+                            <label class="config-label" for="feeKR">KR</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="feeKR" class="backtest-input" value="0.015" min="0" max="10" step="0.001">
+                                <span class="input-unit">%</span>
+                            </div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-label" for="feeUS">US</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="feeUS" class="backtest-input" value="0.2" min="0" max="10" step="0.001">
+                                <span class="input-unit">%</span>
+                            </div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-label" for="feeCOIN">COIN</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="feeCOIN" class="backtest-input" value="0.015" min="0" max="10" step="0.001">
+                                <span class="input-unit">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="config-grid" style="margin-top:8px">
+                        <div class="config-field">
+                            <label class="config-label" for="riskFreeRate">무위험 수익률 (연)</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="riskFreeRate" class="backtest-input" value="3.0" min="0" max="20" step="0.1">
+                                <span class="input-unit">%</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -172,99 +272,6 @@
         <button type="button" id="runBacktest" class="btn btn-primary btn-lg btn-block">
             백테스트 실행
         </button>
-    </div>
-
-    <!-- 결과 패널 -->
-    <div class="backtest-results" id="backtestResults">
-        <!-- 진행률 -->
-        <div id="backtestProgress" class="backtest-progress" style="display:none">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <span class="progress-text" id="progressText">데이터 로딩 중...</span>
-        </div>
-
-        <!-- 핵심 지표 카드 -->
-        <div class="metrics-cards" id="metricsCards">
-            <div class="metric-card" title="(최종 포트폴리오 가치 − 총 투자금) ÷ 총 투자금&#10;&#10;참고: S&amp;P500 10년 평균 ~170%, 올웨더 포트폴리오 10년 평균 ~80%">
-                <span class="metric-label">총 수익률</span>
-                <span class="metric-value" id="metricTotalReturn">-</span>
-            </div>
-            <div class="metric-card" title="각 연도별 수익률의 산술 평균&#10;&#10;참고: S&amp;P500 장기 평균 ~12%, 올웨더 포트폴리오 ~8%">
-                <span class="metric-label">연간수익률 평균</span>
-                <span class="metric-value" id="metricAvgAnnual">-</span>
-            </div>
-            <div class="metric-card" title="연평균 복합 성장률. 매년 일정하게 성장했다면 얼마인지를 나타냄&#10;&#10;참고: S&amp;P500 장기 평균 ~10%, 올웨더 포트폴리오 ~7%">
-                <span class="metric-label">CAGR</span>
-                <span class="metric-value" id="metricCAGR">-</span>
-            </div>
-            <div class="metric-card" title="최대 낙폭. 고점 대비 최대 하락 폭&#10;&#10;참고: S&amp;P500 평균 MDD ~-33%, 올웨더 포트폴리오 ~-12%">
-                <span class="metric-label">MDD</span>
-                <span class="metric-value" id="metricMDD">-</span>
-            </div>
-            <div class="metric-card" title="위험 대비 초과 수익. 높을수록 같은 변동성에서 더 많이 벌었다는 의미&#10;1 이상이면 양호, 2 이상이면 우수&#10;&#10;참고: S&amp;P500 장기 ~0.8, 올웨더 포트폴리오 ~1.0">
-                <span class="metric-label">샤프 비율</span>
-                <span class="metric-value" id="metricSharpe">-</span>
-            </div>
-            <div class="metric-card" title="하락 위험 대비 초과 수익. 샤프와 비슷하지만 하락 변동성만 고려&#10;높을수록 비대칭적으로 수익이 우세&#10;&#10;참고: S&amp;P500 장기 ~1.0, 올웨더 포트폴리오 ~1.2">
-                <span class="metric-label">소르티노 비율</span>
-                <span class="metric-value" id="metricSortino">-</span>
-            </div>
-        </div>
-
-        <!-- 누적 수익률 차트 -->
-        <div class="backtest-chart-section">
-            <h3 class="result-section-title">누적 수익률</h3>
-            <div class="backtest-chart-wrapper">
-                <canvas id="backtestChart"></canvas>
-            </div>
-        </div>
-
-        <!-- 연도별 수익률 -->
-        <div class="annual-returns-section">
-            <h3 class="result-section-title">연도별 수익률</h3>
-            <div class="table-responsive">
-                <table class="annual-returns-table" id="annualReturnsTable">
-                    <thead>
-                        <tr>
-                            <th>연도</th>
-                            <th>수익률</th>
-                            <th>누적 투자금</th>
-                            <th>포트폴리오 가치</th>
-                            <th>MDD</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 거래 요약 -->
-        <div class="trade-summary-section">
-            <h3 class="result-section-title">거래 요약</h3>
-            <div class="trade-summary-grid" id="tradeSummary">
-                <div class="trade-stat">
-                    <span class="trade-stat-label">총 거래 횟수</span>
-                    <span class="trade-stat-value" id="tradeTotalCount">-</span>
-                </div>
-                <div class="trade-stat">
-                    <span class="trade-stat-label">매수 횟수</span>
-                    <span class="trade-stat-value" id="tradeBuyCount">-</span>
-                </div>
-                <div class="trade-stat">
-                    <span class="trade-stat-label">매도 횟수</span>
-                    <span class="trade-stat-value" id="tradeSellCount">-</span>
-                </div>
-                <div class="trade-stat">
-                    <span class="trade-stat-label">총 투자금</span>
-                    <span class="trade-stat-value" id="tradeTotalInvested">-</span>
-                </div>
-                <div class="trade-stat">
-                    <span class="trade-stat-label">총 수수료</span>
-                    <span class="trade-stat-value" id="metricTotalFees">-</span>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
