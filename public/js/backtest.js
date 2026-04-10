@@ -130,6 +130,61 @@
         return formatNumber(n, 0) + '원';
     }
 
+    /**
+     * 메트릭들을 종합하여 0 – 100 총 점수를 산출한다.
+     * 각 지표를 합리적 범위에서 0-100 으로 정규화한 뒤 가중 합산.
+     *
+     * 정규화 범위 (min→0점, max→100점):
+     *   CAGR        : -5 % ~ 20 %
+     *   연간수익률    : -5 % ~ 25 %
+     *   총 수익률     : -30 % ~ 300 %
+     *   MDD (역전)   : 60 % ~ 5 %  (낮을수록 좋음)
+     *   샤프 비율     : -0.5 ~ 2.5
+     *   소르티노 비율  : -0.5 ~ 3.0
+     *
+     * 가중치: CAGR 20, avgAnnual 10, totalReturn 10, MDD 20, Sharpe 20, Sortino 20
+     */
+    function calculateTotalScore(metrics) {
+        function normalize(value, minVal, maxVal) {
+            if (value === null || value === undefined || !isFinite(value)) return 50;
+            var score = (value - minVal) / (maxVal - minVal) * 100;
+            return Math.max(0, Math.min(100, score));
+        }
+
+        var scores = {
+            cagr:        normalize(metrics.cagr, -5, 20),
+            avgAnnual:   normalize(metrics.avgAnnual, -5, 25),
+            totalReturn: normalize(metrics.totalReturn, -30, 300),
+            mdd:         normalize(metrics.mdd, 60, 5),   // 역전: 60→0점, 5→100점
+            sharpe:      normalize(metrics.sharpe, -0.5, 2.5),
+            sortino:     normalize(metrics.sortino, -0.5, 3.0)
+        };
+
+        var weights = {
+            cagr: 20, avgAnnual: 10, totalReturn: 10,
+            mdd: 20, sharpe: 20, sortino: 20
+        };
+        var totalWeight = 0;
+        var weightedSum = 0;
+        for (var key in weights) {
+            weightedSum += scores[key] * weights[key];
+            totalWeight += weights[key];
+        }
+
+        var total = Math.round(weightedSum / totalWeight);
+        var grade;
+        if (total >= 90)      grade = 'A+';
+        else if (total >= 80) grade = 'A';
+        else if (total >= 70) grade = 'B+';
+        else if (total >= 60) grade = 'B';
+        else if (total >= 50) grade = 'C+';
+        else if (total >= 40) grade = 'C';
+        else if (total >= 30) grade = 'D';
+        else                  grade = 'F';
+
+        return { total: total, grade: grade, scores: scores };
+    }
+
     /* =========================================
        차트 렌더러
        ========================================= */
@@ -504,14 +559,55 @@
         document.getElementById('metricSortino').textContent = metrics.sortino === null || !isFinite(metrics.sortino) ? '∞' : metrics.sortino.toFixed(2);
         document.getElementById('metricTotalFees').textContent = formatCurrency(data.tradeSummary.totalFees);
 
+        // 총 점수 계산 & 표시
+        var scoreResult = calculateTotalScore(metrics);
+        var scoreEl = document.getElementById('totalScoreValue');
+        var gradeEl = document.getElementById('totalScoreGrade');
+        var bmkScoreEl = document.getElementById('bmkTotalScore');
+        if (scoreEl) {
+            scoreEl.textContent = scoreResult.total;
+            scoreEl.className = 'score-number';
+            if (scoreResult.total >= 70) scoreEl.classList.add('score-high');
+            else if (scoreResult.total >= 40) scoreEl.classList.add('score-mid');
+            else scoreEl.classList.add('score-low');
+        }
+        if (gradeEl) {
+            gradeEl.textContent = scoreResult.grade;
+            gradeEl.className = 'score-grade';
+            if (scoreResult.total >= 70) gradeEl.classList.add('score-high');
+            else if (scoreResult.total >= 40) gradeEl.classList.add('score-mid');
+            else gradeEl.classList.add('score-low');
+        }
+        // 세부 점수 바
+        var breakdownLabels = {
+            cagr: 'CAGR', avgAnnual: '연간수익률', totalReturn: '총수익률',
+            mdd: 'MDD', sharpe: '샤프', sortino: '소르티노'
+        };
+        var breakdownEl = document.getElementById('scoreBreakdown');
+        if (breakdownEl) {
+            breakdownEl.innerHTML = '';
+            for (var key in breakdownLabels) {
+                var s = Math.round(scoreResult.scores[key]);
+                var barClass = s >= 70 ? 'bar-high' : (s >= 40 ? 'bar-mid' : 'bar-low');
+                breakdownEl.innerHTML +=
+                    '<div class="score-bar-row">' +
+                    '<span class="score-bar-label">' + breakdownLabels[key] + '</span>' +
+                    '<div class="score-bar-track"><div class="score-bar-fill ' + barClass + '" style="width:' + s + '%"></div></div>' +
+                    '<span class="score-bar-value">' + s + '</span>' +
+                    '</div>';
+            }
+        }
+
         // 벤치마크 지표
         var bmkMetricIds = ['bmkTotalReturn', 'bmkAvgAnnual', 'bmkCAGR', 'bmkMDD', 'bmkSharpe', 'bmkSortino'];
         bmkMetricIds.forEach(function (id) {
             var el = document.getElementById(id);
             if (el) { el.innerHTML = ''; el.classList.remove('visible'); }
         });
+        if (bmkScoreEl) { bmkScoreEl.innerHTML = ''; bmkScoreEl.classList.remove('visible'); }
         if (bmkResults.length > 0) {
             var bmkLines = { bmkTotalReturn: [], bmkAvgAnnual: [], bmkCAGR: [], bmkMDD: [], bmkSharpe: [], bmkSortino: [] };
+            var bmkScoreLines = [];
             bmkResults.forEach(function (bmkItem) {
                 if (!bmkItem.metrics) return;
                 var bm = bmkItem.metrics;
@@ -523,6 +619,8 @@
                 bmkLines.bmkMDD.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(-bm.mdd) + '</span>');
                 bmkLines.bmkSharpe.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sharpe === null || !isFinite(bm.sharpe) ? '∞' : bm.sharpe.toFixed(2)) + '</span>');
                 bmkLines.bmkSortino.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sortino === null || !isFinite(bm.sortino) ? '∞' : bm.sortino.toFixed(2)) + '</span>');
+                var bmkScore = calculateTotalScore(bm);
+                bmkScoreLines.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + bmkScore.total + '점 (' + bmkScore.grade + ')</span>');
             });
             bmkMetricIds.forEach(function (id) {
                 var el = document.getElementById(id);
@@ -531,6 +629,10 @@
                     el.classList.add('visible');
                 }
             });
+            if (bmkScoreEl && bmkScoreLines.length > 0) {
+                bmkScoreEl.innerHTML = bmkScoreLines.join('<br>');
+                bmkScoreEl.classList.add('visible');
+            }
         }
 
         // 차트
