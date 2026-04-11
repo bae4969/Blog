@@ -219,6 +219,47 @@
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- 포트폴리오 TOP 10 -->
+        <div class="top-portfolio-section">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                포트폴리오 TOP 10
+            </h3>
+            <div class="top-portfolio-list">
+                <?php if (!empty($topPortfolios)): ?>
+                    <?php foreach ($topPortfolios as $idx => $pf): ?>
+                        <?php
+                            $scoreClass = ($pf['ranking_score'] >= 70) ? 'score-high' : (($pf['ranking_score'] >= 40) ? 'score-mid' : 'score-low');
+                            $strategyLabels = ['buyhold' => 'B&H', 'rebalance' => '리밸런싱', 'signal' => '시그널'];
+                            $strategyLabel = $strategyLabels[$pf['strategy']] ?? $pf['strategy'];
+                        ?>
+                        <a href="/stocks/backtest?portfolio=<?= (int)$pf['portfolio_id'] ?>" class="top-portfolio-item">
+                            <div class="top-portfolio-rank"><?= $idx + 1 ?></div>
+                            <div class="top-portfolio-info">
+                                <div class="top-portfolio-name"><?= $view->escape($pf['portfolio_name']) ?></div>
+                                <div class="top-portfolio-meta">
+                                    <span class="portfolio-strategy-badge"><?= $view->escape($strategyLabel) ?></span>
+                                    <span class="portfolio-period"><?= $view->escape(substr($pf['period_start'], 2, 5)) ?>~<?= $view->escape(substr($pf['period_end'], 2, 5)) ?></span>
+                                </div>
+                                <div class="top-portfolio-summary"><?= $view->escape($pf['stock_summary']) ?></div>
+                            </div>
+                            <div class="top-portfolio-score <?= $scoreClass ?>">
+                                <span class="portfolio-score-value"><?= (int)$pf['ranking_score'] ?></span>
+                                <span class="portfolio-score-grade"><?= $view->escape($pf['ranking_grade']) ?></span>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="no-top-portfolios">
+                        <p>아직 등록된 포트폴리오가 없습니다.</p>
+                        <a href="/stocks/backtest" class="portfolio-cta-link">백테스트 시작하기 →</a>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 </div>
 

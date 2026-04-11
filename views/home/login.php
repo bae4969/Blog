@@ -3,6 +3,9 @@
 	
     <form method="POST" action="/login.php" class="login-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
+        <?php if (!empty($returnUrl) && $returnUrl !== '/blog'): ?>
+        <input type="hidden" name="return_url" value="<?= $view->escape($returnUrl) ?>">
+        <?php endif; ?>
         
         <!-- Honeypot: 봇 감지용 숨김 필드 (사람은 입력하지 않음) -->
         <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
@@ -16,9 +19,10 @@
         </div>
 
         <div class="input">
-            <input id="text_pw" name="user_pw" type="password" placeholder="PW" required
+            <input id="text_pw" type="password" placeholder="PW" required
                    autocomplete="current-password"
                    onkeyup="if(window.event.keyCode==13){loginClick()}" />
+            <input type="hidden" id="hashed_pw" name="user_pw" value="" />
         </div>
 
         <div class="input">
@@ -46,7 +50,7 @@ function loginClick() {
     
     // 비밀번호 해시화
     const hashedPassword = sha256(password);
-    document.getElementById("text_pw").value = hashedPassword;
+    document.getElementById("hashed_pw").value = hashedPassword;
     
     // 폼 제출
     formEl.submit();
