@@ -919,7 +919,14 @@
                     }
                 }
             })
-            .catch(function () { /* 무시 */ });
+            .catch(function () {
+                var statusEl = document.getElementById('portfolioNameStatus');
+                if (statusEl) {
+                    statusEl.textContent = '저장 실패';
+                    statusEl.style.opacity = '1';
+                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
+                }
+            });
     }
 
     /**

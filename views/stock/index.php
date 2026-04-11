@@ -242,7 +242,7 @@
                                 <div class="top-portfolio-name"><?= $view->escape($pf['portfolio_name']) ?></div>
                                 <div class="top-portfolio-meta">
                                     <span class="portfolio-strategy-badge"><?= $view->escape($strategyLabel) ?></span>
-                                    <span class="portfolio-period"><?= substr($pf['period_start'], 2, 5) ?>~<?= substr($pf['period_end'], 2, 5) ?></span>
+                                    <span class="portfolio-period"><?= $view->escape(substr($pf['period_start'], 2, 5)) ?>~<?= $view->escape(substr($pf['period_end'], 2, 5)) ?></span>
                                 </div>
                                 <div class="top-portfolio-summary"><?= $view->escape($pf['stock_summary']) ?></div>
                             </div>
