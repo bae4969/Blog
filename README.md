@@ -55,8 +55,7 @@ php -S localhost:8080 -t public    # 개발 서버 → http://localhost:8080/blo
 ### Docker
 
 ```bash
-docker build --build-arg APP_ENV=dev -t blog .    # 개발 (Xdebug 포함)
-docker build -t blog .                            # 프로덕션
+docker build -t blog .
 ```
 
 - PHP 8.2-Apache, 확장: pdo_mysql, mysqli, mbstring, exif, bcmath, sockets, gd, opcache, xdebug
