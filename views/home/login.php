@@ -3,6 +3,9 @@
 	
     <form method="POST" action="/login.php" class="login-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
+        <?php if (!empty($returnUrl) && $returnUrl !== '/blog'): ?>
+        <input type="hidden" name="return_url" value="<?= $view->escape($returnUrl) ?>">
+        <?php endif; ?>
         
         <!-- Honeypot: 봇 감지용 숨김 필드 (사람은 입력하지 않음) -->
         <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
