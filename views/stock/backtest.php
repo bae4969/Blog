@@ -5,29 +5,48 @@
     목록으로
 </button>
 <h2 class="stock-detail-title">포트폴리오 백테스팅</h2>
+
+<!-- 포트폴리오 이름 (자동 저장 후 표시) -->
+<div class="portfolio-name-section" id="portfolioNameSection" style="display:none">
+    <div class="portfolio-name-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <span class="portfolio-name-text" id="portfolioNameText"></span>
+        <input type="text" class="portfolio-name-input" id="portfolioNameInput" style="display:none" maxlength="100" placeholder="포트폴리오 이름">
+        <button class="portfolio-name-edit-btn" id="portfolioNameEdit">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+        </button>
+        <span class="portfolio-name-status" id="portfolioNameStatus"></span>
+    </div>
+</div>
+
+<!-- 진행률 -->
+<div id="backtestProgress" class="backtest-progress" style="display:none">
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+
+    </div>
+    <span class="progress-text" id="progressText">데이터 로딩 중...</span>
+</div>
+
 <div class="backtest-container">
     <!-- 결과 패널 -->
     <div class="backtest-results" id="backtestResults">
-        <!-- 진행률 -->
-        <div id="backtestProgress" class="backtest-progress" style="display:none">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-
-            </div>
-            <span class="progress-text" id="progressText">데이터 로딩 중...</span>
-        </div>
-
         <!-- 총 점수 카드 -->
         <div class="total-score-card" id="totalScoreCard">
+            <span class="metric-info score-info-btn" tabindex="0">ⓘ<span class="metric-tooltip">6개 지표를 정규화(0-100)하여 가중 합산<br><br>가중치:<br>CAGR 20% · MDD 20%<br>샤프 20% · 소르티노 20%<br>연간수익률 10% · 총수익률 10%<br><br>정규화 범위:<br>CAGR -10~15% · 연간 -10~20%<br>총수익 -50~200% · MDD 45~10%<br>샤프 -0.5~1.8 · 소르티노 -0.5~2.0<br><br>90↑ A+ · 80↑ A · 70↑ B+<br>60↑ B · 50↑ C+ · 40↑ C<br>30↑ D · 그 외 F</span></span>
             <div class="score-main">
-                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">6개 지표를 정규화(0-100)하여 가중 합산<br><br>가중치:<br>CAGR 20% · MDD 20%<br>샤프 20% · 소르티노 20%<br>연간수익률 10% · 총수익률 10%<br><br>90↑ A+ · 80↑ A · 70↑ B+<br>60↑ B · 50↑ C+ · 40↑ C<br>30↑ D · 그 외 F</span></span>
                 <span class="score-label">총 점수</span>
                 <span class="score-number" id="totalScoreValue">-</span>
                 <span class="score-grade" id="totalScoreGrade">-</span>
                 <span class="metric-bmk" id="bmkTotalScore"></span>
             </div>
             <div class="score-breakdown" id="scoreBreakdown">
-                <!-- JS에서 세부 점수 바 렌더링 -->
+                <canvas id="scoreRadarChart"></canvas>
             </div>
         </div>
 
@@ -271,12 +290,31 @@
 
         <!-- 설정 저장/불러오기 -->
         <div class="config-section config-save-section">
+            <?php if ($auth->isLoggedIn()): ?>
+            <!-- 로그인 사용자: 서버 프리셋 -->
+            <div class="preset-section">
+                <div class="preset-header">
+                    <h4 class="config-subsection-title">내 프리셋</h4>
+                    <span class="preset-count" id="presetCount"></span>
+                </div>
+                <div class="preset-save-row">
+                    <input type="text" id="presetNameInput" class="backtest-input preset-name-input" placeholder="프리셋 이름" maxlength="100">
+                    <button type="button" class="btn btn-sm btn-primary" id="savePresetBtn">저장</button>
+                </div>
+                <div class="preset-list" id="presetList">
+                    <!-- JS에서 동적 렌더링 -->
+                </div>
+                <span class="preset-status" id="presetStatus"></span>
+            </div>
+            <?php endif; ?>
+            <?php if (!$auth->isLoggedIn()): ?>
             <div class="config-save-row">
-                <button type="button" class="btn btn-sm btn-outline" id="saveConfig" title="현재 설정 저장">💾 설정 저장</button>
-                <button type="button" class="btn btn-sm btn-outline" id="loadConfig" title="저장된 설정 불러오기">📂 불러오기</button>
-                <button type="button" class="btn btn-sm btn-outline" id="clearConfig" title="저장된 설정 삭제">🗑 초기화</button>
+                <button type="button" class="btn btn-sm btn-outline" id="saveConfig"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 설정 저장</button>
+                <button type="button" class="btn btn-sm btn-outline" id="loadConfig"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> 불러오기</button>
+                <button type="button" class="btn btn-sm btn-outline" id="clearConfig"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> 초기화</button>
                 <span class="config-save-status" id="saveStatus"></span>
             </div>
+            <?php endif; ?>
         </div>
 
         <!-- 실행 버튼 -->
@@ -302,11 +340,12 @@
         <select class="backtest-select signal-target" name="target">
             <!-- 동적 옵션: 포트폴리오 종목 목록 -->
         </select>
-        <button type="button" class="btn btn-sm btn-danger signal-remove" title="삭제">&times;</button>
+        <button type="button" class="btn btn-sm btn-danger signal-remove">&times;</button>
     </div>
 </template>
 
 <script nonce="<?= $view->getNonce() ?>">
     // 페이지 초기화 시 오늘 날짜를 종료일 기본값으로 설정
     document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+    window.__BACKTEST_USER_LOGGED_IN = <?= $auth->isLoggedIn() ? 'true' : 'false' ?>;
 </script>

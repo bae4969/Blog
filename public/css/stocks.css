@@ -276,6 +276,178 @@
     color: var(--text-muted);
 }
 
+/* =============================
+   포트폴리오 TOP 10
+   ============================= */
+.top-portfolio-section {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    margin-top: 16px;
+}
+
+.top-portfolio-section h3 {
+    margin: 10px 10px 15px 10px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.top-portfolio-section h3 svg {
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.top-portfolio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.top-portfolio-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+    color: inherit;
+}
+
+.top-portfolio-item:hover {
+    background: var(--bg-hover);
+    text-decoration: none;
+    color: inherit;
+}
+
+.top-portfolio-rank {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--border-radius-circle);
+    background: var(--primary-color);
+    color: var(--text-on-primary);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.top-portfolio-item:nth-child(1) .top-portfolio-rank { background: var(--rank-1st); }
+.top-portfolio-item:nth-child(2) .top-portfolio-rank { background: var(--rank-2nd); }
+.top-portfolio-item:nth-child(3) .top-portfolio-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
+
+.top-portfolio-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.top-portfolio-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+}
+
+.top-portfolio-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.portfolio-strategy-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--primary-color);
+    color: var(--text-on-primary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.portfolio-period {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.top-portfolio-summary {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.top-portfolio-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    min-width: 36px;
+}
+
+.portfolio-score-value {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.portfolio-score-grade {
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.top-portfolio-score.score-high .portfolio-score-value,
+.top-portfolio-score.score-high .portfolio-score-grade {
+    color: var(--stock-rise-color, #ef4444);
+}
+
+.top-portfolio-score.score-mid .portfolio-score-value,
+.top-portfolio-score.score-mid .portfolio-score-grade {
+    color: var(--primary-color);
+}
+
+.top-portfolio-score.score-low .portfolio-score-value,
+.top-portfolio-score.score-low .portfolio-score-grade {
+    color: var(--text-muted);
+}
+
+.no-top-portfolios {
+    text-align: center;
+    padding: 20px 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.no-top-portfolios p {
+    margin: 0 0 8px 0;
+}
+
+.portfolio-cta-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.portfolio-cta-link:hover {
+    text-decoration: underline;
+}
+
 .stocks-search-bar {
     display: flex;
     flex: 1;
@@ -1247,6 +1419,16 @@
         margin-bottom: -10px;
     }
 
+    .top-portfolio-section {
+        position: static;
+    }
+
+    .top-portfolio-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
     .stock-detail-main {
         grid-template-columns: 1fr;
     }
@@ -1302,6 +1484,11 @@
     .top-stocks-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
+    }
+
+    /* 포트폴리오 TOP 10: 1열 */
+    .top-portfolio-list {
+        grid-template-columns: 1fr;
     }
 
     /* 테이블: 시장/유형/상장주식수 컬럼 숨기기 */
@@ -2357,6 +2544,98 @@ details[open] > .config-section-title.clickable {
     padding: 10px 14px;
 }
 
+/* 프리셋 관리 */
+.preset-section {
+    margin-bottom: 0;
+    position: relative;
+}
+
+.preset-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.preset-count {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.preset-save-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.preset-name-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.preset-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.preset-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    font-size: 0.82rem;
+}
+
+.preset-item:last-child {
+    border-bottom: none;
+}
+
+.preset-item .portfolio-strategy-badge {
+    flex-shrink: 0;
+}
+
+.preset-item-name {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.preset-item-name:hover {
+    color: var(--primary-color, #3b82f6);
+}
+
+.preset-float-tooltip {
+    position: fixed;
+    padding: 4px 8px;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius, 6px);
+    font-size: 0.68rem;
+    font-weight: 400;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.preset-status {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    font-size: 0.72rem;
+    color: var(--success-color, #10b981);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
 .config-save-row {
     display: flex;
     align-items: center;
@@ -2446,6 +2725,79 @@ details[open] > .config-section-title.clickable {
     min-width: 0;
 }
 
+/* 포트폴리오 이름 편집 */
+.portfolio-name-section {
+    padding: 10px 16px;
+    background: var(--bg-primary);
+    border: 1px solid var(--primary-color);
+    border-radius: var(--border-radius);
+    border-left: 3px solid var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.portfolio-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.portfolio-name-row svg {
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.portfolio-name-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.portfolio-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+}
+
+.portfolio-name-input:focus {
+    border-color: var(--primary-color);
+}
+
+.portfolio-name-edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 4px;
+    border-radius: var(--border-radius-sm);
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.portfolio-name-edit-btn:hover {
+    color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+.portfolio-name-status {
+    font-size: 11px;
+    color: var(--success-color, #22c55e);
+    opacity: 0;
+    transition: opacity 0.3s;
+    flex-shrink: 0;
+}
+
 /* 진행률 바 */
 .backtest-progress {
     padding: 16px;
@@ -2453,6 +2805,7 @@ details[open] > .config-section-title.clickable {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     text-align: center;
+    margin-bottom: 8px;
 }
 
 .progress-bar {
@@ -2482,10 +2835,10 @@ details[open] > .config-section-title.clickable {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: 16px 18px;
+    padding: 10px 18px;
     display: flex;
     gap: 24px;
-    align-items: stretch;
+    align-items: center;
     position: relative;
     margin-bottom: 2px;
 }
@@ -2495,7 +2848,7 @@ details[open] > .config-section-title.clickable {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-width: 100px;
+    flex: 1;
     position: relative;
 }
 
@@ -2518,8 +2871,8 @@ details[open] > .config-section-title.clickable {
 .score-number.score-low  { color: var(--danger-color, #ef4444); }
 
 .score-grade {
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: 1.5rem;
+    font-weight: 800;
     color: var(--text-muted);
 }
 
@@ -2527,12 +2880,25 @@ details[open] > .config-section-title.clickable {
 .score-grade.score-mid  { color: var(--warning-color, #f59e0b); }
 .score-grade.score-low  { color: var(--danger-color, #ef4444); }
 
+.score-info-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+}
+
 .score-breakdown {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
     justify-content: center;
+    min-height: 140px;
+    max-height: 170px;
+}
+
+.score-breakdown canvas {
+    max-width: 100%;
+    max-height: 100%;
 }
 
 .score-bar-row {
@@ -2648,6 +3014,11 @@ details[open] > .config-section-title.clickable {
     display: block;
 }
 
+.score-info-btn .metric-tooltip {
+    min-width: 280px;
+    max-width: 400px;
+}
+
 .metric-label {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -2669,6 +3040,14 @@ details[open] > .config-section-title.clickable {
     color: var(--danger-color, #ef4444);
 }
 
+.bmk-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
 .metric-bmk {
     font-size: 0.72rem;
     color: var(--text-muted);
@@ -2676,12 +3055,37 @@ details[open] > .config-section-title.clickable {
 }
 
 .metric-bmk.visible {
-    display: block;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .metric-bmk .bmk-val {
-    color: rgb(249, 115, 22);
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+    cursor: default;
+}
+
+.metric-bmk .bmk-val:hover::after {
+    content: attr(data-bmk);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius, 6px);
+    font-size: 0.68rem;
+    font-weight: 400;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    pointer-events: none;
 }
 
 /* 차트 영역 */
@@ -2819,6 +3223,11 @@ details[open] > .config-section-title.clickable {
         flex-direction: row;
         gap: 10px;
         min-width: auto;
+    }
+
+    .score-breakdown {
+        min-height: 180px;
+        max-height: 220px;
     }
 
     .strategy-tabs {

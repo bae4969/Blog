@@ -14,6 +14,7 @@
     var portfolio = [];    // [{ code, name, market, weight }]
     var benchmarks = [];   // [{ code, name, market }]
     var backtestChart = null;
+    var scoreRadarChart = null;
     var hasRunOnce = false;
     var autoRecalcTimer = null;
     var dateRangeTimer = null;
@@ -135,12 +136,12 @@
      * 각 지표를 합리적 범위에서 0-100 으로 정규화한 뒤 가중 합산.
      *
      * 정규화 범위 (min→0점, max→100점):
-     *   CAGR        : -5 % ~ 20 %
-     *   연간수익률    : -5 % ~ 25 %
-     *   총 수익률     : -30 % ~ 300 %
-     *   MDD (역전)   : 60 % ~ 5 %  (낮을수록 좋음)
-     *   샤프 비율     : -0.5 ~ 2.5
-     *   소르티노 비율  : -0.5 ~ 3.0
+     *   CAGR        : -10 % ~ 15 %
+     *   연간수익률    : -10 % ~ 20 %
+     *   총 수익률     : -50 % ~ 200 %
+     *   MDD (역전)   : 45 % ~ 10 %  (낮을수록 좋음)
+     *   샤프 비율     : -0.5 ~ 1.8
+     *   소르티노 비율  : -0.5 ~ 2.0
      *
      * 가중치: CAGR 20, avgAnnual 10, totalReturn 10, MDD 20, Sharpe 20, Sortino 20
      */
@@ -153,15 +154,15 @@
         }
 
         // MDD는 낮을수록 좋으므로 역전 정규화: 100 - 정방향 점수
-        var mddNormalized = 100 - normalize(metrics.mdd, 5, 60);
+        var mddNormalized = 100 - normalize(metrics.mdd, 10, 45);
 
         var scores = {
-            cagr:        normalize(metrics.cagr, -5, 20),
-            avgAnnual:   normalize(metrics.avgAnnual, -5, 25),
-            totalReturn: normalize(metrics.totalReturn, -30, 300),
+            cagr:        normalize(metrics.cagr, -10, 15),
+            avgAnnual:   normalize(metrics.avgAnnual, -10, 20),
+            totalReturn: normalize(metrics.totalReturn, -50, 200),
             mdd:         mddNormalized,
-            sharpe:      normalize(metrics.sharpe, -0.5, 2.5),
-            sortino:     normalize(metrics.sortino, -0.5, 3.0)
+            sharpe:      normalize(metrics.sharpe, -0.5, 1.8),
+            sortino:     normalize(metrics.sortino, -0.5, 2.0)
         };
 
         var weights = {
@@ -189,6 +190,62 @@
         else                  grade = 'F';
 
         return { total: total, grade: grade, scores: scores };
+    }
+
+    /* =========================================
+       레이더 차트 렌더러 (총 점수 세부 지표)
+       ========================================= */
+    function renderScoreRadar(labels, datasets) {
+        var canvas = document.getElementById('scoreRadarChart');
+        if (!canvas) return;
+        if (scoreRadarChart) { scoreRadarChart.destroy(); scoreRadarChart = null; }
+
+        var style = getComputedStyle(document.documentElement);
+        var textColor = style.getPropertyValue('--text-secondary').trim() || '#6b7280';
+        var gridColor = style.getPropertyValue('--border-color').trim() || '#e5e7eb';
+
+        scoreRadarChart = new Chart(canvas, {
+            type: 'radar',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ctx.dataset.label + ': ' + ctx.raw + '점';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 20,
+                            color: textColor,
+                            font: { size: 9 },
+                            backdropColor: 'transparent'
+                        },
+                        grid: {
+                            color: gridColor
+                        },
+                        angleLines: {
+                            color: gridColor
+                        },
+                        pointLabels: {
+                            color: textColor,
+                            font: { size: 11, weight: '600' }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /* =========================================
@@ -357,8 +414,8 @@
                                 '<span class="sr-code">' + escapeHtml(s.stock_code) + '</span>' +
                                 '<span class="sr-market badge-' + escapeHtml(market.toLowerCase()) + '">' + escapeHtml(market) + '</span>' +
                                 '<span class="sr-actions">' +
-                                '<button type="button" class="sr-add-btn sr-add-portfolio" title="포트폴리오에 추가">+ 포폴</button>' +
-                                '<button type="button" class="sr-add-btn sr-add-benchmark" title="벤치마크에 추가">+ 벤치</button>' +
+                                '<button type="button" class="sr-add-btn sr-add-portfolio">+ 포폴</button>' +
+                                '<button type="button" class="sr-add-btn sr-add-benchmark">+ 벤치</button>' +
                                 '</span>' +
                                 '</div>';
                         });
@@ -584,27 +641,21 @@
             else if (scoreResult.total >= 40) gradeEl.classList.add('score-mid');
             else gradeEl.classList.add('score-low');
         }
-        // 세부 점수 바
-        var breakdownLabels = {
-            cagr: 'CAGR', avgAnnual: '연간수익률', totalReturn: '총수익률',
-            mdd: 'MDD', sharpe: '샤프', sortino: '소르티노'
-        };
-        var breakdownEl = document.getElementById('scoreBreakdown');
-        if (breakdownEl) {
-            breakdownEl.innerHTML = '';
-            var bdKeys = Object.keys(breakdownLabels);
-            for (var i = 0; i < bdKeys.length; i++) {
-                var key = bdKeys[i];
-                var s = Math.round(scoreResult.scores[key]);
-                var barClass = s >= 70 ? 'bar-high' : (s >= 40 ? 'bar-mid' : 'bar-low');
-                breakdownEl.innerHTML +=
-                    '<div class="score-bar-row">' +
-                    '<span class="score-bar-label">' + breakdownLabels[key] + '</span>' +
-                    '<div class="score-bar-track"><div class="score-bar-fill ' + barClass + '" style="width:' + s + '%"></div></div>' +
-                    '<span class="score-bar-value">' + s + '</span>' +
-                    '</div>';
-            }
-        }
+
+        // 세부 점수 — 레이더 차트
+        var radarLabels = ['CAGR', '연간수익률', '총수익률', 'MDD', '샤프', '소르티노'];
+        var radarKeys = ['cagr', 'avgAnnual', 'totalReturn', 'mdd', 'sharpe', 'sortino'];
+        var radarData = radarKeys.map(function (k) { return Math.round(scoreResult.scores[k]); });
+
+        var radarDatasets = [{
+            label: '포트폴리오',
+            data: radarData,
+            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            borderColor: 'rgba(59, 130, 246, 0.8)',
+            borderWidth: 2,
+            pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+            pointRadius: 3
+        }];
 
         // 벤치마크 지표
         var bmkMetricIds = ['bmkTotalReturn', 'bmkAvgAnnual', 'bmkCAGR', 'bmkMDD', 'bmkSharpe', 'bmkSortino'];
@@ -616,32 +667,47 @@
         if (bmkResults.length > 0) {
             var bmkLines = { bmkTotalReturn: [], bmkAvgAnnual: [], bmkCAGR: [], bmkMDD: [], bmkSharpe: [], bmkSortino: [] };
             var bmkScoreLines = [];
-            bmkResults.forEach(function (bmkItem) {
+            bmkResults.forEach(function (bmkItem, bmkIdx) {
                 if (!bmkItem.metrics) return;
                 var bm = bmkItem.metrics;
                 var colorStyle = ' style="color:' + bmkItem.color + '"';
                 var safeName = escapeHtml(bmkItem.name);
-                bmkLines.bmkTotalReturn.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.totalReturn) + '</span>');
-                bmkLines.bmkAvgAnnual.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.avgAnnual) + '</span>');
-                bmkLines.bmkCAGR.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(bm.cagr) + '</span>');
-                bmkLines.bmkMDD.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + formatPercent(-bm.mdd) + '</span>');
-                bmkLines.bmkSharpe.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sharpe === null || !isFinite(bm.sharpe) ? '∞' : bm.sharpe.toFixed(2)) + '</span>');
-                bmkLines.bmkSortino.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + (bm.sortino === null || !isFinite(bm.sortino) ? '∞' : bm.sortino.toFixed(2)) + '</span>');
+                var dotPrefix = '<span class="bmk-val" data-bmk="' + safeName + '"' + colorStyle + '><span class="bmk-dot" style="background:' + bmkItem.color + '"></span>';
+                bmkLines.bmkTotalReturn.push(dotPrefix + formatPercent(bm.totalReturn) + '</span>');
+                bmkLines.bmkAvgAnnual.push(dotPrefix + formatPercent(bm.avgAnnual) + '</span>');
+                bmkLines.bmkCAGR.push(dotPrefix + formatPercent(bm.cagr) + '</span>');
+                bmkLines.bmkMDD.push(dotPrefix + formatPercent(-bm.mdd) + '</span>');
+                bmkLines.bmkSharpe.push(dotPrefix + (bm.sharpe === null || !isFinite(bm.sharpe) ? '∞' : bm.sharpe.toFixed(2)) + '</span>');
+                bmkLines.bmkSortino.push(dotPrefix + (bm.sortino === null || !isFinite(bm.sortino) ? '∞' : bm.sortino.toFixed(2)) + '</span>');
                 var bmkScore = calculateTotalScore(bm);
-                bmkScoreLines.push('<span class="bmk-val"' + colorStyle + '>' + safeName + ' ' + bmkScore.total + '점 (' + bmkScore.grade + ')</span>');
+                bmkScoreLines.push('<span class="bmk-val" data-bmk="' + safeName + '"' + colorStyle + '><span class="bmk-dot" style="background:' + bmkItem.color + '"></span>' + bmkScore.total + '점 (' + bmkScore.grade + ')</span>');
+                // 벤치마크 레이더 데이터셋 추가
+                var bmkRadarData = radarKeys.map(function (k) { return Math.round(bmkScore.scores[k]); });
+                radarDatasets.push({
+                    label: bmkItem.name,
+                    data: bmkRadarData,
+                    backgroundColor: bmkItem.color.replace('rgb(', 'rgba(').replace(')', ', 0.1)'),
+                    borderColor: bmkItem.color,
+                    borderWidth: 1.5,
+                    pointBackgroundColor: bmkItem.color,
+                    pointRadius: 2
+                });
             });
             bmkMetricIds.forEach(function (id) {
                 var el = document.getElementById(id);
                 if (el && bmkLines[id].length > 0) {
-                    el.innerHTML = bmkLines[id].join('<br>');
+                    el.innerHTML = bmkLines[id].join(' ');
                     el.classList.add('visible');
                 }
             });
             if (bmkScoreEl && bmkScoreLines.length > 0) {
-                bmkScoreEl.innerHTML = bmkScoreLines.join('<br>');
+                bmkScoreEl.innerHTML = bmkScoreLines.join(' ');
                 bmkScoreEl.classList.add('visible');
             }
         }
+
+        // 레이더 차트 렌더링
+        renderScoreRadar(radarLabels, radarDatasets);
 
         // 차트
         renderChart(data.dailySeries, bmkResults);
@@ -691,7 +757,7 @@
         }
 
         return {
-            stocks: portfolio.map(function (s) { return { code: s.code, market: s.market, weight: s.weight }; }),
+            stocks: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
             benchmarks: benchmarks.map(function (b) { return { code: b.code, market: b.market, name: b.name }; }),
             startDate: startDate,
             endDate: endDate,
@@ -791,6 +857,11 @@
                 progressDiv.style.display = 'none';
                 displayResults(json.data);
 
+                // 포트폴리오 자동 저장 결과 처리
+                if (json.portfolioId) {
+                    updatePortfolioNameUI(json.portfolioId, json.portfolioName || '');
+                }
+
                 hasRunOnce = true;
                 lastRunKey = JSON.stringify(config);
                 btn.disabled = false;
@@ -805,6 +876,70 @@
                 updateRunButtonState();
                 progressDiv.style.display = 'none';
             });
+    }
+
+    /* =========================================
+       포트폴리오 랭킹 연동
+       ========================================= */
+    var currentPortfolioId = null;
+
+    /**
+     * 포트폴리오 이름 편집 UI 업데이트
+     */
+    function updatePortfolioNameUI(id, name) {
+        currentPortfolioId = id;
+        var section = document.getElementById('portfolioNameSection');
+        var nameEl = document.getElementById('portfolioNameText');
+        if (!section || !nameEl) return;
+        nameEl.textContent = name || '';
+        section.style.display = '';
+    }
+
+    /**
+     * 포트폴리오 이름 서버 저장
+     */
+    function savePortfolioName(name) {
+        if (!currentPortfolioId || !name) return;
+        fetch('/stocks/api/portfolio/name', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ id: currentPortfolioId, name: name })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                var statusEl = document.getElementById('portfolioNameStatus');
+                if (json.success) {
+                    if (statusEl) {
+                        statusEl.textContent = '저장됨';
+                        statusEl.style.opacity = '1';
+                        setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
+                    }
+                }
+            })
+            .catch(function () { /* 무시 */ });
+    }
+
+    /**
+     * URL 파라미터에서 포트폴리오 ID로 설정 로드
+     */
+    function loadFromPortfolioId(id) {
+        return fetch('/stocks/api/portfolio?id=' + encodeURIComponent(id), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (!json.success || !json.data || !json.data.config) return false;
+                applyConfig(json.data.config);
+
+                // 포트폴리오 이름 표시
+                updatePortfolioNameUI(json.data.portfolio_id, json.data.portfolio_name);
+
+                return true;
+            })
+            .catch(function () { return false; });
     }
 
     /* =========================================
@@ -922,6 +1057,245 @@
     }
 
     /* =========================================
+       서버 프리셋 관리 (로그인 사용자 전용)
+       ========================================= */
+
+    function showPresetStatus(msg) {
+        var el = document.getElementById('presetStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.opacity = '1';
+        setTimeout(function () { el.style.opacity = '0'; }, 3000);
+    }
+
+    function loadPresetList() {
+        if (!window.__BACKTEST_USER_LOGGED_IN) return;
+        var listEl = document.getElementById('presetList');
+        var countEl = document.getElementById('presetCount');
+        if (!listEl) return;
+
+        fetch('/stocks/api/presets', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (!json.success || !json.data) { listEl.innerHTML = ''; return; }
+                if (countEl) countEl.textContent = json.data.length + '/20';
+
+                if (json.data.length === 0) {
+                    listEl.innerHTML = '<p class="empty-hint">저장된 프리셋이 없습니다</p>';
+                    return;
+                }
+
+                var html = '';
+                json.data.forEach(function (p) {
+                    var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
+                    html += '<div class="preset-item" data-id="' + p.preset_id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
+                        '<span class="preset-item-name preset-load-btn" data-id="' + p.preset_id + '">' + escapeHtml(p.preset_name) + '</span>' +
+                        '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
+                        '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.preset_id + '">&times;</button>' +
+                        '</div>';
+                });
+                listEl.innerHTML = html;
+
+                // floating tooltip for preset items
+                listEl.querySelectorAll('.preset-item[data-info]').forEach(function (item) {
+                    if (!item.dataset.info) return;
+                    item.addEventListener('mouseenter', function () {
+                        var tip = document.createElement('div');
+                        tip.className = 'preset-float-tooltip';
+                        tip.textContent = item.dataset.info;
+                        document.body.appendChild(tip);
+                        var rect = item.getBoundingClientRect();
+                        tip.style.left = rect.left + 'px';
+                        tip.style.top = (rect.bottom + 4) + 'px';
+                        item._floatTip = tip;
+                    });
+                    item.addEventListener('mouseleave', function () {
+                        if (item._floatTip) { item._floatTip.remove(); item._floatTip = null; }
+                    });
+                });
+
+                listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        loadPreset(parseInt(btn.dataset.id));
+                    });
+                });
+                listEl.querySelectorAll('.preset-delete-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        if (confirm('이 프리셋을 삭제하시겠습니까?')) {
+                            deletePreset(parseInt(btn.dataset.id));
+                        }
+                    });
+                });
+            })
+            .catch(function () { /* 무시 */ });
+    }
+
+    function savePreset() {
+        var nameInput = document.getElementById('presetNameInput');
+        if (!nameInput) return;
+        var name = nameInput.value.trim();
+        if (!name) { alert('프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+
+        var config = collectConfig();
+        if (!config) {
+            // 설정이 유효하지 않아도 현재 폼 상태를 저장 가능하도록 raw 수집
+            config = collectConfigRaw();
+            if (!config) { alert('종목을 1개 이상 추가하세요.'); return; }
+        }
+
+        fetch('/stocks/api/preset/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ name: name, config: config })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (json.success) {
+                    showPresetStatus('저장됨');
+                    nameInput.value = '';
+                    loadPresetList();
+                } else {
+                    alert(json.error || '저장 실패');
+                }
+            })
+            .catch(function () { alert('프리셋 저장 중 오류가 발생했습니다.'); });
+    }
+
+    /**
+     * 유효성 검사 없이 현재 폼 상태를 수집 (프리셋 저장 용)
+     */
+    function collectConfigRaw() {
+        if (portfolio.length === 0) return null;
+        var activeTab = document.querySelector('.strategy-tab.active');
+        var strategy = activeTab ? activeTab.dataset.strategy : 'buyhold';
+        var signalRules = [];
+        if (strategy === 'signal') {
+            document.querySelectorAll('.signal-rule').forEach(function (rule) {
+                signalRules.push({
+                    indicator: rule.querySelector('.signal-indicator').value,
+                    targetCode: rule.querySelector('.signal-target').value
+                });
+            });
+        }
+        return {
+            stocks: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
+            benchmarks: benchmarks.map(function (b) { return { code: b.code, market: b.market, name: b.name }; }),
+            startDate: document.getElementById('startDate').value,
+            endDate: document.getElementById('endDate').value,
+            strategy: strategy,
+            rebalancePeriod: document.getElementById('rebalancePeriod').value,
+            signalRules: signalRules,
+            signalCombine: document.getElementById('signalCombine').value,
+            initialCapital: (parseFloat(document.getElementById('initialCapital').value) || 0) * 10000,
+            monthlyDCA: (parseFloat(document.getElementById('monthlyDCA').value) || 0) * 10000,
+            dcaDefer: {
+                enabled: document.getElementById('dcaDeferIndicator').value !== 'none',
+                indicator: document.getElementById('dcaDeferIndicator').value
+            },
+            fees: {
+                KR: parseFloat(document.getElementById('feeKR').value) || 0,
+                US: parseFloat(document.getElementById('feeUS').value) || 0,
+                COIN: parseFloat(document.getElementById('feeCOIN').value) || 0
+            },
+            riskFreeRate: parseFloat(document.getElementById('riskFreeRate').value) || 3
+        };
+    }
+
+    function loadPreset(id) {
+        fetch('/stocks/api/preset?id=' + encodeURIComponent(id), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (!json.success || !json.data || !json.data.config) {
+                    alert(json.error || '프리셋을 불러올 수 없습니다.');
+                    return;
+                }
+                applyConfig(json.data.config);
+                showPresetStatus('"' + (json.data.preset_name || '') + '" 적용됨');
+            })
+            .catch(function () { alert('프리셋 불러오기 중 오류가 발생했습니다.'); });
+    }
+
+    function deletePreset(id) {
+        fetch('/stocks/api/preset/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ id: id })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (json.success) {
+                    showPresetStatus('삭제됨');
+                    loadPresetList();
+                } else {
+                    alert(json.error || '삭제 실패');
+                }
+            })
+            .catch(function () { alert('프리셋 삭제 중 오류가 발생했습니다.'); });
+    }
+
+    /**
+     * config 객체를 UI에 반영하는 공통 함수
+     */
+    function applyConfig(cfg) {
+        portfolio = (cfg.stocks || []).map(function (s) {
+            return { code: s.code, name: s.name || s.code, market: s.market, weight: s.weight };
+        });
+        renderPortfolio();
+
+        benchmarks = (cfg.benchmarks || []).map(function (b) {
+            return { code: b.code, name: b.name || b.code, market: b.market };
+        });
+        renderBenchmark();
+
+        document.querySelectorAll('.strategy-tab').forEach(function (t) { t.classList.remove('active'); });
+        var targetTab = document.querySelector('.strategy-tab[data-strategy="' + (cfg.strategy || 'buyhold') + '"]');
+        if (targetTab) targetTab.classList.add('active');
+        document.getElementById('rebalanceConfig').style.display = cfg.strategy === 'rebalance' ? '' : 'none';
+        document.getElementById('signalConfig').style.display = cfg.strategy === 'signal' ? '' : 'none';
+
+        document.getElementById('rebalancePeriod').value = cfg.rebalancePeriod || 'quarterly';
+        document.getElementById('signalCombine').value = cfg.signalCombine || 'or';
+
+        document.getElementById('initialCapital').value = cfg.initialCapital ? (cfg.initialCapital / 10000) : '1000';
+        document.getElementById('monthlyDCA').value = cfg.monthlyDCA ? (cfg.monthlyDCA / 10000) : '100';
+        document.getElementById('dcaDeferIndicator').value = (cfg.dcaDefer && cfg.dcaDefer.indicator) || 'none';
+        updateDcaDeferHint();
+
+        if (cfg.fees) {
+            document.getElementById('feeKR').value = cfg.fees.KR || '0.015';
+            document.getElementById('feeUS').value = cfg.fees.US || '0.2';
+            document.getElementById('feeCOIN').value = cfg.fees.COIN || '0.015';
+        }
+        document.getElementById('riskFreeRate').value = cfg.riskFreeRate || '3.0';
+
+        if (cfg.startDate) document.getElementById('startDate').value = cfg.startDate;
+        if (cfg.endDate) document.getElementById('endDate').value = cfg.endDate;
+
+        document.getElementById('signalRules').innerHTML = '';
+        (cfg.signalRules || []).forEach(function (rule) {
+            addSignalRule();
+            var rules = document.querySelectorAll('.signal-rule');
+            var last = rules[rules.length - 1];
+            last.querySelector('.signal-indicator').value = rule.indicator;
+            updateSignalTargets();
+            if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
+        });
+
+        updateDateRange();
+        updateRunButtonState();
+    }
+
+    /* =========================================
        초기화
        ========================================= */
     function init() {
@@ -972,6 +1346,17 @@
             if (confirm('저장된 설정을 삭제하시겠습니까?')) clearStoredConfig();
         });
 
+        // 서버 프리셋 (로그인 사용자)
+        var savePresetBtn = document.getElementById('savePresetBtn');
+        if (savePresetBtn) savePresetBtn.addEventListener('click', savePreset);
+        var presetNameInput = document.getElementById('presetNameInput');
+        if (presetNameInput) {
+            presetNameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); savePreset(); }
+            });
+        }
+        if (window.__BACKTEST_USER_LOGGED_IN) loadPresetList();
+
         var simParamIds = [
             'rebalancePeriod', 'signalCombine',
             'initialCapital', 'monthlyDCA',
@@ -987,8 +1372,46 @@
             el.addEventListener(eventType, scheduleAutoRecalc);
         });
 
-        // 저장된 설정이 있으면 자동 복원
-        if (localStorage.getItem(STORAGE_KEY) || localStorage.getItem('backtest_config_v1')) {
+        // 포트폴리오 이름 인라인 편집
+        var nameEditBtn = document.getElementById('portfolioNameEdit');
+        var nameText = document.getElementById('portfolioNameText');
+        var nameInput = document.getElementById('portfolioNameInput');
+        if (nameEditBtn && nameText && nameInput) {
+            nameEditBtn.addEventListener('click', function () {
+                nameInput.value = nameText.textContent;
+                nameText.style.display = 'none';
+                nameEditBtn.style.display = 'none';
+                nameInput.style.display = '';
+                nameInput.focus();
+                nameInput.select();
+            });
+            nameInput.addEventListener('blur', function () {
+                var newName = nameInput.value.trim();
+                if (newName && newName !== nameText.textContent) {
+                    nameText.textContent = newName;
+                    savePortfolioName(newName);
+                }
+                nameInput.style.display = 'none';
+                nameText.style.display = '';
+                nameEditBtn.style.display = '';
+            });
+            nameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
+                if (e.key === 'Escape') {
+                    nameInput.style.display = 'none';
+                    nameText.style.display = '';
+                    nameEditBtn.style.display = '';
+                }
+            });
+        }
+
+        // URL 파라미터 ?portfolio=ID 확인 (localStorage보다 우선)
+        var urlParams = new URLSearchParams(window.location.search);
+        var portfolioParam = urlParams.get('portfolio');
+        if (portfolioParam && parseInt(portfolioParam) > 0) {
+            loadFromPortfolioId(parseInt(portfolioParam));
+        } else if (localStorage.getItem(STORAGE_KEY) || localStorage.getItem('backtest_config_v1')) {
+            // 저장된 설정이 있으면 자동 복원
             if (!localStorage.getItem(STORAGE_KEY) && localStorage.getItem('backtest_config_v1')) {
                 localStorage.setItem(STORAGE_KEY, localStorage.getItem('backtest_config_v1'));
                 localStorage.removeItem('backtest_config_v1');

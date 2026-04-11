@@ -177,11 +177,20 @@ function loginoutClick() {
     if (userInfo && userInfo.state === 0) {
         if (confirm('로그아웃하시겠습니까?')) {
             var form = document.getElementById('logout-form');
-            if (form) { form.submit(); }
+            if (form) {
+                var returnUrl = location.pathname + location.search;
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'return_url';
+                input.value = returnUrl;
+                form.appendChild(input);
+                form.submit();
+            }
             else { location.href = '/blog'; }
         }
     } else {
-        location.href = '/login.php';
+        var returnUrl = location.pathname + location.search;
+        location.href = '/login.php?return=' + encodeURIComponent(returnUrl);
     }
 }
 

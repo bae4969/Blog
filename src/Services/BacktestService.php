@@ -117,6 +117,9 @@ class BacktestService
         }
         unset($bmkItem);
 
+        // 7) TWR 정규화 랭킹 점수 (투자금/DCA 무관한 순수 전략 평가)
+        $rankingResult = $this->calculateRankingScore($result['dailySeries'], $riskFreeRate);
+
         return [
             'dailySeries' => $chartSeries,
             'metrics' => $metrics,
@@ -129,6 +132,8 @@ class BacktestService
                 'totalFees' => $result['totalFees'],
             ],
             'benchmarks' => $benchmarkResults,
+            'rankingScore' => $rankingResult['score'],
+            'rankingGrade' => $rankingResult['grade'],
         ];
     }
 
@@ -864,6 +869,105 @@ class BacktestService
             'sharpe' => $sharpe,
             'sortino' => $sortino,
         ];
+    }
+
+    /**
+     * TWR 정규화 랭킹 점수 계산
+     * 투자금/DCA 영향을 제거한 순수 전략 실력 평가용 점수.
+     * TWR 누적 곡선을 가상 포트폴리오(1.0 시작)로 생성하여
+     * MDD·totalReturn을 투자금 무관하게 재계산.
+     * CAGR·Sharpe·Sortino는 이미 TWR 기반이므로 그대로 활용.
+     */
+    private function calculateRankingScore(array $series, float $riskFreeRate): array
+    {
+        if (count($series) < 2) {
+            return ['score' => 0, 'grade' => 'F'];
+        }
+
+        // TWR 누적 곡선 생성 (1.0 시작)
+        $twrCurve = [1.0];
+        for ($i = 1; $i < count($series); $i++) {
+            $prevVal = $series[$i - 1]['value'];
+            $cashFlow = $series[$i]['invested'] - $series[$i - 1]['invested'];
+            $base = $prevVal + $cashFlow;
+            if ($base > 0) {
+                $twrCurve[] = $twrCurve[$i - 1] * ($series[$i]['value'] / $base);
+            } else {
+                $twrCurve[] = $twrCurve[$i - 1];
+            }
+        }
+
+        // TWR 기반 totalReturn
+        $twrTotalReturn = (end($twrCurve) - 1.0) * 100;
+
+        // TWR 기반 MDD
+        $peak = -INF;
+        $twrMdd = 0;
+        foreach ($twrCurve as $v) {
+            if ($v > $peak) $peak = $v;
+            if ($peak > 0) {
+                $dd = ($peak - $v) / $peak * 100;
+                if ($dd > $twrMdd) $twrMdd = $dd;
+            }
+        }
+
+        // TWR 기반 연간 평균 수익률
+        $yearGroups = [];
+        foreach ($series as $idx => $d) {
+            $y = substr($d['date'], 0, 4);
+            $yearGroups[$y][] = $idx;
+        }
+        $annualReturns = [];
+        foreach ($yearGroups as $indices) {
+            if (count($indices) < 2) continue;
+            $yearStart = $twrCurve[$indices[0]];
+            $yearEnd = $twrCurve[end($indices)];
+            if ($yearStart > 0) {
+                $annualReturns[] = ($yearEnd / $yearStart - 1) * 100;
+            }
+        }
+        $twrAvgAnnual = count($annualReturns) > 0 ? array_sum($annualReturns) / count($annualReturns) : 0;
+
+        // CAGR·Sharpe·Sortino는 이미 TWR 기반 (dailyReturns가 cashflow 보정)
+        $cagr = $this->cagr($series);
+        $sharpe = $this->sharpeRatio($series, $riskFreeRate);
+        $sortino = $this->sortinoRatio($series, $riskFreeRate);
+
+        // 정규화 (0-100)
+        $normalize = function ($value, $min, $max) {
+            if (!is_finite($value)) return 50;
+            $score = ($value - $min) / ($max - $min) * 100;
+            return max(0, min(100, $score));
+        };
+
+        $scores = [
+            'cagr'        => $normalize($cagr, -10, 15),
+            'avgAnnual'   => $normalize($twrAvgAnnual, -10, 20),
+            'totalReturn' => $normalize($twrTotalReturn, -50, 200),
+            'mdd'         => 100 - $normalize($twrMdd, 10, 45),
+            'sharpe'      => $normalize($sharpe, -0.5, 1.8),
+            'sortino'     => $normalize($sortino, -0.5, 2.0),
+        ];
+
+        $weights = ['cagr' => 20, 'avgAnnual' => 10, 'totalReturn' => 10, 'mdd' => 20, 'sharpe' => 20, 'sortino' => 20];
+        $weightedSum = 0;
+        $totalWeight = 0;
+        foreach ($weights as $key => $w) {
+            $weightedSum += $scores[$key] * $w;
+            $totalWeight += $w;
+        }
+        $total = (int)round($weightedSum / $totalWeight);
+
+        if ($total >= 90)      $grade = 'A+';
+        elseif ($total >= 80)  $grade = 'A';
+        elseif ($total >= 70)  $grade = 'B+';
+        elseif ($total >= 60)  $grade = 'B';
+        elseif ($total >= 50)  $grade = 'C+';
+        elseif ($total >= 40)  $grade = 'C';
+        elseif ($total >= 30)  $grade = 'D';
+        else                   $grade = 'F';
+
+        return ['score' => $total, 'grade' => $grade];
     }
 
     private function totalReturn(array $series): float

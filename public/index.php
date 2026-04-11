@@ -116,7 +116,14 @@ $router->get('/stocks/api/candle', [StockController::class, 'apiCandleData']);
 $router->get('/stocks/api/executions', [StockController::class, 'apiRecentExecutions']);
 $router->get('/stocks/api/search', [StockController::class, 'apiSearch']);
 $router->get('/stocks/api/date-range', [StockController::class, 'apiDateRange']);
+$router->get('/stocks/api/top-portfolios', [StockController::class, 'apiTopPortfolios']);
+$router->get('/stocks/api/portfolio', [StockController::class, 'apiPortfolio']);
 $router->post('/stocks/api/backtest', [StockController::class, 'apiBacktest']);
+$router->post('/stocks/api/portfolio/name', [StockController::class, 'apiUpdatePortfolioName']);
+$router->get('/stocks/api/presets', [StockController::class, 'apiPresets']);
+$router->get('/stocks/api/preset', [StockController::class, 'apiLoadPreset']);
+$router->post('/stocks/api/preset/save', [StockController::class, 'apiSavePreset']);
+$router->post('/stocks/api/preset/delete', [StockController::class, 'apiDeletePreset']);
 
 // 요청 처리
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
