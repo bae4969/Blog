@@ -17,6 +17,20 @@
             <span class="progress-text" id="progressText">데이터 로딩 중...</span>
         </div>
 
+        <!-- 총 점수 카드 -->
+        <div class="total-score-card" id="totalScoreCard">
+            <div class="score-main">
+                <span class="metric-info" tabindex="0">ⓘ<span class="metric-tooltip">6개 지표를 정규화(0-100)하여 가중 합산<br><br>가중치:<br>CAGR 20% · MDD 20%<br>샤프 20% · 소르티노 20%<br>연간수익률 10% · 총수익률 10%<br><br>90↑ A+ · 80↑ A · 70↑ B+<br>60↑ B · 50↑ C+ · 40↑ C<br>30↑ D · 그 외 F</span></span>
+                <span class="score-label">총 점수</span>
+                <span class="score-number" id="totalScoreValue">-</span>
+                <span class="score-grade" id="totalScoreGrade">-</span>
+                <span class="metric-bmk" id="bmkTotalScore"></span>
+            </div>
+            <div class="score-breakdown" id="scoreBreakdown">
+                <!-- JS에서 세부 점수 바 렌더링 -->
+            </div>
+        </div>
+
         <!-- 핵심 지표 카드 -->
         <div class="metrics-cards" id="metricsCards">
             <div class="metric-card">
