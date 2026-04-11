@@ -4,8 +4,11 @@ namespace Blog\Controllers;
 
 use Blog\Models\Stock;
 use Blog\Models\Category;
+use Blog\Models\BacktestPortfolio;
+use Blog\Models\BacktestPreset;
 use Blog\Services\BacktestService;
 use Blog\Core\Cache;
+use Blog\Core\Logger;
 
 class StockController extends BaseController
 {
@@ -47,9 +50,14 @@ class StockController extends BaseController
         // 인기 주식
         $topStocks = $this->stockModel->getTopStocks(10, $market);
 
+        // Top 10 포트폴리오
+        $portfolioModel = new BacktestPortfolio();
+        $topPortfolios = $portfolioModel->getTopPortfolios(10);
+
         $this->renderLayout('stock', 'stock/index', [
             'stocks' => $stocks,
             'topStocks' => $topStocks,
+            'topPortfolios' => $topPortfolios,
             'marketStats' => $marketStats,
             'currentPage' => $page,
             'totalPages' => $totalPages,
@@ -354,6 +362,7 @@ class StockController extends BaseController
             'stocks' => array_map(function ($s) {
                 return [
                     'code' => $this->sanitizeInput($s['code'] ?? ''),
+                    'name' => $this->sanitizeInput($s['name'] ?? $s['code'] ?? ''),
                     'market' => $this->sanitizeInput($s['market'] ?? ''),
                     'weight' => (float)($s['weight'] ?? 0),
                 ];
@@ -432,11 +441,365 @@ class StockController extends BaseController
             return;
         }
 
+        // 포트폴리오 자동 저장
+        $portfolioId = null;
+        $portfolioName = null;
+        try {
+            $portfolioModel = new BacktestPortfolio();
+
+            // 종목명 목록 수집 (config에 name이 있으면 사용, 없으면 code)
+            $stocksWithNames = array_map(function ($s) {
+                return [
+                    'code' => $s['code'],
+                    'name' => $s['name'] ?? $s['code'],
+                    'market' => $s['market'],
+                    'weight' => $s['weight'],
+                ];
+            }, $config['stocks']);
+
+            // 종목 요약 (예: "삼성전자 40% + AAPL 30%")
+            $summaryParts = [];
+            foreach ($stocksWithNames as $s) {
+                $summaryParts[] = ($s['name'] ?: $s['code']) . ' ' . round($s['weight'], 1) . '%';
+            }
+            $stockSummary = mb_substr(implode(' + ', $summaryParts), 0, 200);
+
+            // 점수 계산
+            $displayScore = $this->calculateDisplayScore($result['metrics']);
+            $configHash = BacktestPortfolio::buildConfigHash($config['stocks'], $config['strategy']);
+            $portfolioName = BacktestPortfolio::generateName($stocksWithNames);
+
+            // 저장용 config (이름 포함)
+            $saveConfig = $config;
+            $saveConfig['stocks'] = $stocksWithNames;
+
+            $portfolioId = $portfolioModel->save([
+                'portfolio_name' => $portfolioName,
+                'ip_address' => $ip,
+                'config_hash' => $configHash,
+                'config_json' => json_encode($saveConfig, JSON_UNESCAPED_UNICODE),
+                'display_score' => $displayScore['score'],
+                'display_grade' => $displayScore['grade'],
+                'ranking_score' => $result['rankingScore'],
+                'ranking_grade' => $result['rankingGrade'],
+                'metrics_json' => json_encode($result['metrics'], JSON_UNESCAPED_UNICODE),
+                'stock_summary' => $stockSummary,
+                'strategy' => $config['strategy'],
+                'period_start' => $config['startDate'],
+                'period_end' => $config['endDate'],
+                'initial_capital' => (int)$config['initialCapital'],
+                'monthly_dca' => (int)$config['monthlyDCA'],
+            ]);
+        } catch (\Throwable $e) {
+            // 저장 실패해도 백테스트 결과는 정상 반환
+            error_log('Portfolio save failed: ' . $e->getMessage());
+        }
+
         header('Cache-Control: private, no-cache');
         $this->jsonResponse([
             'success' => true,
             'data' => $result,
+            'portfolioId' => $portfolioId,
+            'portfolioName' => $portfolioName,
         ]);
+    }
+
+    /**
+     * display score 계산 — BacktestService::computeScore() 위임
+     */
+    private function calculateDisplayScore(array $metrics): array
+    {
+        return BacktestService::computeScore($metrics);
+    }
+
+    /**
+     * API: Top 10 포트폴리오 목록 (JSON)
+     */
+    public function apiTopPortfolios(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        $portfolioModel = new BacktestPortfolio();
+        $portfolios = $portfolioModel->getTopPortfolios(10);
+
+        $this->jsonResponse([
+            'success' => true,
+            'data' => $portfolios,
+        ]);
+    }
+
+    /**
+     * API: 단일 포트폴리오 상세 조회 (JSON)
+     */
+    public function apiPortfolio(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid id'], 400);
+            return;
+        }
+
+        $portfolioModel = new BacktestPortfolio();
+        $portfolio = $portfolioModel->getById($id);
+
+        if (!$portfolio) {
+            $this->jsonResponse(['success' => false, 'error' => 'Not found'], 404);
+            return;
+        }
+
+        // IP 주소 등 민감 정보 제거
+        unset($portfolio['ip_address']);
+
+        $this->jsonResponse([
+            'success' => true,
+            'data' => $portfolio,
+        ]);
+    }
+
+    /**
+     * API: 포트폴리오 이름 수정 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body는 $_POST에 없어 validateCsrfToken() 불가,
+     *       X-Requested-With + Origin/Referer 이중 검증이 OWASP 권장 AJAX CSRF 방어에 해당
+     */
+    public function apiUpdatePortfolioName(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+        if (!is_array($input)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid JSON'], 400);
+            return;
+        }
+
+        $id = (int)($input['id'] ?? 0);
+        $name = $this->sanitizeInput($input['name'] ?? '');
+        if ($id <= 0 || empty($name)) {
+            $this->jsonResponse(['success' => false, 'error' => 'id and name are required'], 400);
+            return;
+        }
+
+        $name = mb_substr($name, 0, 100);
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        $portfolioModel = new BacktestPortfolio();
+        $updated = $portfolioModel->updateName($id, $ip, $name);
+
+        if (!$updated) {
+            $this->auditStockAction('portfolio.rename', ['portfolio_id' => $id, 'ip' => $ip], 'denied');
+            $this->jsonResponse(['success' => false, 'error' => '수정 권한이 없습니다.'], 403);
+            return;
+        }
+
+        $this->auditStockAction('portfolio.rename', ['portfolio_id' => $id, 'name' => $name, 'ip' => $ip]);
+        $this->jsonResponse(['success' => true]);
+    }
+
+    /* =========================================
+       프리셋 관리 (로그인 사용자 전용)
+       ========================================= */
+
+    /**
+     * API: 사용자의 프리셋 목록 (GET, JSON)
+     */
+    public function apiPresets(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        if (!$this->auth->isLoggedIn()) {
+            $this->jsonResponse(['success' => false, 'error' => '로그인이 필요합니다.'], 401);
+            return;
+        }
+
+        $user = $this->auth->getCurrentUser();
+        $presetModel = new BacktestPreset();
+        $presets = $presetModel->getByUser((int)$user['user_index']);
+
+        $this->jsonResponse(['success' => true, 'data' => $presets]);
+    }
+
+    /**
+     * API: 프리셋 저장 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body AJAX API
+     */
+    public function apiSavePreset(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        if (!$this->auth->isLoggedIn()) {
+            $this->jsonResponse(['success' => false, 'error' => '로그인이 필요합니다.'], 401);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+        if (!is_array($input)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid JSON'], 400);
+            return;
+        }
+
+        $name = $this->sanitizeInput($input['name'] ?? '');
+        if (empty($name)) {
+            $this->jsonResponse(['success' => false, 'error' => '프리셋 이름을 입력하세요.'], 400);
+            return;
+        }
+        $name = mb_substr($name, 0, 100);
+
+        $config = $input['config'] ?? null;
+        if (!is_array($config) || empty($config['stocks'])) {
+            $this->jsonResponse(['success' => false, 'error' => '유효한 설정이 필요합니다.'], 400);
+            return;
+        }
+
+        // 종목 요약 생성
+        $summaryParts = [];
+        foreach (array_slice($config['stocks'], 0, 5) as $s) {
+            $summaryParts[] = ($s['name'] ?? $s['code']) . ' ' . round($s['weight'] ?? 0, 1) . '%';
+        }
+        $stockSummary = mb_substr(implode(' + ', $summaryParts), 0, 200);
+        if (count($config['stocks']) > 5) {
+            $stockSummary .= ' 외 ' . (count($config['stocks']) - 5) . '종목';
+        }
+
+        $strategy = $this->sanitizeInput($config['strategy'] ?? 'buyhold');
+        $configJson = json_encode($config, JSON_UNESCAPED_UNICODE);
+
+        $user = $this->auth->getCurrentUser();
+
+        try {
+            $presetModel = new BacktestPreset();
+            $presetId = $presetModel->save(
+                (int)$user['user_index'],
+                $name,
+                $configJson,
+                $stockSummary,
+                $strategy
+            );
+
+            $this->auditStockAction('preset.save', [
+                'preset_id' => $presetId,
+                'user_index' => (int)$user['user_index'],
+                'name' => $name,
+            ]);
+            $this->jsonResponse(['success' => true, 'presetId' => $presetId]);
+        } catch (\RuntimeException $e) {
+            $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * API: 프리셋 불러오기 (GET, JSON)
+     */
+    public function apiLoadPreset(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        if (!$this->auth->isLoggedIn()) {
+            $this->jsonResponse(['success' => false, 'error' => '로그인이 필요합니다.'], 401);
+            return;
+        }
+
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid id'], 400);
+            return;
+        }
+
+        $user = $this->auth->getCurrentUser();
+        $presetModel = new BacktestPreset();
+        $preset = $presetModel->getById($id, (int)$user['user_index']);
+
+        if (!$preset) {
+            $this->jsonResponse(['success' => false, 'error' => '프리셋을 찾을 수 없습니다.'], 404);
+            return;
+        }
+
+        $this->jsonResponse(['success' => true, 'data' => $preset]);
+    }
+
+    /**
+     * API: 프리셋 삭제 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body AJAX API
+     */
+    public function apiDeletePreset(): void
+    {
+        if (!$this->requireInternalRequest()) {
+            return;
+        }
+
+        if (!$this->auth->isLoggedIn()) {
+            $this->jsonResponse(['success' => false, 'error' => '로그인이 필요합니다.'], 401);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+        if (!is_array($input)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid JSON'], 400);
+            return;
+        }
+
+        $id = (int)($input['id'] ?? 0);
+        if ($id <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid id'], 400);
+            return;
+        }
+
+        $user = $this->auth->getCurrentUser();
+        $presetModel = new BacktestPreset();
+        $deleted = $presetModel->delete($id, (int)$user['user_index']);
+
+        if (!$deleted) {
+            $this->auditStockAction('preset.delete', ['preset_id' => $id, 'user_index' => (int)$user['user_index']], 'denied');
+            $this->jsonResponse(['success' => false, 'error' => '삭제 권한이 없거나 존재하지 않습니다.'], 403);
+            return;
+        }
+
+        $this->auditStockAction('preset.delete', ['preset_id' => $id, 'user_index' => (int)$user['user_index']]);
+        $this->jsonResponse(['success' => true]);
+    }
+
+    /**
+     * 주식/백테스트 감사 로깅
+     */
+    private function auditStockAction(string $action, array $details = [], string $result = 'success'): void
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $logPayload = [
+            'action' => $action,
+            'result' => $result,
+            'ip' => $ip,
+            'method' => $this->getRequestMethod(),
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'details' => $details,
+        ];
+
+        $message = json_encode($logPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($message === false) {
+            $message = "action={$action} result={$result} ip={$ip}";
+        }
+
+        if ($result === 'error') {
+            Logger::error('stock_audit', $message);
+        } elseif ($result === 'denied' || $result === 'rejected') {
+            Logger::warn('stock_audit', $message);
+        } else {
+            Logger::info('stock_audit', $message);
+        }
     }
 
 }

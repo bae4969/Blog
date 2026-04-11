@@ -31,30 +31,57 @@ class AuthController extends BaseController
         $this->rateLimit = array_merge($defaults, $config['login_rate_limit'] ?? []);
     }
 
+    /**
+     * return URL 추출 (GET 'return' 또는 POST 'return_url')
+     * 내부 경로만 허용, 기본값 /blog
+     */
+    private function getReturnUrl(): string
+    {
+        $url = $_GET['return'] ?? $_POST['return_url'] ?? '';
+        // 내부 절대 경로만 허용 (Open Redirect 방어)
+        if ($url !== '' && $url[0] === '/' && strpos($url, '//') !== 0) {
+            // 프로토콜 상대 URL(\/\evil.com), 줄바꿈/탭 인젝션 방어
+            $url = preg_replace('/[\x00-\x1f]/', '', $url);
+            $parsed = parse_url($url);
+            if ($parsed !== false && !isset($parsed['host']) && !isset($parsed['scheme'])) {
+                return $url;
+            }
+        }
+        return '/blog';
+    }
+
     public function loginForm(): void
     {
         if ($this->auth->isLoggedIn()) {
-            $this->redirect('/blog');
+            $this->redirect($this->getReturnUrl());
         }
 
         // CSRF 토큰을 미리 생성 후, 세션 쓰기를 종료해 동시접속 시 잠금 최소화
         $token = $this->view->csrfToken();
         $this->session->writeClose();
 
+        $returnUrl = $this->getReturnUrl();
+
         $this->renderLayout('home', 'home/login', [
-            'csrfToken' => $token
+            'csrfToken' => $token,
+            'returnUrl' => $returnUrl,
         ]);
     }
 
     public function login(): void
     {
+        $returnUrl = $this->getReturnUrl();
+        $loginRedirect = $returnUrl !== '/blog'
+            ? '/login.php?return=' . urlencode($returnUrl)
+            : '/login.php';
+
         if (!$this->isPost()) {
-            $this->redirect('/login.php');
+            $this->redirect($loginRedirect);
         }
 
         if (!$this->validateCsrfToken()) {
             $this->session->setFlash('error', '보안 토큰이 유효하지 않습니다.');
-            $this->redirect('/login.php');
+            $this->redirect($loginRedirect);
         }
 
         // Honeypot 필드 체크 (봇이 자동으로 채우는 숨김 필드)
@@ -75,7 +102,7 @@ class AuthController extends BaseController
         
         if (!empty($errors)) {
             $this->session->setFlash('error', '아이디와 비밀번호를 모두 입력해주세요.');
-            $this->redirect('/login.php');
+            $this->redirect($loginRedirect);
         }
 
         // 과도한 로그인 시도 방지 (IP/아이디 기준 단순 레이트 리미팅)
@@ -91,7 +118,7 @@ class AuthController extends BaseController
             usleep(random_int($this->rateLimit['block_delay_ms_min'], $this->rateLimit['block_delay_ms_max']) * 1000);
             Logger::warn('BlogAuth', "blocked: too many attempts ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.');
-            $this->redirect('/login.php');
+            $this->redirect($loginRedirect);
         }
 
         // 설정된 윈도우에서 카운트 증가
@@ -120,13 +147,13 @@ class AuthController extends BaseController
             $this->cache->delete($ipAttemptsKey);
             $this->cache->delete($userAttemptsKey);
             Logger::info('BlogAuth', "success ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
-            $this->redirect('/blog');
+            $this->redirect($this->getReturnUrl());
         } else {
             // 실패 시 소량 랜덤 지연으로 대량 시도 완화
             usleep(random_int($this->rateLimit['fail_delay_ms_min'], $this->rateLimit['fail_delay_ms_max']) * 1000);
             Logger::error('BlogAuth', "fail ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
             $this->session->setFlash('error', '아이디 또는 비밀번호가 일치하지 않습니다.');
-            $this->redirect('/login.php');
+            $this->redirect($loginRedirect);
         }
     }
 
@@ -141,13 +168,15 @@ class AuthController extends BaseController
             $this->redirect('/blog');
         }
 
+        $returnUrl = $this->getReturnUrl();
+
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         $user = $this->auth->getCurrentUser();
         $userId = $user['user_id'] ?? 'anonymous';
         Logger::info('BlogAuth', "logout ip={$ip} user={$userId}", ['function'=>__METHOD__, 'file'=>__FILE__, 'line'=>__LINE__]);
         $this->auth->logout();
         $this->session->setFlash('success', '로그아웃되었습니다.');
-        $this->redirect('/blog');
+        $this->redirect($returnUrl);
     }
 
     public function verify(): void
