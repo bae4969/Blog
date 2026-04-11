@@ -886,7 +886,8 @@ class BacktestService
 
         // TWR 누적 곡선 생성 (1.0 시작)
         $twrCurve = [1.0];
-        for ($i = 1; $i < count($series); $i++) {
+        $seriesLen = count($series);
+        for ($i = 1; $i < $seriesLen; $i++) {
             $prevVal = $series[$i - 1]['value'];
             $cashFlow = $series[$i]['invested'] - $series[$i - 1]['invested'];
             $base = $prevVal + $cashFlow;
@@ -933,20 +934,35 @@ class BacktestService
         $sharpe = $this->sharpeRatio($series, $riskFreeRate);
         $sortino = $this->sortinoRatio($series, $riskFreeRate);
 
-        // 정규화 (0-100)
+        return self::computeScore([
+            'cagr'        => $cagr,
+            'avgAnnual'   => $twrAvgAnnual,
+            'totalReturn' => $twrTotalReturn,
+            'mdd'         => $twrMdd,
+            'sharpe'      => $sharpe,
+            'sortino'     => $sortino,
+        ]);
+    }
+
+    /**
+     * 공통 점수 계산 (정규화 0-100 + 가중 합산 + 등급)
+     * StockController::calculateDisplayScore()와 로직 통합
+     */
+    public static function computeScore(array $metrics): array
+    {
         $normalize = function ($value, $min, $max) {
-            if (!is_finite($value)) return 50;
+            if ($value === null || !is_finite($value)) return 50;
             $score = ($value - $min) / ($max - $min) * 100;
             return max(0, min(100, $score));
         };
 
         $scores = [
-            'cagr'        => $normalize($cagr, -10, 15),
-            'avgAnnual'   => $normalize($twrAvgAnnual, -10, 20),
-            'totalReturn' => $normalize($twrTotalReturn, -50, 200),
-            'mdd'         => 100 - $normalize($twrMdd, 10, 45),
-            'sharpe'      => $normalize($sharpe, -0.5, 1.8),
-            'sortino'     => $normalize($sortino, -0.5, 2.0),
+            'cagr'        => $normalize($metrics['cagr'] ?? 0, -10, 15),
+            'avgAnnual'   => $normalize($metrics['avgAnnual'] ?? 0, -10, 20),
+            'totalReturn' => $normalize($metrics['totalReturn'] ?? 0, -50, 200),
+            'mdd'         => 100 - $normalize($metrics['mdd'] ?? 0, 10, 45),
+            'sharpe'      => $normalize($metrics['sharpe'] ?? 0, -0.5, 1.8),
+            'sortino'     => $normalize($metrics['sortino'] ?? 0, -0.5, 2.0),
         ];
 
         $weights = ['cagr' => 20, 'avgAnnual' => 10, 'totalReturn' => 10, 'mdd' => 20, 'sharpe' => 20, 'sortino' => 20];

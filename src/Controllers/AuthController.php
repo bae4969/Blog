@@ -40,7 +40,12 @@ class AuthController extends BaseController
         $url = $_GET['return'] ?? $_POST['return_url'] ?? '';
         // 내부 절대 경로만 허용 (Open Redirect 방어)
         if ($url !== '' && $url[0] === '/' && strpos($url, '//') !== 0) {
-            return $url;
+            // 프로토콜 상대 URL(\/\evil.com), 줄바꿈/탭 인젝션 방어
+            $url = preg_replace('/[\x00-\x1f]/', '', $url);
+            $parsed = parse_url($url);
+            if ($parsed !== false && !isset($parsed['host']) && !isset($parsed['scheme'])) {
+                return $url;
+            }
         }
         return '/blog';
     }

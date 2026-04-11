@@ -8,6 +8,7 @@ use Blog\Models\BacktestPortfolio;
 use Blog\Models\BacktestPreset;
 use Blog\Services\BacktestService;
 use Blog\Core\Cache;
+use Blog\Core\Logger;
 
 class StockController extends BaseController
 {
@@ -504,44 +505,11 @@ class StockController extends BaseController
     }
 
     /**
-     * display score 계산 (클라이언트 calculateTotalScore와 동일 로직)
+     * display score 계산 — BacktestService::computeScore() 위임
      */
     private function calculateDisplayScore(array $metrics): array
     {
-        $normalize = function ($value, $min, $max) {
-            if ($value === null || !is_finite($value)) return 50;
-            $score = ($value - $min) / ($max - $min) * 100;
-            return max(0, min(100, $score));
-        };
-
-        $scores = [
-            'cagr'        => $normalize($metrics['cagr'] ?? 0, -10, 15),
-            'avgAnnual'   => $normalize($metrics['avgAnnual'] ?? 0, -10, 20),
-            'totalReturn' => $normalize($metrics['totalReturn'] ?? 0, -50, 200),
-            'mdd'         => 100 - $normalize($metrics['mdd'] ?? 0, 10, 45),
-            'sharpe'      => $normalize($metrics['sharpe'] ?? 0, -0.5, 1.8),
-            'sortino'     => $normalize($metrics['sortino'] ?? 0, -0.5, 2.0),
-        ];
-
-        $weights = ['cagr' => 20, 'avgAnnual' => 10, 'totalReturn' => 10, 'mdd' => 20, 'sharpe' => 20, 'sortino' => 20];
-        $weightedSum = 0;
-        $totalWeight = 0;
-        foreach ($weights as $key => $w) {
-            $weightedSum += $scores[$key] * $w;
-            $totalWeight += $w;
-        }
-        $total = (int)round($weightedSum / $totalWeight);
-
-        if ($total >= 90)      $grade = 'A+';
-        elseif ($total >= 80)  $grade = 'A';
-        elseif ($total >= 70)  $grade = 'B+';
-        elseif ($total >= 60)  $grade = 'B';
-        elseif ($total >= 50)  $grade = 'C+';
-        elseif ($total >= 40)  $grade = 'C';
-        elseif ($total >= 30)  $grade = 'D';
-        else                   $grade = 'F';
-
-        return ['score' => $total, 'grade' => $grade];
+        return BacktestService::computeScore($metrics);
     }
 
     /**
@@ -596,6 +564,8 @@ class StockController extends BaseController
 
     /**
      * API: 포트폴리오 이름 수정 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body는 $_POST에 없어 validateCsrfToken() 불가,
+     *       X-Requested-With + Origin/Referer 이중 검증이 OWASP 권장 AJAX CSRF 방어에 해당
      */
     public function apiUpdatePortfolioName(): void
     {
@@ -624,10 +594,12 @@ class StockController extends BaseController
         $updated = $portfolioModel->updateName($id, $ip, $name);
 
         if (!$updated) {
+            $this->auditStockAction('portfolio.rename', ['portfolio_id' => $id, 'ip' => $ip], 'denied');
             $this->jsonResponse(['success' => false, 'error' => '수정 권한이 없습니다.'], 403);
             return;
         }
 
+        $this->auditStockAction('portfolio.rename', ['portfolio_id' => $id, 'name' => $name, 'ip' => $ip]);
         $this->jsonResponse(['success' => true]);
     }
 
@@ -658,6 +630,7 @@ class StockController extends BaseController
 
     /**
      * API: 프리셋 저장 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body AJAX API
      */
     public function apiSavePreset(): void
     {
@@ -715,6 +688,11 @@ class StockController extends BaseController
                 $strategy
             );
 
+            $this->auditStockAction('preset.save', [
+                'preset_id' => $presetId,
+                'user_index' => (int)$user['user_index'],
+                'name' => $name,
+            ]);
             $this->jsonResponse(['success' => true, 'presetId' => $presetId]);
         } catch (\RuntimeException $e) {
             $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
@@ -755,6 +733,7 @@ class StockController extends BaseController
 
     /**
      * API: 프리셋 삭제 (POST, JSON)
+     * CSRF: requireInternalRequest()로 대체 — JSON body AJAX API
      */
     public function apiDeletePreset(): void
     {
@@ -785,11 +764,42 @@ class StockController extends BaseController
         $deleted = $presetModel->delete($id, (int)$user['user_index']);
 
         if (!$deleted) {
+            $this->auditStockAction('preset.delete', ['preset_id' => $id, 'user_index' => (int)$user['user_index']], 'denied');
             $this->jsonResponse(['success' => false, 'error' => '삭제 권한이 없거나 존재하지 않습니다.'], 403);
             return;
         }
 
+        $this->auditStockAction('preset.delete', ['preset_id' => $id, 'user_index' => (int)$user['user_index']]);
         $this->jsonResponse(['success' => true]);
+    }
+
+    /**
+     * 주식/백테스트 감사 로깅
+     */
+    private function auditStockAction(string $action, array $details = [], string $result = 'success'): void
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $logPayload = [
+            'action' => $action,
+            'result' => $result,
+            'ip' => $ip,
+            'method' => $this->getRequestMethod(),
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'details' => $details,
+        ];
+
+        $message = json_encode($logPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($message === false) {
+            $message = "action={$action} result={$result} ip={$ip}";
+        }
+
+        if ($result === 'error') {
+            Logger::error('stock_audit', $message);
+        } elseif ($result === 'denied' || $result === 'rejected') {
+            Logger::warn('stock_audit', $message);
+        } else {
+            Logger::info('stock_audit', $message);
+        }
     }
 
 }
