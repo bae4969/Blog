@@ -6,9 +6,36 @@
                     <?php if (!in_array($stat['market_group'], ['KR', 'US', 'COIN'], true)) { continue; } ?>
                     <?php $isUS = ($stat['market_group'] === 'US'); ?>
                     <?php $isCoin = ($stat['market_group'] === 'COIN'); ?>
-                    <div class="market-stat-item-h <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
+                    <div class="market-stat-item-h market-<?= strtolower($stat['market_group']) ?> <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
                          onclick="location.href='/stocks?market=<?= urlencode($stat['market_group']) ?>'">
-                        <div class="market-name"><?= $view->escape($stat['market_label']) ?></div>
+                        <div class="market-name">
+                            <?php if ($stat['market_group'] === 'KR'): ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <rect x="2.2" y="2.2" width="15.6" height="15.6" rx="4" stroke="currentColor" stroke-width="1.4" opacity="0.5" />
+                                    <path d="M10 6.2C11.9 6.2 13.4 7.7 13.4 9.6C13.4 11.5 11.9 13 10 13C8.1 13 6.6 11.5 6.6 9.6C6.6 7.7 8.1 6.2 10 6.2Z" fill="#ef4444" />
+                                    <path d="M10 13C8.1 13 6.6 11.5 6.6 9.6C6.6 7.7 8.1 6.2 10 6.2C11.9 6.2 13.4 7.7 13.4 9.6C13.4 11.5 11.9 13 10 13Z" fill="#2563eb" transform="translate(0 0.9)" />
+                                    <circle cx="10" cy="9.15" r="1.7" fill="#2563eb" />
+                                    <circle cx="10" cy="10.95" r="1.7" fill="#ef4444" />
+                                </svg>
+                            <?php elseif ($stat['market_group'] === 'US'): ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <rect x="2.2" y="2.2" width="15.6" height="15.6" rx="4" stroke="currentColor" stroke-width="1.4" opacity="0.5" />
+                                    <path d="M4.6 6.1H15.4M4.6 8.2H15.4M4.6 10.3H15.4M4.6 12.4H15.4" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round" />
+                                    <rect x="4.6" y="5.2" width="5.4" height="4.6" rx="1" fill="#2563eb" />
+                                    <path d="M6 6.3L6.3 7L7 7.1L6.5 7.6L6.6 8.3L6 7.9L5.4 8.3L5.5 7.6L5 7.1L5.7 7L6 6.3Z" fill="white" />
+                                    <path d="M8.1 6.9L8.28 7.28L8.7 7.34L8.4 7.63L8.47 8.04L8.1 7.83L7.73 8.04L7.8 7.63L7.5 7.34L7.92 7.28L8.1 6.9Z" fill="white" />
+                                </svg>
+                            <?php else: ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
+                                    <circle cx="10" cy="10" r="5.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35" />
+                                    <path d="M11.5 6.2H8.9C8.15 6.2 7.6 6.72 7.6 7.38C7.6 8.04 8.15 8.56 8.9 8.56H10.9C11.65 8.56 12.2 9.08 12.2 9.74C12.2 10.4 11.65 10.92 10.9 10.92H8" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M9.9 5.5V13.8" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" />
+                                    <path d="M6.2 14.4L13.8 14.4" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.4" />
+                                </svg>
+                            <?php endif; ?>
+                            <span><?= $view->escape($stat['market_label']) ?></span>
+                        </div>
                         <div class="market-info">
                             <span class="market-count"><?= number_format($stat['stock_count']) ?><?= $isCoin ? '종목' : '종목' ?></span>
                             <span class="market-sep">·</span>
