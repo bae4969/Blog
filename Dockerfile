@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     $PHPIZE_DEPS \
     && npx -y playwright install --with-deps chromium \
+    && npm install -g playwright \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. PHP 확장 모듈 설치 (DB 및 이미지 처리)
