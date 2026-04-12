@@ -10,8 +10,8 @@ ENV APP_ENV=${APP_ENV}
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME
 
-# 1. 필수 패키지 설치 (git, unzip은 composer 사용에 필수)
-RUN apt-get update && apt-get install -y \
+# 1. 필수 패키지 설치
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
@@ -21,8 +21,10 @@ RUN apt-get update && apt-get install -y \
     unzip \
     git \
     curl \
-    --no-install-recommends \
-    && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
+    nodejs \
+    npm \
+    $PHPIZE_DEPS \
+    && npx -y playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. PHP 확장 모듈 설치 (DB 및 이미지 처리)
