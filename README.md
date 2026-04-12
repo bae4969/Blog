@@ -49,13 +49,13 @@ MVC + PSR-4 오토로딩 (Blog\ → src/)
 composer install
 cp config.example/* config/        # 설정 파일 복사 후 편집
 mkdir -p cache/data && chmod 755 cache cache/data
-php -S localhost:8080 -t public    # 개발 서버 → http://localhost:8080/blog
+php -S localhost:80 -t public    # 개발 서버 → http://localhost:80/blog
 ```
 
 ### Docker
 
 ```bash
-docker build -t blog .
+docker build -t php-blog:latest .
 ```
 
 - PHP 8.2-Apache, 확장: pdo_mysql, mysqli, mbstring, exif, bcmath, sockets, gd, opcache, xdebug
