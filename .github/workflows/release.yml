@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -95,6 +97,33 @@ jobs:
           name: release-source
           path: release-source.zip
 
+      - name: Build release notes from commit history
+        if: steps.release_decision.outputs.release_created == 'true'
+        run: |
+          set -e
+
+          CURRENT_TAG="${{ steps.get_version.outputs.VERSION }}"
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
+
+          {
+            echo "## Full Commit List"
+            if [ -n "$PREV_TAG" ]; then
+              echo
+              echo "Base: $PREV_TAG -> $CURRENT_TAG"
+              echo
+              git log "$PREV_TAG..HEAD" --pretty=format:'- %s (%h)'
+            else
+              echo
+              echo "Base: initial release"
+              echo
+              git log --pretty=format:'- %s (%h)'
+            fi
+          } > RELEASE_NOTES.md
+
+          if ! grep -q "^- " RELEASE_NOTES.md; then
+            echo "- No commits found in this release window." >> RELEASE_NOTES.md
+          fi
+
       # GitHub Release 생성
       - name: Create GitHub Release
         if: steps.release_decision.outputs.release_created == 'true'
@@ -103,7 +132,7 @@ jobs:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           name: Release ${{ steps.get_version.outputs.VERSION }}
           files: release-source.zip
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
