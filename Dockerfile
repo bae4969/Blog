@@ -1,10 +1,17 @@
 FROM php:8.2-apache
 
+ARG USERNAME=devuser
+ARG USER_UID=1000
+ARG USER_GID=3000
 ARG APP_ENV=prod
 ENV APP_ENV=${APP_ENV}
 
-# 1. 필수 패키지 설치 (git, unzip은 composer 사용에 필수)
-RUN apt-get update && apt-get install -y \
+# 0. 유저 생성
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME
+
+# 1. 필수 패키지 설치
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
@@ -14,8 +21,11 @@ RUN apt-get update && apt-get install -y \
     unzip \
     git \
     curl \
-    --no-install-recommends \
-    && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
+    nodejs \
+    npm \
+    $PHPIZE_DEPS \
+    && npx -y playwright install --with-deps chromium \
+    && npm install -g playwright \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. PHP 확장 모듈 설치 (DB 및 이미지 처리)
@@ -61,9 +71,13 @@ RUN if [ "$APP_ENV" = "prod" ]; then \
 # 8. 애플리케이션 소스 복사
 COPY . .
 
-# 9. PHP POST 크기 설정 (base64 이미지 포함 콘텐츠 전송)
-RUN echo "upload_max_filesize = 10M\npost_max_size = 20M" > /usr/local/etc/php/conf.d/uploads.ini
+# 9. PHP 설정
+RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory.ini \
+    && echo "upload_max_filesize = 10M\npost_max_size = 20M" > /usr/local/etc/php/conf.d/uploads.ini
 
 # 10. Apache/PHP 상태 확인
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
         CMD curl -fsS http://localhost/ || exit 1
+
+# 11. 유저 설정
+USER $USERNAME

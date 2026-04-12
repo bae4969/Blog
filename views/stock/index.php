@@ -6,9 +6,36 @@
                     <?php if (!in_array($stat['market_group'], ['KR', 'US', 'COIN'], true)) { continue; } ?>
                     <?php $isUS = ($stat['market_group'] === 'US'); ?>
                     <?php $isCoin = ($stat['market_group'] === 'COIN'); ?>
-                    <div class="market-stat-item-h <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
+                    <div class="market-stat-item-h market-<?= strtolower($stat['market_group']) ?> <?= $currentMarket === $stat['market_group'] ? 'active' : '' ?>" 
                          onclick="location.href='/stocks?market=<?= urlencode($stat['market_group']) ?>'">
-                        <div class="market-name"><?= $view->escape($stat['market_label']) ?></div>
+                        <div class="market-name">
+                            <?php if ($stat['market_group'] === 'KR'): ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <rect x="2.2" y="2.2" width="15.6" height="15.6" rx="4" stroke="currentColor" stroke-width="1.4" opacity="0.5" />
+                                    <path d="M10 6.2C11.9 6.2 13.4 7.7 13.4 9.6C13.4 11.5 11.9 13 10 13C8.1 13 6.6 11.5 6.6 9.6C6.6 7.7 8.1 6.2 10 6.2Z" fill="#ef4444" />
+                                    <path d="M10 13C8.1 13 6.6 11.5 6.6 9.6C6.6 7.7 8.1 6.2 10 6.2C11.9 6.2 13.4 7.7 13.4 9.6C13.4 11.5 11.9 13 10 13Z" fill="#2563eb" transform="translate(0 0.9)" />
+                                    <circle cx="10" cy="9.15" r="1.7" fill="#2563eb" />
+                                    <circle cx="10" cy="10.95" r="1.7" fill="#ef4444" />
+                                </svg>
+                            <?php elseif ($stat['market_group'] === 'US'): ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <rect x="2.2" y="2.2" width="15.6" height="15.6" rx="4" stroke="currentColor" stroke-width="1.4" opacity="0.5" />
+                                    <path d="M4.6 6.1H15.4M4.6 8.2H15.4M4.6 10.3H15.4M4.6 12.4H15.4" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round" />
+                                    <rect x="4.6" y="5.2" width="5.4" height="4.6" rx="1" fill="#2563eb" />
+                                    <path d="M6 6.3L6.3 7L7 7.1L6.5 7.6L6.6 8.3L6 7.9L5.4 8.3L5.5 7.6L5 7.1L5.7 7L6 6.3Z" fill="white" />
+                                    <path d="M8.1 6.9L8.28 7.28L8.7 7.34L8.4 7.63L8.47 8.04L8.1 7.83L7.73 8.04L7.8 7.63L7.5 7.34L7.92 7.28L8.1 6.9Z" fill="white" />
+                                </svg>
+                            <?php else: ?>
+                                <svg class="market-symbol" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
+                                    <circle cx="10" cy="10" r="5.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35" />
+                                    <path d="M11.5 6.2H8.9C8.15 6.2 7.6 6.72 7.6 7.38C7.6 8.04 8.15 8.56 8.9 8.56H10.9C11.65 8.56 12.2 9.08 12.2 9.74C12.2 10.4 11.65 10.92 10.9 10.92H8" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M9.9 5.5V13.8" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" />
+                                    <path d="M6.2 14.4L13.8 14.4" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.4" />
+                                </svg>
+                            <?php endif; ?>
+                            <span><?= $view->escape($stat['market_label']) ?></span>
+                        </div>
                         <div class="market-info">
                             <span class="market-count"><?= number_format($stat['stock_count']) ?><?= $isCoin ? '종목' : '종목' ?></span>
                             <span class="market-sep">·</span>
@@ -180,18 +207,18 @@
         </div>
 
         <!-- 거래대금 TOP 10 -->
-        <div class="top-stocks-section">
+        <div class="top10-section">
             <h3>거래대금 TOP 10</h3>
-            <div class="top-stocks-list">
+            <div class="top10-list">
                 <?php if (!empty($topStocks)): ?>
                     <?php foreach ($topStocks as $idx => $topStock): ?>
-                        <div class="top-stock-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?><?= ($topStock['stock_market'] === 'Bithumb') ? '&market=COIN' : '' ?>'">
-                            <div class="top-stock-rank"><?= $idx + 1 ?></div>
-                            <div class="stock-info">
-                                <div class="stock-name"><?= $view->escape($topStock['stock_name_kr']) ?></div>
-                                <div class="stock-code"><?= $view->escape($topStock['stock_code']) ?></div>
+                        <div class="top10-item" onclick="location.href='/stocks/view?code=<?= urlencode($topStock['stock_code']) ?><?= ($topStock['stock_market'] === 'Bithumb') ? '&market=COIN' : '' ?>'">
+                            <div class="top10-rank"><?= $idx + 1 ?></div>
+                            <div class="top10-info">
+                                <div class="top10-name"><?= $view->escape($topStock['stock_name_kr']) ?></div>
+                                <div class="top10-code"><?= $view->escape($topStock['stock_code']) ?></div>
                             </div>
-                            <div class="stock-price-info">
+                            <div class="top10-value">
                                 <?php
                                     $isUSMarket = in_array($topStock['stock_market'], ['NYSE', 'NASDAQ', 'AMEX']);
                                     $amount = (float)($topStock['total_amount'] ?? 0);
@@ -209,26 +236,26 @@
                                         $amountStr = number_format($amount, 0);
                                     }
                                 ?>
-                                <div class="stock-price"><?= $isUSMarket ? '$' : '' ?><?= number_format($topStock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '원' ?></div>
-                                <div class="stock-trading-amount"><?= $amountStr ?></div>
+                                <div class="top10-primary"><?= $isUSMarket ? '$' : '' ?><?= number_format($topStock['stock_price'], $isUSMarket ? 2 : 0) ?><?= $isUSMarket ? '' : '원' ?></div>
+                                <div class="top10-secondary"><?= $amountStr ?></div>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <div class="no-top-stocks">데이터가 없습니다.</div>
+                    <div class="top10-empty">데이터가 없습니다.</div>
                 <?php endif; ?>
             </div>
         </div>
 
         <!-- 포트폴리오 TOP 10 -->
-        <div class="top-portfolio-section">
+        <div class="top10-section top10-section-sub">
             <h3>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
                 포트폴리오 TOP 10
             </h3>
-            <div class="top-portfolio-list">
+            <div class="top10-list">
                 <?php if (!empty($topPortfolios)): ?>
                     <?php foreach ($topPortfolios as $idx => $pf): ?>
                         <?php
@@ -236,26 +263,21 @@
                             $strategyLabels = ['buyhold' => 'B&H', 'rebalance' => '리밸런싱', 'signal' => '시그널'];
                             $strategyLabel = $strategyLabels[$pf['strategy']] ?? $pf['strategy'];
                         ?>
-                        <a href="/stocks/backtest?portfolio=<?= (int)$pf['portfolio_id'] ?>" class="top-portfolio-item">
-                            <div class="top-portfolio-rank"><?= $idx + 1 ?></div>
-                            <div class="top-portfolio-info">
-                                <div class="top-portfolio-name"><?= $view->escape($pf['portfolio_name']) ?></div>
-                                <div class="top-portfolio-meta">
-                                    <span class="portfolio-strategy-badge"><?= $view->escape($strategyLabel) ?></span>
-                                    <span class="portfolio-period"><?= $view->escape(substr($pf['period_start'], 2, 5)) ?>~<?= $view->escape(substr($pf['period_end'], 2, 5)) ?></span>
-                                </div>
-                                <div class="top-portfolio-summary"><?= $view->escape($pf['stock_summary']) ?></div>
+                        <a href="/stocks/backtest?portfolio=<?= (int)$pf['portfolio_id'] ?>" class="top10-item">
+                            <div class="top10-rank"><?= $idx + 1 ?></div>
+                            <div class="top10-info">
+                                <div class="top10-name"><?= $view->escape($pf['portfolio_name']) ?></div>
                             </div>
-                            <div class="top-portfolio-score <?= $scoreClass ?>">
-                                <span class="portfolio-score-value"><?= (int)$pf['ranking_score'] ?></span>
-                                <span class="portfolio-score-grade"><?= $view->escape($pf['ranking_grade']) ?></span>
+                            <div class="top10-value <?= $scoreClass ?>">
+                                <div class="top10-primary"><?= (int)$pf['ranking_score'] ?></div>
+                                <div class="top10-secondary"><?= $view->escape($pf['ranking_grade']) ?></div>
                             </div>
                         </a>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <div class="no-top-portfolios">
+                    <div class="top10-empty">
                         <p>아직 등록된 포트폴리오가 없습니다.</p>
-                        <a href="/stocks/backtest" class="portfolio-cta-link">백테스트 시작하기 →</a>
+                        <a href="/stocks/backtest" class="top10-cta-link">백테스트 시작하기 →</a>
                     </div>
                 <?php endif; ?>
             </div>

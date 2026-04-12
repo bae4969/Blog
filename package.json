@@ -1,6 +1,6 @@
 {
   "name": "php-blog-frontend",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Frontend dependencies for PHP Blog",
   "main": "index.js",
   "scripts": {
@@ -9,13 +9,19 @@
     "build": "echo 'No build process configured yet'"
   },
   "dependencies": {
+    "playwright": "^1.59.1",
     "quill": "^2.0.3"
   },
   "devDependencies": {
     "webpack": "^5.105.4",
     "webpack-cli": "^6.0.1"
   },
-  "keywords": ["blog", "php", "quill", "editor"],
+  "keywords": [
+    "blog",
+    "php",
+    "quill",
+    "editor"
+  ],
   "author": "Blog Developer",
   "license": "MIT"
 }
