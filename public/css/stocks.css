@@ -123,11 +123,37 @@
 }
 
 .market-stat-item-h .market-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+.market-stat-item-h .market-name .market-symbol {
+    width: 26px;
+    height: 26px;
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.market-stat-item-h.market-kr .market-name .market-symbol {
+    color: #111827;
+}
+
+.market-stat-item-h.market-us .market-name .market-symbol {
+    color: #1e3a8a;
+}
+
+.market-stat-item-h.market-coin .market-name .market-symbol {
+    color: #f59e0b;
+}
+
+.market-stat-item-h.active .market-name .market-symbol {
+    filter: saturate(1.15);
 }
 
 .market-stat-item-h .market-info {
@@ -1356,6 +1382,11 @@
         font-size: 11px;
     }
 
+    .market-stat-item-h .market-name .market-symbol {
+        width: 22px;
+        height: 22px;
+    }
+
     /* TOP 10: 2열로 축소 */
     .top10-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1522,8 +1553,8 @@
     }
 }
 
-/* ====== 좁은 화면에서 시장 탭 시총 숨김 (600px 이하) ====== */
-@media (max-width: 600px) {
+/* ====== 좁은 화면에서 시장 탭 시총 숨김 (840px 이하) ====== */
+@media (max-width: 840px) {
     .market-stat-item-h .market-cap,
     .market-stat-item-h .market-sep {
         display: none;
