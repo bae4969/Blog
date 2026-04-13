@@ -50,8 +50,8 @@ function renderBlockedPage(string $message = '접근이 차단되었습니다.')
 $router = new Router();
 
 // 홈 컨트롤러 라우트 (블로그는 /blog 아래)
-$router->get('/', [HomeController::class, 'redirectToBlog']);
-$router->get('/index.php', [HomeController::class, 'redirectToBlog']);
+$router->get('/', [HomeController::class, 'redirectBySubdomain']);
+$router->get('/index.php', [HomeController::class, 'redirectBySubdomain']);
 $router->get('/blog', [HomeController::class, 'index']);
 $router->get('/blog/search', [HomeController::class, 'search']);
 $router->get('/search', [HomeController::class, 'search']);
