@@ -66,25 +66,20 @@ jobs:
           VERSION=$(jq -r .version package.json)
           echo "VERSION=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Check if tag already exists
-        id: tag_check
+      - name: Delete existing release and tag if exists
         run: |
           TAG="${{ steps.get_version.outputs.VERSION }}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag $TAG already exists. Skip release creation."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Existing release $TAG found. Deleting..."
+            gh release delete "$TAG" --yes --cleanup-tag
+            echo "Deleted existing release and tag $TAG"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Decide release creation
+      - name: Set release decision
         id: release_decision
-        run: |
-          if [ "${{ steps.tag_check.outputs.exists }}" = "true" ]; then
-            echo "release_created=false" >> $GITHUB_OUTPUT
-          else
-            echo "release_created=true" >> $GITHUB_OUTPUT
-          fi
+        run: echo "release_created=true" >> $GITHUB_OUTPUT
 
       # 배포용 파일 압축
       - name: Archive production files
