@@ -30,7 +30,8 @@
 .sidebar-search-bar {
     grid-column: 2;
     grid-row: 1;
-    align-self: stretch;
+    align-self: start;
+    max-height: 38px;
 }
 
 .stocks-main {
@@ -57,13 +58,23 @@
 
 .sidebar-search-bar .stocks-search-bar input {
     min-width: 0;
-    padding: 8px 12px;
+    padding: 6px 10px;
     margin-right: 5px;
+    height: 34px;
+    box-sizing: border-box;
 }
 
 .sidebar-search-bar .stocks-search-bar .search-btn {
-    min-height: 38px;
-    padding: 6px 16px;
+    min-height: unset;
+    height: 34px;
+    width: 34px;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.sidebar-search-bar .stocks-search-bar .search-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .backtest-link-btn {
@@ -195,6 +206,7 @@
 /* 사이드바 검색 */
 .sidebar-search {
     margin-bottom: 12px;
+    max-height: 34px;
 }
 
 /* =============================
@@ -362,6 +374,7 @@
     display: flex;
     flex: 1;
     max-width: 400px;
+    max-height: 38px;
 }
 
 .stocks-search-bar input {
@@ -405,6 +418,31 @@
 .stocks-search-bar .search-btn:hover,
 .clear-filter-btn:hover {
     background: var(--primary-hover);
+}
+
+/* 사이드바 검색 버튼 오버라이드 */
+.stocks-search-bar.sidebar-search input {
+    height: 34px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    font-size: 13px;
+}
+
+.stocks-search-bar.sidebar-search .search-btn {
+    min-height: 34px;
+    min-width: 34px;
+    max-height: 34px;
+    max-width: 34px;
+    height: 34px;
+    width: 34px;
+    flex-shrink: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.stocks-search-bar.sidebar-search .search-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .clear-filter-btn {
@@ -1305,6 +1343,7 @@
     .sidebar-search-bar {
         grid-column: 1;
         grid-row: 2;
+        margin-bottom: 10px;
     }
 
     .stocks-sidebar-right {
