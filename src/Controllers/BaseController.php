@@ -126,9 +126,13 @@ abstract class BaseController
         $originHost = $origin ? (parse_url($origin, PHP_URL_HOST) ?: '') : '';
         $refererHost = $referer ? (parse_url($referer, PHP_URL_HOST) ?: '') : '';
 
-        // Origin 또는 Referer 중 하나라도 자사 도메인이면 허용
+        // Origin 또는 Referer 중 하나라도 자사 도메인이면 허용 (서브도메인 포함)
         if ($appHost !== '') {
-            $isValidOrigin = ($originHost === $appHost || $refererHost === $appHost);
+            $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+            $isValidOrigin = (
+                $originHost === $appHost || $refererHost === $appHost ||
+                $originHost === $currentHost || $refererHost === $currentHost
+            );
             if (!$isValidOrigin) {
                 $this->jsonResponse(['error' => 'Forbidden'], 403);
                 return false;

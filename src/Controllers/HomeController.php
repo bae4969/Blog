@@ -27,6 +27,20 @@ class HomeController extends BaseController
         $this->redirect('/blog' . ($qs ? '?' . $qs : ''));
     }
 
+    public function redirectBySubdomain(): void
+    {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $subdomain = explode('.', $host)[0];
+        $qs = $_SERVER['QUERY_STRING'] ?? '';
+        $suffix = $qs ? '?' . $qs : '';
+
+        if ($subdomain === 'stock') {
+            $this->redirect('/stocks' . $suffix);
+        } else {
+            $this->redirect('/blog' . $suffix);
+        }
+    }
+
     public function index(): void
     {
         $page = (int)$this->getParam('page', 1);
