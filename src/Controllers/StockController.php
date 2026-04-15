@@ -302,12 +302,12 @@ class StockController extends BaseController
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         $cache = Cache::getInstance();
         $rateKey = Cache::key('backtest_rate', $ip);
-        $rateCount = (int)($cache->get($rateKey) ?? 0) + 1;
-        $cache->set($rateKey, $rateCount, 60);
-        if ($rateCount > 5) {
+        $rateCount = (int)($cache->get($rateKey) ?? 0);
+        if ($rateCount >= 5) {
             $this->jsonResponse(['success' => false, 'error' => '백테스트 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
             return;
         }
+        $cache->set($rateKey, $rateCount + 1, 60);
 
         $raw = file_get_contents('php://input');
         $input = json_decode($raw, true);
