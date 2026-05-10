@@ -33,9 +33,13 @@ class BlockedIp
             [$subnet, $prefix] = explode('/', $entry, 2);
             $prefix = (int)$prefix;
 
-            $ipBin = @inet_pton($ip);
-            $subnetBin = @inet_pton($subnet);
-            if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
+            if (filter_var($ip, FILTER_VALIDATE_IP) === false || filter_var($subnet, FILTER_VALIDATE_IP) === false) {
+                continue;
+            }
+
+            $ipBin = inet_pton($ip);
+            $subnetBin = inet_pton($subnet);
+            if (strlen($ipBin) !== strlen($subnetBin)) {
                 continue;
             }
 
