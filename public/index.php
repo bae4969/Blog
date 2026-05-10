@@ -7,6 +7,7 @@ use Blog\Controllers\HomeController;
 use Blog\Controllers\AuthController;
 use Blog\Controllers\PostController;
 use Blog\Controllers\StockController;
+use Blog\Controllers\FuncController;
 use Blog\Controllers\AdminController;
 use Blog\Core\Logger;
 use Blog\Core\Cache;
@@ -55,6 +56,11 @@ $router->get('/index.php', [HomeController::class, 'redirectBySubdomain']);
 $router->get('/blog', [HomeController::class, 'index']);
 $router->get('/blog/search', [HomeController::class, 'search']);
 $router->get('/search', [HomeController::class, 'search']);
+$router->get('/func', [FuncController::class, 'index']);
+$router->get('/func/youtube-feed', [FuncController::class, 'youtubeFeed']);
+$router->get('/func/analyze', [FuncController::class, 'analyze']);
+$router->post('/func/analyze/react', [FuncController::class, 'reactAnalysis']);
+$router->get('/a/:id', [FuncController::class, 'analyzeShort', '/a/:id']);
 
 // 인증 컨트롤러 라우트
 $router->get('/login.php', [AuthController::class, 'loginForm']);

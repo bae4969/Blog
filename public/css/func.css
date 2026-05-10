@@ -1,0 +1,350 @@
+/* 포스팅 카드 레이아웃 - func 페이지는 1열 고정 */
+#left {
+    width: 100%;
+}
+
+#right {
+    display: none;
+}
+
+/* 준비 중 메뉴 아이템 */
+.func-menu-soon {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* 분석 시작 액션 */
+.func-action-group {
+    margin: 16px 0;
+}
+
+/* 북마클릿 설치 영역 */
+.func-setup-methods {
+    display: grid;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.func-setup-method {
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+}
+
+.func-setup-method strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.func-setup-method p {
+    margin: 0 0 12px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* 성향 점수 분포 */
+.func-scores {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.func-scores li {
+    display: grid;
+    grid-template-columns: 60px 1fr 50px;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.func-score-label {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.func-score-bar {
+    position: relative;
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.func-score-fill {
+    display: block;
+    height: 100%;
+    background: var(--primary-color);
+    transition: width 0.3s ease;
+}
+
+.func-score-pct {
+    text-align: right;
+    color: var(--text-muted);
+}
+
+/* 솔직한 비평 인용 들여쓰기 */
+.func-llm-critique {
+    margin: 8px 0 16px;
+    padding: 8px 16px;
+    border-left: 3px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+/* 분석 신뢰도 */
+.func-llm-confidence-bar {
+    height: 10px;
+    margin: 8px 70px 16px;
+    background: var(--border-color);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.func-llm-confidence-fill {
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 5px;
+    transition: width 0.4s ease;
+}
+
+/* MBTI 표시 */
+.func-mbti {
+    margin: 16px 0;
+}
+
+.func-mbti-code,
+h2.func-section-title {
+    margin: 0 0 12px;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.func-mbti-code strong,
+h2.func-section-title strong {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.func-mbti-code strong {
+    letter-spacing: 0.1em;
+}
+
+.func-mbti-axes {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.func-mbti-axes li {
+    display: grid;
+    grid-template-columns: 60px 1fr 60px;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.func-mbti-axis-side {
+    color: var(--text-muted);
+}
+
+.func-mbti-axis-side strong {
+    color: var(--text-primary);
+}
+
+.func-mbti-axes li > .func-mbti-axis-side:first-child {
+    text-align: right;
+}
+
+.func-mbti-axis-bar {
+    display: flex;
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.func-mbti-axis-fill {
+    display: block;
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.func-mbti-axis-fill--left {
+    background: var(--primary-color);
+}
+
+.func-mbti-axis-fill--right {
+    background: var(--func-axis-secondary);
+}
+
+/* 긴 제목·result_type 안전 wrap */
+.post-wrapper .post-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* 결과 페이지 섹션 구분선 (성향 점수 / 신뢰도 위) */
+.func-section-divider {
+    margin: 28px 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 결과 result_type 헤드라인 */
+.func-result-headline {
+    margin: 8px 0 16px;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--primary-color);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* 분석 결과 좋아요/싫어요 — 다크 테마 토글 */
+.func-reactions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px 0 8px;
+    flex-wrap: wrap;
+}
+
+.func-reaction-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.func-reaction-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.func-reaction-btn:active {
+    transform: scale(0.96);
+}
+
+.func-reaction-btn.is-pulsing {
+    animation: func-reaction-pulse 0.22s ease-out;
+}
+
+@keyframes func-reaction-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.94); }
+    100% { transform: scale(1); }
+}
+
+.func-reaction-btn.is-active.func-reaction-btn--like {
+    border-color: var(--primary-color);
+    color: #fff;
+    background: var(--primary-color);
+}
+
+.func-reaction-btn.is-active.func-reaction-btn--like:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: #fff;
+}
+
+.func-reaction-btn.is-active.func-reaction-btn--dislike {
+    border-color: var(--danger-color);
+    color: #fff;
+    background: var(--danger-color);
+}
+
+.func-reaction-btn.is-active.func-reaction-btn--dislike:hover {
+    background: var(--btn-danger);
+    border-color: var(--btn-danger);
+    color: #fff;
+}
+
+.func-reaction-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+/* 분석 결과 공유 링크 */
+.func-share {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 480px;
+    margin: 8px auto 0;
+}
+
+.func-share-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding-left: 2px;
+}
+
+.func-share-row {
+    display: flex;
+    gap: 8px;
+}
+
+.func-share-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.func-share-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.func-share-copy {
+    padding: 8px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.func-share-copy:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.func-share-copy.is-copied {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(76, 175, 80, 0.12);
+}
+
+.func-share-copy.is-failed {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+    background: rgba(244, 67, 54, 0.12);
+}
