@@ -243,20 +243,21 @@ class Logger
     }
 
     /**
-     * 모든 로그 테이블을 UNION ALL하는 서브쿼리 생성
+     * 모든 로그 테이블을 UNION ALL하는 서브쿼리 생성 (WHERE 푸시다운 지원)
      */
-    private static function buildUnionSubquery(array $tableNames): string
+    private static function buildUnionSubquery(array $tableNames, string $whereSql = ''): string
     {
         $parts = [];
         foreach ($tableNames as $name) {
             $quoted = 'Log.`' . $name . '`';
-            $parts[] = "SELECT log_datetime, log_name COLLATE utf8mb4_unicode_ci AS log_name, log_type COLLATE utf8mb4_unicode_ci AS log_type, log_message COLLATE utf8mb4_unicode_ci AS log_message, log_function COLLATE utf8mb4_unicode_ci AS log_function, log_file COLLATE utf8mb4_unicode_ci AS log_file, log_line FROM {$quoted}";
+            $parts[] = "SELECT log_datetime, log_name COLLATE utf8mb4_unicode_ci AS log_name, log_type COLLATE utf8mb4_unicode_ci AS log_type, log_message COLLATE utf8mb4_unicode_ci AS log_message, log_function COLLATE utf8mb4_unicode_ci AS log_function, log_file COLLATE utf8mb4_unicode_ci AS log_file, log_line FROM {$quoted}" . ($whereSql ? " {$whereSql}" : '');
         }
         return '(' . implode(' UNION ALL ', $parts) . ') AS combined_logs';
     }
 
     /**
      * 로그 조회 (페이지네이션 + 필터 + 정렬) — Log DB 전체 테이블 합산
+     * WHERE 조건을 각 테이블 SELECT에 푸시다운하여 인덱스 활용
      */
     public static function getLogs(array $filters = [], string $sort = 'log_datetime', string $order = 'DESC', int $page = 1, int $perPage = 50): array
     {
@@ -279,55 +280,62 @@ class Logger
             $queryTables = $tables;
         }
 
-        $source = self::buildUnionSubquery($queryTables);
-
         if (!in_array($sort, self::$allowedSortColumns, true)) {
             $sort = 'log_datetime';
         }
         $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
 
         $where = [];
-        $params = [];
+        $singleParams = [];
 
         // 필터가 전혀 없으면 기본 7일 제한 (전체 풀스캔 방지)
         $hasAnyFilter = !empty($filters['name']) || !empty($filters['type']) || !empty($filters['date_from']) || !empty($filters['date_to']) || !empty($filters['q']);
         if (!$hasAnyFilter) {
             $where[] = 'log_datetime >= ?';
-            $params[] = date('Y-m-d H:i:s', strtotime('-7 days'));
+            $singleParams[] = date('Y-m-d H:i:s', strtotime('-7 days'));
         }
 
         if (!empty($filters['name'])) {
             $where[] = 'log_name = ?';
-            $params[] = $filters['name'];
+            $singleParams[] = $filters['name'];
         }
         if (!empty($filters['type'])) {
             $types = (array)$filters['type'];
             $placeholders = implode(',', array_fill(0, count($types), '?'));
             $where[] = "log_type IN ({$placeholders})";
-            array_push($params, ...$types);
+            array_push($singleParams, ...$types);
         }
         if (!empty($filters['date_from'])) {
             $where[] = 'log_datetime >= ?';
-            $params[] = $filters['date_from'] . ' 00:00:00';
+            $singleParams[] = $filters['date_from'] . ' 00:00:00';
         }
         if (!empty($filters['date_to'])) {
             $where[] = 'log_datetime <= ?';
-            $params[] = $filters['date_to'] . ' 23:59:59';
+            $singleParams[] = $filters['date_to'] . ' 23:59:59';
         }
         if (!empty($filters['q'])) {
             $where[] = 'log_message LIKE ?';
-            $params[] = '%' . $filters['q'] . '%';
+            $singleParams[] = '%' . $filters['q'] . '%';
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $countSql = "SELECT COUNT(*) AS cnt FROM {$source} {$whereSql}";
-        $row = $db->fetch($countSql, $params);
+        // WHERE를 각 테이블 SELECT에 푸시다운 — 인덱스 활용 가능
+        $source = self::buildUnionSubquery($queryTables, $whereSql);
+
+        // 파라미터를 테이블 수만큼 반복 (각 SELECT에 WHERE가 들어가므로)
+        $allParams = [];
+        for ($i = 0; $i < count($queryTables); $i++) {
+            array_push($allParams, ...$singleParams);
+        }
+
+        $countSql = "SELECT COUNT(*) AS cnt FROM {$source}";
+        $row = $db->fetch($countSql, $allParams);
         $total = $row ? (int)$row['cnt'] : 0;
 
         $offset = ($page - 1) * $perPage;
-        $dataSql = "SELECT log_datetime, log_name, log_type, log_message, log_function, log_file, log_line FROM {$source} {$whereSql} ORDER BY {$sort} {$order} LIMIT {$perPage} OFFSET {$offset}";
-        $logs = $db->fetchAll($dataSql, $params);
+        $dataSql = "SELECT log_datetime, log_name, log_type, log_message, log_function, log_file, log_line FROM {$source} ORDER BY {$sort} {$order} LIMIT {$perPage} OFFSET {$offset}";
+        $logs = $db->fetchAll($dataSql, $allParams);
 
         return ['total' => $total, 'logs' => $logs];
     }
@@ -346,9 +354,15 @@ class Logger
             return [];
         }
 
-        $source = self::buildUnionSubquery($tables);
-        $sql = "SELECT DISTINCT log_name FROM {$source} WHERE log_datetime >= DATE_SUB(NOW(), INTERVAL 90 DAY) ORDER BY log_name LIMIT 200";
-        $rows = $db->fetchAll($sql);
+        $dateLimit = date('Y-m-d H:i:s', strtotime('-90 days'));
+        $source = self::buildUnionSubquery($tables, 'WHERE log_datetime >= ?');
+        $params = [];
+        for ($i = 0; $i < count($tables); $i++) {
+            $params[] = $dateLimit;
+        }
+
+        $sql = "SELECT DISTINCT log_name FROM {$source} ORDER BY log_name LIMIT 200";
+        $rows = $db->fetchAll($sql, $params);
 
         return array_column($rows, 'log_name');
     }
