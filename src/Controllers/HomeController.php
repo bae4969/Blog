@@ -30,12 +30,15 @@ class HomeController extends BaseController
     public function redirectBySubdomain(): void
     {
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $subdomain = explode('.', $host)[0];
+        $hostOnly = explode(':', $host)[0];
+        $subdomain = explode('.', $hostOnly)[0];
         $qs = $_SERVER['QUERY_STRING'] ?? '';
         $suffix = $qs ? '?' . $qs : '';
 
         if ($subdomain === 'stock') {
             $this->redirect('/stocks' . $suffix);
+        } elseif ($subdomain === 'func') {
+            $this->redirect('/func' . $suffix);
         } else {
             $this->redirect('/blog' . $suffix);
         }

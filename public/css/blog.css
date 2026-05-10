@@ -142,12 +142,14 @@ header {
 }
 
 body.stock-page #title,
-body.admin-page #title {
+body.admin-page #title,
+body.func-page #title {
     padding: 40px 0 40px;
 }
 
 body.stock-page #blogTitle,
-body.admin-page #blogTitle {
+body.admin-page #blogTitle,
+body.func-page #blogTitle {
     width: 35%;
     max-width: 350px;
     display: block;
