@@ -9,6 +9,13 @@ use Blog\Models\WolDevice;
 use Blog\Models\BlockedIp;
 use Blog\Core\Cache;
 use Blog\Core\Logger;
+use Blog\Core\YouTubeConfig;
+use Blog\Core\GeminiConfig;
+use Blog\Core\OpenAiConfig;
+use Blog\Core\AiProviderConfig;
+use Blog\Core\ApiModelCache;
+use Blog\Services\GeminiAnalysisService;
+use Blog\Services\OpenAiAnalysisService;
 
 class AdminController extends BaseController
 {
@@ -1274,5 +1281,174 @@ class AdminController extends BaseController
         }
 
         $this->redirect('/admin/stock-splits');
+    }
+
+    public function apiSettings(): void
+    {
+        $youtube = YouTubeConfig::load();
+        $gemini = GeminiConfig::load();
+        $openai = OpenAiConfig::load();
+        $aiProvider = AiProviderConfig::load();
+
+        $this->renderLayout('admin', 'admin/api-settings', $this->adminData('api-settings', [
+            'youtubeSettings' => $youtube,
+            'youtubeApiKeyMasked' => YouTubeConfig::maskApiKey((string)($youtube['api_key'] ?? '')),
+            'geminiSettings' => $gemini,
+            'geminiApiKeyMasked' => GeminiConfig::maskApiKey((string)($gemini['api_key'] ?? '')),
+            'geminiModelCache' => ApiModelCache::read('gemini'),
+            'openaiSettings' => $openai,
+            'openaiApiKeyMasked' => OpenAiConfig::maskApiKey((string)($openai['api_key'] ?? '')),
+            'openaiModelCache' => ApiModelCache::read('openai'),
+            'aiProviderSettings' => $aiProvider,
+            'csrfToken' => $this->view->csrfToken(),
+            'additionalJs' => ['/js/combobox.js'],
+        ]));
+    }
+
+    public function saveYoutubeApiSettings(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('api_settings.youtube.save', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/api-settings');
+            return;
+        }
+
+        $current = YouTubeConfig::load();
+        $apiKeyInput = trim((string)$this->getParam('api_key', ''));
+
+        $apiKey = (string)($current['api_key'] ?? '');
+        if ($apiKeyInput !== '') {
+            if (!preg_match('/^[A-Za-z0-9_\-]{20,100}$/', $apiKeyInput)) {
+                $this->auditAdminAction('api_settings.youtube.save', ['reason' => 'invalid_api_key_format'], 'rejected');
+                $this->session->setFlash('error', 'API 키 형식이 올바르지 않습니다.');
+                $this->redirect('/admin/api-settings');
+                return;
+            }
+            $apiKey = $apiKeyInput;
+        }
+
+        try {
+            YouTubeConfig::save([
+                'api_key' => $apiKey,
+            ]);
+
+            $this->auditAdminAction('api_settings.youtube.save', [
+                'api_key_length' => strlen($apiKey),
+            ]);
+            $this->session->setFlash('success', 'YouTube API 설정이 저장되었습니다.');
+        } catch (\Throwable $e) {
+            $this->auditAdminAction('api_settings.youtube.save', ['reason' => 'write_failed', 'error' => $e->getMessage()], 'error');
+            $this->session->setFlash('error', '설정 저장에 실패했습니다. 서버 권한을 확인해주세요.');
+        }
+
+        $this->redirect('/admin/api-settings');
+    }
+
+    public function saveAllAiProviders(): void
+    {
+        if (!$this->validateCsrfToken()) {
+            $this->auditAdminAction('api_settings.ai.save_all', ['reason' => 'csrf_invalid'], 'denied');
+            $this->session->setFlash('error', '잘못된 요청입니다.');
+            $this->redirect('/admin/api-settings');
+            return;
+        }
+
+        $activeProvider = trim((string)$this->getParam('active_provider', ''));
+
+        $geminiCurrent = GeminiConfig::load();
+        $geminiKeyInput = trim((string)$this->getParam('gemini_api_key', ''));
+        $geminiModel = trim((string)$this->getParam('gemini_model', ''));
+        $geminiTimeout = (int)$this->getParam('gemini_timeout_sec', 60);
+
+        $openaiCurrent = OpenAiConfig::load();
+        $openaiKeyInput = trim((string)$this->getParam('openai_api_key', ''));
+        $openaiModel = trim((string)$this->getParam('openai_model', ''));
+        $openaiTimeout = (int)$this->getParam('openai_timeout_sec', 60);
+
+        $errors = [];
+
+        if (!AiProviderConfig::isValidProvider($activeProvider)) {
+            $errors[] = '활성 공급자 값이 올바르지 않습니다.';
+        }
+        if ($geminiModel === '' || !GeminiConfig::isValidModel($geminiModel)) {
+            $errors[] = 'Gemini 모델 이름 형식이 올바르지 않습니다.';
+        }
+        if ($geminiTimeout < 5 || $geminiTimeout > 180) {
+            $errors[] = 'Gemini 타임아웃은 5~180초 사이여야 합니다.';
+        }
+        if ($geminiKeyInput !== '' && !GeminiConfig::isValidApiKey($geminiKeyInput)) {
+            $errors[] = 'Gemini API 키 형식이 올바르지 않습니다.';
+        }
+        if ($openaiModel === '' || !OpenAiConfig::isValidModel($openaiModel)) {
+            $errors[] = 'OpenAI 모델 이름 형식이 올바르지 않습니다.';
+        }
+        if ($openaiTimeout < 5 || $openaiTimeout > 180) {
+            $errors[] = 'OpenAI 타임아웃은 5~180초 사이여야 합니다.';
+        }
+        if ($openaiKeyInput !== '' && !OpenAiConfig::isValidApiKey($openaiKeyInput)) {
+            $errors[] = 'OpenAI API 키 형식이 올바르지 않습니다.';
+        }
+
+        if (!empty($errors)) {
+            $this->auditAdminAction('api_settings.ai.save_all', ['reason' => 'validation_failed', 'errors' => $errors], 'rejected');
+            $this->session->setFlash('error', implode(' / ', $errors));
+            $this->redirect('/admin/api-settings');
+            return;
+        }
+
+        $geminiApiKey = $geminiKeyInput !== '' ? $geminiKeyInput : (string)($geminiCurrent['api_key'] ?? '');
+        $openaiApiKey = $openaiKeyInput !== '' ? $openaiKeyInput : (string)($openaiCurrent['api_key'] ?? '');
+
+        try {
+            AiProviderConfig::save(['active_provider' => $activeProvider]);
+            GeminiConfig::save([
+                'api_key' => $geminiApiKey,
+                'model' => $geminiModel,
+                'timeout_sec' => $geminiTimeout,
+            ]);
+            OpenAiConfig::save([
+                'api_key' => $openaiApiKey,
+                'model' => $openaiModel,
+                'timeout_sec' => $openaiTimeout,
+            ]);
+
+            $autoFetch = ['gemini' => null, 'openai' => null];
+            if ($geminiKeyInput !== '' && $geminiApiKey !== '') {
+                $models = (new GeminiAnalysisService())->listModels($geminiApiKey);
+                if (is_array($models) && $models !== []) {
+                    ApiModelCache::write('gemini', $models);
+                    $autoFetch['gemini'] = count($models);
+                } else {
+                    $autoFetch['gemini'] = 'failed';
+                }
+            }
+            if ($openaiKeyInput !== '' && $openaiApiKey !== '') {
+                $models = (new OpenAiAnalysisService())->listModels($openaiApiKey);
+                if (is_array($models) && $models !== []) {
+                    ApiModelCache::write('openai', $models);
+                    $autoFetch['openai'] = count($models);
+                } else {
+                    $autoFetch['openai'] = 'failed';
+                }
+            }
+
+            $this->auditAdminAction('api_settings.ai.save_all', [
+                'active_provider' => $activeProvider,
+                'gemini_model' => $geminiModel,
+                'gemini_timeout' => $geminiTimeout,
+                'gemini_api_key_length' => strlen($geminiApiKey),
+                'openai_model' => $openaiModel,
+                'openai_timeout' => $openaiTimeout,
+                'openai_api_key_length' => strlen($openaiApiKey),
+                'auto_fetch' => $autoFetch,
+            ]);
+            $this->session->setFlash('success', 'AI 공급자 설정이 저장되었습니다.');
+        } catch (\Throwable $e) {
+            $this->auditAdminAction('api_settings.ai.save_all', ['reason' => 'write_failed', 'error' => $e->getMessage()], 'error');
+            $this->session->setFlash('error', '설정 저장에 실패했습니다. 서버 권한을 확인해주세요.');
+        }
+
+        $this->redirect('/admin/api-settings');
     }
 }

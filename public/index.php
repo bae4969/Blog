@@ -96,6 +96,9 @@ $router->post('/admin/stocks/subscriptions', [AdminController::class, 'updateSto
 $router->get('/admin/stock-splits', [AdminController::class, 'splitEvents']);
 $router->post('/admin/stock-splits/create', [AdminController::class, 'createSplitEvent', '/admin/stock-splits/create']);
 $router->post('/admin/stock-splits/delete', [AdminController::class, 'deleteSplitEvent', '/admin/stock-splits/delete']);
+$router->get('/admin/api-settings', [AdminController::class, 'apiSettings']);
+$router->post('/admin/api-settings/youtube', [AdminController::class, 'saveYoutubeApiSettings']);
+$router->post('/admin/api-settings/ai-providers', [AdminController::class, 'saveAllAiProviders']);
 $router->get('/admin/wol', [AdminController::class, 'wol']);
 $router->post('/admin/wol/execute', [AdminController::class, 'wolExecute']);
 $router->post('/admin/wol/create', [AdminController::class, 'wolCreateDevice']);

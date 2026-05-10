@@ -39,6 +39,96 @@
     padding: 25px 30px;
 }
 
+.admin-card--nested {
+    background: var(--bg-quaternary);
+    padding: 16px 20px;
+    margin-top: 16px;
+    border-radius: var(--border-radius);
+    border: 1px solid transparent;
+    transition: border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.admin-card--nested h3 {
+    margin: 0 0 8px 0;
+}
+
+.admin-card--nested.is-active {
+    border-color: var(--primary-color, #6ea8ff);
+}
+
+.admin-card--nested.is-inactive {
+    opacity: 0.65;
+}
+
+.admin-card--nested.is-inactive:focus-within {
+    opacity: 1;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.provider-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    margin: 0 0 8px 0;
+    user-select: none;
+}
+
+.provider-card-header h3 {
+    margin: 0;
+}
+
+.provider-check {
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--text-muted, #888);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.provider-card.is-active .provider-check {
+    background: var(--primary-color, #6ea8ff);
+    border-color: var(--primary-color, #6ea8ff);
+}
+
+.provider-card.is-active .provider-check::after {
+    content: '';
+    width: 6px;
+    height: 11px;
+    border-right: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.provider-card-desc {
+    margin: 0;
+    color: var(--text-muted, #888);
+    font-size: 13px;
+}
+
+.admin-card-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 20px 0;
+    border: none;
+}
+
 .admin-card h3 {
     color: var(--text-primary);
     font-size: 1.1rem;
@@ -236,6 +326,10 @@
 
 .admin-form-actions {
     margin-top: 20px;
+}
+
+.admin-form-actions--right {
+    text-align: right;
 }
 
 .admin-search-form {
@@ -840,6 +934,136 @@
 .admin-form-field input::placeholder {
     color: var(--text-muted);
     font-weight: 400;
+}
+
+/* ===========================================
+   combobox (검색 가능한 드롭다운)
+   =========================================== */
+.combobox {
+    position: relative;
+    width: 100%;
+}
+
+.combobox-search {
+    width: 100%;
+    padding: 10px 14px;
+    padding-right: 32px;
+    background: var(--bg-quaternary);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: var(--transition);
+    box-sizing: border-box;
+}
+
+.combobox-search:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    background: var(--bg-focus);
+}
+
+.combobox::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: translateY(-75%) rotate(45deg);
+    pointer-events: none;
+    transition: transform 0.15s ease;
+}
+
+.combobox.combobox-open::after {
+    transform: translateY(-25%) rotate(-135deg);
+}
+
+.combobox-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    background: var(--bg-tertiary, var(--bg-quaternary));
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: var(--border-radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.combobox.combobox-open .combobox-dropdown {
+    display: block;
+}
+
+.combobox-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+}
+
+.combobox-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: background 0.1s ease;
+}
+
+.combobox-item:hover,
+.combobox-item.combobox-item-active {
+    background: var(--bg-focus, rgba(255, 255, 255, 0.08));
+}
+
+.combobox-item[hidden] {
+    display: none;
+}
+
+.combobox-empty {
+    padding: 12px 14px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.combobox-empty[hidden] {
+    display: none;
+}
+
+.admin-form-link {
+    margin-left: 8px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--accent, #6ea8ff);
+    text-decoration: none;
+}
+
+.admin-form-link:hover {
+    text-decoration: underline;
+}
+
+.admin-form--inline-actions,
+.inline-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.admin-form--inline-actions > .admin-form-grid,
+.inline-actions-row > .admin-form-grid {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.admin-form--inline-actions > .admin-form-actions,
+.inline-actions-row > .admin-form-actions {
+    flex: 0 0 auto;
+    align-self: flex-end;
 }
 
 /* ===========================================
