@@ -91,6 +91,9 @@
     --color-etf: #ff9800;
     --color-etn: #9c27b0;
     --color-coin: #f7931a;
+
+    /* Func 도메인 — MBTI 축 보조색 (primary green과 대비) */
+    --func-axis-secondary: #ec4899;
     --text-on-primary: #fff;
     --text-rank-dark: #333;
 
