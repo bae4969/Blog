@@ -1,0 +1,12 @@
+{
+  "run_id": "2026-05-19T13-53-55__patch-02-base-dual-draft",
+  "started_at": "2026-05-19T13:53:00+09:00",
+  "completed_at": "2026-05-19T13:53:55+09:00",
+  "status": "done",
+  "mode": "lite",
+  "request": "../02.team_dual이 있을건데 최근 커밋 참고해서 패치해줘 (실제 폴더: ../02.base-dual)",
+  "plan_summary": "01.base-single 최근 5개 커밋 중 02.base-dual의 Codex 듀얼 구성과 충돌하지 않는 것만 선별. 46b374b /draft 커맨드만 안전하게 적용 가능 (lessons 제거·orchestrator demote·lite 메인 직편 단순화 등은 02 구조와 충돌). 02용으로는 진입부 참조를 main_full_procedure.md → workflow_4stage.md + orchestrator(mode=full) 호출로 교체.",
+  "retry_count": 0,
+  "final_verdict": "Pass",
+  "report_body": "## 완료 보고\n\n### 한 일\n- [패치 1] 02.base-dual에 /draft 슬래시 커맨드 추가 → 02.base-dual/.claude/commands/draft.md (신규 87 lines, 01판 원본 기반에 진입부 3곳만 02 호출 구조로 교체)\n\n### 적용하지 않은 커밋 (02 구성과 충돌)\n- d74626e Remove SessionStart lessons hook — 02는 lessons 시스템 유지\n- 215bfe0 Refactor lite/full dual + orchestrator demote + lessons removal — 02의 codex_worker IMPLEMENT 강제와 lessons 시스템과 정면 충돌\n- 68b532e Simplify lite to main-direct edit — 02는 lite도 codex_worker 위임\n- 5d52fbd / dc00fe9 (history persistence) — 02 컨텍스트와 무관\n\n### 자동 검증 결과\n- critic verdict: Pass\n- critic 사유: 참조 정합성·02 워크플로우 일관성·codex_worker 위임 원칙·state/temp 규약·외과적 변경·dead reference 부재 모두 충족. 변경된 파일은 draft.md 단일 신규.\n- 실행 테스트: 없음 (커맨드 정의 파일, 자동 검증 수단 없음)\n\n### 사용자가 확인할 것 (수동 테스트 체크리스트)\n- [ ] 02.base-dual 디렉토리에서 /draft 입력 시 메인이 draft.md 0~3단계 절차에 따라 AskUserQuestion 카드를 띄우는지\n- [ ] 3단계 확인 카드에서 '이대로 /full 시작' 선택 시 메인이 state.current.json을 mode=full로 초기화하고 orchestrator를 호출하는지 (Phase 1 SEARCH부터)\n- [ ] state.current.json이 in-progress 상태일 때 /draft 입력 시 보류되고 재개 카드가 우선 뜨는지\n\n### 알려진 한계 / 후속 작업\n- 02.base-dual CLAUDE.md '사용법' 절에 /draft 안내가 없다. 01판 도입 시점에도 같이 추가하지 않았으므로 일관성상 02도 그대로 둠. 별건으로 안내 한 줄 추가 가능.\n- history는 cwd(01.base-single)에 기록. 02.base-dual에는 별도 history를 만들지 않음 (작업 디렉토리는 01)."
+}

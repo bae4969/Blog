@@ -1,0 +1,18 @@
+{
+  "run_id": "2026-05-15T00-20-00__lite-full-dual-mode-intro",
+  "started_at": "2026-05-15T00:00:00+09:00",
+  "completed_at": "2026-05-15T00:20:00+09:00",
+  "status": "done",
+  "request": "lite/full 듀얼 모드 도입 — 기본 lite(coder→critic 2단계), /full 시에만 기존 4단계 진입",
+  "plan_summary": "6개 .md 파일을 외과적으로 수정해 lite/full 듀얼 모드를 도입. 신규 파일 1개(.claude/commands/full.md), 기존 수정 5개(CLAUDE.md, workflow_4stage.md, orchestrator.md, coder.md, critic.md). 모드 결정은 슬래시 커맨드 prefix 매칭으로만 하며 LLM 휴리스틱 0. critic에 recommend_full 출력 필드 추가, lite Fail 시 재시도 게이트에 /full로 승격 옵션 삽입.",
+  "did": [
+    {"file": ".claude/commands/full.md", "note": "/full 슬래시 커맨드 정의 신규 작성"},
+    {"file": "CLAUDE.md", "note": "제목·첫단락·세션절차·Lite/Full 사이클 도식·사용법·변경원칙 6개소 수정"},
+    {"file": ".claude/rules/workflow_4stage.md", "note": "모드 분기 섹션·/full승격 옵션·AskUser 테이블·Lite 모드 섹션 추가"},
+    {"file": ".claude/agents/orchestrator.md", "note": "mode 수신·state 스키마 mode 필드·Lite/Full 분기 블록·Fail 옵션 4개소 수정"},
+    {"file": ".claude/agents/coder.md", "note": "입력 계약에 mode 파라미터·lite 모드 케이스 추가"},
+    {"file": ".claude/agents/critic.md", "note": "입력 계약에 mode 파라미터·출력 스키마에 recommend_full 필드 추가"}
+  ],
+  "retry_count": 0,
+  "final_verdict": "Pass"
+}

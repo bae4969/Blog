@@ -1,0 +1,11 @@
+{
+  "run_id": "2026-05-19T05-15-00__fix-export-team-commands-list",
+  "started_at": "2026-05-19T05:15:00+09:00",
+  "completed_at": "2026-05-19T05:16:00+09:00",
+  "status": "done",
+  "request": "commands/export-team.md:30 복사 목록 누락 수정 — draft.md·import-team.md 추가 (lite 재실행, 직전 aborted run의 plan.md §4 명세 재활용)",
+  "plan_summary": "lite — 메인 직접 수정. 30번 줄 한 줄 Edit으로 괄호 안 예시 카탈로그를 `full.md, draft.md, init.md, export-team.md, import-team.md` 5개로 확장. 직전 aborted run(2026-05-19T05-00-00)의 planner 명세를 그대로 적용.",
+  "retry_count": 0,
+  "final_verdict": "Pass",
+  "report_body": "# 완료 보고 — export-team.md 복사 목록 누락 수정 (lite)\n\nRun: 2026-05-19T05-15-00__fix-export-team-commands-list\nmode: lite\nverdict: Pass (critic, recommend_full: false)\n\n## 한 일\n- commands/export-team.md:30의 한 줄을 외과적으로 수정. 괄호 안 예시 카탈로그에 draft.md와 import-team.md를 추가해 5개 파일(full.md, draft.md, init.md, export-team.md, import-team.md)을 모두 나열.\n- 직전 aborted run(2026-05-19T05-00-00__fix-export-team-commands-list)에서 planner가 작성해 둔 temp/plan.md §4 변경 명세를 그대로 재활용.\n\n## 자동 검증 결과\n- critic verdict: Pass\n- critic 사유:\n  - [요건 1] 5개 파일 모두 30번 줄에 등장\n  - [요건 2] 본 run 기인 변경 = 30번 줄 1줄 only (`git status --short`의 다른 변경은 직전 미커밋 run들의 누적분, 본 run 무관)\n  - [요건 3 §2] 단순함 OK — 1줄 교체로 종료, 추가 추상화·정리 없음\n  - [요건 3 §3] 외과성 OK — 인접 줄·다른 파일 본 run에서 미터치\n  - [요건 4] 서식 보존 OK — 백틱·en-dash·괄호·\"이 커맨드 자기 자신 포함\" 주석 보존\n- 추가 관찰: 현재 나열 순서는 짝 묶음(`full → draft → init → export-team → import-team`). 알파벳 순 선호 시 후속 외과 수정 가능 (차단 아님).\n\n## 사용자가 확인할 것\n- [ ] commands/export-team.md:30 본문 직접 열어 5개 파일 나열 확인.\n- [ ] /export-team 한번 실행해 실제로 5개 파일이 export 폴더에 모두 복사되는지 확인 (회귀 sanity).\n\n## 알려진 한계 / 후속 작업\n- 직전 검토 보고(2026-05-18T04-00-00) §결함 4건 중 1건(export-team.md:30) 만 해소. 나머지 3건(state/README 스키마 어긋남, scripts/README:14 잔재, final_verdict=N/A 규약 충돌)은 본 run 범위 외 — 별도 처리 필요."
+}
