@@ -22,7 +22,18 @@
 - 이미지: `mariadb:12.1.2`
 - IP: 172.16.9.3 (컨테이너 내부에서 호스트명 `mariadb`로 접근)
 - DB 접속 정보: host=`mariadb`, user=`service_bot`, password=`QAZplm4969`
-- 주요 DB: `Blog`(앱 데이터), `Log`(로그), `Stock`(주식 데이터)
+- 주요 DB 스키마 전체:
+
+| DB | 용도 |
+|---|---|
+| `Blog` | 앱 데이터 (게시글, 사용자, 카테고리 등) |
+| `Log` | 로그 (`blog_log`, `stock_ticker_log`) |
+| `KoreaInvest` | 한투 API 관련 데이터 (구독 종목 등) |
+| `Bithumb` | 빗썸 코인 정보 (`coin_info`, `coin_last_ws_query`) |
+| `candle` | 주식·코인 캔들(OHLCV) 데이터 |
+| `tick` | 주식·코인 틱 데이터 |
+| `Lab` | 실험/임시 데이터 |
+| `Backup` | 백업 데이터 |
 - 마운트: `/mnt/nvme/90.service/mariadb_data/data` → `/var/lib/mysql`, `/mnt/hdd/90.service/mariadb_backup` → `/backup`
 
 ## 코드/쿼리 실행 규칙

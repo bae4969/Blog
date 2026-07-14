@@ -47,9 +47,19 @@ docker build --build-arg APP_ENV=development -t php-blog:dev .
 | Services | `src/Services/` | 외부 API 통합 (YouTube, Gemini, OpenAI, Backtest) — 컨트롤러가 직접 호출 |
 | Views | `views/` | 도메인별 폴더(`blog/`, `admin/`, `stock/`, `func/`, `home/`). 공통 partial은 `home/` |
 
-## 캐시 — 2계층 싱글턴
+## 캐시 — 3계층 (혼동 주의)
 
-`src/Core/Cache.php`: 메모리(요청 단위) + 파일(영속) 2계층. `Cache::getInstance()` 싱글턴. TTL은 `config/cache.php`의 키별 설정. 키 생성은 `Cache::key($prefix, ...$parts)` 헬퍼 사용. 모델 변경 시 `Cache::deletePattern()`으로 관련 키 모두 무효화 — 단일 키 삭제만 하면 stale 위험.
+캐시는 실제로 3계층이다. `src/Core/Cache.php`의 싱글턴과 `stock_day_cache`는 **완전히 별개**다.
+
+| 계층 | 구현 | 저장 위치 | 용도 |
+|---|---|---|---|
+| 1 | 메모리 (요청 단위) | PHP 변수 | 같은 요청 내 중복 쿼리 방지 |
+| 2 | 파일 캐시 | `cache/data/` | 일반 모델 데이터 영속 캐시 |
+| 3 | stock_day gzip | `cache/stock/` | 주식 일봉 데이터 전용, Cache 싱글턴 우회 |
+
+`Cache::getInstance()` 싱글턴: TTL은 `config/cache.php` 키별 설정. 키 생성은 `Cache::key($prefix, ...$parts)`. 모델 변경 시 `Cache::deletePattern()`으로 관련 키 전체 무효화 — 단일 키만 삭제하면 stale 위험.
+
+`stock_day_cache`: `config/cache.php`의 `stock_day_cache` 섹션으로 관리. 관리자 페이지(`/admin/cache`)에서 별도 cleanup/clear 가능.
 
 ## 권한 모델 (역방향 주의)
 
@@ -84,3 +94,9 @@ docker build --build-arg APP_ENV=development -t php-blog:dev .
 ## 설정 파일 누락 시
 
 `config/`는 gitignore. `config.example/`에 없는 새 키를 `config/`에 추가했다면 반드시 `config.example/`에도 sentinel 값으로 추가 (다른 환경에서 silent 실패).
+
+**주의:** `config/ai.php`, `config/gemini.php`, `config/openai.php`는 **`config.example/`에 없다.** 새 환경 셋업 시 `cp -r config.example/* config/`만 하면 AI 기능이 조용히 실패한다 — 세 파일은 수동으로 따로 생성해야 한다.
+
+## log_type 'N' — 비표준 타입
+
+`Logger::log('access', 'N', ...)` 형태로 접속 로그를 기록한다. `Logger.php`에 정의된 표준 메서드(info/warn/error)에는 없는 타입이며, `public/index.php`에서 직접 `Logger::log()`를 호출해 사용. 로그 조회 시 `I/W/E` 외에 `N`도 존재함을 인지할 것.
