@@ -51,7 +51,7 @@ class FuncAnalysis
      * 신규 저장 또는 기존 ids_hash 회수.
      * 반환: ['id' => int, 'token' => string]
      */
-    public function save(string $idsHash, array $videoIds, string $provider, array $payload, ?string $ip): array
+    public function save(string $idsHash, array $videoIds, string $provider, array $payload, ?string $ip, ?string $voterToken = null): array
     {
         $sorted = $videoIds;
         sort($sorted);
@@ -65,10 +65,10 @@ class FuncAnalysis
             try {
                 $token = self::generateShareToken();
                 $this->db->query(
-                    'INSERT INTO func_analysis_list (ids_hash, share_token, ids_csv, video_count, provider, payload, created_ip)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)
+                    'INSERT INTO func_analysis_list (ids_hash, share_token, ids_csv, video_count, provider, payload, created_ip, creator_voter_token)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                      ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP',
-                    [$idsHash, $token, $idsCsv, $videoCount, $provider, $payloadJson, $ip]
+                    [$idsHash, $token, $idsCsv, $videoCount, $provider, $payloadJson, $ip, $voterToken]
                 );
                 $id = (int)$this->db->lastInsertId();
                 if ($id > 0) {
@@ -101,6 +101,21 @@ class FuncAnalysis
             'id' => (int)($row['analysis_id'] ?? 0),
             'token' => (string)($row['share_token'] ?? ''),
         ];
+    }
+
+    /**
+     * voter_token으로 생성한 분석 이력 조회 (최근 20건).
+     */
+    public function findByCreatorToken(string $voterToken, int $limit = 20): array
+    {
+        return $this->db->fetchAll(
+            'SELECT analysis_id, share_token, video_count, provider, payload, created_at
+             FROM func_analysis_list
+             WHERE creator_voter_token = ?
+             ORDER BY created_at DESC
+             LIMIT ?',
+            [$voterToken, $limit]
+        );
     }
 
     public function getUserVote(int $analysisId, string $voterToken): ?string
@@ -161,6 +176,15 @@ class FuncAnalysis
                     "ALTER TABLE func_analysis_list
                      ADD COLUMN share_token CHAR(16) NULL AFTER analysis_id,
                      ADD UNIQUE KEY uk_share_token (share_token)"
+                );
+            }
+
+            $col2 = $this->db->fetch("SHOW COLUMNS FROM func_analysis_list LIKE 'creator_voter_token'");
+            if ($col2 === null) {
+                $this->db->query(
+                    "ALTER TABLE func_analysis_list
+                     ADD COLUMN creator_voter_token CHAR(40) NULL,
+                     ADD KEY idx_creator_voter_token (creator_voter_token)"
                 );
             }
 
