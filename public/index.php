@@ -11,6 +11,7 @@ use Blog\Controllers\FuncController;
 use Blog\Controllers\AdminController;
 use Blog\Core\Logger;
 use Blog\Core\Cache;
+use Blog\Core\ClientIp;
 use Blog\Models\BlockedIp;
 
 // 에러 리포팅 설정 (개발/운영 분리)
@@ -138,21 +139,8 @@ $router->post('/stocks/api/preset/delete', [StockController::class, 'apiDeletePr
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// 클라이언트 IP 추출 (신뢰 프록시에서만 X-Forwarded-For 사용)
-$remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '-';
-$trustedProxies = (require __DIR__ . '/../config/config.php')['trusted_proxies'] ?? ['127.0.0.1', '::1'];
-if (in_array($remoteAddr, $trustedProxies, true)) {
-    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $remoteAddr;
-    if (strpos($clientIp, ',') !== false) {
-        $clientIp = trim(explode(',', $clientIp)[0]);
-    }
-    // IP 형식 검증
-    if (filter_var($clientIp, FILTER_VALIDATE_IP) === false) {
-        $clientIp = $remoteAddr;
-    }
-} else {
-    $clientIp = $remoteAddr;
-}
+// 클라이언트 IP 추출 (신뢰 프록시에서만 프록시 헤더 사용)
+$clientIp = ClientIp::get();
 
 // IP 차단 체크 (라우팅 전 즉시 차단)
 $ipBlockConfig = require __DIR__ . '/../config/config.php';

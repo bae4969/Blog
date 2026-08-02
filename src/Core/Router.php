@@ -116,10 +116,7 @@ class Router
                 return;
             }
 
-            $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
-            if (strpos($clientIp, ',') !== false) {
-                $clientIp = trim(explode(',', $clientIp)[0]);
-            }
+            $clientIp = ClientIp::get();
             if ($clientIp === '' || BlockedIp::isIpWhitelisted($clientIp, $settings['whitelist'] ?? ['127.0.0.1', '::1'])) {
                 return;
             }
