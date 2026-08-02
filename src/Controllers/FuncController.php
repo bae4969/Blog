@@ -27,6 +27,13 @@ class FuncController extends BaseController
                 'status' => 'live',
             ],
             [
+                'key' => 'history',
+                'label' => '분석 이력',
+                'description' => '이 브라우저에서 분석한 기록을 봅니다.',
+                'href' => '/func/history',
+                'status' => 'live',
+            ],
+            [
                 'key' => 'taste-lab',
                 'label' => '취향 실험실',
                 'description' => '여러 반응을 비교하는 실험형 인터랙션.',
@@ -74,6 +81,36 @@ class FuncController extends BaseController
                 'status'   => 'soon',
             ],
         ];
+    }
+
+    public function history(): void
+    {
+        $voterToken = $this->ensureVoterToken();
+        $rows = (new FuncAnalysis())->findByCreatorToken($voterToken);
+
+        $items = [];
+        foreach ($rows as $row) {
+            $payload = json_decode((string)($row['payload'] ?? ''), true) ?: [];
+            $analysis = $payload['analysis'] ?? null;
+            $llmAnalysis = $payload['llmAnalysis'] ?? null;
+            $resultType = $llmAnalysis['result_type'] ?? ($analysis['resultType'] ?? '—');
+            $mbti = $analysis['mbti'] ?? '';
+            $items[] = [
+                'analysis_id' => (int)$row['analysis_id'],
+                'share_token' => (string)($row['share_token'] ?? ''),
+                'video_count' => (int)($row['video_count'] ?? 0),
+                'result_type' => $resultType,
+                'mbti' => $mbti,
+                'created_at' => (string)($row['created_at'] ?? ''),
+            ];
+        }
+
+        $this->renderLayout('func', 'func/history', [
+            'isFuncPage' => true,
+            'pageTitle' => '분석 이력',
+            'additionalCss' => ['/css/func.css'],
+            'historyItems' => $items,
+        ] + $this->getFuncLayoutData('history', true));
     }
 
     public function index(): void
@@ -258,12 +295,13 @@ class FuncController extends BaseController
         $analysisId = 0;
         $shareToken = '';
         if ($llmError === null) {
+            $voterToken = $this->ensureVoterToken();
             $saved = $analysisModel->save($idsHash, $videoIds, $activeProvider, [
                 'analysis' => $analysis,
                 'llmAnalysis' => $llmAnalysis,
                 'llmError' => null,
                 'videoCount' => $videoCount,
-            ], $ip);
+            ], $ip, $voterToken);
             $analysisId = $saved['id'];
             $shareToken = $saved['token'];
             $this->auditFuncAction('func.analyze', [

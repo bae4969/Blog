@@ -61,6 +61,7 @@ $router->get('/func', [FuncController::class, 'index']);
 $router->get('/func/youtube-feed', [FuncController::class, 'youtubeFeed']);
 $router->get('/func/analyze', [FuncController::class, 'analyze']);
 $router->post('/func/analyze/react', [FuncController::class, 'reactAnalysis']);
+$router->get('/func/history', [FuncController::class, 'history']);
 $router->get('/a/:id', [FuncController::class, 'analyzeShort', '/a/:id']);
 
 // 인증 컨트롤러 라우트
