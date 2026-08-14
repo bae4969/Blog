@@ -66,7 +66,7 @@ async def categories(request: Request):
     response = templates.TemplateResponse(
         request,
         "admin_categories.html",
-        {**ctx, "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "categories", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
     )
     csrf.attach(response, token)
     return response
@@ -288,7 +288,7 @@ async def ip_blocks(request: Request):
     response = templates.TemplateResponse(
         request,
         "admin_ip_blocks.html",
-        {**ctx, "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "ip-blocks", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
     )
     csrf.attach(response, token)
     return response
@@ -506,6 +506,7 @@ async def logs(request: Request):
         "admin_logs.html",
         {
             **ctx,
+            "admin_menu": "logs",
             "rows": rows,
             "table": table, "tables": _LOG_TABLES,
             "sort": sort, "order": order,
@@ -550,7 +551,7 @@ async def wol(request: Request):
     response = templates.TemplateResponse(
         request,
         "admin_wol.html",
-        {**ctx, "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "wol", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
     )
     csrf.attach(response, token)
     return response
@@ -693,3 +694,13 @@ async def wol_delete(request: Request, csrf_token: str = Form(""), device_id: in
     logger.info("WOL 장치 삭제: id=%s", device_id)
     return RedirectResponse("/admin/wol?msg=삭제했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("", include_in_schema=False)
+@router.get("/", include_in_schema=False)
+async def admin_home(request: Request):
+    """관리자 진입점. PHP 와 같이 로그 화면으로 보낸다(따로 대시보드가 없다)."""
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin /admin")
+    return RedirectResponse("/admin/logs", status_code=status.HTTP_303_SEE_OTHER)

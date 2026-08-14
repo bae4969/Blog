@@ -60,6 +60,30 @@
                     {% endif %}
                 </div>
                 <div id="user_count">방문자: {{ '{:,}'.format(visitor_count or 0) }}</div>
+                {#
+                  관리자 화면에서는 사이드바가 카테고리 대신 관리 메뉴가 된다(PHP 와 같다).
+                  ⚠️ 아직 PHP 에 있는 화면도 함께 걸어 둔다 — Traefik 이 경로로 가르므로
+                     사용자는 어느 쪽이 처리하는지 몰라도 된다. 포팅이 끝나면 이 목록은
+                     그대로 두고 라우팅만 바뀐다.
+                #}
+                {% if admin_menu is defined %}
+                <ul id="category">
+                    {% for key, label, url in [
+                        ('logs', '로그', '/admin/logs'),
+                        ('users', '사용자 관리', '/admin/users'),
+                        ('categories', '블로그 카테고리', '/admin/categories'),
+                        ('cache', '캐시 관리', '/admin/cache'),
+                        ('stocks', '주식 구독 관리', '/admin/stocks'),
+                        ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
+                        ('api-settings', '외부 API 설정', '/admin/api-settings'),
+                        ('wol', 'WOL', '/admin/wol'),
+                        ('ip-blocks', 'IP 차단 관리', '/admin/ip-blocks'),
+                    ] %}
+                    <li class="category {% if admin_menu == key %}category-selected{% endif %}"
+                        onclick="location.href='{{ url }}'">{{ label }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
                 <ul id="category">
                     <li class="category {% if not category_id %}category-selected{% endif %}"
                         onclick="selectCategory(-1)">전체</li>
@@ -68,6 +92,8 @@
                         onclick="selectCategory({{ c.category_index }})">{{ c.category_name }}</li>
                     {% endfor %}
                 </ul>
+                {% endif %}
+                {% if admin_menu is not defined %}
                 <div id="search_posting_div">
                     <div class="search-container">
                         <div class="search-input-group">
@@ -93,6 +119,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
             </div>
         </aside>
 
