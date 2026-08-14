@@ -65,13 +65,17 @@
                      사용자는 어느 쪽이 처리하는지 몰라도 된다. 포팅이 끝나면 이 목록은
                      그대로 두고 라우팅만 바뀐다.
                 #}
+                {# 캐시 관리(/admin/cache)는 목록에 없다 — PHP 전용 파일 캐시라 포팅하지
+                   않으며, PHP 세션을 따로 요구해 눌러도 /login.php 로 튕긴다. PHP 를
+                   걷어낼 때 화면째 사라진다.
+                   ⚠️ 주석을 아래 리스트 리터럴 **안에** 두면 표현식이 깨져 관리자 화면이
+                      전부 500 이 된다. 반드시 태그 밖에 둘 것. #}
                 {% if admin_menu is defined %}
                 <ul id="category">
                     {% for key, label, url in [
                         ('logs', '로그', '/admin/logs'),
                         ('users', '사용자 관리', '/admin/users'),
                         ('categories', '블로그 카테고리', '/admin/categories'),
-                        ('cache', '캐시 관리', '/admin/cache'),
                         ('stocks', '주식 구독 관리', '/admin/stocks'),
                         ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
                         ('wol', 'WOL', '/admin/wol'),

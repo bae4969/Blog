@@ -16,7 +16,6 @@
                             'logs' => ['label' => '로그', 'url' => '/admin/logs'],
                             'users' => ['label' => '사용자 관리', 'url' => '/admin/users'],
                             'categories' => ['label' => '블로그 카테고리', 'url' => '/admin/categories'],
-                            'cache' => ['label' => '캐시 관리', 'url' => '/admin/cache'],
                             'stocks' => ['label' => '주식 구독 관리', 'url' => '/admin/stocks'],
                             'stock-splits' => ['label' => '액면분할 관리', 'url' => '/admin/stock-splits'],
                             'wol' => ['label' => 'WOL', 'url' => '/admin/wol'],
