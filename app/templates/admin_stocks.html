@@ -1,0 +1,123 @@
+{#
+  주식 구독 관리 — PHP `views/admin/stocks.php` 자리.
+
+  ⚠️ **저장하면 선택 목록이 곧 최종 상태다.** 이 폼은 보이는 페이지만 반영하는 게 아니라
+     `stock_last_ws_query`·`coin_last_ws_query` 를 통째로 갈아끼운다. 그래서 다른 페이지에서
+     이미 구독 중인 종목을 hidden 으로 함께 실어 보낸다 — 안 그러면 저장할 때마다 나머지가
+     전부 해제된다.
+  ⚠️ 여기서 만든 목록을 `23.stock_ticker` 가 읽어 WebSocket 구독을 건다. 비우면 수집이 멈춘다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}주식 구독 관리 · Developer Blog{% endblock %}
+
+{% block content %}
+<style>
+  #admin-stocks .admin-table td,
+  #admin-stocks .admin-table th { padding: .45rem .6rem; vertical-align: middle; }
+  #admin-stocks .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #admin-stocks .toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .8rem; }
+  #admin-stocks .counts { display: flex; gap: .8rem; margin-bottom: .8rem; opacity: .85; }
+  #admin-stocks .counts .over { color: #e06c75; font-weight: 600; }
+  #admin-stocks .pager { display: flex; gap: .4rem; justify-content: center; margin-top: 1rem; }
+  #admin-stocks .tab { padding: .3rem .7rem; border-radius: 4px; }
+  #admin-stocks .tab-on { background: #36383A; font-weight: 600; }
+</style>
+<div id="admin-stocks" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">주식 구독 관리</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">{{ market }} · 전체 {{ total }}건</span>
+            </div>
+        </header>
+
+        {% if msg %}<div class="alert alert-info">{{ msg }}</div>{% endif %}
+
+        <div class="post-content">
+            <div class="counts">
+                <span class="{% if counts.KR > limits.KR %}over{% endif %}">한국 {{ counts.KR }} / {{ limits.KR }}</span>
+                <span class="{% if counts.US > limits.US %}over{% endif %}">미국 {{ counts.US }} / {{ limits.US }}</span>
+                <span>코인 {{ counts.COIN }}</span>
+            </div>
+
+            <div class="toolbar">
+                {% for m in markets %}
+                <a class="tab {% if m == market %}tab-on{% endif %}" href="/admin/stocks?market={{ m }}">{{ m }}</a>
+                {% endfor %}
+                <form method="get" action="/admin/stocks" style="display:flex; gap:.4rem; margin-left:auto">
+                    <input type="hidden" name="market" value="{{ market }}">
+                    <input type="text" name="search" value="{{ search }}" placeholder="코드 또는 이름" maxlength="50">
+                    <button type="submit" class="btn btn-primary">검색</button>
+                </form>
+            </div>
+
+            <form method="post" action="/admin/stocks/subscriptions" id="subForm"
+                  onsubmit="return confirm('선택한 종목으로 구독 목록을 통째로 교체합니다. 진행할까요?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="current_market" value="{{ market }}">
+                <input type="hidden" name="current_search" value="{{ search }}">
+                <input type="hidden" name="current_page" value="{{ page }}">
+                {#
+                  이 페이지 밖에서 이미 구독 중인 종목을 그대로 유지하기 위한 hidden.
+                  화면에 보이는 종목은 아래 체크박스가 담당하므로 서버에서 미리 뺐다.
+                  ({{ keepers | length }}건)
+                #}
+                {% for k in keepers %}<input type="hidden" name="selected_codes" value="{{ k }}">{% endfor %}
+
+                <table class="admin-table" style="width:100%; border-collapse:collapse">
+                    <thead>
+                        <tr>
+                            <th style="width:2.5rem"><input type="checkbox" id="checkAll" title="이 페이지 전체 선택"></th>
+                            <th>코드</th>
+                            <th>이름</th>
+                            <th>시장</th>
+                            <th>시가총액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in rows %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="selected_codes" class="pick"
+                                       value="{{ prefix }}:{{ r.code }}"
+                                       {% if r.is_registered %}checked{% endif %}>
+                            </td>
+                            <td>{{ r.code }}</td>
+                            <td>{{ r.name_kr or r.name_en or '' }}</td>
+                            <td>{{ r.market }}</td>
+                            <td style="text-align:right">{{ '{:,}'.format(r.cap) if r.cap else '' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" style="text-align:center; opacity:.6">종목이 없습니다.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+
+                <div style="margin-top:1rem; display:flex; gap:.5rem; align-items:center">
+                    <button type="submit" class="btn btn-primary">구독 목록 저장</button>
+                    <span style="opacity:.7">선택한 것 전체가 최종 구독 목록이 됩니다.</span>
+                </div>
+            </form>
+
+            {% if total_pages > 1 %}
+            <div class="pager">
+                {% set qs = 'market=' ~ market ~ ('&search=' ~ search if search else '') %}
+                {% if page > 1 %}<a class="btn" href="/admin/stocks?{{ qs }}&page={{ page - 1 }}">이전</a>{% endif %}
+                <span>{{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}<a class="btn" href="/admin/stocks?{{ qs }}&page={{ page + 1 }}">다음</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </article>
+</div>
+
+<script>
+// 이 페이지 전체 선택/해제
+document.getElementById('checkAll').addEventListener('change', function () {
+    document.querySelectorAll('#admin-stocks .pick').forEach(function (c) { c.checked = this.checked; }, this);
+});
+
+</script>
+{% endblock %}

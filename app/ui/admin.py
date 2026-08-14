@@ -16,11 +16,11 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.core import blog_user, csrf
 from app.db.session import db_session
-from app.ui.routes import _KST, _shell_ctx, templates
+from app.ui.routes import _KST, _int_arg, _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
@@ -394,6 +394,356 @@ async def ip_block_clean(request: Request, csrf_token: str = Form("")):
 
     logger.info("만료 IP 차단 정리: %s건", n)
     return RedirectResponse(f"/admin/ip-blocks?msg={n}건+정리했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── 주식 구독 관리 ──────────────────────────────────────────────────
+#
+# 여기서 고른 종목이 `KoreaInvest.stock_last_ws_query`·`Bithumb.coin_last_ws_query` 에
+# 통째로 갈아끼워지고, **`23.stock_ticker` 가 그걸 읽어 WebSocket 구독을 건다.** 즉 이 화면은
+# 블로그 데이터가 아니라 **다른 서비스의 입력**을 만든다 — 저장은 전체 교체(DELETE→INSERT)라
+# 트랜잭션 안에서 해야 하고, 실수로 비우면 수집이 멈춘다.
+#
+# 시장 한도(KR/US 각 400)는 한투 API 의 구독 상한에서 온다. 넘겨 저장하면 ticker 쪽이 깨진다.
+
+_STOCK_MARKETS = ("KR", "US", "COIN")
+_KR_MARKETS = ("KOSPI", "KOSDAQ", "KONEX")
+_US_MARKETS = ("NYSE", "NASDAQ", "AMEX")
+#: 시장별 구독 상한 — PHP `getMarketSubscriptionLimits` 의 기본값과 같다.
+_SUB_LIMITS = {"KR": 400, "US": 400}
+_STOCK_PER_PAGE = 100
+_SELECTION_RE = re.compile(r"^(STOCK|COIN):([A-Za-z0-9._/-]{1,32})$", re.I)
+
+
+def _norm_market(v: str) -> str:
+    v = (v or "").strip().upper()
+    return v if v in _STOCK_MARKETS else "KR"
+
+
+def _selection_market(stock_market: str) -> str:
+    """종목의 거래소를 KR/US 로 접는다. PHP `normalizeSelectionMarket` 과 같다(기본 KR)."""
+    m = (stock_market or "").strip().upper()
+    return "US" if m in _US_MARKETS else "KR"
+
+
+def _query_key(query_type: str, code: str) -> str:
+    """`query` 컬럼(varchar(32)) 용 키 — `{타입}_{코드}`.
+
+    PHP `buildSubscriptionQueryKey` 를 그대로 옮겼다. 코드에 `/`·`.` 이 들어가는 종목이 있어
+    `_` 로 바꾸고, 32자를 넘지 않게 **코드 쪽을 자른다**(타입은 보존).
+    """
+    t = re.sub(r"[^A-Z0-9_]+", "", (query_type or "").strip().upper()).strip("_") or "EX"
+    c = re.sub(r"[^A-Z0-9_]+", "", code.upper().replace("/", "_").replace(".", "_")).strip("_") or "UNKNOWN"
+    return f"{t}_{c[: max(1, 32 - (len(t) + 1))]}"
+
+
+def _stock_api_mapping(stock_code: str, stock_market: str) -> tuple[str, str]:
+    """한투 WebSocket 구독에 쓰는 (TR 코드, 종목키). 해외는 거래소 접두어가 붙는다."""
+    return {
+        "NYSE": ("HDFSCNT0", f"DNYS{stock_code}"),
+        "NASDAQ": ("HDFSCNT0", f"DNAS{stock_code}"),
+        "AMEX": ("HDFSCNT0", f"DAMS{stock_code}"),
+    }.get((stock_market or "").upper(), ("H0STCNT0", stock_code))
+
+
+@router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
+async def stock_subscriptions(request: Request):
+    """구독 종목 선택 화면. 이미 구독 중인 종목이 위로 온다."""
+    page = max(1, _int_arg(request, "page", 1))
+    market = _norm_market(request.query_params.get("market", "KR"))
+    search = (request.query_params.get("search") or "").strip()[:50]
+    offset = (page - 1) * _STOCK_PER_PAGE
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/stocks")
+
+        params: dict = {"limit": _STOCK_PER_PAGE, "offset": offset}
+        if market == "COIN":
+            src = ("Bithumb.coin_info ci LEFT JOIN (SELECT DISTINCT coin_code "
+                   "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code")
+            code_col, name_cols, prefix = "ci.coin_code", ("ci.coin_name_kr", "ci.coin_name_en"), "COIN"
+            cols = ("ci.coin_code AS code, ci.coin_name_kr AS name_kr, ci.coin_name_en AS name_en, "
+                    "'COIN' AS market, NULL AS cap")
+            where = []
+        else:
+            src = ("KoreaInvest.stock_info si LEFT JOIN (SELECT DISTINCT stock_code "
+                   "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code")
+            code_col, name_cols, prefix = "si.stock_code", ("si.stock_name_kr", "si.stock_name_en"), "STOCK"
+            cols = ("si.stock_code AS code, si.stock_name_kr AS name_kr, si.stock_name_en AS name_en, "
+                    "si.stock_market AS market, si.stock_capitalization AS cap")
+            markets = _KR_MARKETS if market == "KR" else _US_MARKETS
+            where = [f"si.stock_market IN ({', '.join(repr(m) for m in markets)})"]
+
+        if search:
+            # 코드 접두일치 + 이름 부분일치. PHP `appendAdminSearchConditions` 와 같은 형태.
+            parts = [f"{code_col} LIKE :code_pre"] + [f"{c} LIKE :name_like" for c in name_cols]
+            where.append("(" + " OR ".join(parts) + ")")
+            params["code_pre"] = f"{search}%"
+            params["name_like"] = f"%{search}%"
+
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        reg_col = "w.coin_code" if market == "COIN" else "w.stock_code"
+        total = (await db.execute(
+            text(f"SELECT COUNT(*) FROM {src} {where_sql}"), params)).scalar() or 0
+
+        order = ""
+        if search:
+            order = f"CASE WHEN {code_col} LIKE :code_pre THEN 0 ELSE 1 END, "
+        rows = (await db.execute(text(
+            f"SELECT {cols}, CASE WHEN {reg_col} IS NULL THEN 0 ELSE 1 END AS is_registered "
+            f"FROM {src} {where_sql} "
+            f"ORDER BY {order}is_registered DESC, {code_col} ASC "
+            f"LIMIT :limit OFFSET :offset"), params)).all()
+
+        # 지금 구독 중인 **전체** 선택키. 화면 밖 종목을 hidden 으로 유지하는 데 쓴다 —
+        # 저장이 전체 교체라, 이걸 안 실어 보내면 다른 페이지 구독이 전부 해제된다.
+        registered = {r[0] for r in (await db.execute(text(
+            "SELECT CONCAT('STOCK:', stock_code) FROM KoreaInvest.stock_last_ws_query "
+            "UNION SELECT CONCAT('COIN:', coin_code) FROM Bithumb.coin_last_ws_query"))).all()}
+        counts = await _registered_counts(db)
+        ctx = await _shell_ctx(request, db, me.level)
+
+    on_page = {f"{prefix}:{r.code}" for r in rows}
+    keepers = sorted(registered - on_page)
+
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "admin_stocks.html",
+        {
+            **ctx, "admin_menu": "stocks", "rows": rows, "prefix": prefix,
+            "keepers": keepers,
+            "market": market, "markets": _STOCK_MARKETS, "search": search,
+            "page": page, "total": total,
+            "total_pages": max(1, -(-total // _STOCK_PER_PAGE)),
+            "counts": counts, "limits": _SUB_LIMITS,
+            "csrf_token": token, "msg": request.query_params.get("msg"),
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+async def _registered_counts(db) -> dict:
+    """지금 구독 중인 종목을 KR/US/COIN 으로 세어 준다(한도 표시에 쓴다)."""
+    kr = us = 0
+    for (mkt,) in (await db.execute(text(
+        "SELECT si.stock_market FROM KoreaInvest.stock_last_ws_query q "
+        "JOIN KoreaInvest.stock_info si ON si.stock_code = q.stock_code"))).all():
+        if _selection_market(mkt) == "US":
+            us += 1
+        else:
+            kr += 1
+    coin = (await db.execute(text("SELECT COUNT(*) FROM Bithumb.coin_last_ws_query"))).scalar() or 0
+    return {"KR": kr, "US": us, "COIN": int(coin)}
+
+
+@router.post("/stocks/subscriptions", include_in_schema=False)
+async def stock_subscriptions_update(request: Request):
+    """구독 종목 전체 교체.
+
+    ⚠️ 화면에 보이는 페이지만 저장하는 게 아니라 **선택 목록 전체가 곧 최종 상태**다(PHP 와
+    같다). DELETE 후 INSERT 라 한 트랜잭션으로 묶는다 — 중간에 끊기면 수집이 멈춘다.
+    """
+    form = await request.form()
+    csrf_token = str(form.get("csrf_token", ""))
+    market = _norm_market(str(form.get("current_market", "KR")))
+    search = str(form.get("current_search", "")).strip()[:50]
+    page = max(1, int(str(form.get("current_page", "1")) or 1))
+    back = f"/admin/stocks?market={market}&page={page}" + (f"&search={quote(search)}" if search else "")
+
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", back)
+
+    stock_codes, coin_codes = set(), set()
+    for raw in form.getlist("selected_codes"):
+        m = _SELECTION_RE.match(str(raw))
+        if not m:
+            continue
+        (stock_codes if m.group(1).upper() == "STOCK" else coin_codes).add(m.group(2).upper())
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin stocks_update")
+
+        # 존재하는 종목만 남긴다 — 폼이 조작돼도 없는 코드가 ticker 로 넘어가지 않게.
+        valid_stocks: dict[str, str] = {}
+        if stock_codes:
+            valid_stocks = {r[0].upper(): (r[1] or "").upper() for r in (await db.execute(
+                text("SELECT stock_code, stock_market FROM KoreaInvest.stock_info "
+                     "WHERE stock_code IN :codes").bindparams(bindparam("codes", expanding=True)),
+                {"codes": list(stock_codes)})).all()}
+        valid_coins: list[str] = []
+        if coin_codes:
+            valid_coins = [r[0].upper() for r in (await db.execute(
+                text("SELECT coin_code FROM Bithumb.coin_info "
+                     "WHERE coin_code IN :codes").bindparams(bindparam("codes", expanding=True)),
+                {"codes": list(coin_codes)})).all()]
+
+        kr = sum(1 for m in valid_stocks.values() if m in _KR_MARKETS)
+        us = sum(1 for m in valid_stocks.values() if m in _US_MARKETS)
+        if kr > _SUB_LIMITS["KR"]:
+            return _deny(f"kr_limit:{kr}", f"{back}&msg=한국+종목은+최대+{_SUB_LIMITS['KR']}개까지+저장할+수+있습니다")
+        if us > _SUB_LIMITS["US"]:
+            return _deny(f"us_limit:{us}", f"{back}&msg=미국+종목은+최대+{_SUB_LIMITS['US']}개까지+저장할+수+있습니다")
+
+        await db.execute(text("DELETE FROM KoreaInvest.stock_last_ws_query"))
+        await db.execute(text("DELETE FROM Bithumb.coin_last_ws_query"))
+        for code, mkt in valid_stocks.items():
+            api_type, api_code = _stock_api_mapping(code, mkt)
+            await db.execute(
+                text("INSERT INTO KoreaInvest.stock_last_ws_query "
+                     "(stock_query, stock_code, query_type, stock_api_type, stock_api_stock_code) "
+                     "VALUES (:q, :c, 'EX', :at, :ac)"),
+                {"q": _query_key("EX", code), "c": code, "at": api_type, "ac": api_code})
+        for code in valid_coins:
+            await db.execute(
+                text("INSERT INTO Bithumb.coin_last_ws_query "
+                     "(coin_query, coin_code, query_type, coin_api_type, coin_api_coin_code) "
+                     "VALUES (:q, :c, 'EX', 'transaction', :ac)"),
+                {"q": _query_key("EX", code), "c": code, "ac": f"{code}_KRW"})
+        await db.commit()
+
+    logger.info("구독 종목 교체: 한국 %s · 미국 %s · 코인 %s", kr, us, len(valid_coins))
+    return RedirectResponse(
+        f"{back}&msg=저장했습니다.+한국+{kr}건,+미국+{us}건,+코인+{len(valid_coins)}건",
+        status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── 액면분할/병합 이벤트 ────────────────────────────────────────────
+#
+# 주식 화면 중 **여기만 `BlogTest` 테이블(`stock_split_events`)로 끝난다.** 나머지
+# (`/stocks` 계열·구독 관리)는 `KoreaInvest`·`Bithumb`·`candle`·`tick` 을 봐야 하는데
+# `blog_api` 계정에 그 권한이 없어 아직 못 옮긴다.
+
+#: 시장 구분 — DB 가 enum('KR','US','COIN') 이라 이 셋만 받는다.
+_SPLIT_MARKETS = ("KR", "US", "COIN")
+_SPLIT_PER_PAGE = 50
+_SPLIT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+@router.get("/stock-splits", response_class=HTMLResponse, include_in_schema=False)
+async def stock_splits(request: Request):
+    """액면분할/병합 이벤트 목록. 최신 이벤트가 위로 온다."""
+    page = max(1, _int_arg(request, "page", 1))
+    offset = (page - 1) * _SPLIT_PER_PAGE
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/stock-splits")
+
+        total = (await db.execute(text("SELECT COUNT(*) FROM stock_split_events"))).scalar() or 0
+        rows = (
+            await db.execute(
+                text(
+                    "SELECT id, stock_code, market, event_date, ratio_from, ratio_to, "
+                    "       description, created_at "
+                    "FROM stock_split_events "
+                    "ORDER BY event_date DESC, id DESC "
+                    "LIMIT :limit OFFSET :offset"
+                ),
+                {"limit": _SPLIT_PER_PAGE, "offset": offset},
+            )
+        ).all()
+        ctx = await _shell_ctx(request, db, me.level)
+
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "admin_stock_splits.html",
+        {
+            **ctx,
+            "admin_menu": "stock-splits",
+            "rows": rows,
+            "markets": _SPLIT_MARKETS,
+            "page": page,
+            "total_pages": max(1, -(-total // _SPLIT_PER_PAGE)),
+            "total": total,
+            "csrf_token": token,
+            "msg": request.query_params.get("msg"),
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+@router.post("/stock-splits/create", include_in_schema=False)
+async def stock_split_create(
+    request: Request,
+    csrf_token: str = Form(""),
+    stock_code: str = Form(""),
+    market: str = Form(""),
+    event_date: str = Form(""),
+    ratio_from: int = Form(0),
+    ratio_to: int = Form(0),
+    description: str = Form(""),
+):
+    """이벤트 등록. 검증 규칙은 PHP `createSplitEvent` 를 그대로 옮겼다."""
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/stock-splits")
+
+    stock_code = stock_code.strip().upper()
+    market = market.strip().upper()
+    event_date = event_date.strip()
+    # PHP 는 `max(1, (int)...)` 로 0 이하를 1 로 끌어올린다 — 같은 동작을 유지한다.
+    ratio_from = max(1, ratio_from)
+    ratio_to = max(1, ratio_to)
+
+    if not stock_code or not event_date:
+        return _deny("missing_fields", "/admin/stock-splits?msg=종목+코드와+이벤트+일시는+필수입니다")
+    if market not in _SPLIT_MARKETS:
+        return _deny(f"invalid_market:{market}", "/admin/stock-splits?msg=유효하지+않은+시장입니다")
+    if ratio_from == ratio_to:
+        return _deny("same_ratio", "/admin/stock-splits?msg=변환+전후+비율이+동일합니다")
+    if not _SPLIT_DATE_RE.match(event_date):
+        return _deny("invalid_date", "/admin/stock-splits?msg=유효하지+않은+날짜+형식입니다")
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin split_create")
+        await db.execute(
+            text(
+                "INSERT INTO stock_split_events "
+                "(stock_code, market, event_date, ratio_from, ratio_to, description) "
+                "VALUES (:code, :market, :d, :rf, :rt, :desc)"
+            ),
+            {
+                "code": stock_code, "market": market, "d": event_date[:10],
+                "rf": ratio_from, "rt": ratio_to, "desc": description.strip()[:200],
+            },
+        )
+        await db.commit()
+
+    logger.info("분할이벤트 등록: %s %s %s %s:%s", market, stock_code, event_date, ratio_from, ratio_to)
+    return RedirectResponse("/admin/stock-splits?msg=등록했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/stock-splits/delete", include_in_schema=False)
+async def stock_split_delete(
+    request: Request,
+    csrf_token: str = Form(""),
+    event_id: int = Form(...),
+):
+    """이벤트 삭제."""
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/stock-splits")
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin split_delete")
+        r = await db.execute(
+            text("DELETE FROM stock_split_events WHERE id = :i"), {"i": event_id}
+        )
+        await db.commit()
+
+    if r.rowcount == 0:
+        return _deny("split_not_found", "/admin/stock-splits?msg=이벤트를+찾을+수+없습니다")
+    logger.info("분할이벤트 삭제: id=%s", event_id)
+    return RedirectResponse("/admin/stock-splits?msg=삭제했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 
 

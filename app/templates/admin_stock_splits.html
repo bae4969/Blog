@@ -1,0 +1,100 @@
+{#
+  액면분할/병합 관리 — PHP `views/admin/stock-splits.php` 자리.
+
+  ⚠️ 시장(market)은 DB 가 enum('KR','US','COIN') 이라 이 셋만 받는다. 다른 값을 넣으면
+     라우트가 거절한다.
+  ⚠️ 비율은 "변환 전:후" 다. 둘이 같으면 등록되지 않는다(의미 없는 이벤트라서).
+#}
+{% extends "layout.html" %}
+
+{% block title %}액면분할 관리 · Developer Blog{% endblock %}
+
+{% block content %}
+<style>
+  #admin-splits .admin-table td,
+  #admin-splits .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
+  #admin-splits .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #admin-splits .inline-form { display: inline; margin: 0; }
+  #admin-splits .create-form { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: 1rem; }
+  #admin-splits .create-form input[type=text] { width: 9rem; }
+  #admin-splits .create-form input[type=number] { width: 4.5rem; text-align: center; }
+  #admin-splits .pager { display: flex; gap: .4rem; justify-content: center; margin-top: 1rem; }
+</style>
+<div id="admin-splits" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">액면분할 · 병합 관리</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">전체 {{ total }}건</span>
+            </div>
+        </header>
+
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+
+        <div class="post-content">
+            <form method="post" action="/admin/stock-splits/create" class="create-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="text" name="stock_code" placeholder="종목 코드" required maxlength="20">
+                <select name="market">
+                    {% for m in markets %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                </select>
+                <input type="date" name="event_date" required>
+                <input type="number" name="ratio_from" value="1" min="1" title="변환 전">
+                <span>:</span>
+                <input type="number" name="ratio_to" value="1" min="1" title="변환 후">
+                <input type="text" name="description" placeholder="설명(선택)" maxlength="200" style="flex:1; min-width:10rem">
+                <button type="submit" class="btn btn-primary">등록</button>
+            </form>
+
+            <table class="admin-table" style="width:100%; border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>종목</th>
+                        <th>시장</th>
+                        <th>이벤트 일자</th>
+                        <th>비율</th>
+                        <th>설명</th>
+                        <th>등록일</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <td>{{ r.id }}</td>
+                        <td>{{ r.stock_code }}</td>
+                        <td>{{ r.market }}</td>
+                        <td>{{ r.event_date }}</td>
+                        <td>{{ r.ratio_from }} : {{ r.ratio_to }}</td>
+                        <td>{{ r.description or '' }}</td>
+                        <td>{{ r.created_at or '' }}</td>
+                        <td>
+                            <form method="post" action="/admin/stock-splits/delete" class="inline-form"
+                                  onsubmit="return confirm('{{ r.stock_code }} 이벤트를 삭제할까요?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="event_id" value="{{ r.id }}">
+                                <button type="submit" class="btn">삭제</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8" style="text-align:center; opacity:.6">등록된 이벤트가 없습니다.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {% if total_pages > 1 %}
+            <div class="pager">
+                {% if page > 1 %}<a class="btn" href="/admin/stock-splits?page={{ page - 1 }}">이전</a>{% endif %}
+                <span>{{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}<a class="btn" href="/admin/stock-splits?page={{ page + 1 }}">다음</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </article>
+</div>
+{% endblock %}
