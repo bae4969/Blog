@@ -5,21 +5,32 @@ PHP 에서 넘어오는 중이라 **경로와 쿼리 파라미터를 그대로 �
 깨지고, 포팅 중에는 같은 사이트 안에서 두 스택이 서로의 URL 을 참조한다.
 """
 
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 
 from app.core.config import settings
-from app.core.sanitize import has_image, insert_thumbnail, sanitize
+from app.core.sanitize import (
+    clean_title,
+    has_image,
+    insert_thumbnail,
+    make_summary,
+    sanitize,
+    sanitize_for_save,
+    validate_thumbnail,
+)
+from app.core import blog_user, csrf
 from app.core.security import AuthUser
 from app.db.models import Category, Post, User
 from app.db.session import db_session
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 # 부팅 시각 기준 캐시버스터. 넣지 않으면 `?v=` 가 빈 문자열로 렌더돼 캐시가 안 깨진다.
@@ -209,6 +220,8 @@ async def post_detail(request: Request):
                     Post.posting_first_post_datetime,
                     Post.posting_last_edit_datetime,
                     Post.category_index,
+                    # 소유자 판정에 쓴다 — 빠뜨리면 버튼 조건에서 KeyError 가 난다.
+                    Post.user_index,
                     Category.category_name,
                     User.user_id,
                 )
@@ -239,6 +252,15 @@ async def post_detail(request: Request):
             )
         ).scalar() or 0
 
+        # 어떤 버튼을 보일지 — 서버가 판단한다. 화면에서 숨기는 것만으로는 부족해서
+        # 각 POST 라우트가 같은 조건을 한 번 더 검사한다.
+        me = await blog_user.find(db, user)
+        is_owner = me is not None and row.user_index == me.user_index
+        can_moderate = is_owner or (
+            me is not None
+            and await blog_user.can_write_category(db, me.level, row.category_index)
+        )
+
         # 조회수 — 같은 글을 하루 한 번만 센다(PHP 와 같은 기준). 쿠키에 오늘 본 글 id 를
         # 모아 둔다. 세션이 없어 위조가 가능하지만, 위조해도 **덜 세질 뿐** 부풀릴 수는
         # 없다(쿠키에 넣으면 증가를 건너뛴다). 조회수는 그 정도 정확도면 충분하다.
@@ -258,6 +280,7 @@ async def post_detail(request: Request):
             )
             await db.commit()
 
+    csrf_token = csrf.new_token(request)
     content = sanitize(row.posting_content)
     # 본문에 이미지가 하나도 없을 때만 썸네일을 끼워 넣는다(PHP 와 같은 규칙).
     if row.posting_thumbnail and not has_image(content):
@@ -277,11 +300,15 @@ async def post_detail(request: Request):
             "category_id": row.category_index,
             "search": "",
             "visitor_count": visitor_count,
+            "is_owner": is_owner,
+            "can_moderate": can_moderate,
+            "csrf_token": csrf_token,
             "auth_public_url": settings.auth_public_url,
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
         },
     )
+    csrf.attach(response, csrf_token)
     if counted:
         seen.add(str(post_id))
         response.set_cookie(
@@ -292,3 +319,334 @@ async def post_detail(request: Request):
             samesite="lax",
         )
     return response
+
+
+
+async def _shell_ctx(request: Request, db, level: int, category_id: int | None = None) -> dict:
+    """레이아웃(헤더·사이드바·푸터)이 쓰는 공통 값. 화면마다 반복하지 않으려고 모았다."""
+    categories = (
+        await db.execute(
+            select(Category)
+            .where(Category.category_read_level >= level)
+            .order_by(Category.category_order)
+        )
+    ).scalars().all()
+    visitor_count = (
+        await db.execute(
+            text(
+                "SELECT visit_count FROM weekly_visitors "
+                "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
+            )
+        )
+    ).scalar() or 0
+    return {
+        "user": getattr(request.state, "user", None),
+        "level": level,
+        "categories": categories,
+        "category_id": category_id,
+        "search": "",
+        "visitor_count": visitor_count,
+        "auth_public_url": settings.auth_public_url,
+        "contact_email": settings.contact_email,
+        "github_url": settings.github_url,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+#  쓰기 경로 — 여기부터는 DB 를 바꾼다.
+#
+#  ⚠️ 대상 스키마는 `BlogTest` 다(운영 `Blog` 와 분리, 2026-08-14). 계정에도 운영 권한이
+#     없다. 그래도 배포 때 `DATABASE_URL` 이 운영을 가리키지 않는지 확인할 것.
+# ══════════════════════════════════════════════════════════════════
+
+
+@router.get("/writer.php", response_class=HTMLResponse, include_in_schema=False)
+async def writer_form(request: Request):
+    """새 글 폼. 작성 제한에 걸렸으면 열지 않는다(PHP `createForm` 과 같은 기준)."""
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None or me.is_limited:
+            if me is not None:
+                logger.warning(
+                    "글쓰기 거부: user=%s count=%s limit=%s",
+                    me.user_id, me.posting_count, me.posting_limit,
+                )
+            return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
+
+        ctx = await _shell_ctx(request, db, me.level)
+        # 쓸 수 있는 카테고리만 고르게 한다 — 목록 밖이면 저장 단계에서 거부된다.
+        writable = (
+            await db.execute(
+                select(Category)
+                .where(Category.category_write_level >= me.level)
+                .order_by(Category.category_order)
+            )
+        ).scalars().all()
+
+    selected = _int_arg(request, "category_index", -1)
+    selected = selected if selected > 0 else None
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "blog_editor.html",
+        {
+            **ctx,
+            "categories": writable,       # 에디터의 선택 목록은 '쓰기 가능'만
+            "is_edit": False,
+            "post": None,
+            "selected_category": selected,
+            "cancel_query": f"?category_index={selected}" if selected else "",
+            "csrf_token": token,
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+@router.get("/post/edit/{post_id}", response_class=HTMLResponse, include_in_schema=False)
+async def edit_form(request: Request, post_id: int):
+    """수정 폼. **본인 글만** 연다(PHP `editForm` 과 같다)."""
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None:
+            return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
+
+        row = (
+            await db.execute(
+                select(Post).where(Post.posting_index == post_id)
+            )
+        ).scalars().first()
+        # 남의 글은 수정 폼조차 열지 않는다. 관리자도 마찬가지 — PHP 가 그렇다
+        # (관리자에게는 숨김/복구/영구삭제가 따로 있다).
+        if row is None or row.user_index != me.user_index:
+            return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
+
+        ctx = await _shell_ctx(request, db, me.level, row.category_index)
+        writable = (
+            await db.execute(
+                select(Category)
+                .where(Category.category_write_level >= me.level)
+                .order_by(Category.category_order)
+            )
+        ).scalars().all()
+
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "blog_editor.html",
+        {
+            **ctx,
+            "categories": writable,
+            "is_edit": True,
+            "post": row,
+            "selected_category": row.category_index,
+            "cancel_query": f"?category_index={row.category_index}",
+            "csrf_token": token,
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+def _reject(msg: str, to: str = "/blog") -> RedirectResponse:
+    """쓰기 거부 — 이유를 로그에만 남기고 사용자는 목록으로 보낸다.
+
+    화면에 이유를 세세히 알리지 않는다. 남의 글 id 를 넣어 보는 식의 탐색에
+    "권한 없음"과 "없는 글"이 서로 다른 답을 주면 그 자체가 정보가 된다.
+    """
+    logger.warning("쓰기 거부: %s", msg)
+    return RedirectResponse(to, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/writer.php", include_in_schema=False)
+async def writer_create(
+    request: Request,
+    csrf_token: str = Form(""),
+    title: str = Form(""),
+    content: str = Form(""),
+    thumbnail: str = Form(""),
+    category_index: int = Form(-1),
+):
+    """새 글 저장. PHP `PostController::create` + `Post::create` 를 합친 것."""
+    if not csrf.valid(request, csrf_token):
+        return _reject("csrf_invalid", "/writer.php")
+
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None:
+            return _reject("not_a_blog_user")
+        if me.is_limited:
+            return _reject(f"posting_limit user={me.user_id} {me.posting_count}/{me.posting_limit}")
+
+        clean_t = clean_title(title)
+        if not clean_t or not content.strip() or category_index <= 0:
+            return _reject("validation_error", "/writer.php")
+        if not await blog_user.can_write_category(db, me.level, category_index):
+            return _reject(f"category_denied user={me.user_id} cat={category_index}")
+
+        body = sanitize_for_save(content)
+        summary = make_summary(body)
+        thumb = validate_thumbnail(thumbnail)
+
+        res = await db.execute(
+            text(
+                "INSERT INTO posting_list "
+                "(posting_title, posting_content, posting_summary, posting_thumbnail, "
+                " category_index, user_index, posting_first_post_datetime) "
+                "VALUES (:t, :c, :s, :th, :cat, :u, NOW())"
+            ),
+            {"t": clean_t, "c": body, "s": summary, "th": thumb,
+             "cat": category_index, "u": me.user_index},
+        )
+        new_id = res.lastrowid
+        # 작성 수를 함께 올린다 — 이게 빠지면 제한이 영원히 안 걸린다.
+        await db.execute(
+            text("UPDATE user_list SET user_posting_count = user_posting_count + 1 "
+                 "WHERE user_index = :u"),
+            {"u": me.user_index},
+        )
+        await db.commit()
+
+    logger.info("글 작성: user=%s id=%s cat=%s", me.user_id, new_id, category_index)
+    return RedirectResponse(f"/reader.php?posting_index={new_id}",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/post/update/{post_id}", include_in_schema=False)
+async def post_update(
+    request: Request,
+    post_id: int,
+    csrf_token: str = Form(""),
+    title: str = Form(""),
+    content: str = Form(""),
+    thumbnail: str = Form(""),
+    category_index: int = Form(-1),
+):
+    """글 수정. 본인 글만. 작성 수는 건드리지 않는다(새 글이 아니다)."""
+    if not csrf.valid(request, csrf_token):
+        return _reject("csrf_invalid", f"/post/edit/{post_id}")
+
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None:
+            return _reject("not_a_blog_user")
+
+        owner = (
+            await db.execute(
+                text("SELECT user_index FROM posting_list WHERE posting_index = :i"),
+                {"i": post_id},
+            )
+        ).scalar()
+        if owner is None or int(owner) != me.user_index:
+            return _reject(f"not_owner user={me.user_id} post={post_id}")
+
+        clean_t = clean_title(title)
+        if not clean_t or not content.strip() or category_index <= 0:
+            return _reject("validation_error", f"/post/edit/{post_id}")
+        if not await blog_user.can_write_category(db, me.level, category_index):
+            return _reject(f"category_denied user={me.user_id} cat={category_index}")
+
+        body = sanitize_for_save(content)
+        await db.execute(
+            text(
+                "UPDATE posting_list SET posting_title = :t, posting_content = :c, "
+                "  posting_summary = :s, posting_thumbnail = :th, category_index = :cat, "
+                "  posting_last_edit_datetime = NOW() "
+                "WHERE posting_index = :i"
+            ),
+            {"t": clean_t, "c": body, "s": make_summary(body),
+             "th": validate_thumbnail(thumbnail), "cat": category_index, "i": post_id},
+        )
+        await db.commit()
+
+    logger.info("글 수정: user=%s id=%s", me.user_id, post_id)
+    return RedirectResponse(f"/reader.php?posting_index={post_id}",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+async def _state_change(request: Request, post_id: int, csrf_token: str,
+                        *, new_state: int, need_admin: bool = False):
+    """숨김(1)·복구(0) 공통 처리. 권한 기준은 PHP `enable`/`disable` 과 같다:
+    **본인 글이거나** 그 카테고리에 쓰기 권한이 있으면 된다.
+    """
+    if not csrf.valid(request, csrf_token):
+        return _reject("csrf_invalid", f"/reader.php?posting_index={post_id}")
+
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None:
+            return _reject("not_a_blog_user")
+        if need_admin and me.level > 1:
+            return _reject(f"admin_only user={me.user_id} level={me.level}")
+
+        row = (
+            await db.execute(
+                text("SELECT user_index, category_index FROM posting_list "
+                     "WHERE posting_index = :i"),
+                {"i": post_id},
+            )
+        ).first()
+        if row is None:
+            return _reject(f"not_found post={post_id}")
+
+        owner, cat = int(row[0]), int(row[1])
+        allowed = owner == me.user_index or await blog_user.can_write_category(db, me.level, cat)
+        if not allowed:
+            return _reject(f"denied user={me.user_id} post={post_id}")
+
+        await db.execute(
+            text("UPDATE posting_list SET posting_state = :s WHERE posting_index = :i"),
+            {"s": new_state, "i": post_id},
+        )
+        await db.commit()
+
+    logger.info("글 상태 변경: user=%s id=%s state=%s", me.user_id, post_id, new_state)
+    return RedirectResponse(f"/reader.php?posting_index={post_id}" if new_state == 0 else "/blog",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/post/disable/{post_id}", include_in_schema=False)
+async def post_disable(request: Request, post_id: int, csrf_token: str = Form("")):
+    """글 숨김. 지우지 않고 `posting_state=1` 로 둔다 — 관리자가 복구할 수 있다."""
+    return await _state_change(request, post_id, csrf_token, new_state=1)
+
+
+@router.post("/post/enable/{post_id}", include_in_schema=False)
+async def post_enable(request: Request, post_id: int, csrf_token: str = Form("")):
+    """숨긴 글 복구."""
+    return await _state_change(request, post_id, csrf_token, new_state=0)
+
+
+@router.post("/post/hard-delete/{post_id}", include_in_schema=False)
+async def post_hard_delete(request: Request, post_id: int, csrf_token: str = Form("")):
+    """영구 삭제 — **관리자(level<=1)만**. 되돌릴 수 없다(PHP 와 같은 기준)."""
+    if not csrf.valid(request, csrf_token):
+        return _reject("csrf_invalid", f"/reader.php?posting_index={post_id}")
+
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None or me.level > 1:
+            return _reject(f"admin_only post={post_id}")
+
+        owner = (
+            await db.execute(
+                text("SELECT user_index FROM posting_list WHERE posting_index = :i"),
+                {"i": post_id},
+            )
+        ).scalar()
+        if owner is None:
+            return _reject(f"not_found post={post_id}")
+
+        await db.execute(
+            text("DELETE FROM posting_list WHERE posting_index = :i"), {"i": post_id}
+        )
+        # 글이 사라졌으니 작성 수도 되돌린다 — 안 그러면 제한이 잘못 걸린다.
+        await db.execute(
+            text("UPDATE user_list SET user_posting_count = GREATEST(user_posting_count - 1, 0) "
+                 "WHERE user_index = :u"),
+            {"u": int(owner)},
+        )
+        await db.commit()
+
+    logger.warning("글 영구 삭제: user=%s id=%s", me.user_id, post_id)
+    return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
