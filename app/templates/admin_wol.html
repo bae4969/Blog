@@ -1,0 +1,102 @@
+{#
+  Wake-on-LAN — PHP `views/admin/wol.php` 자리.
+
+  ⚠️ "패킷을 보냈다" 와 "장비가 켜졌다" 는 다르다. 컨테이너에서 나가는 UDP 브로드캐스트라
+     도커 네트워크에 갇히면 LAN 까지 닿지 않는다. 화면 문구도 전송까지만 말한다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}WOL · Developer Blog{% endblock %}
+
+{% block content %}
+<style>
+  #admin-wol .admin-table { width: 100%; border-collapse: collapse; }
+  #admin-wol .admin-table td, #admin-wol .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
+  #admin-wol .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #admin-wol .row-actions { display: flex; gap: .35rem; align-items: center; justify-content: center; }
+  #admin-wol .row-actions form { display: inline; margin: 0; }
+  #admin-wol .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #admin-wol input[type=text] { width: 100%; min-width: 7rem; }
+</style>
+<div id="admin-wol" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">Wake-on-LAN</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">브로드캐스트 주소로 매직 패킷을 보냅니다 (UDP 9·7번 포트)</span>
+            </div>
+        </header>
+
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+
+        <div class="post-content">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:left">이름</th>
+                        <th style="text-align:left">브로드캐스트 IP</th>
+                        <th style="text-align:left">MAC</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <form method="post" action="/admin/wol/update">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="device_id" value="{{ r.wol_device_id }}">
+                            <td><input type="text" name="name" value="{{ r.wol_device_name }}" required></td>
+                            <td><input type="text" name="ip_range" value="{{ r.wol_device_ip_range }}" class="mono" required></td>
+                            <td><input type="text" name="mac_address" value="{{ r.wol_device_mac_address }}" class="mono" required></td>
+                            <td>
+                              <div class="row-actions">
+                                <button type="submit" class="btn btn-edit">저장</button>
+                        </form>
+                                <form method="post" action="/admin/wol/execute">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="device_id" value="{{ r.wol_device_id }}">
+                                    <button type="submit" class="btn btn-primary">깨우기</button>
+                                </form>
+                                <form method="post" action="/admin/wol/delete"
+                                      onsubmit="return confirm('{{ r.wol_device_name }} 를 목록에서 지울까요?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="device_id" value="{{ r.wol_device_id }}">
+                                    <button type="submit" class="btn btn-danger">삭제</button>
+                                </form>
+                              </div>
+                            </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="4" style="text-align:center; padding:1.5rem">등록된 장치가 없습니다.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <h2 style="margin-top:2rem">장치 추가</h2>
+            <form method="post" action="/admin/wol/create" class="post-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="w_name">이름</label>
+                        <input id="w_name" type="text" name="name" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="w_ip">브로드캐스트 IP</label>
+                        <input id="w_ip" type="text" name="ip_range" required class="form-control mono"
+                               placeholder="192.168.135.255">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="w_mac">MAC</label>
+                        <input id="w_mac" type="text" name="mac_address" required class="form-control mono"
+                               placeholder="30-56-0F-58-E7-E1">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">추가</button>
+            </form>
+        </div>
+    </article>
+</div>
+{% endblock %}

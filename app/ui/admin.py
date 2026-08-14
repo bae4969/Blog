@@ -9,6 +9,7 @@ cache·wol·stocks·api-settings)는 아직 PHP 가 갖고 있다.
 
 import logging
 import re
+import socket
 from datetime import datetime, timedelta
 from ipaddress import ip_address as ip_address_obj
 
@@ -513,3 +514,182 @@ async def logs(request: Request):
             "page": page, "pages": pages, "total": total,
         },
     )
+
+
+# ── Wake-on-LAN ─────────────────────────────────────────────────────
+
+#: 매직 패킷을 보낼 포트. 장비마다 듣는 포트가 달라 둘 다 시도한다(PHP 와 같다).
+_WOL_PORTS = (9, 7)
+_MAC_RE = re.compile(r"^[0-9A-Fa-f]{12}$")
+
+
+def _magic_packet(mac: str) -> bytes | None:
+    """WOL 매직 패킷 — `FF`6개 + MAC 16번. 형식이 틀리면 None."""
+    hexs = mac.replace("-", "").replace(":", "").strip()
+    if not _MAC_RE.match(hexs):
+        return None
+    return b"\xff" * 6 + bytes.fromhex(hexs) * 16
+
+
+@router.get("/wol", response_class=HTMLResponse, include_in_schema=False)
+async def wol(request: Request):
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/wol")
+        rows = (
+            await db.execute(
+                text("SELECT wol_device_id, wol_device_name, wol_device_ip_range, "
+                     "       wol_device_mac_address FROM wol_device_list "
+                     "ORDER BY wol_device_id")
+            )
+        ).all()
+        ctx = await _shell_ctx(request, db, me.level)
+
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "admin_wol.html",
+        {**ctx, "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+    )
+    csrf.attach(response, token)
+    return response
+
+
+@router.post("/wol/execute", include_in_schema=False)
+async def wol_execute(request: Request, csrf_token: str = Form(""), device_id: int = Form(0)):
+    """매직 패킷 전송.
+
+    ⚠️ 컨테이너에서 나가는 UDP 브로드캐스트다. 도커 브리지 네트워크에 갇히면 LAN 의
+    대상 장비까지 닿지 않는다 — 패킷을 **보내는 데 성공해도 장비가 안 켜질 수 있다**.
+    그래서 "전송했다" 로만 알리고 "켜졌다" 고 말하지 않는다.
+    """
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/wol")
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin wol.execute")
+        row = (
+            await db.execute(
+                text("SELECT wol_device_name, wol_device_ip_range, wol_device_mac_address "
+                     "FROM wol_device_list WHERE wol_device_id = :i"),
+                {"i": device_id},
+            )
+        ).first()
+
+    if row is None:
+        return _deny(f"device_not_found id={device_id}", "/admin/wol?msg=등록되지+않은+장치입니다")
+
+    name, bcast, mac = row[0], (row[1] or "").strip(), row[2]
+    packet = _magic_packet(mac)
+    if packet is None:
+        return _deny(f"bad_mac {mac}", "/admin/wol?msg=MAC+주소+형식이+올바르지+않습니다")
+    try:
+        ip_address_obj(bcast)
+    except ValueError:
+        return _deny(f"bad_broadcast {bcast}", "/admin/wol?msg=브로드캐스트+IP+가+올바르지+않습니다")
+
+    sent, errors = 0, []
+    for port in _WOL_PORTS:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.settimeout(2)
+                s.sendto(packet, (bcast, port))
+            sent += 1
+        except OSError as exc:
+            errors.append(f"{port}번 포트: {exc}")
+
+    if sent:
+        logger.info("WOL 전송: %s → %s (%d/%d 포트)", name, bcast, sent, len(_WOL_PORTS))
+        return RedirectResponse(f"/admin/wol?msg={name}+에+패킷을+보냈습니다",
+                                status_code=status.HTTP_303_SEE_OTHER)
+    logger.error("WOL 전송 실패: %s → %s (%s)", name, bcast, " | ".join(errors))
+    return RedirectResponse("/admin/wol?msg=패킷+전송에+실패했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/wol/create", include_in_schema=False)
+async def wol_create(
+    request: Request,
+    csrf_token: str = Form(""),
+    name: str = Form(""),
+    ip_range: str = Form(""),
+    mac_address: str = Form(""),
+):
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/wol")
+    if not name.strip() or _magic_packet(mac_address) is None:
+        return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
+    try:
+        ip_address_obj(ip_range.strip())
+    except ValueError:
+        return _deny("bad_broadcast", "/admin/wol?msg=브로드캐스트+IP+가+올바르지+않습니다")
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin wol.create")
+        await db.execute(
+            text("INSERT INTO wol_device_list "
+                 "(wol_device_name, wol_device_ip_range, wol_device_mac_address) "
+                 "VALUES (:n, :ip, :m)"),
+            {"n": name.strip(), "ip": ip_range.strip(), "m": mac_address.strip()},
+        )
+        await db.commit()
+
+    logger.info("WOL 장치 추가: %s", name)
+    return RedirectResponse("/admin/wol?msg=추가했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/wol/update", include_in_schema=False)
+async def wol_update(
+    request: Request,
+    csrf_token: str = Form(""),
+    device_id: int = Form(0),
+    name: str = Form(""),
+    ip_range: str = Form(""),
+    mac_address: str = Form(""),
+):
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/wol")
+    if not name.strip() or _magic_packet(mac_address) is None:
+        return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
+    try:
+        ip_address_obj(ip_range.strip())
+    except ValueError:
+        return _deny("bad_broadcast", "/admin/wol?msg=브로드캐스트+IP+가+올바르지+않습니다")
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin wol.update")
+        await db.execute(
+            text("UPDATE wol_device_list SET wol_device_name = :n, "
+                 "  wol_device_ip_range = :ip, wol_device_mac_address = :m "
+                 "WHERE wol_device_id = :i"),
+            {"n": name.strip(), "ip": ip_range.strip(), "m": mac_address.strip(), "i": device_id},
+        )
+        await db.commit()
+
+    logger.info("WOL 장치 수정: id=%s", device_id)
+    return RedirectResponse("/admin/wol?msg=수정했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/wol/delete", include_in_schema=False)
+async def wol_delete(request: Request, csrf_token: str = Form(""), device_id: int = Form(0)):
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/wol")
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin wol.delete")
+        await db.execute(
+            text("DELETE FROM wol_device_list WHERE wol_device_id = :i"), {"i": device_id}
+        )
+        await db.commit()
+
+    logger.info("WOL 장치 삭제: id=%s", device_id)
+    return RedirectResponse("/admin/wol?msg=삭제했습니다",
+                            status_code=status.HTTP_303_SEE_OTHER)
