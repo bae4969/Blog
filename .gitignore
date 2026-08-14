@@ -8,3 +8,7 @@ public/uploads/images/
 
 # FastAPI 포팅본 — 환경 설정(계정·비밀번호). .env 와 같은 이유로 제외한다.
 .env.api
+
+# 파이썬 바이트코드 — 컨테이너가 실행하며 만든다. 커밋에 딸려 들어간 적 있다.
+__pycache__/
+*.pyc
