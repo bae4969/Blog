@@ -1,5 +1,6 @@
 .vscode/
 .claude/
+CLAUDE.md
 temp/
 cache/
 vendor/
