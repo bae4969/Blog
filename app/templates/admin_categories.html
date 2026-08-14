@@ -1,0 +1,124 @@
+{#
+  카테고리 관리 — PHP `views/admin/categories.php` 자리.
+
+  ⚠️ 기존 admin CSS(`/css/admin.css`)를 쓰려면 클래스 이름을 맞춰야 한다. 다만 이 화면은
+     블로그 레이아웃(`layout.html`) 위에 얹으므로, admin 전용 래퍼가 필요하면 그때 함께
+     옮길 것. 지금은 블로그 CSS 안에서 읽히는 최소 마크업으로 둔다.
+  ⚠️ 등급 숫자는 **낮을수록 권한이 높다**(0:root … 4:visitor). "읽기 4" 는 누구나 볼 수
+     있다는 뜻이다 — 화면에도 그렇게 적어 혼동을 줄인다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}카테고리 관리 · Developer Blog{% endblock %}
+
+{% block content %}
+{#
+  기존 `blog.css` 에는 폼을 가로로 세우는 규칙이 없다(`inline-form` 미정의). admin 전용
+  CSS 를 아직 안 옮겨 왔으므로 이 화면에 필요한 최소 규칙만 여기 둔다 — 나머지 admin
+  화면을 옮길 때 공용 스타일로 빼낼 것.
+#}
+<style>
+  #admin-categories .admin-table td,
+  #admin-categories .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
+  #admin-categories .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #admin-categories .row-actions { display: flex; gap: .35rem; align-items: center; justify-content: center; }
+  #admin-categories .row-actions form { display: inline; margin: 0; }
+  #admin-categories input[type=text] { width: 100%; min-width: 8rem; }
+  #admin-categories input[type=number] { width: 4rem; text-align: center; }
+</style>
+<div id="admin-categories" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">카테고리 관리</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">등급은 숫자가 낮을수록 권한이 높습니다 (0 root · 4 visitor)</span>
+            </div>
+        </header>
+
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+
+        <div class="post-content">
+            <table class="admin-table" style="width:100%; border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th style="text-align:left">이름</th>
+                        <th>글</th>
+                        <th>읽기</th>
+                        <th>쓰기</th>
+                        <th>순서</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <form method="post" action="/admin/categories/update">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="category_index" value="{{ r.category_index }}">
+                            <td><input type="text" name="name" value="{{ r.category_name }}" maxlength="60" required></td>
+                            <td style="text-align:center">{{ r.post_count }}</td>
+                            <td style="text-align:center">
+                                <input type="number" name="read_level" value="{{ r.category_read_level }}" min="0" max="4" style="width:4rem">
+                            </td>
+                            <td style="text-align:center">
+                                <input type="number" name="write_level" value="{{ r.category_write_level }}" min="0" max="4" style="width:4rem">
+                            </td>
+                            <td style="text-align:center">{{ r.category_order }}</td>
+                            <td>
+                              <div class="row-actions">
+                                <button type="submit" class="btn btn-edit">저장</button>
+                        </form>
+                                {# 순서 이동·삭제는 각각 별도 폼이다 — 위 폼 안에 넣으면 같이 제출된다. #}
+                                <form method="post" action="/admin/categories/reorder" >
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
+                                    <input type="hidden" name="direction" value="up">
+                                    <button type="submit" class="btn" title="위로">↑</button>
+                                </form>
+                                <form method="post" action="/admin/categories/reorder" >
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
+                                    <input type="hidden" name="direction" value="down">
+                                    <button type="submit" class="btn" title="아래로">↓</button>
+                                </form>
+                                <form method="post" action="/admin/categories/delete" 
+                                      onsubmit="return confirm('{{ r.category_name }} 카테고리를 지울까요?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
+                                    {# 글이 있으면 서버가 거부한다. 버튼도 미리 막아 헛클릭을 줄인다. #}
+                                    <button type="submit" class="btn btn-danger"
+                                            {% if r.post_count %}disabled title="글이 {{ r.post_count }}개 있어 지울 수 없습니다"{% endif %}>삭제</button>
+                                </form>
+                              </div>
+                            </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <h2 style="margin-top:2rem">새 카테고리</h2>
+            <form method="post" action="/admin/categories/create" class="post-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="new_name">이름</label>
+                        <input id="new_name" type="text" name="name" maxlength="60" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new_read">읽기 등급</label>
+                        <input id="new_read" type="number" name="read_level" value="4" min="0" max="4" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new_write">쓰기 등급</label>
+                        <input id="new_write" type="number" name="write_level" value="1" min="0" max="4" class="form-control">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">추가</button>
+            </form>
+        </div>
+    </article>
+</div>
+{% endblock %}

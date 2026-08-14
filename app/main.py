@@ -22,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 from app.core.security import current_user_or_none, fetch_public_key
+from app.ui.admin import router as admin_router
 from app.ui.routes import router as ui_router
 
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +67,7 @@ _STATIC = Path(__file__).parent / "static"
 app.mount("/static-api", StaticFiles(directory=_STATIC), name="static-api")
 
 app.include_router(ui_router)
+app.include_router(admin_router)   # /admin/* — 지금은 카테고리만
 
 
 @app.get("/healthz", include_in_schema=False)
