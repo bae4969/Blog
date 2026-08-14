@@ -12,6 +12,7 @@ import re
 import socket
 from datetime import datetime, timedelta
 from ipaddress import ip_address as ip_address_obj
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -394,6 +395,149 @@ async def ip_block_clean(request: Request, csrf_token: str = Form("")):
     logger.info("만료 IP 차단 정리: %s건", n)
     return RedirectResponse(f"/admin/ip-blocks?msg={n}건+정리했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── 사용자 관리 ─────────────────────────────────────────────────────
+#
+# **계정 생성과 비밀번호는 옮기지 않는다.** 계정은 중앙 auth(`10.auth`)가 만들고,
+# 여기 `user_list` 는 블로그 쪽 프로필(등급·글 제한·활성 여부)만 든다. PHP 에 있던
+# `createUser`·`reset_password` 는 auth 소관이라 포팅 대상이 아니다.
+#
+# `user_pw` 컬럼은 아직 PHP 로그인이 쓰고 있어 남아 있다 — PHP 를 걷어낼 때 함께 없앤다.
+
+#: 등급 라벨. 숫자가 낮을수록 권한이 높다.
+_USER_LEVELS = {0: "슈퍼관리자", 1: "관리자", 2: "에디터", 3: "작성자", 4: "구독자"}
+#: 글 제한 허용 범위 — PHP `AdminController` 와 같은 값.
+_POSTING_LIMIT_MAX = 10000
+
+
+@router.get("/users", response_class=HTMLResponse, include_in_schema=False)
+async def users(request: Request):
+    """사용자 목록. `?q=` 로 아이디를 부분검색한다(숫자면 user_index 도 함께 본다)."""
+    q = (request.query_params.get("q") or "").strip()[:50]
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/users")
+
+        sql = (
+            "SELECT user_index, user_id, user_level, user_state, "
+            "       user_posting_count, user_posting_limit, user_last_action_datetime "
+            "FROM user_list"
+        )
+        params: dict = {}
+        if q:
+            # PHP 와 같은 조건 — 아이디 부분일치, 검색어가 숫자면 user_index 완전일치도.
+            sql += " WHERE user_id LIKE :like"
+            params["like"] = f"%{q}%"
+            if q.isdigit():
+                sql += " OR user_index = :idx"
+                params["idx"] = int(q)
+        sql += " ORDER BY user_level ASC, user_id ASC"
+
+        rows = (await db.execute(text(sql), params)).all()
+        ctx = await _shell_ctx(request, db, me.level)
+
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "admin_users.html",
+        {
+            **ctx,
+            "admin_menu": "users",
+            "rows": rows,
+            "levels": _USER_LEVELS,
+            "q": q,
+            "me_index": me.user_index,
+            "csrf_token": token,
+            "msg": request.query_params.get("msg"),
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+@router.post("/users/update", include_in_schema=False)
+async def user_update(
+    request: Request,
+    csrf_token: str = Form(""),
+    # ⚠️ 기본값을 두지 않는다 — `user_index` 는 **0 이 실제 계정**(bae4969)이라, 빠진 필드가
+    # 0 으로 떨어지면 엉뚱하게 그 계정을 건드린다. 없으면 422 로 끊는 편이 안전하다.
+    user_index: int = Form(...),
+    action: str = Form(""),
+    user_level: int = Form(4),
+    user_posting_limit: int = Form(10),
+    q: str = Form(""),
+):
+    """등급·활성여부·글 제한 변경.
+
+    ⚠️ **자기 자신은 등급과 상태를 바꿀 수 없다**(PHP 와 같은 규칙). 관리자가 스스로
+    권한을 낮추거나 계정을 잠가 아무도 관리자로 남지 않는 상황을 막는다.
+    """
+    back = "/admin/users" + (f"?q={quote(q)}" if q else "")
+
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", back)
+    # PHP 는 `<= 0` 으로 막아 user_index 0(bae4969)을 아예 수정할 수 없었다. 0 은 유효한
+    # 계정이므로 음수만 걸러내고, 존재 여부는 아래 조회가 판단한다.
+    if user_index < 0:
+        return _deny("invalid_user_index", f"{back}{'&' if q else '?'}msg=유효하지+않은+사용자입니다")
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/users/update")
+
+        row = (
+            await db.execute(
+                text("SELECT user_id, user_state FROM user_list WHERE user_index = :i"),
+                {"i": user_index},
+            )
+        ).first()
+        if row is None:
+            return _deny("user_not_found", back)
+        target_id, target_state = row[0], int(row[1])
+
+        sep = "&" if q else "?"
+        is_self = user_index == me.user_index
+
+        if action == "update_level":
+            if user_level not in _USER_LEVELS:
+                return _deny("invalid_level", f"{back}{sep}msg=유효하지+않은+등급입니다")
+            if is_self:
+                return _deny("self_update_blocked", f"{back}{sep}msg=자신의+권한은+변경할+수+없습니다")
+            await db.execute(
+                text("UPDATE user_list SET user_level = :lv WHERE user_index = :i"),
+                {"lv": user_level, "i": user_index},
+            )
+            logger.info("사용자 등급 변경: %s(%s) -> %s", target_id, user_index, user_level)
+
+        elif action == "toggle_state":
+            if is_self:
+                return _deny("self_toggle_blocked", f"{back}{sep}msg=자신의+상태는+변경할+수+없습니다")
+            new_state = 1 if target_state == 0 else 0
+            await db.execute(
+                text("UPDATE user_list SET user_state = :s WHERE user_index = :i"),
+                {"s": new_state, "i": user_index},
+            )
+            logger.info("사용자 상태 변경: %s(%s) -> %s", target_id, user_index, new_state)
+
+        elif action == "update_posting_limit":
+            if not 0 <= user_posting_limit <= _POSTING_LIMIT_MAX:
+                return _deny("invalid_posting_limit", f"{back}{sep}msg=글+제한이+범위를+벗어났습니다")
+            await db.execute(
+                text("UPDATE user_list SET user_posting_limit = :l WHERE user_index = :i"),
+                {"l": user_posting_limit, "i": user_index},
+            )
+            logger.info("사용자 글제한 변경: %s(%s) -> %s", target_id, user_index, user_posting_limit)
+
+        else:
+            return _deny(f"unknown_action:{action}", back)
+
+        await db.commit()
+
+    return RedirectResponse(back, status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ── 로그 뷰어 ───────────────────────────────────────────────────────

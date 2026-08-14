@@ -1,0 +1,124 @@
+{#
+  사용자 관리 — PHP `views/admin/users.php` 자리.
+
+  ⚠️ **생성 폼이 없다.** 계정은 중앙 auth(`10.auth`)가 만든다. 여기 `user_list` 는 블로그
+     프로필(등급·글 제한·활성 여부)만 든다. 비밀번호 초기화도 같은 이유로 없앴다.
+  ⚠️ 등급 숫자는 **낮을수록 권한이 높다**(0 슈퍼관리자 … 4 구독자).
+  ⚠️ 자기 자신은 등급·상태를 바꿀 수 없다 — 라우트가 막지만, 화면에서도 컨트롤을 지워
+     눌러보고 거절당하는 일이 없게 한다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}사용자 관리 · Developer Blog{% endblock %}
+
+{% block content %}
+<style>
+  #admin-users .admin-table td,
+  #admin-users .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
+  #admin-users .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #admin-users .inline-form { display: inline; margin: 0; }
+  #admin-users input[type=number] { width: 5rem; text-align: center; }
+  #admin-users .admin-search-form { display: flex; gap: .4rem; margin-bottom: 1rem; }
+  #admin-users .self-badge { opacity: .6; font-size: .85em; }
+</style>
+<div id="admin-users" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">사용자 관리</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">등급은 숫자가 낮을수록 권한이 높습니다 (0 슈퍼관리자 · 4 구독자)</span>
+            </div>
+        </header>
+
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+
+        <div class="post-content">
+            <p style="opacity:.75; margin-bottom:1rem">
+                계정 생성과 비밀번호 변경은 <strong>중앙 인증</strong>에서 합니다.
+                이 화면은 블로그 쪽 등급·글 제한·활성 여부만 다룹니다.
+            </p>
+
+            <form method="get" action="/admin/users" class="admin-search-form">
+                <input type="text" name="q" value="{{ q }}" placeholder="아이디 또는 ID로 검색" maxlength="50">
+                <button type="submit" class="btn btn-primary">검색</button>
+            </form>
+
+            <table class="admin-table" style="width:100%; border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>아이디</th>
+                        <th>권한</th>
+                        <th>상태</th>
+                        <th>게시글</th>
+                        <th>제한</th>
+                        <th>최근 활동</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    {% set is_self = r.user_index == me_index %}
+                    <tr>
+                        <td>{{ r.user_index }}</td>
+                        <td>
+                            {{ r.user_id }}
+                            {% if is_self %}<span class="self-badge">(나)</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if is_self %}
+                                {{ levels.get(r.user_level, r.user_level) }}
+                            {% else %}
+                            <form method="post" action="/admin/users/update" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="q" value="{{ q }}">
+                                <input type="hidden" name="user_index" value="{{ r.user_index }}">
+                                <input type="hidden" name="action" value="update_level">
+                                <select name="user_level" onchange="this.form.submit()">
+                                    {% for lv, label in levels.items() %}
+                                    <option value="{{ lv }}" {% if lv == r.user_level %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if is_self %}
+                                {{ '활성' if r.user_state == 0 else '비활성' }}
+                            {% else %}
+                            <form method="post" action="/admin/users/update" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="q" value="{{ q }}">
+                                <input type="hidden" name="user_index" value="{{ r.user_index }}">
+                                <input type="hidden" name="action" value="toggle_state">
+                                <button type="submit" class="btn">
+                                    {{ '활성' if r.user_state == 0 else '비활성' }}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        <td>{{ r.user_posting_count }}</td>
+                        <td>
+                            <form method="post" action="/admin/users/update" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="q" value="{{ q }}">
+                                <input type="hidden" name="user_index" value="{{ r.user_index }}">
+                                <input type="hidden" name="action" value="update_posting_limit">
+                                <input type="number" name="user_posting_limit"
+                                       value="{{ r.user_posting_limit }}" min="0" max="10000">
+                                <button type="submit" class="btn">저장</button>
+                            </form>
+                        </td>
+                        <td>{{ r.user_last_action_datetime or '—' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" style="text-align:center; opacity:.6">사용자가 없습니다.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+</div>
+{% endblock %}
