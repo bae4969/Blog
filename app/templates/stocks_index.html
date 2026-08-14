@@ -1,0 +1,122 @@
+{#
+  종목 목록 — PHP `views/stock/index.php` 자리.
+
+  ⚠️ 목록에 나오는 것은 `stock_info` 전체가 아니라 **구독 중인 종목만**이다. 구독은
+     `/admin/stocks` 에서 정한다.
+  ⚠️ "인기 주식" 패널은 아직 안 옮겼다(PHP `getTopStocks`, 205줄 — candle 테이블을 UNION 해
+     등락률을 계산한다). 그 자리는 아래에서 안내 문구로 둔다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}주식 · Developer Blog{% endblock %}
+
+{% block content %}
+<style>
+  #stocks .admin-table td, #stocks .admin-table th { padding: .45rem .6rem; }
+  #stocks .admin-table tbody tr { border-top: 1px solid #36383A; }
+  #stocks .toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .8rem; }
+  #stocks .tab { padding: .3rem .8rem; border-radius: 4px; }
+  #stocks .tab-on { background: #36383A; font-weight: 600; }
+  #stocks .stats { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+  #stocks .stat { padding: .5rem .8rem; border: 1px solid #36383A; border-radius: 6px; }
+  #stocks .stat b { display: block; font-size: 1.1em; }
+  #stocks .pager { display: flex; gap: .4rem; justify-content: center; margin-top: 1rem; }
+  #stocks .num { text-align: right; font-variant-numeric: tabular-nums; }
+  #stocks .side { margin-top: 1.5rem; }
+  #stocks .soon { opacity: .6; padding: .6rem; border: 1px dashed #36383A; border-radius: 6px; }
+</style>
+<div id="stocks" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">주식</h1>
+            <div class="post-meta">
+                <span class="post-category">{{ market }}</span>
+                <span class="post-date">구독 중 {{ total }}종목</span>
+            </div>
+        </header>
+
+        <div class="post-content">
+            <div class="stats">
+                {% for s in stats %}
+                <div class="stat">
+                    <span>{{ s.label }}</span>
+                    <b>{{ s.cnt }}종목</b>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="toolbar">
+                {% for m in markets %}
+                <a class="tab {% if m == market %}tab-on{% endif %}" href="/stocks?market={{ m }}">{{ m }}</a>
+                {% endfor %}
+                <form method="get" action="/stocks" style="display:flex; gap:.4rem; margin-left:auto">
+                    <input type="hidden" name="market" value="{{ market }}">
+                    <input type="text" name="search" value="{{ search }}" placeholder="코드 또는 이름" maxlength="50">
+                    <button type="submit" class="btn btn-primary">검색</button>
+                </form>
+            </div>
+
+            <table class="admin-table" style="width:100%; border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th>코드</th>
+                        <th>이름</th>
+                        <th>시장</th>
+                        <th class="num">현재가</th>
+                        <th class="num">시가총액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <td>{{ r.code }}</td>
+                        <td>{{ r.name_kr or r.name_en or '' }}</td>
+                        <td>{{ r.market }}</td>
+                        {# 최신 종가가 있으면 그걸 쓴다 — stock_price 는 갱신이 늦다(PHP 와 같다). #}
+                        <td class="num">
+                            {% set p = closes.get(r.code, r.price) %}
+                            {{ '{:,.2f}'.format(p) if p is not none else '—' }}
+                        </td>
+                        <td class="num">{{ '{:,.0f}'.format(r.cap) if r.cap else '' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5" style="text-align:center; opacity:.6">종목이 없습니다.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {% if total_pages > 1 %}
+            <div class="pager">
+                {% set qs = 'market=' ~ market ~ ('&search=' ~ search if search else '') %}
+                {% if page > 1 %}<a class="btn" href="/stocks?{{ qs }}&page={{ page - 1 }}">이전</a>{% endif %}
+                <span>{{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}<a class="btn" href="/stocks?{{ qs }}&page={{ page + 1 }}">다음</a>{% endif %}
+            </div>
+            {% endif %}
+
+            <div class="side">
+                <h3>Top 포트폴리오</h3>
+                <table class="admin-table" style="width:100%; border-collapse:collapse">
+                    <thead><tr><th>이름</th><th class="num">점수</th><th>등급</th></tr></thead>
+                    <tbody>
+                    {% for p in portfolios %}
+                        <tr>
+                            <td>{{ p.portfolio_name }}</td>
+                            <td class="num">{{ '{:,.2f}'.format(p.ranking_score) if p.ranking_score is not none else '' }}</td>
+                            <td>{{ p.ranking_grade or '' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="3" style="text-align:center; opacity:.6">포트폴리오가 없습니다.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="side">
+                <h3>인기 주식</h3>
+                <div class="soon">등락률 계산은 아직 옮기는 중입니다.</div>
+            </div>
+        </div>
+    </article>
+</div>
+{% endblock %}
