@@ -18,20 +18,25 @@ from app.core.config import settings
 def _pin_session_defaults(dbapi_conn, _record) -> None:
     """새 커넥션마다 세션 타임존(UTC)과 격리 수준(READ COMMITTED)을 고정한다.
 
-    **타임존** — MariaDB 에는 tz-aware 타입이 없고 서버의 `@@global.time_zone` 은
-    SYSTEM(이 NAS 는 Asia/Seoul)이다. 고정하지 않으면 DB 가 채우는 시각과 앱이 만드는
-    시각이 **9시간 어긋난다.** 글 작성·수정 시각을 다루므로 반드시 맞춰 둔다.
+    **타임존 — 여기서는 UTC 가 아니라 KST(+09:00) 다.**
 
-    ⚠️ PHP 쪽은 이 설정을 하지 않아 `posting_*_datetime` 이 **KST 로 저장**돼 있다.
-    화면에 뿌릴 때 UTC 로 착각해 변환하면 9시간이 밀린다 — 이 컬럼들은 이미 현지
-    시각이라고 보고 그대로 쓴다.
+    다른 서비스(auth 등)는 UTC 로 고정하는 게 맞다. 그런데 이 서비스는 포팅이 끝날
+    때까지 **PHP 와 같은 테이블을 함께 쓴다.** PHP 는 세션 타임존을 건드리지 않아
+    서버 기본값(SYSTEM = Asia/Seoul)으로 `NOW()` 를 쓴다. 즉 DB 에 든 시각은 전부 KST 다.
+
+    앱만 UTC 로 잡으면 **같은 값을 두 스택이 9시간 다르게 읽는다.** 실제로 겪었다 —
+    1시간 전에 만료된 IP 차단이 앱에는 8시간 뒤로 보여 "만료 정리" 가 0건을 지웠다
+    (2026-08-14). 글 작성 시각·차단 만료처럼 `NOW()` 와 비교하는 값이 전부 걸린다.
+
+    ⚠️ PHP 를 걷어낸 뒤에 UTC 로 옮길 것. 그때는 **기존 데이터도 함께 변환**해야 한다
+    (단순히 이 줄만 바꾸면 옛 행이 9시간 밀린다).
 
     **격리 수준** — MariaDB 11.6+ 는 `innodb_snapshot_isolation` 이 기본 ON 이라
     "읽은 행이 그 뒤 바뀌었으면 쓰기 거부"(1020)를 던진다. 읽고 이어서 쓰는 경로
     (조회수 증가 등)가 그 조합에 걸릴 수 있어 READ COMMITTED 로 맞춘다.
     """
     cur = dbapi_conn.cursor()
-    cur.execute("SET SESSION time_zone = '+00:00'")
+    cur.execute("SET SESSION time_zone = '+09:00'")
     cur.execute("SET SESSION transaction_isolation = 'READ-COMMITTED'")
     cur.close()
 
