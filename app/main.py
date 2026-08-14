@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -66,8 +66,32 @@ app.add_middleware(OptionalAuthMiddleware)
 _STATIC = Path(__file__).parent / "static"
 app.mount("/static-api", StaticFiles(directory=_STATIC), name="static-api")
 
+# ── 정적 파일 — 옛 PHP 문서루트(`public/`)를 그대로 서빙한다 ──────────────
+#
+# 지금까지 `/css/*`·`/res/*`·`/vendor/quill/*` 은 **PHP 컨테이너**가 줬다. PHP 를 걷어내면
+# 아무도 안 주게 되므로 여기서 받는다. 경로를 바꾸지 않는 이유는 옛 링크·북마크와 PHP 뷰가
+# 같은 URL 을 쓰기 때문이다(`/css/blog.css` 등).
+#
+# ⚠️ `uploads` 는 사용자가 올린 이미지라 **글 본문이 이 URL 을 직접 가리킨다.** 경로를 바꾸면
+#    기존 글의 이미지가 전부 깨진다.
+_PUBLIC = Path(__file__).parent.parent / "public"
+for _sub in ("css", "js", "res", "vendor", "uploads"):
+    _dir = _PUBLIC / _sub
+    if _dir.is_dir():
+        app.mount(f"/{_sub}", StaticFiles(directory=_dir), name=f"public-{_sub}")
+
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/* — 지금은 카테고리만
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(_PUBLIC / "favicon.ico")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots() -> FileResponse:
+    return FileResponse(_PUBLIC / "robots.txt")
 
 
 @app.get("/healthz", include_in_schema=False)
