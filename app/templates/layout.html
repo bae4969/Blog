@@ -27,7 +27,6 @@
             <div id="topNavDropdown">
                 <a href="/blog">블로그</a>
                 <a href="/stocks">주식</a>
-                <a href="/func">인터랙트</a>
                 {% if level <= 1 %}<a href="/admin">관리자</a>{% endif %}
             </div>
         </div>
@@ -75,7 +74,6 @@
                         ('cache', '캐시 관리', '/admin/cache'),
                         ('stocks', '주식 구독 관리', '/admin/stocks'),
                         ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
-                        ('api-settings', '외부 API 설정', '/admin/api-settings'),
                         ('wol', 'WOL', '/admin/wol'),
                         ('ip-blocks', 'IP 차단 관리', '/admin/ip-blocks'),
                     ] %}

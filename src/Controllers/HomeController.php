@@ -37,8 +37,6 @@ class HomeController extends BaseController
 
         if ($subdomain === 'stock') {
             $this->redirect('/stocks' . $suffix);
-        } elseif ($subdomain === 'func') {
-            $this->redirect('/func' . $suffix);
         } else {
             $this->redirect('/blog' . $suffix);
         }

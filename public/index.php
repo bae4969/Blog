@@ -7,7 +7,6 @@ use Blog\Controllers\HomeController;
 use Blog\Controllers\AuthController;
 use Blog\Controllers\PostController;
 use Blog\Controllers\StockController;
-use Blog\Controllers\FuncController;
 use Blog\Controllers\AdminController;
 use Blog\Core\Logger;
 use Blog\Core\Cache;
@@ -57,12 +56,6 @@ $router->get('/index.php', [HomeController::class, 'redirectBySubdomain']);
 $router->get('/blog', [HomeController::class, 'index']);
 $router->get('/blog/search', [HomeController::class, 'search']);
 $router->get('/search', [HomeController::class, 'search']);
-$router->get('/func', [FuncController::class, 'index']);
-$router->get('/func/youtube-feed', [FuncController::class, 'youtubeFeed']);
-$router->get('/func/analyze', [FuncController::class, 'analyze']);
-$router->post('/func/analyze/react', [FuncController::class, 'reactAnalysis']);
-$router->get('/func/history', [FuncController::class, 'history']);
-$router->get('/a/:id', [FuncController::class, 'analyzeShort', '/a/:id']);
 
 // 인증 컨트롤러 라우트
 $router->get('/login.php', [AuthController::class, 'loginForm']);
@@ -104,9 +97,6 @@ $router->post('/admin/stocks/subscriptions', [AdminController::class, 'updateSto
 $router->get('/admin/stock-splits', [AdminController::class, 'splitEvents']);
 $router->post('/admin/stock-splits/create', [AdminController::class, 'createSplitEvent', '/admin/stock-splits/create']);
 $router->post('/admin/stock-splits/delete', [AdminController::class, 'deleteSplitEvent', '/admin/stock-splits/delete']);
-$router->get('/admin/api-settings', [AdminController::class, 'apiSettings']);
-$router->post('/admin/api-settings/youtube', [AdminController::class, 'saveYoutubeApiSettings']);
-$router->post('/admin/api-settings/ai-providers', [AdminController::class, 'saveAllAiProviders']);
 $router->get('/admin/wol', [AdminController::class, 'wol']);
 $router->post('/admin/wol/execute', [AdminController::class, 'wolExecute']);
 $router->post('/admin/wol/create', [AdminController::class, 'wolCreateDevice']);

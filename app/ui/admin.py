@@ -1,7 +1,7 @@
 """관리자 화면 — PHP `AdminController` 를 영역별로 옮기는 중.
 
-지금 옮긴 것: **카테고리**(목록·추가·수정·삭제·순서). 나머지(users·ip-blocks·logs·
-cache·wol·stocks·api-settings)는 아직 PHP 가 갖고 있다.
+지금 옮긴 것: 진입점·**카테고리**·**IP 차단**·**로그**·**WOL**. 나머지(users·cache·
+stocks·stock-splits)는 아직 PHP 가 갖고 있다.
 
 접근 권한은 PHP 와 같다 — `level <= 1`(root·admin). 화면을 숨기는 것과 별개로
 **모든 라우트가 다시 검사한다.**

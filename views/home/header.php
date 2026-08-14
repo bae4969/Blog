@@ -6,8 +6,6 @@ if (isset($isAdminPage) && $isAdminPage) {
     $topNavLabel = '관리자';
 } elseif (isset($isStockPage) && $isStockPage) {
     $topNavLabel = '주식';
-} elseif (isset($isFuncPage) && $isFuncPage) {
-    $topNavLabel = '인터랙트';
 } elseif ($currentPath === '/' || strpos($currentPath, '/blog') === 0 || strpos($currentPath, '/reader.php') === 0 || strpos($currentPath, '/writer.php') === 0 || strpos($currentPath, '/post/') === 0 || strpos($currentPath, '/search') === 0) {
     $topNavLabel = '블로그';
 }
@@ -16,8 +14,6 @@ if (isset($isAdminPage) && $isAdminPage) {
     $titleLink = '/admin';
 } elseif (isset($isStockPage) && $isStockPage) {
     $titleLink = '/stocks';
-} elseif (isset($isFuncPage) && $isFuncPage) {
-    $titleLink = '/func';
 } else {
     $titleLink = '/blog';
 }
@@ -28,7 +24,6 @@ if (isset($isAdminPage) && $isAdminPage) {
         <div id="topNavDropdown">
             <a href="/blog">블로그</a>
             <a href="/stocks">주식</a>
-            <a href="/func">인터랙트</a>
             <?php if ($auth->isLoggedIn() && $auth->canManageStocks()): ?>
                 <a href="/admin">관리자</a>
             <?php endif; ?>
@@ -37,7 +32,7 @@ if (isset($isAdminPage) && $isAdminPage) {
     <div id="topRight" onclick="loginoutClick()">
         <?= $auth->isLoggedIn() ? '로그아웃' : '로그인' ?>
     </div>
-    <?php if ((!isset($isStockPage) || !$isStockPage) && (!isset($isAdminPage) || !$isAdminPage) && (!isset($isFuncPage) || !$isFuncPage) && $auth->isLoggedIn() && $auth->canWrite()): ?>
+    <?php if ((!isset($isStockPage) || !$isStockPage) && (!isset($isAdminPage) || !$isAdminPage) && $auth->isLoggedIn() && $auth->canWrite()): ?>
         <div id="topWrite" data-button-role="blog-write" onclick="writePostingClick()">글쓰기</div>
     <?php endif; ?>
     <div id="title">
