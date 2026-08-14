@@ -6,7 +6,7 @@ if (isset($isAdminPage) && $isAdminPage) {
     $topNavLabel = '관리자';
 } elseif (isset($isStockPage) && $isStockPage) {
     $topNavLabel = '주식';
-} elseif ($currentPath === '/' || strpos($currentPath, '/blog') === 0 || strpos($currentPath, '/reader.php') === 0 || strpos($currentPath, '/writer.php') === 0 || strpos($currentPath, '/post/') === 0 || strpos($currentPath, '/search') === 0) {
+} elseif ($currentPath === '/' || strpos($currentPath, '/blog') === 0 || strpos($currentPath, '/reader.php') === 0 || strpos($currentPath, '/writer.php') === 0 || strpos($currentPath, '/post/') === 0) {
     $topNavLabel = '블로그';
 }
 

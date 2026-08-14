@@ -5,7 +5,6 @@ namespace Blog\Controllers;
 use Blog\Models\Post;
 use Blog\Models\Category;
 use Blog\Models\User;
-use Blog\Core\Cache;
 
 class HomeController extends BaseController
 {
@@ -88,38 +87,5 @@ class HomeController extends BaseController
         ];
         
         $this->renderLayout('blog', 'blog/index', $data);
-    }
-
-    public function search(): void
-    {
-        if (!$this->requireInternalRequest()) {
-            return;
-        }
-
-        // 검색 요청 Rate Limiting (IP당 분당 20회)
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        $cache = Cache::getInstance();
-        $searchRateKey = Cache::key('search_rate', $ip);
-        $searchCount = (int)($cache->get($searchRateKey) ?? 0) + 1;
-        $cache->set($searchRateKey, $searchCount, 60);
-        if ($searchCount > 20) {
-            $this->jsonResponse(['error' => '검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'], 429);
-            return;
-        }
-
-        $categoryId = (int)$this->getParam('category_index', -1);
-        $search = $this->getParam('search_string', '');
-        $userLevel = $this->auth->getCurrentUserLevel();
-        
-        $categoryId = $categoryId > 0 ? $categoryId : null;
-        
-        $posts = $this->postModel->getMetaAll($userLevel, 1, 10, $categoryId, $search);
-        $totalCount = $this->postModel->getTotalCount($categoryId, $search);
-        
-        $this->json([
-            'success' => true,
-            'posts' => $posts,
-            'totalCount' => $totalCount
-        ]);
     }
 }

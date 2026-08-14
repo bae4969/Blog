@@ -54,8 +54,6 @@ $router = new Router();
 $router->get('/', [HomeController::class, 'redirectBySubdomain']);
 $router->get('/index.php', [HomeController::class, 'redirectBySubdomain']);
 $router->get('/blog', [HomeController::class, 'index']);
-$router->get('/blog/search', [HomeController::class, 'search']);
-$router->get('/search', [HomeController::class, 'search']);
 
 // 인증 컨트롤러 라우트
 $router->get('/login.php', [AuthController::class, 'loginForm']);
