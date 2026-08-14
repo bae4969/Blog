@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div id="postings">
+    <div>
+        {% if not posts %}
+            <div class="alert alert-info">게시글이 없습니다.</div>
+        {% else %}
+        <div id="left">
+            {% for p in posts %}
+            <div class="posting {% if p.posting_state != 0 %}posting-disabled{% endif %}"
+                 onclick="location.href='/reader.php?posting_index={{ p.posting_index }}'">
+                <div class="posting_title">{{ p.posting_title }}</div>
+                <div class="post-meta">
+                    <span class="post-category">{{ p.category_name or '미분류' }}</span>
+                    <span class="post-author">{{ p.user_id or '익명' }}</span>
+                    {# 이 시각은 DB 에 이미 KST 로 들어 있다 — 변환하면 9시간 밀린다. #}
+                    <span class="post-date">{{ p.posting_first_post_datetime.strftime('%Y-%m-%d %H:%M') if p.posting_first_post_datetime else '' }}</span>
+                    <span class="post-read-count">조회: {{ '{:,}'.format(p.posting_read_cnt or 0) }}</span>
+                </div>
+                <hr>
+                <div class="posting_content_wrapper {% if not p.posting_thumbnail %}no-thumbnail{% endif %}">
+                    {% if p.posting_thumbnail %}
+                    <div class="posting_thumbnail_container">
+                        <img class="posting_thumbnail" src="data:image/webp;base64,{{ p.posting_thumbnail }}" alt="썸네일">
+                    </div>
+                    {% endif %}
+                    <div class="posting_summary">
+                        {%- set s = p.posting_summary | striptags | trim -%}
+                        {%- if s -%}{{ s[:200] }}{% if s|length > 200 %} ...{% endif %}
+                        {%- else -%}내용이 없습니다.{%- endif -%}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="right"></div>
+        {% endif %}
+    </div>
+
+    {#
+      페이저 — PHP `views/blog/index.php` 의 규칙을 그대로 옮겼다.
+      현재 쪽 좌우 4개 + 첫 쪽·마지막 쪽, 끊기면 …. 클래스 이름(`page-current`,
+      `page-ellipsis`)도 같아야 기존 CSS 가 그대로 먹는다.
+      쿼리 파라미터는 값이 있을 때만 붙인다(PHP 의 array_filter 와 같은 동작) —
+      안 그러면 1쪽 링크가 `?page=1` 이 되어 PHP 가 만든 URL 과 달라진다.
+    #}
+    {% if pages > 1 %}
+    {% macro q(p) -%}
+        {%- set parts = [] -%}
+        {%- if p > 1 %}{% set _ = parts.append('page=' ~ p) %}{% endif -%}
+        {%- if category_id %}{% set _ = parts.append('category_index=' ~ category_id) %}{% endif -%}
+        {%- if search %}{% set _ = parts.append('search_string=' ~ search | urlencode) %}{% endif -%}
+        {{- '?' ~ parts | join('&') if parts else '' -}}
+    {%- endmacro %}
+    {% set start = [1, page - 4] | max %}
+    {% set end = [pages, page + 4] | min %}
+    <div class="pagination">
+        {% if page > 1 %}<a href="{{ q(page - 1) }}" class="page-link">←</a>{% endif %}
+
+        {% if start > 1 %}
+            <a href="{{ q(1) }}" class="page-link">1</a>
+            {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
+        {% endif %}
+
+        {% for p in range(start, end + 1) %}
+            {% if p == page %}
+            <span class="page-link page-current">{{ p }}</span>
+            {% else %}
+            <a href="{{ q(p) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if end < pages %}
+            {% if end < pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
+            <a href="{{ q(pages) }}" class="page-link">{{ pages }}</a>
+        {% endif %}
+
+        {% if page < pages %}<a href="{{ q(page + 1) }}" class="page-link">→</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,361 @@
+/* 터미널(xterm) 한글 전각 monospace — 기본 monospace 는 한글 글리프가 없어 시스템
+ * 폴백이 한글을 반각으로 그려 셀 오른쪽 1칸이 비고 자간이 벌어진다. 한글·영문 폭
+ * 비율이 일관된 코딩 폰트로 통일한다. */
+@font-face {
+  font-family: "Nanum Gothic Coding";
+  src: url("/static/fonts/nanum-gothic-coding.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===== AI Center 다크 단일 테마 — 토큰 + 시맨틱 클래스 =====
+ * Surfaces: Win11 Fluent Dark
+ *
+ * 단일 소스(SoT): 색 정의는 :root --bae-* 토큰 1곳 + 아래 시맨틱 클래스뿐이다.
+ * 마크업/JS 는 라이트 Tailwind 색 유틸 대신 이 시맨틱 클래스를 직접 쓴다.
+ */
+
+:root {
+    /* ── Accent — 테마색을 바꾸려면 이 블록만 고친다 ─────────────────
+     * 아래 5줄이 앱 전체 accent 의 단일 ref 다. tint(배지·강조 배경)는
+     * rgba(var(--bae-accent-rgb), α) 로 파생되므로 따로 손댈 곳이 없다.
+     *
+     * ⚠️ --bae-accent-rgb 는 --bae-accent 와 반드시 같은 색의 R,G,B 채널값.
+     *    color-mix() 로 자동 파생하지 않는 이유는 --user-bubble-bg 주석 참조.
+     * ⚠️ CSS 밖은 이 토큰이 닿지 않아 함께 갱신해야 한다:
+     *    ① static/favicon.svg  ② static/usage-icon.svg
+     *    ③ static/icon-*.png 4개 (temp/scratch/recolor_icons.py 의 DST_HEX 만 바꿔 재실행)
+     *    ④ ui/auth.py 403 페이지의 인라인 hex
+     *    ⑤ static/{manifest,usage}.webmanifest 의 icons[].src 뒤 ?v=날짜
+     *       — 안 올리면 설치된 PWA 가 옛 아이콘을 계속 쓴다(실제로 겪음).
+     */
+    --bae-accent:        #C4B5FD;
+    --bae-accent-rgb:    196, 181, 253;
+    --bae-accent-hover:  #D3C2FF;
+    --bae-accent-press:  #AC9BEF;
+    --bae-accent-text:   #000000;
+
+    /* 사용자 말풍선 배경 — accent 88% + #1a1a1a 12% 를 미리 계산한 정적 값.
+       color-mix 는 브라우저 computed 가 color(srgb …) 로 직렬화돼 html2canvas 1.4.1
+       (버그 리포트 화면 캡처)이 파싱 못 해 throw 한다. 그래서 파생이 아니라 상수다 —
+       accent 를 바꾸면 이 값도 같은 비율로 다시 계산해 넣을 것. */
+    --user-bubble-bg:   rgb(176, 162, 226);
+
+    /* Surfaces */
+    --bae-bg:            #202020;
+    --bae-bg-alt:        #1C1C1C;
+    --bae-surface:       #2B2B2B;
+    --bae-surface-alt:   #323232;
+    --bae-surface-hover: #3A3A3A;
+    --bae-surface-press: #272727;
+
+    /* Borders */
+    --bae-border:        #3A3A3A;
+    --bae-border-hover:  #4A4A4A;
+    --bae-divider:       #2D2D2D;
+
+    /* Text */
+    --bae-text-primary:  #FFFFFF;
+    --bae-text-muted:    #C7C7C7;
+    --bae-text-dim:      #9A9A9A;
+
+    /* Status */
+    --bae-danger:        #FF99A4;
+    --bae-success:       #6CCB5F;
+}
+
+/* ── 표면(배경) ───────────────────────────────────────────────── */
+.app-bg        { background-color: var(--bae-bg); }
+.app-bg-alt    { background-color: var(--bae-bg-alt); }
+.app-bg-sidebar{ background-color: var(--bae-surface-alt); }
+.surface       { background-color: var(--bae-surface); }
+.surface-alt   { background-color: var(--bae-surface-alt); }
+.surface-hover { background-color: var(--bae-surface-hover); }
+.surface-hover-on-hover:hover { background-color: var(--bae-surface-hover); }
+.surface-alt-on-hover:hover   { background-color: var(--bae-surface-alt); }
+
+/* ── 텍스트 ────────────────────────────────────────────────────── */
+.txt        { color: var(--bae-text-primary); }
+.txt-muted  { color: var(--bae-text-muted); }
+.txt-dim    { color: var(--bae-text-dim); }
+.txt-accent { color: var(--bae-accent); }
+.txt-accent-on-hover:hover { color: var(--bae-accent); }
+.txt-on-hover:hover        { color: var(--bae-text-primary); }
+.txt-muted-on-hover:hover  { color: var(--bae-text-muted); }
+.txt-success { color: var(--bae-success); }
+.txt-danger  { color: var(--bae-danger); }
+.txt-danger-on-hover:hover { color: var(--bae-danger); }
+.txt-warn    { color: #fde047; }
+
+/* ── 테두리·구분선 ─────────────────────────────────────────────── */
+.bd          { border-color: var(--bae-border); }
+.bd-strong   { border-color: var(--bae-border-hover); }
+.bd-divider  { border-color: var(--bae-divider); }
+.bd-accent   { border-color: var(--bae-accent); }
+.bd-danger   { border-color: var(--bae-danger); }
+.bd-success  { border-color: var(--bae-success); }
+
+/* ── 주 액션 버튼 (accent) ─────────────────────────────────────── */
+.btn-primary {
+    background-color: var(--bae-accent);
+    color: var(--bae-accent-text);
+}
+.btn-primary:hover  { background-color: var(--bae-accent-hover); }
+.btn-primary:active { background-color: var(--bae-accent-press); }
+.btn-primary:disabled { background-color: var(--bae-surface-hover); color: var(--bae-text-dim); }
+
+/* ── 보조/위험 버튼 ────────────────────────────────────────────── */
+.btn-ghost {
+    border: 1px solid var(--bae-border-hover);
+    color: var(--bae-text-muted);
+}
+.btn-ghost:hover { background-color: var(--bae-surface-hover); }
+
+.btn-danger {
+    border: 1px solid var(--bae-danger);
+    color: var(--bae-danger);
+}
+.btn-danger:hover { background-color: rgba(255, 153, 164, 0.15); }
+
+/* ── 링크·accent 텍스트 ────────────────────────────────────────── */
+.link { color: var(--bae-accent); }
+.link:hover { color: var(--bae-accent-hover); }
+
+/* ── 상태 배지 ─────────────────────────────────────────────────── */
+/* 진한 tint(원본 *-100, 0.22) — status pill 등 */
+.badge-success { background-color: rgba(108, 203, 95, 0.22); color: var(--bae-success); }
+.badge-danger  { background-color: rgba(255, 153, 164, 0.22); color: var(--bae-danger); }
+.badge-warn    { background-color: rgba(133, 77, 14, 0.40);   color: #fde047; }
+.badge-info    { background-color: rgba(var(--bae-accent-rgb), 0.22); color: var(--bae-accent); }
+.badge-neutral { background-color: var(--bae-border-hover);     color: var(--bae-text-muted); }
+/* 터미널 세션 backend 배지 — chat 과 구분되게 앱 accent tint */
+.badge-terminal { background-color: rgba(var(--bae-accent-rgb), 0.22); color: var(--bae-accent); }
+
+/* 옅은 tint(원본 *-50, 0.15) — 에러 박스·Edit diff 블록 등 */
+.tint-success { background-color: rgba(108, 203, 95, 0.15); }
+.tint-danger  { background-color: rgba(255, 153, 164, 0.15); }
+.tint-info    { background-color: rgba(var(--bae-accent-rgb), 0.15); }
+
+/* ── 사이드바 세션 카드 라이브 신호 ───────────────────────────── */
+/* 진행 중(thinking/streaming/tool_running) — 노랑 펄스 도트와 통일. */
+.session-busy {
+    background-color: rgba(253, 224, 71, 0.10);
+    box-shadow: inset 3px 0 0 #fde047;
+}
+/* 응답 완료 후 사용자가 그 세션을 아직 확인 안 함 — 녹색 도트와 통일. */
+.session-unread {
+    background-color: rgba(34, 197, 94, 0.12);
+    box-shadow: inset 3px 0 0 #22c55e;
+}
+/* AskUserQuestion 응답 대기 — 주황. 사용자가 직접 답해야 진행되므로 가장 강한 강조. */
+.session-auq {
+    background-color: rgba(251, 146, 60, 0.14);
+    box-shadow: inset 3px 0 0 #fb923c;
+}
+/* 유휴 — 회색 도트와 통일(약한 톤, active 카드는 강조 유지를 위해 JS에서 제외). */
+.session-idle {
+    background-color: rgba(107, 114, 128, 0.06);
+    box-shadow: inset 3px 0 0 rgba(107, 114, 128, 0.55);
+}
+/* 선택된 세션 — accent 색 outline 으로 강조(outline 은 카드 크기·시그널 box-shadow 와 충돌 없음). */
+.session-active {
+    outline: 1px solid var(--bae-accent);
+    outline-offset: -1px;
+}
+/* 선택 + 상태색: 원래는 좌측 상태 바(3px)와 accent outline 이 좌측 변에서 겹쳐 라인이 지저분.
+   outline 을 box-shadow ring 으로 바꾸고 좌측 3px 상태 바를 그 위 레이어로 얹어 좌측의 accent
+   선만 덮는다 → 좌측 겹침 제거. 상/우/하 accent 1px·상태색·fill 은 원래대로. busy/unread/auq. */
+.session-active.session-busy {
+    outline: none;
+    box-shadow: inset 3px 0 0 #fde047, inset 0 0 0 1px var(--bae-accent);
+}
+.session-active.session-unread {
+    outline: none;
+    box-shadow: inset 3px 0 0 #22c55e, inset 0 0 0 1px var(--bae-accent);
+}
+.session-active.session-auq {
+    outline: none;
+    box-shadow: inset 3px 0 0 #fb923c, inset 0 0 0 1px var(--bae-accent);
+}
+
+/* ── 사이드바 드래그 재정렬 ───────────────────────────── */
+/* 그룹 헤더·세션 카드는 드래그로 순서 변경 가능. grab 커서로 가능함을 알리고,
+   드래그 중인 요소는 반투명 처리. 클릭(세션 선택)은 그대로 동작. */
+[data-tree] [draggable="true"] { cursor: grab; }
+[data-tree] [draggable="true"]:active { cursor: grabbing; }
+.sidebar-dragging { opacity: 0.45; }
+
+/* ── 사이드바 카드 라이브 점 — 응답대기(주황) > 생각중(노랑) > 미확인(녹) > 유휴(회).
+   상시 pulse 애니메이션은 저CPU여도 GPU 컴포지터를 매 프레임 점유해 다른 탭 영상 재생을
+   버벅이게 만든다. 움직임 없는 정적 halo(box-shadow — 1회 paint, 컴포지터 루프 없음)로
+   대체: auq=강한 주황 glow, busy=옅은 노랑 glow. unread/idle 은 색만(정적). */
+.session-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+}
+.session-dot-busy {
+    background-color: #fde047;
+    box-shadow: 0 0 4px rgba(253, 224, 71, 0.8);
+}
+.session-dot-unread { background-color: #22c55e; }
+.session-dot-idle   { background-color: #6b7280; opacity: 0.55; }
+.session-dot-auq {
+    background-color: #fb923c;
+    box-shadow: 0 0 6px 1px rgba(251, 146, 60, 0.9);
+}
+
+/* ── 폼 필드 ───────────────────────────────────────────────────── */
+.field {
+    background-color: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    border-color: var(--bae-border);
+}
+.field:focus { border-color: var(--bae-accent); outline: none; }
+.field:read-only,
+.field[readonly] {
+    background-color: var(--bae-surface);
+    border-color: var(--bae-border);
+}
+.field::placeholder { color: var(--bae-text-dim); }
+
+/* ── 상태 점(2px dot) — solid 색 ──────────────────────────────── */
+.dot-online  { background-color: var(--bae-success); }
+.dot-offline { background-color: var(--bae-danger); }
+.dot-neutral { background-color: var(--bae-text-dim); }
+
+/* ── 포커스 링 ─────────────────────────────────────────────────── */
+.focus-ring:focus { --tw-ring-color: var(--bae-accent); }
+
+/* ── AskUserQuestion 옵션 행 ───────────────────────────────────── */
+.opt-recommended { border: 1px solid var(--bae-accent); background-color: rgba(var(--bae-accent-rgb), 0.15); }
+.opt-row { border: 1px solid transparent; }
+.opt-row:hover { background-color: var(--bae-surface-alt); }
+.opt-picked { background-color: rgba(108, 203, 95, 0.15); border-color: var(--bae-success); }
+
+/* ── 모달 딤 오버레이 ──────────────────────────────────────────── */
+.overlay { background-color: rgba(0, 0, 0, 0.60); }
+.overlay-strong { background-color: rgba(0, 0, 0, 0.70); }
+
+/* ── 사용자 말풍선 (accent 강조 버블) ──────────────────────────── */
+/* buildUserCard 전용. md 본문은 .assistant-md 경로를 그대로 쓰므로
+   사용자 스코프에서 accent 위 가독 색으로 재정의. 하이재킹 규칙이 사라져
+   더 이상 main .assistant-md * !important 와 경합하지 않으므로 !important 불요. */
+.user-bubble {
+    /* 배경은 :root --user-bubble-bg(accent 를 12% 톤다운한 상수). 페이드 ::after
+       끝색도 같은 변수를 참조해 배경/페이드가 어긋나지 않는다. */
+    background-color: var(--user-bubble-bg);
+    color: #000000;
+}
+/* 잘림 하단 페이드 — max-h-28 + overflow-hidden 으로 콘텐츠가 잘렸을 때만
+   (is-truncated 클래스) 그린다. 짧은 메시지는 원래 스타일 유지.
+   톤다운 배경(--user-bubble-bg)으로 자연스럽게 사라지며, pointer-events: none 으로
+   텍스트 선택·우상단 확대 버튼 hit-test 를 가리지 않는다. */
+.user-bubble.is-truncated::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1.5rem;
+    background: linear-gradient(to bottom, transparent, var(--user-bubble-bg));
+    pointer-events: none;
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+/* 우상단 확대 버튼이 첫 라인 텍스트와 겹치지 않도록 float 스페이서로 첫 라인만
+   우측 공간 확보. assistant 측은 "ASSISTANT" 라벨이 우상단 영역을 비우지만
+   user-bubble은 라벨이 없어 텍스트가 버튼 위로 흐른다 → is-truncated 일 때만 적용. */
+.user-bubble.is-truncated::before {
+    content: "";
+    float: right;
+    width: 3.5rem;
+    height: 1.25rem;
+}
+/* 확대·복사 버튼: 글로벌 txt-dim/txt-muted-on-hover 가 다크 surface 기준이라
+   accent 배경 위에서 잘 안 보임 → user-bubble 스코프에서 짙은 톤으로 재정의. */
+.user-bubble .assistant-fullscreen-btn,
+.user-bubble .assistant-copy-btn {
+    color: rgba(0, 0, 0, 0.55);
+}
+.user-bubble .assistant-fullscreen-btn:hover,
+.user-bubble .assistant-copy-btn:hover {
+    color: #1a1a1a;
+}
+.user-bubble .assistant-md { color: #000000; }
+/* accent(밝은) 배경의 검정 글씨는 어두운 배경의 흰 글씨(halation 으로 더 두껍게 지각)보다
+   얇아 보인다 → 본문(p·li) 두께를 한 단계 올려 어시스턴트 말풍선과 지각 굵기를 맞춘다.
+   strong/b 는 700 으로 보호(p·li 상속에 안 묻히게), heading·th 는 p·li 선택자 밖이라 영향 없음. */
+.user-bubble .assistant-md p,
+.user-bubble .assistant-md li { font-weight: 500; }
+.user-bubble .assistant-md strong,
+.user-bubble .assistant-md b { font-weight: 700; }
+.user-bubble .assistant-md a {
+    color: #0f2e00;
+    text-decoration: underline;
+}
+.user-bubble .assistant-md a:hover { color: #1f4d00; }
+.user-bubble .assistant-md code {
+    background-color: rgba(0, 0, 0, 0.14);
+    color: #14210a;
+}
+.user-bubble .assistant-md pre {
+    background-color: #1f1f1f;
+    color: #f3f4f6;
+    max-width: 100%;
+}
+.user-bubble .assistant-md pre code {
+    background: transparent;
+    color: inherit;
+}
+.user-bubble .assistant-md blockquote {
+    border-left-color: rgba(0, 0, 0, 0.45);
+    color: #1f1f1f;
+}
+.user-bubble .assistant-md th,
+.user-bubble .assistant-md td {
+    border-color: rgba(0, 0, 0, 0.35);
+}
+.user-bubble .assistant-md th {
+    background-color: rgba(0, 0, 0, 0.12);
+    color: #14210a;
+}
+.user-bubble .assistant-md table { max-width: 100%; }
+.user-bubble .assistant-md hr {
+    border-top-color: rgba(0, 0, 0, 0.30);
+}
+
+/* ── assistant 마크다운 스코프 (다크 surface 톤 단일 정의) ─────── */
+/* custom.css 의 라이트 hex 하드코딩 + dark.css 의 override 를 토큰 참조
+   단일 정의로 통합 — 이중 페인트 제거. 색 외 레이아웃/타이포는 custom.css 유지. */
+.assistant-md code {
+    background-color: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+}
+.assistant-md pre {
+    background-color: var(--bae-bg-alt);
+    color: var(--bae-text-primary);
+}
+.assistant-md blockquote {
+    border-left-color: var(--bae-border-hover);
+    color: var(--bae-text-muted);
+}
+.assistant-md th,
+.assistant-md td {
+    border-color: var(--bae-border);
+}
+.assistant-md th {
+    background-color: var(--bae-surface-alt);
+}
+.assistant-md a {
+    color: var(--bae-accent);
+}
+.assistant-md a:hover {
+    color: var(--bae-accent-hover);
+}
+.assistant-md hr {
+    border-top-color: var(--bae-border);
+}

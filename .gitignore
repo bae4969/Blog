@@ -5,3 +5,6 @@ cache/
 vendor/
 config/
 public/uploads/images/
+
+# FastAPI 포팅본 — 환경 설정(계정·비밀번호). .env 와 같은 이유로 제외한다.
+.env.api
