@@ -1,0 +1,125 @@
+{#
+  로그 뷰어 — PHP `views/admin/logs.php` 자리.
+
+  ⚠️ 정렬·테이블 이름은 서버에서 화이트리스트로 걸러 온 값이다. ORDER BY 와 테이블명은
+     바인딩이 안 돼 문자열로 붙일 수밖에 없어서, 목록에 없으면 기본값으로 되돌린다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}로그 · Developer Blog{% endblock %}
+
+{% macro sort_link(col, label) -%}
+    {%- set nxt = 'ASC' if (sort == col and order == 'DESC') else 'DESC' -%}
+    <a href="?table={{ table }}&sort={{ col }}&order={{ nxt }}{{ keep }}">
+        {{ label }}{% if sort == col %} {{ '▼' if order == 'DESC' else '▲' }}{% endif %}
+    </a>
+{%- endmacro %}
+
+{% block content %}
+<style>
+  #admin-logs .log-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  #admin-logs .log-table td, #admin-logs .log-table th { padding: .35rem .5rem; vertical-align: top; }
+  #admin-logs .log-table tbody tr { border-top: 1px solid #2A2C2E; }
+  #admin-logs .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  #admin-logs .msg { white-space: pre-wrap; word-break: break-word; }
+  /* 심각도 색 — 한눈에 걸러 보려는 목적이라 배경 대신 글자색만 바꾼다. */
+  #admin-logs .t-E { color: #FF99A4; font-weight: 700; }
+  #admin-logs .t-W { color: #FDE047; }
+  #admin-logs .t-N { color: #9CA3AF; }
+  #admin-logs .filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; margin-bottom: 1rem; }
+  #admin-logs .filters label { display: block; font-size: .72rem; color: #9CA3AF; margin-bottom: .15rem; }
+</style>
+<div id="admin-logs" class="post-wrapper">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">로그</h1>
+            <div class="post-meta">
+                <span class="post-category">관리자</span>
+                <span class="post-date">
+                    {{ '{:,}'.format(total) }}건
+                    {%- if not (name or q or types or date_to) %} · 조건이 없어 최근 7일만 봅니다{% endif %}
+                </span>
+            </div>
+        </header>
+
+        <div class="post-content">
+            <form method="get" class="filters">
+                <div>
+                    <label for="f_table">테이블</label>
+                    <select id="f_table" name="table">
+                        {% for t in tables %}
+                        <option value="{{ t }}" {% if t == table %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="f_name">이름</label>
+                    <input id="f_name" type="text" name="name" value="{{ name }}" placeholder="BlogPost">
+                </div>
+                <div>
+                    <label for="f_q">메시지 검색</label>
+                    <input id="f_q" type="text" name="q" value="{{ q }}" maxlength="200">
+                </div>
+                <div>
+                    <label>심각도</label>
+                    {% for t, lab in [('I','정보'), ('W','경고'), ('E','오류'), ('N','알림')] %}
+                    <label style="display:inline-block; margin-right:.5rem; color:inherit">
+                        <input type="checkbox" name="type" value="{{ t }}" {% if t in types %}checked{% endif %}> {{ lab }}
+                    </label>
+                    {% endfor %}
+                </div>
+                <div>
+                    <label for="f_from">시작일</label>
+                    <input id="f_from" type="date" name="date_from" value="{{ date_from }}">
+                </div>
+                <div>
+                    <label for="f_to">종료일</label>
+                    <input id="f_to" type="date" name="date_to" value="{{ date_to }}">
+                </div>
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <input type="hidden" name="order" value="{{ order }}">
+                <button type="submit" class="btn btn-primary">조회</button>
+                <a href="/admin/logs" class="btn">초기화</a>
+            </form>
+
+            {% set keep = '&name=' ~ name|urlencode ~ '&q=' ~ q|urlencode ~ '&date_from=' ~ date_from ~ '&date_to=' ~ date_to %}
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:left">{{ sort_link('log_datetime', '시각') }}</th>
+                        <th style="text-align:left">{{ sort_link('log_name', '이름') }}</th>
+                        <th>{{ sort_link('log_type', '심각도') }}</th>
+                        <th style="text-align:left">메시지</th>
+                        <th style="text-align:left">{{ sort_link('log_function', '위치') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <td class="mono">{{ r.log_datetime.strftime('%m-%d %H:%M:%S') if r.log_datetime else '-' }}</td>
+                        <td>{{ r.log_name or '-' }}</td>
+                        <td style="text-align:center" class="t-{{ r.log_type }}">{{ r.log_type or '-' }}</td>
+                        <td class="msg">{{ r.log_message or '' }}</td>
+                        <td class="mono" style="font-size:.72rem; color:#9CA3AF">
+                            {{ r.log_function or '' }}{% if r.log_line %}:{{ r.log_line }}{% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5" style="text-align:center; padding:1.5rem">조건에 맞는 로그가 없습니다.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {% if pages > 1 %}
+            {% set base = '?table=' ~ table ~ '&sort=' ~ sort ~ '&order=' ~ order ~ keep %}
+            {% for t in types %}{% set base = base ~ '&type=' ~ t %}{% endfor %}
+            <div class="pagination" style="margin-top:1rem">
+                {% if page > 1 %}<a href="{{ base }}&page={{ page - 1 }}" class="page-link">←</a>{% endif %}
+                <span class="page-link page-current">{{ page }} / {{ pages }}</span>
+                {% if page < pages %}<a href="{{ base }}&page={{ page + 1 }}" class="page-link">→</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </article>
+</div>
+{% endblock %}

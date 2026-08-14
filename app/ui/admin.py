@@ -8,6 +8,8 @@ cache·wol·stocks·api-settings)는 아직 PHP 가 갖고 있다.
 """
 
 import logging
+import re
+from datetime import datetime, timedelta
 from ipaddress import ip_address as ip_address_obj
 
 from fastapi import APIRouter, Form, Request, status
@@ -16,7 +18,7 @@ from sqlalchemy import text
 
 from app.core import blog_user, csrf
 from app.db.session import db_session
-from app.ui.routes import _shell_ctx, templates
+from app.ui.routes import _KST, _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
@@ -391,3 +393,123 @@ async def ip_block_clean(request: Request, csrf_token: str = Form("")):
     logger.info("만료 IP 차단 정리: %s건", n)
     return RedirectResponse(f"/admin/ip-blocks?msg={n}건+정리했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── 로그 뷰어 ───────────────────────────────────────────────────────
+#
+# `Log` 스키마는 블로그 것이 아니라 **여러 서비스가 함께 쓰는 곳**이다. 여기서는
+# 읽기만 한다 — 계정에도 그 스키마 쓰기 권한이 없다.
+
+#: 정렬에 쓸 수 있는 컬럼. **화이트리스트가 아니면 SQL 에 넣지 않는다** —
+#: ORDER BY 는 바인딩 파라미터가 안 되므로 문자열로 붙일 수밖에 없고, 그래서 값을
+#: 목록으로 못 박는 것이 유일한 방어다.
+_LOG_SORTS = ("log_datetime", "log_name", "log_type", "log_function", "log_file")
+_LOG_ORDERS = ("ASC", "DESC")
+#: 볼 수 있는 로그 테이블. 이것도 같은 이유로 화이트리스트다.
+_LOG_TABLES = ("blog_log", "stock_ticker_log")
+_LOG_TYPES = ("I", "W", "E", "N")
+_LOG_PER_PAGE = 50
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+@router.get("/logs", response_class=HTMLResponse, include_in_schema=False)
+async def logs(request: Request):
+    """로그 조회. 필터가 하나도 없으면 최근 7일로 좁힌다(PHP 와 같은 기본값).
+
+    로그가 수만 건이라 조건 없이 전체를 훑으면 화면도 DB 도 무겁다.
+    """
+    qp = request.query_params
+    table = qp.get("table", "blog_log")
+    if table not in _LOG_TABLES:
+        table = "blog_log"
+
+    sort = qp.get("sort", "log_datetime")
+    if sort not in _LOG_SORTS:
+        sort = "log_datetime"
+    order = qp.get("order", "DESC").upper()
+    if order not in _LOG_ORDERS:
+        order = "DESC"
+
+    name = (qp.get("name") or "").strip()[:255]
+    q = (qp.get("q") or "").strip()[:200]
+    types = [t for t in qp.getlist("type") if t in _LOG_TYPES]
+    date_from = qp.get("date_from", "")
+    date_to = qp.get("date_to", "")
+    if not _DATE_RE.match(date_from or ""):
+        date_from = ""
+    if not _DATE_RE.match(date_to or ""):
+        date_to = ""
+
+    # 아무 조건도 없으면 최근 7일. 사용자가 하나라도 걸면 그 조건만 쓴다.
+    if not any((name, q, types, date_from, date_to)):
+        date_from = (datetime.now(_KST) - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    where, params = [], {}
+    if name:
+        where.append("log_name LIKE :name")
+        params["name"] = f"%{name}%"
+    if q:
+        where.append("log_message LIKE :q")
+        params["q"] = f"%{q}%"
+    if types:
+        # IN 절도 바인딩으로 — 값 개수만큼 이름을 만든다.
+        keys = []
+        for i, t in enumerate(types):
+            k = f"t{i}"
+            keys.append(f":{k}")
+            params[k] = t
+        where.append(f"log_type IN ({', '.join(keys)})")
+    if date_from:
+        where.append("log_datetime >= :dfrom")
+        params["dfrom"] = f"{date_from} 00:00:00"
+    if date_to:
+        where.append("log_datetime <= :dto")
+        params["dto"] = f"{date_to} 23:59:59"
+
+    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    page = max(1, int(qp.get("page", 1)) if (qp.get("page") or "1").isdigit() else 1)
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/logs")
+
+        total = (
+            await db.execute(text(f"SELECT COUNT(*) FROM Log.{table} {clause}"), params)
+        ).scalar() or 0
+        pages = max(1, (total + _LOG_PER_PAGE - 1) // _LOG_PER_PAGE)
+        page = min(page, pages)
+
+        rows = (
+            await db.execute(
+                text(
+                    f"SELECT log_datetime, log_name, log_type, log_message, "
+                    f"       log_function, log_file, log_line "
+                    f"FROM Log.{table} {clause} "
+                    # ⚠️ 정렬 키를 **하나만** 쓰면 안 된다. MariaDB 12.1.2 에서
+                    #    `ORDER BY <인덱스 컬럼> DESC LIMIT n` 이 이 테이블에서
+                    #    **빈 결과**를 돌려준다(COUNT 는 90인데 SELECT 만 0행). ASC 는
+                    #    정상이고 IGNORE INDEX 를 걸어도 정상이라 옵티마이저 문제로 보인다.
+                    #    tie-breaker 를 하나 더 붙이면 계획이 바뀌어 제대로 나온다 —
+                    #    같은 값이 여럿일 때 쪽 넘김이 흔들리지 않는 효과도 함께 얻는다.
+                    f"ORDER BY {sort} {order}, log_name {order} "
+                    f"LIMIT {int(_LOG_PER_PAGE)} OFFSET {int((page - 1) * _LOG_PER_PAGE)}"
+                ),
+                params,
+            )
+        ).all()
+        ctx = await _shell_ctx(request, db, me.level)
+
+    return templates.TemplateResponse(
+        request,
+        "admin_logs.html",
+        {
+            **ctx,
+            "rows": rows,
+            "table": table, "tables": _LOG_TABLES,
+            "sort": sort, "order": order,
+            "name": name, "q": q, "types": types,
+            "date_from": date_from, "date_to": date_to,
+            "page": page, "pages": pages, "total": total,
+        },
+    )
