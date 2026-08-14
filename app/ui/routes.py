@@ -60,6 +60,25 @@ def _user_level(user: AuthUser | None) -> int:
     return settings.anonymous_level
 
 
+@router.get("/", include_in_schema=False)
+@router.get("/index.php", include_in_schema=False)
+async def root_by_subdomain(request: Request) -> RedirectResponse:
+    """사이트 루트 — 서브도메인을 보고 블로그/주식으로 보낸다.
+
+    세 도메인(`blog`·`stock`·…)이 한 서버를 가리키므로 진입점에서 갈라야 한다.
+    PHP `HomeController::redirectBySubdomain` 을 그대로 옮겼다 — 쿼리스트링을 붙여 넘기고
+    상태코드도 302 로 맞춘다(PHP `View::redirect` 와 같다).
+
+    `/stocks` 는 아직 PHP 가 갖고 있지만 경로가 달라 Traefik 이 알아서 그쪽으로 보낸다.
+    """
+    host = request.headers.get("host", "localhost").split(":")[0]
+    subdomain = host.split(".")[0]
+    target = "/stocks" if subdomain == "stock" else "/blog"
+    if request.url.query:
+        target += f"?{request.url.query}"
+    return RedirectResponse(target, status_code=status.HTTP_302_FOUND)
+
+
 @router.get("/blog", response_class=HTMLResponse, include_in_schema=False)
 async def blog_index(request: Request):
     """글 목록. 로그인하지 않아도 볼 수 있다(공개 카테고리만).
