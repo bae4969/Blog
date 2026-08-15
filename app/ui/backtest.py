@@ -32,13 +32,14 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import text
 
 from app.core import blog_user
 from app.db.session import db_session
 from app.services import backtest as engine
-from app.ui.stocks import _resolve_is_coin, _resolve_source, candle_rows
+from app.ui.routes import _shell_ctx, templates
+from app.ui.stocks import _level, _resolve_is_coin, _resolve_source, candle_rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -102,6 +103,20 @@ async def _candle_date_range(db, code: str, market: str) -> tuple | None:
     if not row or row.mn is None or row.mx is None:
         return None
     return row.mn, row.mx
+
+
+@router.get("/stocks/backtest", response_class=HTMLResponse, include_in_schema=False)
+async def backtest_page(request: Request):
+    """백테스팅 화면. 폼만 서버가 그리고 계산·차트는 전부 `/js/backtest.js` 가 한다.
+
+    `?portfolio=<id>` 로 들어오면 그 설정을 복원하는데, 그것도 JS 가
+    `/stocks/api/portfolio` 를 불러 처리한다 — 서버는 여기서 아무것도 읽지 않는다.
+    """
+    async with db_session() as db:
+        ctx = await _shell_ctx(request, db, _level(request))
+    return templates.TemplateResponse(
+        request, "stocks_backtest.html",
+        {**ctx, "is_stock_page": True, "hide_sidebar": True})
 
 
 @router.get("/stocks/api/date-range", include_in_schema=False)
