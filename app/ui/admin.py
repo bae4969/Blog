@@ -283,13 +283,28 @@ async def ip_blocks(request: Request):
                 )
             )
         ).all()
+        # 카드 머리의 요약. 만료된 건은 목록에 남지만 실제로 막지는 않는다 —
+        # "정리" 버튼을 띄울지 정하는 기준이라 따로 센다.
+        stats = (
+            await db.execute(
+                text(
+                    "SELECT COUNT(*) AS total, "
+                    "  SUM(block_type = 'auto' AND (expires_at IS NULL OR expires_at > NOW())) AS active_auto, "
+                    "  SUM(block_type <> 'auto' AND (expires_at IS NULL OR expires_at > NOW())) AS active_manual, "
+                    "  SUM(expires_at IS NOT NULL AND expires_at <= NOW()) AS expired "
+                    "FROM blocked_ip_list"
+                )
+            )
+        ).first()
         ctx = await _shell_ctx(request, db, me.level)
 
     token = csrf.new_token(request)
     response = templates.TemplateResponse(
         request,
         "admin_ip_blocks.html",
-        {**ctx, "admin_menu": "ip-blocks", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "ip-blocks", "rows": rows,
+         "stats": {k: int(v or 0) for k, v in stats._mapping.items()},
+         "csrf_token": token, "msg": request.query_params.get("msg")},
     )
     csrf.attach(response, token)
     return response

@@ -1,127 +1,154 @@
 {#
-  카테고리 관리 — PHP `views/admin/categories.php` 자리.
+  블로그 카테고리 관리 — PHP `views/admin/categories.php` 를 옮긴 것이다.
 
-  ⚠️ 기존 admin CSS(`/css/admin.css`)를 쓰려면 클래스 이름을 맞춰야 한다. 다만 이 화면은
-     블로그 레이아웃(`layout.html`) 위에 얹으므로, admin 전용 래퍼가 필요하면 그때 함께
-     옮길 것. 지금은 블로그 CSS 안에서 읽히는 최소 마크업으로 둔다.
-  ⚠️ 등급 숫자는 **낮을수록 권한이 높다**(0:root … 4:visitor). "읽기 4" 는 누구나 볼 수
-     있다는 뜻이다 — 화면에도 그렇게 적어 혼동을 줄인다.
+  ⚠️ **원본 마크업을 그대로 쓴다**(`admin-content`·`admin-card`·`collapsible-card`·
+     `stat-row`·`admin-form`·`admin-table-wrap`). 스타일은 `/css/admin.css` 가 준다.
+  ⚠️ 수정 폼이 `<td>` 하나에서 열려 **다른 `<td>` 에서 닫힌다.** 이름·읽기·쓰기 권한을
+     한 폼으로 저장하려면 표 칸을 가로질러야 하기 때문이다(원본 그대로). 브라우저가
+     알아서 처리하지만, 여는 자리와 닫는 자리를 옮기면 저장이 깨진다.
 #}
 {% extends "layout.html" %}
 
-{% block title %}카테고리 관리 · Developer Blog{% endblock %}
+{% block title %}블로그 카테고리 · Developer Blog{% endblock %}
 
 {# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
-{#
-  기존 `blog.css` 에는 폼을 가로로 세우는 규칙이 없다(`inline-form` 미정의). admin 전용
-  CSS 를 아직 안 옮겨 왔으므로 이 화면에 필요한 최소 규칙만 여기 둔다 — 나머지 admin
-  화면을 옮길 때 공용 스타일로 빼낼 것.
-#}
-<style>
-  #admin-categories .admin-table td,
-  #admin-categories .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
-  #admin-categories .admin-table tbody tr { border-top: 1px solid #36383A; }
-  #admin-categories .row-actions { display: flex; gap: .35rem; align-items: center; justify-content: center; }
-  #admin-categories .row-actions form { display: inline; margin: 0; }
-  #admin-categories input[type=text] { width: 100%; min-width: 8rem; }
-  #admin-categories input[type=number] { width: 4rem; text-align: center; }
-</style>
-<div id="admin-categories" class="post-wrapper">
-    <article class="post">
-        <header class="post-header">
-            <h1 class="post-title">카테고리 관리</h1>
-            <div class="post-meta">
-                <span class="post-category">관리자</span>
-                <span class="post-date">등급은 숫자가 낮을수록 권한이 높습니다 (0 root · 4 visitor)</span>
-            </div>
-        </header>
+{% set level_options = {0: '슈퍼관리자', 1: '관리자', 2: '에디터', 3: '작성자', 4: '구독자'} %}
+<div class="admin-content">
+    {% if msg %}
+    <div class="alert alert-info">{{ msg }}</div>
+    {% endif %}
 
-        {% if msg %}
-        <div class="alert alert-info">{{ msg }}</div>
-        {% endif %}
-
-        <div class="post-content">
-            <table class="admin-table" style="width:100%; border-collapse:collapse">
-                <thead>
-                    <tr>
-                        <th style="text-align:left">이름</th>
-                        <th>글</th>
-                        <th>읽기</th>
-                        <th>쓰기</th>
-                        <th>순서</th>
-                        <th>작업</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for r in rows %}
-                    <tr>
-                        <form method="post" action="/admin/categories/update">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input type="hidden" name="category_index" value="{{ r.category_index }}">
-                            <td><input type="text" name="name" value="{{ r.category_name }}" maxlength="60" required></td>
-                            <td style="text-align:center">{{ r.post_count }}</td>
-                            <td style="text-align:center">
-                                <input type="number" name="read_level" value="{{ r.category_read_level }}" min="0" max="4" style="width:4rem">
-                            </td>
-                            <td style="text-align:center">
-                                <input type="number" name="write_level" value="{{ r.category_write_level }}" min="0" max="4" style="width:4rem">
-                            </td>
-                            <td style="text-align:center">{{ r.category_order }}</td>
-                            <td>
-                              <div class="row-actions">
-                                <button type="submit" class="btn btn-edit">저장</button>
-                        </form>
-                                {# 순서 이동·삭제는 각각 별도 폼이다 — 위 폼 안에 넣으면 같이 제출된다. #}
-                                <form method="post" action="/admin/categories/reorder" >
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
-                                    <input type="hidden" name="direction" value="up">
-                                    <button type="submit" class="btn" title="위로">↑</button>
-                                </form>
-                                <form method="post" action="/admin/categories/reorder" >
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
-                                    <input type="hidden" name="direction" value="down">
-                                    <button type="submit" class="btn" title="아래로">↓</button>
-                                </form>
-                                <form method="post" action="/admin/categories/delete" 
-                                      onsubmit="return confirm('{{ r.category_name }} 카테고리를 지울까요?')">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="category_index" value="{{ r.category_index }}">
-                                    {# 글이 있으면 서버가 거부한다. 버튼도 미리 막아 헛클릭을 줄인다. #}
-                                    <button type="submit" class="btn btn-danger"
-                                            {% if r.post_count %}disabled title="글이 {{ r.post_count }}개 있어 지울 수 없습니다"{% endif %}>삭제</button>
-                                </form>
-                              </div>
-                            </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-
-            <h2 style="margin-top:2rem">새 카테고리</h2>
-            <form method="post" action="/admin/categories/create" class="post-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label" for="new_name">이름</label>
-                        <input id="new_name" type="text" name="name" maxlength="60" required class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="new_read">읽기 등급</label>
-                        <input id="new_read" type="number" name="read_level" value="4" min="0" max="4" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="new_write">쓰기 등급</label>
-                        <input id="new_write" type="number" name="write_level" value="1" min="0" max="4" class="form-control">
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary">추가</button>
-            </form>
+    <div class="admin-card collapsible-card collapsed">
+        <h2>블로그 카테고리 관리</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">전체 카테고리</span> <span class="stat-value">{{ rows | length }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">전체 게시글</span> <span class="stat-value">{{ '{:,}'.format(rows | sum(attribute='post_count')) }}</span></div>
         </div>
-    </article>
+        <hr>
+
+        <h3 class="collapsible-header">
+            새 카테고리 생성
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
+        <form method="post" action="/admin/categories/create" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label>이름</label>
+                    <input type="text" name="category_name" required maxlength="50" placeholder="카테고리 이름">
+                </div>
+                <div class="admin-form-field">
+                    <label>읽기 권한</label>
+                    <select name="category_read_level">
+                        {% for lv, label in level_options.items() %}
+                            <option value="{{ lv }}" {% if lv == 4 %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-form-field">
+                    <label>쓰기 권한</label>
+                    <select name="category_write_level">
+                        {% for lv, label in level_options.items() %}
+                            <option value="{{ lv }}" {% if lv == 1 %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary">생성</button>
+            </div>
+        </form>
+        </div>
+
+        {% if not rows %}
+            <p class="admin-placeholder">등록된 카테고리가 없습니다.</p>
+        {% else %}
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>순서</th>
+                            <th>이름</th>
+                            <th>읽기 권한</th>
+                            <th>쓰기 권한</th>
+                            <th>게시글</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in rows %}
+                            <tr>
+                                <td class="order-cell">
+                                    <div class="order-buttons">
+                                        {% if not loop.first %}
+                                            <form method="post" action="/admin/categories/reorder" class="inline-form">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <input type="hidden" name="category_index" value="{{ cat.category_index }}">
+                                                <input type="hidden" name="direction" value="up">
+                                                <button type="submit" class="btn-arrow" title="위로">▲</button>
+                                            </form>
+                                        {% else %}
+                                            <span class="btn-arrow disabled">▲</span>
+                                        {% endif %}
+                                        {% if not loop.last %}
+                                            <form method="post" action="/admin/categories/reorder" class="inline-form">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <input type="hidden" name="category_index" value="{{ cat.category_index }}">
+                                                <input type="hidden" name="direction" value="down">
+                                                <button type="submit" class="btn-arrow" title="아래로">▼</button>
+                                            </form>
+                                        {% else %}
+                                            <span class="btn-arrow disabled">▼</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <form method="post" action="/admin/categories/update" class="inline-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="category_index" value="{{ cat.category_index }}">
+                                        <input type="text" name="category_name" value="{{ cat.category_name }}" required maxlength="50" class="inline-input">
+                                </td>
+                                <td>
+                                    <select name="category_read_level" class="inline-select">
+                                        {% for lv, label in level_options.items() %}
+                                            <option value="{{ lv }}" {% if cat.category_read_level == lv %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="category_write_level" class="inline-select">
+                                        {% for lv, label in level_options.items() %}
+                                            <option value="{{ lv }}" {% if cat.category_write_level == lv %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>{{ cat.post_count }}</td>
+                                <td class="action-cell">
+                                    <div class="action-buttons">
+                                        <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                                        </form>
+                                        <form method="post" action="/admin/categories/delete" class="inline-form"
+                                            onsubmit="return confirm('카테고리 \'{{ cat.category_name }}\'을(를) 삭제하시겠습니까?{% if cat.post_count > 0 %} (게시글 {{ cat.post_count }}개 존재){% endif %}');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="category_index" value="{{ cat.category_index }}">
+                                            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="admin-help">
+                <p>* 게시글이 존재하는 카테고리는 삭제할 수 없습니다</p>
+            </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
