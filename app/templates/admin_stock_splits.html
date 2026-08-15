@@ -1,9 +1,13 @@
 {#
-  액면분할/병합 관리 — PHP `views/admin/stock-splits.php` 자리.
+  액면분할/병합 관리 — PHP `views/admin/stock-splits.php` 를 옮긴 것이다.
 
-  ⚠️ 시장(market)은 DB 가 enum('KR','US','COIN') 이라 이 셋만 받는다. 다른 값을 넣으면
-     라우트가 거절한다.
-  ⚠️ 비율은 "변환 전:후" 다. 둘이 같으면 등록되지 않는다(의미 없는 이벤트라서).
+  ⚠️ **원본 마크업을 그대로 쓴다**(`admin-content`·`admin-card`·`collapsible-card`·
+     `stat-row`·`admin-form`·`admin-table-wrap`). 스타일은 `/css/admin.css` 가 준다.
+  ⚠️ 폼이 보내는 것은 `ratio_from`·`ratio_to` 인데 사람이 넣는 것은 "배수" 하나다.
+     분할이면 1:N, 병합이면 N:1 로 **JS 가 제출 직전에 채운다**. 숨은 input 의 id 를
+     바꾸면 값이 비어 나간다.
+  ⚠️ 종목은 직접 타이핑하지 않고 `/stocks/api/search` 로 골라야 한다 — 코드가 틀리면
+     보정이 엉뚱한 종목에 걸리기 때문이다.
 #}
 {% extends "layout.html" %}
 
@@ -13,91 +17,246 @@
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
-<style>
-  #admin-splits .admin-table td,
-  #admin-splits .admin-table th { padding: .5rem .6rem; vertical-align: middle; }
-  #admin-splits .admin-table tbody tr { border-top: 1px solid #36383A; }
-  #admin-splits .inline-form { display: inline; margin: 0; }
-  #admin-splits .create-form { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: 1rem; }
-  #admin-splits .create-form input[type=text] { width: 9rem; }
-  #admin-splits .create-form input[type=number] { width: 4.5rem; text-align: center; }
-  #admin-splits .pager { display: flex; gap: .4rem; justify-content: center; margin-top: 1rem; }
-</style>
-<div id="admin-splits" class="post-wrapper">
-    <article class="post">
-        <header class="post-header">
-            <h1 class="post-title">액면분할 · 병합 관리</h1>
-            <div class="post-meta">
-                <span class="post-category">관리자</span>
-                <span class="post-date">전체 {{ total }}건</span>
-            </div>
-        </header>
+<div class="admin-content">
+    {% if msg %}
+    <div class="alert alert-info">{{ msg }}</div>
+    {% endif %}
 
-        {% if msg %}
-        <div class="alert alert-info">{{ msg }}</div>
-        {% endif %}
+    <div class="admin-card collapsible-card collapsed">
+        <h2>액면분할/병합 관리</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">등록된 이벤트</span> <span class="stat-value">{{ total }}</span></div>
+        </div>
+        <hr>
 
-        <div class="post-content">
-            <form method="post" action="/admin/stock-splits/create" class="create-form">
+        <h3 class="collapsible-header">
+            이벤트 등록
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
+            <form method="post" action="/admin/stock-splits/create" class="admin-form" id="splitEventForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="text" name="stock_code" placeholder="종목 코드" required maxlength="20">
-                <select name="market">
-                    {% for m in markets %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
-                </select>
-                <input type="date" name="event_date" required>
-                <input type="number" name="ratio_from" value="1" min="1" title="변환 전">
-                <span>:</span>
-                <input type="number" name="ratio_to" value="1" min="1" title="변환 후">
-                <input type="text" name="description" placeholder="설명(선택)" maxlength="200" style="flex:1; min-width:10rem">
-                <button type="submit" class="btn btn-primary">등록</button>
+                <input type="hidden" name="stock_code" id="splitStockCode">
+                <input type="hidden" name="market" id="splitMarket">
+                <input type="hidden" name="ratio_from" id="splitRatioFrom">
+                <input type="hidden" name="ratio_to" id="splitRatioTo">
+                <div class="admin-form-grid">
+                    <div class="admin-form-field" style="position:relative">
+                        <label>종목 검색 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <input type="text" id="splitStockSearch" autocomplete="off" placeholder="종목명 또는 코드 검색 (예: 엔비디아, NVDA, 삼성전자)" required>
+                        <div id="splitSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;max-height:240px;overflow-y:auto;border:1px solid var(--border-color, #464646);border-radius:4px;background:var(--card-bg, #1e1e1e)"></div>
+                        <div id="splitSelectedStock" style="display:none;margin-top:0.4rem;padding:0.4rem 0.7rem;border-radius:4px;background:var(--bg-tertiary, #2a2a2a);font-size:0.9rem">
+                            <span id="splitSelectedInfo"></span>
+                            <button type="button" onclick="clearSplitSelection()" style="float:right;background:none;border:none;color:var(--text-muted, #9aa0a6);cursor:pointer;font-size:0.85rem">✕ 초기화</button>
+                        </div>
+                    </div>
+                    <div class="admin-form-field">
+                        <label>이벤트 일자 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <input type="date" name="event_date" id="splitEventDate" required>
+                    </div>
+                    <div class="admin-form-field">
+                        <label>유형 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <select id="splitType" onchange="updateSplitDescription()" required>
+                            <option value="split">액면분할 (1주 → N주)</option>
+                            <option value="merge">주식병합 (N주 → 1주)</option>
+                        </select>
+                    </div>
+                    <div class="admin-form-field">
+                        <label id="splitRatioLabel">배수 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <input type="number" id="splitRatio" required min="2" max="10000" placeholder="예: 10 (1주→10주)">
+                    </div>
+                    <div class="admin-form-field">
+                        <label>설명</label>
+                        <input type="text" name="description" id="splitDescription" maxlength="200" placeholder="자동 생성됩니다">
+                    </div>
+                </div>
+                <div class="admin-form-actions">
+                    <button type="submit" class="btn btn-primary">이벤트 등록</button>
+                </div>
             </form>
+        </div>
 
-            <table class="admin-table" style="width:100%; border-collapse:collapse">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>종목</th>
-                        <th>시장</th>
-                        <th>이벤트 일자</th>
-                        <th>비율</th>
-                        <th>설명</th>
-                        <th>등록일</th>
-                        <th>작업</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for r in rows %}
-                    <tr>
-                        <td>{{ r.id }}</td>
-                        <td>{{ r.stock_code }}</td>
-                        <td>{{ r.market }}</td>
-                        <td>{{ r.event_date }}</td>
-                        <td>{{ r.ratio_from }} : {{ r.ratio_to }}</td>
-                        <td>{{ r.description or '' }}</td>
-                        <td>{{ r.created_at or '' }}</td>
-                        <td>
-                            <form method="post" action="/admin/stock-splits/delete" class="inline-form"
-                                  onsubmit="return confirm('{{ r.stock_code }} 이벤트를 삭제할까요?')">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <input type="hidden" name="event_id" value="{{ r.id }}">
-                                <button type="submit" class="btn">삭제</button>
-                            </form>
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr><td colspan="8" style="text-align:center; opacity:.6">등록된 이벤트가 없습니다.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        {% if not rows %}
+            <p class="admin-placeholder">등록된 분할/병합 이벤트가 없습니다.</p>
+        {% else %}
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>종목 코드</th>
+                            <th>시장</th>
+                            <th>이벤트 일자</th>
+                            <th>비율</th>
+                            <th>유형</th>
+                            <th>설명</th>
+                            <th>등록일</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for e in rows %}
+                        <tr>
+                            <td><strong>{{ e.stock_code }}</strong></td>
+                            <td style="text-align:center">
+                                {% if e.market == 'KR' %}
+                                    <span class="ip-badge ip-badge-manual">KR</span>
+                                {% elif e.market == 'US' %}
+                                    <span class="ip-badge ip-badge-auto">US</span>
+                                {% else %}
+                                    <span class="ip-badge">COIN</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ e.event_date }}</td>
+                            <td><strong>{{ e.ratio_from }}:{{ e.ratio_to }}</strong></td>
+                            <td>
+                                {% if e.ratio_from < e.ratio_to %}
+                                    <span style="color:var(--success-color, #4CAF50)">분할</span>
+                                {% else %}
+                                    <span style="color:var(--warning-color, #FF9800)">병합</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">{{ e.description or '-' }}</td>
+                            {# DB 에 KST 로 들어 있는 값이다 — 변환하지 않는다. #}
+                            <td class="text-muted">{{ e.created_at }}</td>
+                            <td>
+                                <form method="post" action="/admin/stock-splits/delete" style="display:inline" onsubmit="return confirm('이 이벤트를 삭제하시겠습니까?\n삭제 후 해당 종목의 캔들 캐시가 무효화됩니다.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="event_id" value="{{ e.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
             {% if total_pages > 1 %}
-            <div class="pager">
-                {% if page > 1 %}<a class="btn" href="/admin/stock-splits?page={{ page - 1 }}">이전</a>{% endif %}
-                <span>{{ page }} / {{ total_pages }}</span>
-                {% if page < total_pages %}<a class="btn" href="/admin/stock-splits?page={{ page + 1 }}">다음</a>{% endif %}
-            </div>
+                <div class="admin-pagination">
+                    {% if page > 1 %}
+                        <a href="/admin/stock-splits?page={{ page - 1 }}" class="btn btn-sm">← 이전</a>
+                    {% endif %}
+                    <span class="text-muted">{{ page }} / {{ total_pages }}</span>
+                    {% if page < total_pages %}
+                        <a href="/admin/stock-splits?page={{ page + 1 }}" class="btn btn-sm">다음 →</a>
+                    {% endif %}
+                </div>
             {% endif %}
-        </div>
-    </article>
+        {% endif %}
+    </div>
 </div>
+
+<script>
+(function () {
+    var searchTimer = null;
+    var searchInput = document.getElementById('splitStockSearch');
+    var resultsBox = document.getElementById('splitSearchResults');
+    var selectedBox = document.getElementById('splitSelectedStock');
+    var selectedInfo = document.getElementById('splitSelectedInfo');
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        var q = this.value.trim();
+        if (q.length < 1) { resultsBox.style.display = 'none'; return; }
+        searchTimer = setTimeout(function () { searchStocks(q); }, 300);
+    });
+
+    // 결과를 누르는 중에 닫히지 않도록 약간 늦춘다(mousedown 이 먼저 온다).
+    searchInput.addEventListener('blur', function () {
+        setTimeout(function () { resultsBox.style.display = 'none'; }, 200);
+    });
+
+    function searchStocks(q) {
+        fetch('/stocks/api/search?q=' + encodeURIComponent(q) + '&limit=10', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success || !data.data.length) {
+                    resultsBox.innerHTML = '<div style="padding:0.6rem;color:var(--text-muted,#9aa0a6)">검색 결과 없음</div>';
+                    resultsBox.style.display = 'block';
+                    return;
+                }
+                var html = '';
+                data.data.forEach(function (s) {
+                    var market = resolveMarket(s.stock_market, s.stock_type);
+                    html += '<div class="split-search-item" style="padding:0.5rem 0.7rem;cursor:pointer;border-bottom:1px solid var(--border-color,#464646)" '
+                        + 'onmousedown="selectSplitStock(\'' + escAttr(s.stock_code) + '\',\'' + escAttr(s.stock_name_kr) + '\',\'' + market + '\')">'
+                        + '<strong>' + esc(s.stock_code) + '</strong> '
+                        + '<span style="color:var(--text-secondary,#C3C3C3)">' + esc(s.stock_name_kr) + '</span> '
+                        + '<span class="ip-badge" style="font-size:0.75rem">' + market + '</span>'
+                        + '</div>';
+                });
+                resultsBox.innerHTML = html;
+                resultsBox.style.display = 'block';
+            })
+            .catch(function () { resultsBox.style.display = 'none'; });
+    }
+
+    // 검색 API 는 거래소 이름(KOSPI·NASDAQ…)을 주는데 분할 테이블은 KR/US/COIN 만 쓴다.
+    function resolveMarket(stockMarket, stockType) {
+        if (stockType === 'COIN') return 'COIN';
+        var m = (stockMarket || '').toUpperCase();
+        if (['KOSPI', 'KOSDAQ', 'KONEX'].indexOf(m) >= 0) return 'KR';
+        if (['NYSE', 'NASDAQ', 'AMEX'].indexOf(m) >= 0) return 'US';
+        return 'KR';
+    }
+
+    window.selectSplitStock = function (code, name, market) {
+        document.getElementById('splitStockCode').value = code;
+        document.getElementById('splitMarket').value = market;
+        selectedInfo.textContent = code + ' — ' + name + ' (' + market + ')';
+        selectedBox.style.display = 'block';
+        searchInput.style.display = 'none';
+        resultsBox.style.display = 'none';
+    };
+
+    window.clearSplitSelection = function () {
+        document.getElementById('splitStockCode').value = '';
+        document.getElementById('splitMarket').value = '';
+        selectedBox.style.display = 'none';
+        searchInput.style.display = '';
+        searchInput.value = '';
+        searchInput.focus();
+    };
+
+    window.updateSplitDescription = function () {
+        var type = document.getElementById('splitType').value;
+        var ratio = document.getElementById('splitRatio').value;
+        var label = document.getElementById('splitRatioLabel');
+        var desc = document.getElementById('splitDescription');
+
+        if (type === 'split') {
+            label.innerHTML = '분할 배수 <span style="color:var(--danger-color,#e53935)">*</span>';
+            if (ratio) desc.value = '1:' + ratio + ' 액면분할';
+        } else {
+            label.innerHTML = '병합 배수 <span style="color:var(--danger-color,#e53935)">*</span>';
+            if (ratio) desc.value = ratio + ':1 주식병합';
+        }
+    };
+
+    document.getElementById('splitRatio').addEventListener('input', updateSplitDescription);
+
+    // 사람이 넣는 "배수" 하나를 ratio_from:ratio_to 로 펴서 보낸다.
+    document.getElementById('splitEventForm').addEventListener('submit', function (e) {
+        var code = document.getElementById('splitStockCode').value;
+        if (!code) { e.preventDefault(); alert('종목을 검색하여 선택해주세요.'); return; }
+
+        var type = document.getElementById('splitType').value;
+        var ratio = parseInt(document.getElementById('splitRatio').value, 10);
+        if (!ratio || ratio < 2) { e.preventDefault(); alert('배수를 2 이상 입력해주세요.'); return; }
+
+        if (type === 'split') {
+            document.getElementById('splitRatioFrom').value = '1';
+            document.getElementById('splitRatioTo').value = ratio;
+        } else {
+            document.getElementById('splitRatioFrom').value = ratio;
+            document.getElementById('splitRatioTo').value = '1';
+        }
+    });
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function escAttr(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+})();
+</script>
 {% endblock %}
