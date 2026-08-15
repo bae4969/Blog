@@ -69,20 +69,19 @@ def _candle_candidates(code: str, prefix: str) -> list[str]:
     ]))
 
 
-async def _latest_closes(db, rows) -> dict[str, float]:
-    """종목 코드 → 최신 종가. 없는 종목은 키가 없다.
+async def _latest_closes(db, pairs) -> dict[str, float]:
+    """`(종목코드, 접두사)` 목록 → 최신 종가 dict. 없는 종목은 키가 없다.
 
     PHP 의 N+1 을 배치 두 번으로 바꾼 곳이다(모듈 docstring 참조).
     """
-    if not rows:
+    if not pairs:
         return {}
 
     # 후보 테이블명 → 종목코드 역인덱스
     want: dict[str, str] = {}
-    for r in rows:
-        prefix = "c" if (getattr(r, "stock_type", None) == "COIN" or getattr(r, "market", "") == "COIN") else "s"
-        for cand in _candle_candidates(r.code, prefix):
-            want.setdefault(cand, r.code)
+    for code, prefix in pairs:
+        for cand in _candle_candidates(code, prefix):
+            want.setdefault(cand, code)
     if not want:
         return {}
 
@@ -118,6 +117,130 @@ async def _latest_closes(db, rows) -> dict[str, float]:
     return out
 
 
+def _prefix_of(r) -> str:
+    """`candle` 테이블 접두사 — 코인은 `c`, 주식은 `s`."""
+    return "c" if (getattr(r, "stock_type", None) == "COIN"
+                   or getattr(r, "market", "") == "COIN") else "s"
+
+
+# 테이블·코드를 SQL 에 문자열로 붙여야 해서(식별자·UNION 은 바인딩이 안 된다) 통과 문자를
+# 화이트리스트로 막는다. 값은 모두 DB 가 돌려준 것이지만 한 겹 더 둔다.
+_SAFE_TABLE = re.compile(r"[A-Za-z0-9_]+")
+_SAFE_CODE = re.compile(r"[A-Za-z0-9._/-]+")
+
+_TOP_LOOKBACK_DAYS = 30
+
+
+async def _top_by_trading_amount(db, market: str, limit: int = 10) -> list[dict]:
+    """거래대금 상위 종목. 주식과 코인이 구조가 같아 한 함수로 합쳤다.
+
+    `candle` 스키마는 종목마다 테이블이 따로라(`s005930`·`cBTC`) 거래대금을 한 번에 정렬할
+    방법이 없다. PHP 와 같이 **구독 종목의 테이블을 UNION ALL 로 묶어** 합계를 낸 뒤
+    파이썬에서 정렬한다 — 종목당 쿼리를 돌리면 수백 번이 된다.
+
+    ⚠️ PHP 는 market 이 비면 3일, 아니면 30일을 봤는데, 이 화면은 항상 시장을 정해서
+       부르므로(`_default_market`) 3일 경로는 죽은 코드였다. 30일로 고정한다.
+    """
+    is_coin = market == "COIN"
+    prefix = "c" if is_coin else "s"
+    lookback = (datetime.now(_KST) - timedelta(days=_TOP_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+
+    tables = {
+        t for (t,) in (await db.execute(
+            text("SELECT TABLE_NAME FROM information_schema.TABLES "
+                 "WHERE TABLE_SCHEMA = 'candle' AND TABLE_NAME LIKE :p"),
+            {"p": prefix + "%"})).all()
+        if _SAFE_TABLE.fullmatch(t)
+    }
+    if not tables:
+        return []
+
+    if is_coin:
+        codes = [c for (c,) in (await db.execute(
+            text("SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query"))).all()]
+    else:
+        sql = ("SELECT DISTINCT w.stock_code FROM KoreaInvest.stock_last_ws_query w "
+               "INNER JOIN KoreaInvest.stock_info si ON w.stock_code = si.stock_code "
+               f"WHERE si.stock_market IN ({', '.join(repr(m) for m in (_KR_MARKETS if market == 'KR' else _US_MARKETS))})")
+        codes = [c for (c,) in (await db.execute(text(sql))).all()]
+
+    code_to_table = {}
+    for code in codes:
+        if not code or not _SAFE_CODE.fullmatch(code):
+            continue
+        for cand in _candle_candidates(code, prefix):
+            if cand in tables:
+                code_to_table[code] = cand
+                break
+    if not code_to_table:
+        return []
+
+    union = "\nUNION ALL\n".join(
+        f"SELECT '{code}' AS code, COALESCE(SUM(execution_non_amount + execution_ask_amount "
+        f"+ execution_bid_amount), 0) AS amt FROM `candle`.`{tbl}` "
+        f"WHERE execution_datetime >= '{lookback}'"
+        for code, tbl in code_to_table.items()
+    )
+    totals = {code: float(amt) for code, amt in (await db.execute(text(union))).all() if amt and amt > 0}
+    if not totals:
+        return []
+
+    ranked = sorted(totals, key=totals.get, reverse=True)[:max(limit * 3, 30)]
+
+    if is_coin:
+        detail_sql = ("SELECT coin_code AS stock_code, coin_name_kr AS stock_name_kr, "
+                      "'Bithumb' AS stock_market, coin_price AS stock_price "
+                      "FROM Bithumb.coin_info WHERE coin_code IN :codes")
+    else:
+        detail_sql = ("SELECT stock_code, stock_name_kr, stock_market, stock_price "
+                      "FROM KoreaInvest.stock_info WHERE stock_code IN :codes")
+    details = {
+        r.stock_code: dict(r._mapping)
+        for r in (await db.execute(
+            text(detail_sql).bindparams(bindparam("codes", expanding=True)),
+            {"codes": ranked})).all()
+    }
+
+    out: list[dict] = []
+    for code in ranked:
+        row = details.get(code)
+        if row is None:
+            continue
+        out.append({**row, "total_amount": totals[code]})
+        if len(out) >= limit:
+            break
+
+    # 거래대금이 잡히는 종목이 모자라면 시가총액 순으로 채운다(PHP 와 같다).
+    if len(out) < limit:
+        have = [r["stock_code"] for r in out]
+        if is_coin:
+            fill_sql = ("SELECT ci.coin_code AS stock_code, ci.coin_name_kr AS stock_name_kr, "
+                        "'Bithumb' AS stock_market, ci.coin_price AS stock_price "
+                        "FROM Bithumb.coin_info ci INNER JOIN (SELECT DISTINCT coin_code "
+                        "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code "
+                        "WHERE 1=1 {exc} ORDER BY ci.coin_price * ci.coin_amount DESC LIMIT :n")
+        else:
+            ms = ", ".join(repr(m) for m in (_KR_MARKETS if market == "KR" else _US_MARKETS))
+            fill_sql = ("SELECT si.stock_code, si.stock_name_kr, si.stock_market, si.stock_price "
+                        "FROM KoreaInvest.stock_info si INNER JOIN (SELECT DISTINCT stock_code "
+                        "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code "
+                        f"WHERE si.stock_market IN ({ms}) {{exc}} "
+                        "ORDER BY si.stock_capitalization DESC LIMIT :n")
+        params: dict = {"n": limit - len(out)}
+        stmt = text(fill_sql.format(exc="AND stock_code NOT IN :have" if have else ""))
+        if have:
+            stmt = stmt.bindparams(bindparam("have", expanding=True))
+            params["have"] = have
+        out += [{**dict(r._mapping), "total_amount": 0.0}
+                for r in (await db.execute(stmt, params)).all()]
+
+    # stock_info 의 현재가는 갱신이 늦다 — 목록과 같은 기준으로 최신 종가를 씌운다.
+    closes = await _latest_closes(db, [(r["stock_code"], prefix) for r in out])
+    for r in out:
+        r["stock_price"] = closes.get(r["stock_code"], r["stock_price"])
+    return out[:limit]
+
+
 @router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_index(request: Request):
     """종목 목록. 구독 중인 종목만 시가총액 순으로 보여준다."""
@@ -132,7 +255,7 @@ async def stocks_index(request: Request):
             page = total_pages
             total, rows = await _stock_page(db, market, search, page)
 
-        closes = await _latest_closes(db, rows)
+        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
         stats = (await db.execute(text(
             "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
             "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
@@ -151,6 +274,7 @@ async def stocks_index(request: Request):
             "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
             .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
+        top_stocks = await _top_by_trading_amount(db, market)
         portfolios = (await db.execute(text(
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
             "FROM backtest_portfolio ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
@@ -161,7 +285,8 @@ async def stocks_index(request: Request):
         "stocks_index.html",
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "rows": rows, "closes": closes, "stats": stats, "portfolios": portfolios,
+            "rows": rows, "closes": closes, "stats": stats,
+            "top_stocks": top_stocks, "portfolios": portfolios,
             "market": market, "markets": _MARKETS, "search": search,
             "page": page, "total": total, "total_pages": total_pages,
         },
