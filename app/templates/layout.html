@@ -141,6 +141,42 @@
 </div>
 
 <script>
+// 좌상단 "이동" 드롭다운. CSS 가 `#topNav.open #topNavDropdown { display:block }` 이라
+// 클래스를 토글해 줘야 열린다 — PHP 는 이 스크립트를 푸터(`partials-footer-scripts.php`)에
+// 두고 있었고, 그 파일을 걷어내면서 함께 사라져 메뉴가 안 열렸다.
+(function () {
+    const nav = document.getElementById('topNav');
+    const sel = document.getElementById('topNavSelected');
+    if (!nav || !sel) return;
+    sel.addEventListener('click', function (e) {
+        e.stopPropagation();
+        nav.classList.toggle('open');
+    });
+    document.addEventListener('click', function (e) {
+        if (!nav.contains(e.target)) nav.classList.remove('open');
+    });
+})();
+
+// 검색창 편의 기능 — blog.js `initSearchEnhancements` 에서 옮겼다.
+// Enter 는 입력창의 onkeyup 이 이미 처리하므로 여기서는 다루지 않는다.
+(function () {
+    const box = document.getElementById('search_posting_text');
+    if (!box) return;
+    const btn = document.getElementById('search_posting_btn');
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            box.focus();
+            box.select();
+        }
+    });
+    box.addEventListener('input', function () {
+        this.style.borderColor = this.value.trim() ? '#4CAF50' : '';
+    });
+    box.title = '게시글 제목으로 검색 (Ctrl+S로 포커스)';
+    if (btn) btn.title = '검색 (Enter 또는 Ctrl+S)';
+})();
+
 // PHP 쪽 `views/blog/index.php` 의 스크립트를 그대로 옮겼다. 쿼리 파라미터 이름을
 // 바꾸지 않는다 — 두 스택이 서로의 URL 을 참조하는 중이다.
 function selectCategory(idx) {

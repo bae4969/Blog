@@ -80,4 +80,96 @@
     </div>
     {% endif %}
 </div>
+
+{#
+  글 목록 2열 배치 — PHP `public/js/blog.js` 의 `setPostingList` 계열을 옮겼다.
+
+  blog.js 를 통째로 싣지 않는 이유: 그 파일은 `/get/login_verify` 폴링과 PHP 세션 감시를
+  함께 하는데, 그 라우트는 이제 없다(인증은 중앙 auth 하나로 간다). 여기서는 **레이아웃
+  동작만** 가져온다.
+
+  ⚠️ 히스테리시스가 핵심이다. 단순히 `width >= 1200` 으로 판정하면 경계 근처에서 창을
+     조금만 흔들어도 1열↔2열이 계속 뒤집힌다. 그래서 현재 상태에 따라 기준선을 ±50px
+     달리 둔다(2열이면 1150 미만에서만 접고, 1열이면 1250 이상에서만 편다).
+#}
+<script>
+(function () {
+    const BREAKPOINT = 1200, HYSTERESIS = 50;
+    let showState = 0;          // 0: 초기, 1: 1열, 2: 2열
+    let resizeTimer = null, relayoutTimer = null;
+
+    function shouldUseTwoCols(width, state) {
+        if (state === 2) return width >= (BREAKPOINT - HYSTERESIS);
+        if (state === 1) return width >= (BREAKPOINT + HYSTERESIS);
+        return width >= BREAKPOINT;
+    }
+
+    function setPostingList(isInitial) {
+        const left = document.getElementById('left');
+        const right = document.getElementById('right');
+        const root = document.getElementById('postings');
+        if (!left || !right || !root) return;
+
+        const posts = Array.from(root.querySelectorAll('.posting, .posting_ban'));
+        if (posts.length === 0) return;
+
+        if (!shouldUseTwoCols(document.body.offsetWidth, showState)) {
+            if (showState !== 1 || isInitial) {
+                showState = 1;
+                left.style.width = '100%';
+                right.style.width = '0%';
+                posts.forEach(p => left.appendChild(p));
+            }
+            return;
+        }
+
+        if (showState !== 2 || isInitial) {
+            showState = 2;
+            left.style.width = '50%';
+            right.style.width = '50%';
+            while (left.firstChild) left.removeChild(left.firstChild);
+            while (right.firstChild) right.removeChild(right.firstChild);
+            // 매번 실제 높이를 재서 낮은 쪽에 붙인다 — 글마다 높이가 달라서
+            // 짝수/홀수로 나누면 한쪽이 길어진다.
+            posts.forEach(p => {
+                (left.offsetHeight <= right.offsetHeight ? left : right).appendChild(p);
+            });
+        }
+    }
+
+    function scheduleRelayout(delay) {
+        if (relayoutTimer) cancelAnimationFrame(relayoutTimer);
+        relayoutTimer = requestAnimationFrame(() => setTimeout(() => setPostingList(false), delay));
+    }
+
+    // 썸네일이 늦게 뜨면 높이가 바뀌므로 다시 배치한다.
+    function attachImageHandlers() {
+        document.querySelectorAll('#postings img.posting_thumbnail').forEach(img => {
+            if (img.dataset._relayout === '1') return;
+            img.dataset._relayout = '1';
+            if (!img.complete) {
+                img.addEventListener('load', () => scheduleRelayout(50));
+                img.addEventListener('error', () => scheduleRelayout(50));
+            }
+        });
+    }
+
+    window.addEventListener('resize', function () {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => scheduleRelayout(0), 150);
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        setPostingList(true);
+        attachImageHandlers();
+        const root = document.getElementById('postings');
+        if (root) {
+            new MutationObserver(() => {
+                attachImageHandlers();
+                scheduleRelayout(80);
+            }).observe(root, { childList: true, subtree: true });
+        }
+    });
+})();
+</script>
 {% endblock %}
