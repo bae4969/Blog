@@ -157,16 +157,16 @@ def _eval_rule(closes: list, rule: dict) -> list:
     if ind in ("bb_lower", "bb_upper"):
         b = bb(closes, 20, 2)
         for i in range(1, n):
-            # ⚠️ PHP 는 **`i` 시점만, 그것도 lower 만** 유효성을 본다. 그래서 밴드가 처음
-            #    생기는 i=19 에서 `[i-1]` 은 null 인 채로 비교에 들어가고, PHP 는 그걸
-            #    **0 으로 강제**한다. `_z` 로 그 동작을 그대로 흉내 낸다 — 빼면 파이썬은
-            #    None 비교로 터지고(단축평가 덕에 가끔만 드러난다), 0 대신 건너뛰면
-            #    bb_lower 가 그 하루에 내야 할 매수 신호를 놓친다.
-            if not _num(closes[i]) or not _num(b["lower"][i]):
+            # ⚠️ 원본 결함 수정(2026-08-15). PHP 는 **`i` 시점만** 유효성을 봐서, 밴드가
+            #    처음 생기는 i=19 에서 `[i-1]` 이 null 인 채 비교에 들어갔다. PHP 산술은
+            #    그걸 0 으로 강제하므로 `closes[18] >= 0` 이 항상 참 — bb_lower 가 "어제는
+            #    밴드 위였다"를 확인하지 않고 매수 신호를 냈다(하루짜리 가짜 신호).
+            #    직전 밴드값까지 있어야 돌파를 판정할 수 있으므로 함께 확인한다.
+            if not _num(closes[i]) or not _num(b["lower"][i]) or not _num(b["lower"][i - 1]):
                 continue
-            if ind == "bb_lower" and closes[i] < b["lower"][i] and closes[i - 1] >= _z(b["lower"][i - 1]):
+            if ind == "bb_lower" and closes[i] < b["lower"][i] and closes[i - 1] >= b["lower"][i - 1]:
                 sig[i] = "buy"
-            if ind == "bb_upper" and closes[i] > _z(b["upper"][i]) and closes[i - 1] <= _z(b["upper"][i - 1]):
+            if ind == "bb_upper" and closes[i] > b["upper"][i] and closes[i - 1] <= b["upper"][i - 1]:
                 sig[i] = "sell"
     elif ind in ("macd_golden", "macd_death"):
         m = macd(closes)
@@ -308,7 +308,12 @@ def _portfolio_value(stocks, data, date, holdings) -> float:
 
 
 def _should_rebalance(date: str, last: str | None, period: str) -> bool:
-    """직전 리밸런싱 이후 기간 경계를 넘었나. 첫날은 하지 않는다(초기 매수가 이미 했다)."""
+    """직전 리밸런싱 이후 기간 경계를 넘었나.
+
+    ⚠️ `last` 가 None 이면 아직 기준이 없다는 뜻이라 False 다. **호출부가 시작일로 초기화
+       해야 한다** — 안 하면 영원히 False 가 되어 리밸런싱이 한 번도 일어나지 않는다
+       (PHP 원본이 그랬다).
+    """
     if last is None:
         return False
     y, m = int(date[:4]), int(date[5:7])
@@ -369,6 +374,13 @@ def simulate(config: dict) -> dict | None:
     if strategy != "signal" and cash > 0:
         total_fees += _buy_by_weight(stocks, data, all_dates[0], holdings, fees, cash, trades)
         cash = 0.0
+
+    # ⚠️ 원본 결함 수정(2026-08-15). PHP 는 이 값을 null 로 두고 **리밸런싱이 실행될 때만**
+    #    갱신했는데, shouldRebalance 가 null 이면 false 를 주므로 조건이 영원히 성립하지
+    #    않았다 — 주기를 뭘 고르든 매수 후 보유와 결과가 같았다. 시작일을 기준으로 잡아
+    #    첫 기간 경계부터 정상 동작하게 한다(첫날은 초기 매수가 이미 비중을 맞췄다).
+    if strategy == "rebalance":
+        last_rebalance = all_dates[0]
 
     monthly_dca = float(config.get("monthlyDCA") or 0)
 
