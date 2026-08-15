@@ -129,6 +129,7 @@ async def blog_index(request: Request):
                     Post.posting_read_cnt,
                     Post.posting_state,
                     Post.posting_first_post_datetime,
+                    Post.posting_last_edit_datetime,
                     Category.category_name,
                     Category.category_index,
                     User.user_id,
