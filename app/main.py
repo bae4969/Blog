@@ -23,6 +23,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.core.security import current_user_or_none, fetch_public_key
 from app.ui.admin import router as admin_router
+from app.ui.backtest import router as backtest_router
 from app.ui.routes import router as ui_router
 from app.ui.stocks import router as stocks_router
 
@@ -83,7 +84,8 @@ for _sub in ("css", "js", "res", "vendor", "uploads"):
 
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
-app.include_router(stocks_router)  # /stocks — 목록·검색까지 (상세·백테스트는 아직)
+app.include_router(stocks_router)   # /stocks — 목록·상세·차트
+app.include_router(backtest_router) # /stocks/api/* — 포트폴리오·프리셋 (엔진·화면은 아직)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
