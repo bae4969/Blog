@@ -11,6 +11,9 @@
 
 {% block title %}사용자 관리 · Developer Blog{% endblock %}
 
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
 {% block content %}
 <style>
   #admin-users .admin-table td,

@@ -11,6 +11,9 @@
 
 {% block title %}카테고리 관리 · Developer Blog{% endblock %}
 
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
 {% block content %}
 {#
   기존 `blog.css` 에는 폼을 가로로 세우는 규칙이 없다(`inline-form` 미정의). admin 전용

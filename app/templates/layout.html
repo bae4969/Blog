@@ -17,6 +17,12 @@
     <title>{% block title %}Developer Blog{% endblock %}</title>
     <link rel="stylesheet" href="/css/common.css?v={{ static_v }}">
     <link rel="stylesheet" href="/css/blog.css?v={{ static_v }}">
+    {#
+      화면별 추가 CSS. PHP 는 컨트롤러가 `additionalCss` 로 넘겼다 — 관리자는
+      `/css/admin.css`, 주식은 `/css/stocks.css`. 이걸 안 실으면 해당 화면이 블로그
+      스타일만 먹어 세로로 늘어진다.
+    #}
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
 <div id="blog">
@@ -47,6 +53,11 @@
     </header>
 
     <section>
+        {#
+          주식 화면은 사이드바가 없다 — PHP 도 블로그와 다른 레이아웃(`stock`)을 썼다.
+          사이드바를 두면 본문이 220px 좁아져 표가 눌린다(운영 1560px vs 여기 1340px 이었다).
+        #}
+        {% if not hide_sidebar %}
         <aside id="side-panel">
             <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
             <div class="sidebar-content">
@@ -124,8 +135,13 @@
                 {% endif %}
             </div>
         </aside>
+        {% endif %}
 
-        <div id="content">
+        {#
+          사이드바가 없으면 `#content` 의 `width: calc(100% - 220px)` 가 남아 본문이 좁아진다.
+          blog.css 에 이미 준비된 `stock-page-content`(width:100%)를 붙여 푼다.
+        #}
+        <div id="content" {% if hide_sidebar %}class="stock-page-content"{% endif %}>
             <div class="content-alert-container"></div>
             {% block content %}{% endblock %}
         </div>

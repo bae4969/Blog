@@ -8,6 +8,9 @@
 
 {% block title %}로그 · Developer Blog{% endblock %}
 
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
 {% macro sort_link(col, label) -%}
     {%- set nxt = 'ASC' if (sort == col and order == 'DESC') else 'DESC' -%}
     <a href="?table={{ table }}&sort={{ col }}&order={{ nxt }}{{ keep }}">

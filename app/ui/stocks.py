@@ -159,7 +159,7 @@ async def stocks_index(request: Request):
         request,
         "stocks_index.html",
         {
-            **ctx, "is_stock_page": True,
+            **ctx, "is_stock_page": True, "hide_sidebar": True,
             "rows": rows, "closes": closes, "stats": stats, "portfolios": portfolios,
             "market": market, "markets": _MARKETS, "search": search,
             "page": page, "total": total, "total_pages": total_pages,
@@ -182,7 +182,7 @@ async def _stock_page(db, market: str, search: str, page: int):
                "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code")
         cols = ("ci.coin_code AS code, ci.coin_name_kr AS name_kr, ci.coin_name_en AS name_en, "
                 "'COIN' AS market, 'COIN' AS stock_type, ci.coin_price AS price, "
-                "ci.coin_price * ci.coin_amount AS cap")
+                "ci.coin_price * ci.coin_amount AS cap, ci.coin_amount AS quantity")
         order, code_col = "cap DESC", "ci.coin_code"
         name_cols = ("ci.coin_name_kr", "ci.coin_name_en")
     else:
@@ -190,7 +190,7 @@ async def _stock_page(db, market: str, search: str, page: int):
                "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code")
         cols = ("si.stock_code AS code, si.stock_name_kr AS name_kr, si.stock_name_en AS name_en, "
                 "si.stock_market AS market, si.stock_type AS stock_type, "
-                "si.stock_price AS price, si.stock_capitalization AS cap")
+                "si.stock_price AS price, si.stock_capitalization AS cap, si.stock_count AS quantity")
         order, code_col = "si.stock_capitalization DESC", "si.stock_code"
         name_cols = ("si.stock_name_kr", "si.stock_name_en")
         if market in ("KR", "US"):
