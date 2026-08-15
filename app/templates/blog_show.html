@@ -30,6 +30,16 @@
         <div class="post-content">{{ content | safe }}</div>
     </article>
 
+    {#
+      ⚠️ `.post-actions` 는 `text-align: right` 만 준다 — 안의 요소가 인라인이어야 가로로
+         늘어선다. PHP 는 버튼을 직접 넣었지만 여기서는 CSRF 때문에 `<form>` 으로 감싸는데,
+         form 은 블록이라 그대로 두면 **세로로 쌓인다**(실제로 그랬다).
+         `inline-form` 은 admin.css 에만 있고 blog.css 에는 없어 여기서 직접 준다.
+    #}
+    <style>
+      .post-actions form { display: inline; margin: 0; }
+      .post-actions .btn { margin-left: .4rem; }
+    </style>
     <div class="post-actions">
         {#
           상태 변경은 POST 다(GET 으로 두면 링크를 여는 것만으로 글이 지워진다).
@@ -59,7 +69,9 @@
                 <button type="submit" class="btn btn-danger">영구 삭제</button>
             </form>
         {% endif %}
-        <a href="/blog{% if category_id %}?category_index={{ category_id }}{% endif %}" class="btn">목록</a>
+        {# `.btn` 만으로는 배경이 없어 보라색 링크로 보인다 — 색까지 주는 modifier 가 필요하다. #}
+        <a href="/blog{% if category_id %}?category_index={{ category_id }}{% endif %}"
+           class="btn btn-secondary">목록</a>
     </div>
 </div>
 {% endblock %}
