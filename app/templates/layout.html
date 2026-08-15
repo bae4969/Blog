@@ -33,9 +33,23 @@
 <body{% if is_stock_page %} class="stock-page"{% elif admin_menu is defined %} class="admin-page"{% endif %}>
 <div id="blog">
 
+    {#
+      좌상단 라벨과 로고 링크는 **지금 보고 있는 화면 종류**를 따른다(PHP `views/home/header.php`).
+      주식 화면에서 "블로그 ▾" 가 뜨거나 로고가 /blog 로 가면 안 된다 — 실제로 그랬다.
+    #}
+    {% if admin_menu is defined %}
+        {% set nav_label, title_link = '관리자', '/admin' %}
+    {% elif is_stock_page %}
+        {% set nav_label, title_link = '주식', '/stocks' %}
+    {% elif request.url.path == '/' or request.url.path.startswith(('/blog', '/reader.php', '/writer.php', '/post/')) %}
+        {% set nav_label, title_link = '블로그', '/blog' %}
+    {% else %}
+        {% set nav_label, title_link = '이동', '/blog' %}
+    {% endif %}
+
     <header>
         <div id="topNav">
-            <div id="topNavSelected">블로그 ▾</div>
+            <div id="topNavSelected">{{ nav_label }} ▾</div>
             <div id="topNavDropdown">
                 <a href="/blog">블로그</a>
                 <a href="/stocks">주식</a>
@@ -54,7 +68,7 @@
         <div id="topWrite" data-button-role="blog-write" onclick="location.href='/writer.php'">글쓰기</div>
         {% endif %}
         <div id="title">
-            <img id="blogTitle" onclick="location.href='/blog'" src="/res/title.png" alt="Blog Page" />
+            <img id="blogTitle" onclick="location.href='{{ title_link }}'" src="/res/title.png" alt="Blog Page" />
         </div>
     </header>
 
