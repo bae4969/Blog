@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
 from app.core import blog_user, csrf
+from app.core import ip_block
 from app.db.session import db_session
 from app.ui.routes import _KST, _int_arg, _shell_ctx, templates
 
@@ -364,6 +365,7 @@ async def ip_block_add(
                           "h": duration_hours, "u": me.user_index})
         await db.commit()
 
+    ip_block.invalidate()   # 다음 요청부터 바로 먹게
     logger.info("IP 차단: %s (%s시간)", ip, duration_hours or "영구")
     return RedirectResponse("/admin/ip-blocks?msg=차단했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
@@ -386,6 +388,7 @@ async def ip_block_remove(
         )
         await db.commit()
 
+    ip_block.invalidate()   # 다음 요청부터 바로 먹게
     logger.info("IP 차단 해제: id=%s", blocked_ip_id)
     return RedirectResponse("/admin/ip-blocks?msg=해제했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
@@ -407,6 +410,7 @@ async def ip_block_clean(request: Request, csrf_token: str = Form("")):
         await db.commit()
         n = res.rowcount
 
+    ip_block.invalidate()   # 다음 요청부터 바로 먹게
     logger.info("만료 IP 차단 정리: %s건", n)
     return RedirectResponse(f"/admin/ip-blocks?msg={n}건+정리했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)

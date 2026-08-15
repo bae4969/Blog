@@ -21,7 +21,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core import ip_block
 from app.core.security import current_user_or_none, fetch_public_key
+from app.db.session import db_session
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
 from app.ui.routes import router as ui_router
@@ -63,7 +65,34 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class BlockedIpMiddleware(BaseHTTPMiddleware):
+    """차단된 IP 를 앱에 들이지 않는다.
+
+    ⚠️ **인증보다 먼저 돌아야 한다.** Starlette 은 나중에 add 한 미들웨어가 바깥쪽이므로
+       이 클래스를 `OptionalAuthMiddleware` **뒤에** 등록한다.
+    ⚠️ `/healthz` 는 통과시킨다 — 컨테이너 헬스체크가 막히면 앱이 죽은 것으로 오인된다.
+    ⚠️ IP 는 `request.client.host` 로 얻는다. uvicorn 이 `--proxy-headers` 로 떠 있어
+       X-Forwarded-For 가 반영된다 — 없으면 모두가 게이트웨이 하나로 보여 전부 막힌다.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path != "/healthz":
+            ip = request.client.host if request.client else None
+            try:
+                async with db_session() as db:
+                    blocked = await ip_block.is_blocked(db, ip)
+            except Exception:
+                # DB 가 흔들릴 때 사이트를 통째로 막지 않는다 — 차단은 부가 기능이다.
+                logger.exception("차단 IP 조회 실패 — 통과시킨다")
+                blocked = False
+            if blocked:
+                logger.warning("차단된 IP 접근: %s %s", ip, request.url.path)
+                return PlainTextResponse("Forbidden", status_code=403)
+        return await call_next(request)
+
+
 app.add_middleware(OptionalAuthMiddleware)
+app.add_middleware(BlockedIpMiddleware)   # 바깥쪽 — 인증보다 먼저 돈다
 
 _STATIC = Path(__file__).parent / "static"
 app.mount("/static-api", StaticFiles(directory=_STATIC), name="static-api")
