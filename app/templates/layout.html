@@ -85,6 +85,13 @@
         <aside id="side-panel">
             <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
             <div class="sidebar-content">
+                {#
+                  관리자 화면의 프로필 칸은 원본이 "관리자: 이름" 한 줄이다(방문자 수도
+                  없다) — 블로그 인사말을 그대로 두면 사이드바 높이부터 어긋난다.
+                #}
+                {% if admin_menu is defined %}
+                <div id="profile">관리자: {{ user.cn or user.uid if user else '' }}</div>
+                {% else %}
                 <div id="profile">
                     {% if user %}
                         안녕하세요<br>
@@ -94,6 +101,7 @@
                     {% endif %}
                 </div>
                 <div id="user_count">방문자: {{ '{:,}'.format(visitor_count or 0) }}</div>
+                {% endif %}
                 {#
                   관리자 화면에서는 사이드바가 카테고리 대신 관리 메뉴가 된다(PHP 와 같다).
                   ⚠️ 아직 PHP 에 있는 화면도 함께 걸어 둔다 — Traefik 이 경로로 가르므로
@@ -242,6 +250,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const b = document.querySelector('.sidebar-toggle');
         if (b) b.classList.add('collapsed');
     }
+    // 관리자 화면의 접기/펼치기 카드. PHP 는 admin 레이아웃 푸터에 두고 있었다 —
+    // 이게 없으면 `collapsed` 로 접힌 카드를 눌러도 펴지지 않아 폼이 영영 안 보인다.
+    document.querySelectorAll('.collapsible-header').forEach(function (h) {
+        h.addEventListener('click', function () {
+            this.closest('.collapsible-card').classList.toggle('collapsed');
+        });
+    });
 });
 </script>
 {#

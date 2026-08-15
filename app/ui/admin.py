@@ -1110,13 +1110,15 @@ async def wol_execute(request: Request, csrf_token: str = Form(""), device_id: i
 async def wol_create(
     request: Request,
     csrf_token: str = Form(""),
-    name: str = Form(""),
+    # ⚠️ 원본 폼의 필드 이름이 `device_name` 이다 — 화면을 원본 마크업으로 되돌리면서
+    #    맞췄다. `name` 으로 받으면 값이 안 들어와 조용히 "이름을 확인하세요" 가 뜬다.
+    device_name: str = Form(""),
     ip_range: str = Form(""),
     mac_address: str = Form(""),
 ):
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/wol")
-    if not name.strip() or _magic_packet(mac_address) is None:
+    if not device_name.strip() or _magic_packet(mac_address) is None:
         return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
     try:
         ip_address_obj(ip_range.strip())
@@ -1130,11 +1132,11 @@ async def wol_create(
             text("INSERT INTO wol_device_list "
                  "(wol_device_name, wol_device_ip_range, wol_device_mac_address) "
                  "VALUES (:n, :ip, :m)"),
-            {"n": name.strip(), "ip": ip_range.strip(), "m": mac_address.strip()},
+            {"n": device_name.strip(), "ip": ip_range.strip(), "m": mac_address.strip()},
         )
         await db.commit()
 
-    logger.info("WOL 장치 추가: %s", name)
+    logger.info("WOL 장치 추가: %s", device_name)
     return RedirectResponse("/admin/wol?msg=추가했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1144,13 +1146,13 @@ async def wol_update(
     request: Request,
     csrf_token: str = Form(""),
     device_id: int = Form(0),
-    name: str = Form(""),
+    device_name: str = Form(""),
     ip_range: str = Form(""),
     mac_address: str = Form(""),
 ):
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/wol")
-    if not name.strip() or _magic_packet(mac_address) is None:
+    if not device_name.strip() or _magic_packet(mac_address) is None:
         return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
     try:
         ip_address_obj(ip_range.strip())
@@ -1164,7 +1166,7 @@ async def wol_update(
             text("UPDATE wol_device_list SET wol_device_name = :n, "
                  "  wol_device_ip_range = :ip, wol_device_mac_address = :m "
                  "WHERE wol_device_id = :i"),
-            {"n": name.strip(), "ip": ip_range.strip(), "m": mac_address.strip(), "i": device_id},
+            {"n": device_name.strip(), "ip": ip_range.strip(), "m": mac_address.strip(), "i": device_id},
         )
         await db.commit()
 
