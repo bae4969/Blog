@@ -24,7 +24,13 @@
     #}
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+{#
+  ⚠️ body 클래스는 장식이 아니다. blog.css 가 `body.stock-page #blogTitle { width:35% }`,
+     `body.stock-page #title { padding:40px 0 }` 처럼 **이 클래스로만** 스타일을 준다.
+     PHP 는 레이아웃 파일이 셋(blog/stock/admin)이라 각자 박아뒀지만 여기는 하나로
+     합쳤으므로 화면 종류를 보고 붙인다.
+#}
+<body{% if is_stock_page %} class="stock-page"{% elif admin_menu is defined %} class="admin-page"{% endif %}>
 <div id="blog">
 
     <header>
@@ -52,7 +58,11 @@
         </div>
     </header>
 
-    <section>
+    {#
+      주식 화면의 `section` 은 배경·패딩이 없다(`section.stock-page-section { padding:0;
+      background:transparent }`). 안 붙이면 표 바깥에 회색 판이 한 겹 더 깔린다.
+    #}
+    <section{% if is_stock_page %} class="stock-page-section"{% endif %}>
         {#
           주식 화면은 사이드바가 없다 — PHP 도 블로그와 다른 레이아웃(`stock`)을 썼다.
           사이드바를 두면 본문이 220px 좁아져 표가 눌린다(운영 1560px vs 여기 1340px 이었다).
