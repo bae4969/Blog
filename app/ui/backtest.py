@@ -22,8 +22,13 @@ PHP `BaseController::requireInternalRequest` 를 옮긴 것이다. 이 API 들�
 Origin·Referer 를 본다 — 브라우저가 교차 출처에서 임의로 붙일 수 없는 값들이다.
 """
 
+import asyncio
+import hashlib
 import json
 import logging
+import math
+import re
+from datetime import datetime
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
@@ -32,7 +37,8 @@ from sqlalchemy import text
 
 from app.core import blog_user
 from app.db.session import db_session
-from app.ui.stocks import _resolve_is_coin, _resolve_source
+from app.services import backtest as engine
+from app.ui.stocks import _resolve_is_coin, _resolve_source, candle_rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -371,6 +377,226 @@ async def api_preset_delete(request: Request):
                             status_code=403)
     logger.info("프리셋 삭제: user=%s id=%s", me.user_id, pid)
     return JSONResponse({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# 시뮬레이션 엔진
+# ---------------------------------------------------------------------------
+
+_MAX_STOCKS = 10
+_MAX_BENCHMARKS = 5
+_MAX_SIGNAL_RULES = 20
+_MAX_YEARS = 30
+_STRATEGIES = ("buyhold", "rebalance", "signal")
+_REBALANCE_PERIODS = ("monthly", "quarterly", "semiannual", "annual")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# 백테스트는 CPU 를 오래 문다. PHP 는 파일 잠금으로 동시 2건까지만 돌렸다 — 여기서도
+# 같은 수로 막는다. ⚠️ 계산은 `to_thread` 로 뺀다. 이벤트 루프에서 그대로 돌리면
+# 한 건이 도는 동안 블로그 화면까지 전부 멈춘다.
+_backtest_slots = asyncio.Semaphore(2)
+
+
+def _f(v, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+def _s(v, fallback: str = "") -> str:
+    """PHP `sanitizeInput` 자리 — 문자열로 좁히고 앞뒤 공백을 턴다."""
+    return str(v).strip() if isinstance(v, (str, int, float)) else fallback
+
+
+def _norm_config(body: dict) -> tuple[dict | None, str | None]:
+    """입력을 검증·정제한다. (설정, 오류메시지) — 오류가 있으면 설정이 None."""
+    stocks_in = body.get("stocks")
+    if not stocks_in or not isinstance(stocks_in, list):
+        return None, "stocks is required"
+    start, end = body.get("startDate"), body.get("endDate")
+    if not start or not end:
+        return None, "startDate and endDate are required"
+    if len(stocks_in) > _MAX_STOCKS:
+        return None, f"Maximum {_MAX_STOCKS} stocks allowed"
+    benchmarks_in = body.get("benchmarks") or []
+    if isinstance(benchmarks_in, list) and len(benchmarks_in) > _MAX_BENCHMARKS:
+        return None, f"Maximum {_MAX_BENCHMARKS} benchmarks allowed"
+    if not _DATE_RE.match(str(start)) or not _DATE_RE.match(str(end)):
+        return None, "Invalid date format"
+    if str(start) >= str(end):
+        return None, "startDate must be before endDate"
+    strategy = body.get("strategy") or "buyhold"
+    if strategy not in _STRATEGIES:
+        return None, "Invalid strategy"
+
+    d0 = datetime.strptime(str(start), "%Y-%m-%d")
+    d1 = datetime.strptime(str(end), "%Y-%m-%d")
+    if (d1 - d0).total_seconds() / (365.25 * 86400) > _MAX_YEARS:
+        return None, f"최대 {_MAX_YEARS}년까지 시뮬레이션 가능합니다."
+
+    fees_in = body.get("fees") or {}
+    defer_in = body.get("dcaDefer") or {}
+    return {
+        "stocks": [{"code": _s(s.get("code")), "name": _s(s.get("name"), _s(s.get("code"))),
+                    "market": _s(s.get("market")), "weight": _f(s.get("weight"))}
+                   for s in stocks_in[:_MAX_STOCKS] if isinstance(s, dict)],
+        "benchmarks": [{"code": _s(b.get("code")), "market": _s(b.get("market")),
+                        "name": _s(b.get("name"), _s(b.get("code")))}
+                       for b in (benchmarks_in or [])[:_MAX_BENCHMARKS] if isinstance(b, dict)],
+        "startDate": str(start), "endDate": str(end), "strategy": strategy,
+        "rebalancePeriod": (body.get("rebalancePeriod")
+                            if body.get("rebalancePeriod") in _REBALANCE_PERIODS else "quarterly"),
+        "signalRules": [{"indicator": _s(r.get("indicator")), "targetCode": _s(r.get("targetCode"))}
+                        for r in (body.get("signalRules") or [])[:_MAX_SIGNAL_RULES]
+                        if isinstance(r, dict)],
+        "signalCombine": body.get("signalCombine") if body.get("signalCombine") in ("and", "or") else "or",
+        "initialCapital": _clamp(_f(body.get("initialCapital")), 0, 1e12),
+        "monthlyDCA": _clamp(_f(body.get("monthlyDCA")), 0, 1e10),
+        "dcaDefer": {"enabled": bool(defer_in.get("enabled")),
+                     "indicator": _s(defer_in.get("indicator"), "none") or "none"},
+        "fees": {"KR": _clamp(_f(fees_in.get("KR"), 0.015), 0, 10),
+                 "US": _clamp(_f(fees_in.get("US"), 0.2), 0, 10),
+                 "COIN": _clamp(_f(fees_in.get("COIN"), 0.015), 0, 10)},
+        "riskFreeRate": _clamp(_f(body.get("riskFreeRate"), 3), 0, 100),
+    }, None
+
+
+def _config_hash(stocks: list, strategy: str) -> str:
+    """같은 조합을 다시 돌리면 새 행을 만들지 않고 덮어쓰기 위한 키(IP 와 짝을 이룬다)."""
+    parts = sorted(f"{s['code']}:{engine._php_round(s['weight'], 2):g}" for s in stocks)
+    return hashlib.md5(("|".join(parts) + "|" + strategy).encode()).hexdigest()
+
+
+def _portfolio_name(stocks: list) -> str:
+    names = [s.get("name") or s["code"] for s in stocks]
+    if len(names) <= 3:
+        return " · ".join(names)
+    return " · ".join(names[:3]) + f" 외 {len(names) - 3}종목"
+
+
+def _full_summary(stocks: list) -> str:
+    """포트폴리오용 요약 — 프리셋과 달리 **전 종목**을 펴고 200자에서 자른다(PHP 그대로)."""
+    return " + ".join(f"{s.get('name') or s['code']} {engine._php_round(s['weight'], 1):g}%"
+                      for s in stocks)[:200]
+
+
+async def _load_prices(db, config: dict) -> tuple[dict, dict]:
+    """포트폴리오·벤치마크 종목의 일봉을 읽어 `{코드: {dates, ohlcv}}` 로 만든다.
+
+    시작일보다 120일 앞에서부터 읽는다 — 이동평균·MACD 가 워밍업할 구간이 필요하다.
+    """
+    start = datetime.strptime(engine.warmup_start(config["startDate"]), "%Y-%m-%d")
+    end = datetime.strptime(config["endDate"], "%Y-%m-%d").replace(hour=23, minute=59)
+
+    async def fetch(items):
+        out = {}
+        for it in items:
+            if not it["code"]:
+                continue
+            rows = await candle_rows(db, it["code"], it.get("market") or "", start, end, 15000, "1d")
+            out[it["code"]] = engine.build_series(rows)
+        return out
+
+    return await fetch(config["stocks"]), await fetch(config["benchmarks"])
+
+
+@router.post("/stocks/api/backtest", include_in_schema=False)
+async def api_backtest(request: Request):
+    """백테스트를 돌리고 결과를 돌려준다. 결과는 포트폴리오로도 자동 저장된다."""
+    if (deny := _require_internal(request)) is not None:
+        return deny
+
+    body = await _json_body(request)
+    if body is None:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+
+    config, err = _norm_config(body)
+    if config is None:
+        return JSONResponse({"success": False, "error": err}, status_code=400)
+
+    if _backtest_slots.locked():
+        return JSONResponse({"success": False, "error": "서버가 바쁩니다. 잠시 후 다시 시도해주세요."},
+                            status_code=503)
+
+    async with _backtest_slots:
+        async with db_session() as db:
+            stock_data, bmk_data = await _load_prices(db, config)
+        # 순수 계산이라 DB 연결을 쥔 채로 돌지 않는다.
+        result = await asyncio.to_thread(engine.run, config, stock_data, bmk_data)
+
+    if result is None:
+        return JSONResponse({"success": False,
+                             "error": "No data available for the selected stocks and period"},
+                            status_code=404)
+
+    portfolio_id = portfolio_name = None
+    try:
+        portfolio_id, portfolio_name = await _save_portfolio(request, config, result)
+    except Exception:                                   # 저장이 실패해도 결과는 돌려준다
+        logger.exception("포트폴리오 저장 실패")
+
+    return JSONResponse(
+        {"success": True, "data": _finite(result),
+         "portfolioId": portfolio_id, "portfolioName": portfolio_name},
+        headers={"Cache-Control": "private, no-cache"})
+
+
+async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple[int, str]:
+    """같은 IP + 같은 종목조합이면 덮어쓰고, 아니면 새로 만든다."""
+    name = _portfolio_name(config["stocks"])
+    score = engine.compute_score(result["metrics"])
+    params = {
+        "name": name, "ip": _client_ip(request),
+        "hash": _config_hash(config["stocks"], config["strategy"]),
+        "cfg": json.dumps(config, ensure_ascii=False),
+        "ds": score["score"], "dg": score["grade"],
+        "rs": result["rankingScore"], "rg": result["rankingGrade"],
+        "metrics": json.dumps(_finite(result["metrics"]), ensure_ascii=False),
+        "summary": _full_summary(config["stocks"]), "strategy": config["strategy"],
+        "ps": config["startDate"], "pe": config["endDate"],
+        "cap": int(config["initialCapital"]), "dca": int(config["monthlyDCA"]),
+    }
+    async with db_session() as db:
+        existing = (await db.execute(text(
+            "SELECT portfolio_id FROM backtest_portfolio "
+            "WHERE ip_address = :ip AND config_hash = :hash"), params)).scalar()
+        if existing is not None:
+            await db.execute(text(
+                "UPDATE backtest_portfolio SET portfolio_name = :name, config_json = :cfg, "
+                "display_score = :ds, display_grade = :dg, ranking_score = :rs, "
+                "ranking_grade = :rg, metrics_json = :metrics, stock_summary = :summary, "
+                "strategy = :strategy, period_start = :ps, period_end = :pe, "
+                "initial_capital = :cap, monthly_dca = :dca WHERE portfolio_id = :id"),
+                {**params, "id": existing})
+            pid = int(existing)
+        else:
+            res = await db.execute(text(
+                "INSERT INTO backtest_portfolio (portfolio_name, ip_address, config_hash, "
+                "config_json, display_score, display_grade, ranking_score, ranking_grade, "
+                "metrics_json, stock_summary, strategy, period_start, period_end, "
+                "initial_capital, monthly_dca) VALUES (:name, :ip, :hash, :cfg, :ds, :dg, "
+                ":rs, :rg, :metrics, :summary, :strategy, :ps, :pe, :cap, :dca)"), params)
+            pid = int(res.lastrowid)
+        await db.commit()
+    logger.info("백테스트 저장: id=%s score=%s %s", pid, result["rankingScore"], name)
+    return pid, name
+
+
+def _finite(v):
+    """`inf`·`nan` 을 None 으로. 소르티노는 하방 변동이 없으면 무한대가 나오는데,
+    그대로 내보내면 표준 JSON 이 아니라 브라우저가 파싱하다 죽는다."""
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    if isinstance(v, dict):
+        return {k: _finite(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_finite(x) for x in v]
+    return v
 
 
 def _int(v) -> int:

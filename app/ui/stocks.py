@@ -555,6 +555,18 @@ async def _fetch_candles(db, table: str, start: datetime, end: datetime, limit: 
     return rows
 
 
+async def candle_rows(db, code: str, market: str, start: datetime, end: datetime,
+                      limit: int, tf: str) -> list:
+    """종목 하나의 캔들. PHP `Stock::getCandleData` 에 해당한다 — 백테스트도 이걸 쓴다."""
+    is_coin = await _resolve_is_coin(db, code, market)
+    table = await _resolve_source(db, "candle", code, "c" if is_coin else "s")
+    if table is None:
+        return []
+    events = await _split_events(db, code, "COIN" if is_coin else (market or "KR"))
+    is_kr = not is_coin and market in ("KR", "")
+    return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
+
+
 def _parse_dt(v: str | None, default: datetime) -> datetime:
     """`YYYY-MM-DD HH:MM:SS` 를 받는다. 초는 버린다(PHP 도 분 단위로 정규화했다)."""
     if not v:
@@ -584,14 +596,7 @@ async def stocks_api_candle(request: Request):
     market = _norm_market(request.query_params.get("market"))
 
     async with db_session() as db:
-        is_coin = await _resolve_is_coin(db, code, market)
-        table = await _resolve_source(db, "candle", code, "c" if is_coin else "s")
-        if table is None:
-            return JSONResponse({"success": True, "data": [], "count": 0})
-
-        events = await _split_events(db, code, "COIN" if is_coin else (market or "KR"))
-        is_kr = not is_coin and market in ("KR", "")
-        rows = await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
+        rows = await candle_rows(db, code, market, start, end, limit, tf)
 
     data = [
         {k: (v.strftime("%Y-%m-%d %H:%M:%S") if k == "execution_datetime" else _num(v))
