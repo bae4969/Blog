@@ -230,5 +230,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+{#
+  화면별 추가 스크립트. PHP 는 컨트롤러가 `additionalJs` 로 넘겨 푸터 맨 끝에 붙였다 —
+  ⚠️ 반드시 본문 뒤여야 한다. 주식 상세는 본문 안 인라인 스크립트가 `stockCode` 같은
+     전역을 먼저 정의하고 `/js/stocks.js` 가 그걸 읽기 때문이다.
+#}
+{% block extra_js %}{% endblock %}
 </body>
 </html>
