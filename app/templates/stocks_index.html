@@ -70,11 +70,6 @@
             </svg>
             포트폴리오 백테스팅
         </a>
-        <form method="get" action="/stocks" class="stocks-search-form">
-            <input type="hidden" name="market" value="{{ market }}">
-            <input type="text" name="search" value="{{ search }}" placeholder="종목명 또는 코드" maxlength="50">
-            <button type="submit">검색</button>
-        </form>
     </div>
 
     <div class="stocks-main">
@@ -133,6 +128,61 @@
             {% if page < total_pages %}<a href="/stocks?{{ qs }}&page={{ page + 1 }}" class="page-link">→</a>{% endif %}
         </div>
         {% endif %}
+    </div>
+
+    {#
+      오른쪽 사이드바 — 원본과 같은 자리다. 검색바가 여기 있고(본문 위가 아니다),
+      TOP 10 두 개가 붙는다.
+      ⚠️ 거래대금 TOP 10 은 아직 못 옮겼다 — PHP `getTopStocks` 가 205줄로, candle
+         테이블들을 UNION 해 기간 거래대금을 계산한다. 자리만 두고 안내한다.
+    #}
+    <div class="stocks-sidebar-right">
+        <form method="get" action="/stocks" class="stocks-search-bar sidebar-search">
+            <input type="hidden" name="market" value="{{ market }}">
+            <input type="text" name="search" value="{{ search }}" placeholder="종목명 또는 코드 검색...">
+            <button type="submit" class="search-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+        </form>
+
+        <div class="top10-section">
+            <h3>거래대금 TOP 10</h3>
+            <div class="top10-list">
+                <div class="top10-empty">아직 옮기는 중입니다.</div>
+            </div>
+        </div>
+
+        <div class="top10-section">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                포트폴리오 TOP 10
+            </h3>
+            <div class="top10-list">
+                {% for p in portfolios %}
+                {# 점수 구간별 색. PHP 와 같은 경계(70/40)다. #}
+                {% set sc = p.ranking_score or 0 %}
+                <a href="/stocks/backtest?portfolio={{ p.portfolio_id }}" class="top10-item">
+                    <div class="top10-rank">{{ loop.index }}</div>
+                    <div class="top10-info">
+                        <div class="top10-name">{{ p.portfolio_name }}</div>
+                    </div>
+                    <div class="top10-value {% if sc >= 70 %}score-high{% elif sc >= 40 %}score-mid{% else %}score-low{% endif %}">
+                        <div class="top10-primary">{{ sc | int }}</div>
+                        <div class="top10-secondary">{{ p.ranking_grade or '' }}</div>
+                    </div>
+                </a>
+                {% else %}
+                <div class="top10-empty">데이터가 없습니다.</div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
