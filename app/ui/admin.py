@@ -487,14 +487,18 @@ async def stock_subscriptions(request: Request):
                    "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code")
             code_col, name_cols, prefix = "ci.coin_code", ("ci.coin_name_kr", "ci.coin_name_en"), "COIN"
             cols = ("ci.coin_code AS code, ci.coin_name_kr AS name_kr, ci.coin_name_en AS name_en, "
-                    "'COIN' AS market, NULL AS cap")
+                    "'Bithumb' AS market, 'COIN' AS stock_type, ci.coin_price AS price, "
+                    "(ci.coin_price * ci.coin_amount) AS cap")
+            rank = "(ci.coin_price * ci.coin_amount) DESC, "
             where = []
         else:
             src = ("KoreaInvest.stock_info si LEFT JOIN (SELECT DISTINCT stock_code "
                    "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code")
             code_col, name_cols, prefix = "si.stock_code", ("si.stock_name_kr", "si.stock_name_en"), "STOCK"
             cols = ("si.stock_code AS code, si.stock_name_kr AS name_kr, si.stock_name_en AS name_en, "
-                    "si.stock_market AS market, si.stock_capitalization AS cap")
+                    "si.stock_market AS market, si.stock_type, si.stock_price AS price, "
+                    "si.stock_capitalization AS cap")
+            rank = "si.stock_market ASC, si.stock_capitalization DESC, "
             markets = _KR_MARKETS if market == "KR" else _US_MARKETS
             where = [f"si.stock_market IN ({', '.join(repr(m) for m in markets)})"]
 
@@ -513,10 +517,11 @@ async def stock_subscriptions(request: Request):
         order = ""
         if search:
             order = f"CASE WHEN {code_col} LIKE :code_pre THEN 0 ELSE 1 END, "
+        # 정렬은 PHP 와 같다 — 등록된 것이 먼저, 그다음 시가총액이 큰 순.
         rows = (await db.execute(text(
             f"SELECT {cols}, CASE WHEN {reg_col} IS NULL THEN 0 ELSE 1 END AS is_registered "
             f"FROM {src} {where_sql} "
-            f"ORDER BY {order}is_registered DESC, {code_col} ASC "
+            f"ORDER BY {order}is_registered DESC, {rank}{code_col} ASC "
             f"LIMIT :limit OFFSET :offset"), params)).all()
 
         # 지금 구독 중인 **전체** 선택키. 화면 밖 종목을 hidden 으로 유지하는 데 쓴다 —
@@ -525,10 +530,24 @@ async def stock_subscriptions(request: Request):
             "SELECT CONCAT('STOCK:', stock_code) FROM KoreaInvest.stock_last_ws_query "
             "UNION SELECT CONCAT('COIN:', coin_code) FROM Bithumb.coin_last_ws_query"))).all()}
         counts = await _registered_counts(db)
+
+        # 선택키 → 시장. "현재 시장 선택 수" 를 세는 데만 쓴다.
+        #
+        # ⚠️ PHP 는 `stock_info` **전체**(1.8만 종목)를 맵으로 만들어 화면에 실었다 —
+        #    JSON 만 438KB 다. 여기서는 **초안에 들어갈 수 있는 것**, 즉 이미 구독 중인
+        #    것과 지금 페이지에 보이는 것만 싣는다(~700개). 다른 페이지에서 고른 키는
+        #    화면 쪽이 sessionStorage 에 누적해 둔다.
+        market_map = {f"COIN:{r[0]}": "COIN" for r in (await db.execute(text(
+            "SELECT coin_code FROM Bithumb.coin_last_ws_query"))).all()}
+        market_map |= {f"STOCK:{r[0]}": _selection_market(r[1]) for r in (await db.execute(text(
+            "SELECT q.stock_code, si.stock_market FROM KoreaInvest.stock_last_ws_query q "
+            "JOIN KoreaInvest.stock_info si ON si.stock_code = q.stock_code"))).all()}
         ctx = await _shell_ctx(request, db, me.level)
 
     on_page = {f"{prefix}:{r.code}" for r in rows}
     keepers = sorted(registered - on_page)
+    for r in rows:
+        market_map[f"{prefix}:{r.code}"] = "COIN" if prefix == "COIN" else _selection_market(r.market)
 
     token = csrf.new_token(request)
     response = templates.TemplateResponse(
@@ -537,6 +556,10 @@ async def stock_subscriptions(request: Request):
         {
             **ctx, "admin_menu": "stocks", "rows": rows, "prefix": prefix,
             "keepers": keepers,
+            "registered_codes": sorted(registered), "market_map": market_map,
+            # 저장 직후(`?sync=1`)에만 초안을 서버 값으로 덮는다. 안 그러면 방금 저장한
+            # 내용이 남은 옛 초안에 다시 덮여 되돌아간다.
+            "force_sync": request.query_params.get("sync") == "1",
             "market": market, "markets": _STOCK_MARKETS, "search": search,
             "page": page, "total": total,
             "total_pages": max(1, -(-total // _STOCK_PER_PAGE)),
@@ -586,6 +609,13 @@ async def stock_subscriptions_update(request: Request):
             continue
         (stock_codes if m.group(1).upper() == "STOCK" else coin_codes).add(m.group(2).upper())
 
+    # ⚠️ 빈 제출은 거부한다. 저장은 DELETE 후 INSERT 라 빈 목록이 곧 **전체 구독 해제**이고,
+    #    그건 `23.stock_ticker` 의 수집이 멈춘다는 뜻이다. 전부 끊는 것이 목적인 경우는
+    #    드문 반면, 화면 JS 가 죽으면 아무것도 안 실려 오는 사고는 실제로 일어날 수 있다.
+    if not stock_codes and not coin_codes:
+        return _deny("empty_selection", f"{back}&msg=선택한+종목이+없어+저장하지+않았습니다.+"
+                                        "전부+해제하려면+관리자에게+문의하세요")
+
     async with db_session() as db:
         if await _require_admin(request, db) is None:
             return _deny("not_admin stocks_update")
@@ -629,8 +659,9 @@ async def stock_subscriptions_update(request: Request):
         await db.commit()
 
     logger.info("구독 종목 교체: 한국 %s · 미국 %s · 코인 %s", kr, us, len(valid_coins))
+    # `sync=1` 로 돌아간다 — 화면이 sessionStorage 초안을 방금 저장한 값으로 덮게 하려는 것이다.
     return RedirectResponse(
-        f"{back}&msg=저장했습니다.+한국+{kr}건,+미국+{us}건,+코인+{len(valid_coins)}건",
+        f"{back}&sync=1&msg=저장했습니다.+한국+{kr}건,+미국+{us}건,+코인+{len(valid_coins)}건",
         status_code=status.HTTP_303_SEE_OTHER)
 
 
