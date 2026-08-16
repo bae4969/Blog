@@ -7,9 +7,12 @@ stocks·stock-splits)는 아직 PHP 가 갖고 있다.
 **모든 라우트가 다시 검사한다.**
 """
 
+import hashlib
+import json
 import logging
 import re
 import socket
+import time
 from datetime import datetime, timedelta
 from ipaddress import ip_address as ip_address_obj
 from urllib.parse import quote
@@ -919,11 +922,88 @@ async def user_update(
 #: 목록으로 못 박는 것이 유일한 방어다.
 _LOG_SORTS = ("log_datetime", "log_name", "log_type", "log_function", "log_file")
 _LOG_ORDERS = ("ASC", "DESC")
-#: 볼 수 있는 로그 테이블. 이것도 같은 이유로 화이트리스트다.
-_LOG_TABLES = ("blog_log", "stock_ticker_log")
 _LOG_TYPES = ("I", "W", "E", "N")
 _LOG_PER_PAGE = 50
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+#: 로그 테이블에 반드시 있어야 하는 컬럼. 이게 다 있어야 같은 모양으로 UNION 할 수 있다.
+_LOG_REQUIRED_COLS = ("log_datetime", "log_name", "log_type", "log_message")
+#: 테이블 이름 발견 결과 캐시 — (목록, 읽은 시각). PHP 는 파일 캐시로 10분 뒀다.
+_log_tables_cache: tuple[tuple[str, ...], float] = ((), 0.0)
+_LOG_TABLES_TTL = 600.0
+
+
+async def _log_table_names(db) -> tuple[str, ...]:
+    """`Log` 스키마에서 로그 테이블을 **찾아낸다**(PHP `Logger::getLogTableNames`).
+
+    목록을 상수로 박지 않는 이유는 수집기가 테이블을 늘릴 수 있어서다 — 박아두면 새
+    테이블이 화면에서 조용히 빠진다. 대신 이름이 그대로 SQL 에 붙으므로(테이블명은
+    바인딩이 안 된다) **영숫자와 밑줄만** 통과시키고, 여기서 나온 이름만 쓴다.
+    """
+    global _log_tables_cache
+    names, at = _log_tables_cache
+    if names and time.monotonic() - at < _LOG_TABLES_TTL:
+        return names
+
+    # ⚠️ 별칭을 `t` 로 두면 안 된다 — SQLAlchemy 2.0 의 `Row.t` 는 **행 전체를 튜플로**
+    #    주는 내장 접근자라 같은 이름의 컬럼을 가린다. 그러면 테이블 이름 대신
+    #    `('blog_log', 4)` 가 SQL 에 붙는다(실제로 당했다).
+    rows = (await db.execute(text(
+        "SELECT TABLE_NAME AS tbl, COUNT(*) AS c FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = 'Log' AND COLUMN_NAME IN :cols "
+        "AND TABLE_NAME REGEXP '^[A-Za-z0-9_]+$' "
+        "GROUP BY TABLE_NAME HAVING c = :n ORDER BY TABLE_NAME"
+    ).bindparams(bindparam("cols", expanding=True)),
+        {"cols": list(_LOG_REQUIRED_COLS), "n": len(_LOG_REQUIRED_COLS)})).all()
+
+    found = tuple(r.tbl for r in rows)
+    if found:
+        _log_tables_cache = (found, time.monotonic())
+    # 못 찾으면(권한·장애) 캐시에 넣지 않는다 — 다음 요청에서 다시 시도하게.
+    return found or ("blog_log",)
+
+
+def _log_row(row) -> dict:
+    """행 + JSON 메시지 해석. 구조화 로그는 요약만 보이고 원문은 접어 둔다.
+
+    ⚠️ 문자열·숫자도 유효한 JSON 이라 `json.loads` 만으로는 판별이 안 된다. PHP 는
+       `is_array` 로 걸렀는데, 여기서는 **dict 일 때만** 구조화로 본다 — 요약이 읽는
+       `action`·`result` 는 키가 있는 객체에만 있고, JSON 배열이면 PHP 도 "0, 1, 2"
+       같은 무의미한 요약을 내놓기 때문이다.
+    """
+    out = dict(row._mapping)
+    msg = out.get("log_message") or ""
+    try:
+        parsed = json.loads(msg)
+    except (ValueError, TypeError):
+        parsed = None
+    detail = parsed if isinstance(parsed, dict) else None
+
+    out["detail"] = detail
+    if detail is not None:
+        out["detail_pretty"] = json.dumps(detail, indent=4, ensure_ascii=False)
+        # id 는 DOM 에서만 쓰이므로 충돌만 안 나면 된다 — 보안 용도가 아니다.
+        seed = f"{msg}{out.get('log_datetime') or ''}"
+        out["detail_id"] = "log-detail-" + hashlib.md5(seed.encode()).hexdigest()
+    return out
+
+
+def _log_union(tables, where_sql: str) -> str:
+    """테이블들을 같은 컬럼 모양으로 UNION ALL 한 서브쿼리.
+
+    ⚠️ WHERE 를 **각 SELECT 안으로 밀어 넣는다.** 밖에 한 번만 걸면 38만 행을 전부
+       모아놓고 거르게 되어 인덱스를 못 쓴다.
+    ⚠️ `COLLATE` 를 붙이는 이유는 테이블마다 컬럼 콜레이션이 달라 UNION 이 거부될 수
+       있어서다(PHP 도 같은 이유로 붙였다).
+    """
+    cols = ("log_datetime, "
+            "log_name COLLATE utf8mb4_unicode_ci AS log_name, "
+            "log_type COLLATE utf8mb4_unicode_ci AS log_type, "
+            "log_message COLLATE utf8mb4_unicode_ci AS log_message, "
+            "log_function COLLATE utf8mb4_unicode_ci AS log_function, "
+            "log_file COLLATE utf8mb4_unicode_ci AS log_file, log_line")
+    parts = [f"SELECT {cols} FROM Log.`{t}` {where_sql}".rstrip() for t in tables]
+    return "(" + " UNION ALL ".join(parts) + ") AS combined_logs"
 
 
 @router.get("/logs", response_class=HTMLResponse, include_in_schema=False)
@@ -933,10 +1013,6 @@ async def logs(request: Request):
     로그가 수만 건이라 조건 없이 전체를 훑으면 화면도 DB 도 무겁다.
     """
     qp = request.query_params
-    table = qp.get("table", "blog_log")
-    if table not in _LOG_TABLES:
-        table = "blog_log"
-
     sort = qp.get("sort", "log_datetime")
     if sort not in _LOG_SORTS:
         sort = "log_datetime"
@@ -960,8 +1036,9 @@ async def logs(request: Request):
 
     where, params = [], {}
     if name:
-        where.append("log_name LIKE :name")
-        params["name"] = f"%{name}%"
+        # PHP 와 같이 **정확일치**다. 이름은 목록에서 고르게 하므로 부분검색이 필요 없다.
+        where.append("log_name = :name")
+        params["name"] = name
     if q:
         where.append("log_message LIKE :q")
         params["q"] = f"%{q}%"
@@ -988,9 +1065,13 @@ async def logs(request: Request):
         if me is None:
             return _deny("not_admin /admin/logs")
 
-        total = (
-            await db.execute(text(f"SELECT COUNT(*) FROM Log.{table} {clause}"), params)
-        ).scalar() or 0
+        all_tables = await _log_table_names(db)
+        # 고른 것 중 실재하는 것만. 하나도 안 고르면 **전부** 본다(PHP 와 같다).
+        picked = tuple(t for t in qp.getlist("table") if t in all_tables)
+        source = _log_union(picked or all_tables, clause)
+
+        total = (await db.execute(
+            text(f"SELECT COUNT(*) FROM {source}"), params)).scalar() or 0
         pages = max(1, (total + _LOG_PER_PAGE - 1) // _LOG_PER_PAGE)
         page = min(page, pages)
 
@@ -998,8 +1079,7 @@ async def logs(request: Request):
             await db.execute(
                 text(
                     f"SELECT log_datetime, log_name, log_type, log_message, "
-                    f"       log_function, log_file, log_line "
-                    f"FROM Log.{table} {clause} "
+                    f"       log_function, log_file, log_line FROM {source} "
                     # ⚠️ 정렬 키를 **하나만** 쓰면 안 된다. MariaDB 12.1.2 에서
                     #    `ORDER BY <인덱스 컬럼> DESC LIMIT n` 이 이 테이블에서
                     #    **빈 결과**를 돌려준다(COUNT 는 90인데 SELECT 만 0행). ASC 는
@@ -1012,6 +1092,15 @@ async def logs(request: Request):
                 params,
             )
         ).all()
+
+        # 이름 목록 — 최근 90일에 실제로 찍힌 것만 보여준다(PHP 와 같다).
+        log_names = [r[0] for r in (await db.execute(text(
+            f"SELECT DISTINCT log_name FROM "
+            f"{_log_union(all_tables, 'WHERE log_datetime >= :since')} "
+            f"ORDER BY log_name LIMIT 200"),
+            {"since": (datetime.now(_KST) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")},
+        )).all() if r[0]]
+
         ctx = await _shell_ctx(request, db, me.level)
 
     return templates.TemplateResponse(
@@ -1020,8 +1109,8 @@ async def logs(request: Request):
         {
             **ctx,
             "admin_menu": "logs",
-            "rows": rows,
-            "table": table, "tables": _LOG_TABLES,
+            "rows": [_log_row(r) for r in rows],
+            "sel_tables": list(picked), "log_tables": all_tables, "log_names": log_names,
             "sort": sort, "order": order,
             "name": name, "q": q, "types": types,
             "date_from": date_from, "date_to": date_to,
