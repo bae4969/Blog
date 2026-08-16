@@ -15,11 +15,11 @@ PHP `StockController` 의 백테스트 계열 중 **DB 작업만** 옮긴 것이
    X-Forwarded-For 가 반영된다 — 이게 없으면 모두가 게이트웨이 IP 하나로 보여
    **아무나 남의 포트폴리오 이름을 고칠 수 있게 된다.**
 
-## `_require_internal`
+## 내부요청 가드
 
-PHP `BaseController::requireInternalRequest` 를 옮긴 것이다. 이 API 들은 CSRF 토큰이
-없다(JSON 본문이라 폼 토큰을 실을 자리가 없다). 대신 `X-Requested-With` 와
-Origin·Referer 를 본다 — 브라우저가 교차 출처에서 임의로 붙일 수 없는 값들이다.
+여기 API 들은 CSRF 토큰이 없다(JSON 본문이라 폼 토큰을 실을 자리가 없다). 대신
+`app.core.csrf.require_internal` 로 `X-Requested-With` 와 Origin·Referer 를 본다 —
+PHP `BaseController::requireInternalRequest` 와 같은 기준이다.
 """
 
 import asyncio
@@ -29,13 +29,13 @@ import logging
 import math
 import re
 from datetime import datetime
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import text
 
 from app.core import blog_user
+from app.core.csrf import require_internal
 from app.db.session import db_session
 from app.services import backtest as engine
 from app.ui.routes import _shell_ctx, templates
@@ -46,23 +46,6 @@ router = APIRouter()
 
 _MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
-
-
-def _require_internal(request: Request) -> JSONResponse | None:
-    """자사 화면에서 온 XHR 인지 확인. 아니면 403 응답을 돌려준다(통과면 None).
-
-    PHP 와 같은 기준이다: `X-Requested-With: XMLHttpRequest` 가 있어야 하고,
-    Origin 또는 Referer 의 호스트가 지금 호스트와 같아야 한다. 둘 다 없으면 거절한다.
-    """
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return JSONResponse({"error": "Forbidden"}, status_code=403)
-
-    host = request.url.hostname
-    for header in ("origin", "referer"):
-        raw = request.headers.get(header)
-        if raw and urlparse(raw).hostname == host:
-            return None
-    return JSONResponse({"error": "Forbidden"}, status_code=403)
 
 
 def _client_ip(request: Request) -> str:
@@ -126,7 +109,7 @@ async def api_date_range(request: Request):
     시작일은 가장 늦은 시작일, 종료일은 가장 이른 종료일을 고른다 — 한 종목이라도
     데이터가 없는 날은 비교가 성립하지 않기 때문이다.
     """
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     codes = [c.strip() for c in (request.query_params.get("codes") or "").split(",") if c.strip()]
@@ -180,7 +163,7 @@ def _row_to_dict(row, *json_cols: str) -> dict:
 @router.get("/stocks/api/top-portfolios", include_in_schema=False)
 async def api_top_portfolios(request: Request):
     """점수 상위 10개. `/stocks` 사이드바가 서버 렌더로 쓰는 것과 같은 목록이다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     async with db_session() as db:
@@ -193,7 +176,7 @@ async def api_top_portfolios(request: Request):
 @router.get("/stocks/api/portfolio", include_in_schema=False)
 async def api_portfolio(request: Request):
     """포트폴리오 하나. 저장된 설정(config)까지 준다 — 화면이 폼을 복원하는 데 쓴다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     pid = _int(request.query_params.get("id"))
@@ -216,7 +199,7 @@ async def api_portfolio(request: Request):
 @router.post("/stocks/api/portfolio/name", include_in_schema=False)
 async def api_portfolio_rename(request: Request):
     """이름 수정. **저장할 때와 같은 IP 에서만** 된다(로그인이 없어 IP 가 유일한 단서다)."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     body = await _json_body(request)
@@ -252,7 +235,7 @@ async def api_portfolio_rename(request: Request):
 @router.get("/stocks/api/presets", include_in_schema=False)
 async def api_presets(request: Request):
     """내 프리셋 목록(최근 수정순). 설정 본문은 주지 않는다 — 목록은 가벼워야 한다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     async with db_session() as db:
@@ -269,7 +252,7 @@ async def api_presets(request: Request):
 @router.get("/stocks/api/preset", include_in_schema=False)
 async def api_preset_load(request: Request):
     """프리셋 하나. 남의 것은 못 본다 — user_index 를 WHERE 에 함께 넣는다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     pid = _int(request.query_params.get("id"))
@@ -308,7 +291,7 @@ def _stock_summary(stocks: list) -> str:
 @router.post("/stocks/api/preset/save", include_in_schema=False)
 async def api_preset_save(request: Request):
     """프리셋 저장. **같은 이름이면 덮어쓴다**(계정+이름이 UNIQUE)."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     body = await _json_body(request)
@@ -366,7 +349,7 @@ async def api_preset_save(request: Request):
 @router.post("/stocks/api/preset/delete", include_in_schema=False)
 async def api_preset_delete(request: Request):
     """프리셋 삭제. 남의 것은 못 지운다 — user_index 를 WHERE 에 함께 넣는다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     body = await _json_body(request)
@@ -523,7 +506,7 @@ async def _load_prices(db, config: dict) -> tuple[dict, dict]:
 @router.post("/stocks/api/backtest", include_in_schema=False)
 async def api_backtest(request: Request):
     """백테스트를 돌리고 결과를 돌려준다. 결과는 포트폴리오로도 자동 저장된다."""
-    if (deny := _require_internal(request)) is not None:
+    if (deny := require_internal(request)) is not None:
         return deny
 
     body = await _json_body(request)

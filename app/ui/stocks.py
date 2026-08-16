@@ -26,6 +26,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
+from app.core.csrf import require_internal
 from app.db.session import db_session
 from app.ui.routes import _int_arg, _shell_ctx, templates
 
@@ -582,6 +583,9 @@ def _parse_dt(v: str | None, default: datetime) -> datetime:
 @router.get("/stocks/api/candle", include_in_schema=False)
 async def stocks_api_candle(request: Request):
     """차트용 캔들 JSON. 화면이 그린 뒤 비동기로 부른다."""
+    if (deny := require_internal(request)) is not None:
+        return deny
+
     code = (request.query_params.get("code") or "").strip()[:32]
     if not code:
         return JSONResponse({"error": "Stock code is required"}, status_code=400)
@@ -610,6 +614,9 @@ async def stocks_api_candle(request: Request):
 @router.get("/stocks/api/executions", include_in_schema=False)
 async def stocks_api_executions(request: Request):
     """최근 체결 JSON. `tick` 스키마의 종목별 테이블을 최신순으로 읽는다."""
+    if (deny := require_internal(request)) is not None:
+        return deny
+
     code = (request.query_params.get("code") or "").strip()[:32]
     if not code:
         return JSONResponse({"error": "Stock code is required"}, status_code=400)
@@ -694,6 +701,9 @@ async def _coin_by_code(db, code: str):
 @router.get("/stocks/api/search", include_in_schema=False)
 async def stocks_api_search(request: Request):
     """종목 검색 JSON. 차트 화면의 종목 선택 콤보박스가 쓴다."""
+    if (deny := require_internal(request)) is not None:
+        return deny
+
     search = (request.query_params.get("q") or "").strip()[:50]
     market = _norm_market(request.query_params.get("market"))
     limit = min(100, max(1, _int_arg(request, "limit", 20)))
