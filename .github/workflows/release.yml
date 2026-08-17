@@ -190,11 +190,14 @@ jobs:
           git checkout "$DEPLOY_BRANCH"
           git reset --hard "origin/$DEPLOY_BRANCH"
 
+      # 업로드 폴더는 gitignore 라 배포로 안 따라온다 — 없으면 이미지 업로드가 깨진다.
+      # ⚠️ 경로는 `public/uploads/images` 다. 예전엔 PHP 기준으로 루트의 `cache/data`·
+      #    `uploads/images` 를 만들었는데, 파이썬 앱은 둘 다 쓰지 않아 빈 폴더만 쌓였다.
       - name: Ensure writable directories
         run: |
           set -e
           cd "$APP_DIR"
-          mkdir -p cache/data uploads/images
+          mkdir -p public/uploads/images
 
       # 파일만 바꿔서는 반영되지 않는다 — uvicorn 은 **떠 있는 프로세스**라 옛 코드가
       # 계속 돈다. PHP 시절에는 인터프리터 + 바인드 마운트라 이 단계가 필요 없었다.
