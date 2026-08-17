@@ -1,0 +1,77 @@
+"""중앙 auth 계정 ↔ 옛 블로그 계정 잇기.
+
+글은 `posting_list.user_index` 로 글쓴이를 가리키는데, 중앙 auth 는 `username` 만 준다.
+둘을 잇는 곳은 여기 하나뿐이다 — 계정 이관이 끝나면 이 모듈째로 사라진다.
+
+⚠️ `user_index` 는 **0 이 실제 계정이다**(bae4969). `if user_index:` 로 검사하면 그
+계정만 조용히 빠진다 — 반드시 `is None` 으로 볼 것.
+"""
+
+from dataclasses import dataclass
+
+from sqlalchemy import text
+
+from app.core.security import AuthUser
+
+
+@dataclass
+class BlogUser:
+    """블로그 쪽에서 본 글쓴이."""
+
+    user_index: int
+    user_id: str
+    level: int
+    posting_count: int
+    posting_limit: int
+
+    @property
+    def is_limited(self) -> bool:
+        """작성 제한에 걸렸나 — PHP `getPostingLimitInfo` 와 같은 기준."""
+        return self.posting_count >= self.posting_limit
+
+
+async def find(db, user: AuthUser | None) -> BlogUser | None:
+    """로그인한 auth 계정에 대응하는 블로그 계정. 없으면 None(글을 못 쓴다).
+
+    아직 옛 `user_list` 에 없는 auth 계정은 글을 쓸 수 없다. 계정 이관이 끝나기 전까지
+    새 사용자를 받으려면 그쪽에 행을 만들어 줘야 한다.
+    """
+    if user is None:
+        return None
+    row = (
+        await db.execute(
+            text(
+                "SELECT user_index, user_id, user_level, "
+                "       user_posting_count, user_posting_limit "
+                "FROM user_list WHERE user_id = :u AND user_state = 0"
+            ),
+            {"u": user.uid},
+        )
+    ).first()
+    if row is None:
+        return None
+    return BlogUser(
+        user_index=int(row[0]),
+        user_id=row[1],
+        level=int(row[2]),
+        posting_count=int(row[3]),
+        posting_limit=int(row[4]),
+    )
+
+
+async def can_write_category(db, level: int, category_index: int) -> bool:
+    """이 등급이 그 카테고리에 쓸 수 있나.
+
+    ⚠️ 등급은 낮을수록 권한이 높다 — 조건이 `category_write_level >= 내 등급` 이다
+    (PHP `Post::create` 와 같다). 부등호를 뒤집으면 아무 카테고리에나 쓸 수 있게 된다.
+    """
+    n = (
+        await db.execute(
+            text(
+                "SELECT COUNT(*) FROM category_list "
+                "WHERE category_write_level >= :lv AND category_index = :c"
+            ),
+            {"lv": level, "c": category_index},
+        )
+    ).scalar()
+    return bool(n)

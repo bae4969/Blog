@@ -1,0 +1,315 @@
+{#
+  주식 구독 관리 — PHP `views/admin/stocks.php` 를 옮긴 것이다.
+
+  ⚠️ **저장하면 선택 목록이 곧 최종 상태다.** 보이는 페이지만 반영하는 게 아니라
+     `stock_last_ws_query`·`coin_last_ws_query` 를 통째로 갈아끼운다. 여기서 만든 목록을
+     `23.stock_ticker` 가 읽어 WebSocket 구독을 걸므로 **비우면 수집이 멈춘다.**
+
+  ⚠️ **원본과 의도적으로 다른 곳이 한 군데 있다 — `dynamicSelectionInputs` 의 초기값.**
+     원본은 이 div 를 비워 두고 체크박스에 `name` 도 주지 않는다. 그래서 제출 시 값을
+     만들어 넣는 JS 가 한 번이라도 안 돌면 **빈 목록이 저장돼 구독이 전부 날아간다.**
+     여기서는 화면 밖 구독분(`keepers`)을 미리 히든으로 넣어 두고 체크박스에 `name` 을
+     준다. JS 가 정상이면 제출 직전에 이 div 를 비우고 초안으로 다시 채우므로 원본과
+     똑같이 동작하고, JS 가 죽으면 "현재 구독 + 이 페이지에서 체크한 것" 이 실려 가
+     파괴적이지 않다. (라우트도 빈 제출을 거부한다 — 이중 안전망이다.)
+
+  ⚠️ 선택은 **sessionStorage 초안**으로 관리한다. 여러 페이지·시장을 오가며 고른 뒤
+     마지막에 한 번 저장하는 것이 이 화면의 요점이다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}주식 구독 관리 · Developer Blog{% endblock %}
+
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}
+<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
+{% endblock %}
+
+{% set market_labels = {'KR': '한국', 'US': '미국', 'COIN': '코인'} %}
+
+{% macro query_base(m=none, p=none) -%}
+    {%- set parts = ['market=' ~ (m or market)|urlencode] -%}
+    {%- if search %}{% set _ = parts.append('search=' ~ search|urlencode) %}{% endif -%}
+    {%- if p %}{% set _ = parts.append('page=' ~ p) %}{% endif -%}
+    {{- parts|join('&') -}}
+{%- endmacro %}
+
+{% block content %}
+<div class="admin-content">
+    <div class="admin-card stock-admin-management-card">
+        <h2>주식 구독 관리</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">현재 필터 결과</span> <span class="stat-value">{{ '{:,}'.format(total) }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 시장 등록 종목</span> <span class="stat-value" id="registeredCountLabel">{{ '{:,}'.format(counts.get(market, 0)) }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 시장 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
+        </div>
+        <hr>
+
+        <div class="stock-admin-toolbar">
+            <div class="stock-admin-market-tabs">
+                {% for code, label in market_labels.items() %}
+                    <a class="stock-admin-market-tab {{ 'active' if market == code else '' }}" href="/admin/stocks?{{ query_base(m=code, p=1) }}">
+                        {{ label }}
+                    </a>
+                {% endfor %}
+            </div>
+
+            <form class="stock-admin-search-form" method="get" action="/admin/stocks">
+                <input type="hidden" name="market" value="{{ market }}">
+                <input type="text" name="search" placeholder="종목명 또는 코드 검색" value="{{ search }}">
+                <button type="submit" class="btn btn-primary">검색</button>
+            </form>
+
+            <div class="stock-admin-actions">
+                <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">원래 상태로 되돌리기</button>
+                <button type="submit" form="stockAdminForm" class="btn btn-primary stock-admin-action">구독 목록 저장</button>
+            </div>
+        </div>
+
+        <form class="stock-admin-table-form" method="post" action="/admin/stocks/subscriptions" id="stockAdminForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="current_market" value="{{ market }}">
+            <input type="hidden" name="current_search" value="{{ search }}">
+            <input type="hidden" name="current_page" value="{{ page }}">
+            {# JS 가 죽었을 때의 안전망. 정상 동작 시에는 제출 직전에 초안으로 교체된다. #}
+            <div id="dynamicSelectionInputs">{% for k in keepers %}<input type="hidden" name="selected_codes" value="{{ k }}">{% endfor %}</div>
+
+            <div class="stocks-table admin-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>선택</th>
+                            <th>종목명</th>
+                            <th>코드</th>
+                            <th>시장</th>
+                            <th>유형</th>
+                            <th>현재가</th>
+                            <th>등록 상태</th>
+                            <th>이동</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in rows %}
+                            {% set selection_key = prefix ~ ':' ~ stock.code %}
+                            {% set is_us = stock.market in ('NYSE', 'NASDAQ', 'AMEX') %}
+                            <tr class="admin-table-row {{ 'is-selected' if stock.is_registered else '' }}" data-selection-key="{{ selection_key }}">
+                                <td class="admin-select-cell">
+                                    <input
+                                        type="checkbox"
+                                        class="admin-stock-checkbox"
+                                        name="selected_codes"
+                                        value="{{ selection_key }}"
+                                        {{ 'checked' if stock.is_registered else '' }}
+                                    >
+                                </td>
+                                <td class="stock-name-cell">
+                                    <div class="stock-name-kr">{{ stock.name_kr or '' }}</div>
+                                    {% if stock.name_en %}
+                                        <div class="stock-name-en">{{ stock.name_en }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="stock-code">{{ stock.code or '' }}</td>
+                                <td><span class="market-badge">{{ stock.market or '' }}</span></td>
+                                <td><span class="type-badge type-{{ (stock.stock_type or 'stock')|lower }}">{{ stock.stock_type or '' }}</span></td>
+                                <td class="stock-price">
+                                    {{- '$' if is_us else '' -}}
+                                    {{- '{:,.2f}'.format(stock.price|float) if is_us else '{:,.0f}'.format(stock.price|float) -}}
+                                    {{- '' if is_us else '원' -}}
+                                </td>
+                                <td>{{ '등록됨' if stock.is_registered else '미등록' }}</td>
+                                <td>
+                                    <a class="stock-admin-view-link" href="/stocks/view?code={{ stock.code|urlencode }}{{ '&market=COIN' if prefix == 'COIN' else '' }}">
+                                        상세 보기
+                                    </a>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="8" class="no-data">조회된 종목이 없습니다.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+                {% set start = [1, page - 4] | max %}
+                {% set end = [total_pages, page + 4] | min %}
+                <div class="pagination">
+                    {% if page > 1 %}
+                        <a href="/admin/stocks?{{ query_base(p=page - 1) }}" class="page-link">←</a>
+                    {% endif %}
+
+                    {% if start > 1 %}
+                        <a href="/admin/stocks?{{ query_base(p=1) }}" class="page-link">1</a>
+                        {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
+                    {% endif %}
+
+                    {% for n in range(start, end + 1) %}
+                        {% if n == page %}
+                            <span class="page-link page-current">{{ n }}</span>
+                        {% else %}
+                            <a href="/admin/stocks?{{ query_base(p=n) }}" class="page-link">{{ n }}</a>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if end < total_pages %}
+                        {% if end < total_pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
+                        <a href="/admin/stocks?{{ query_base(p=total_pages) }}" class="page-link">{{ total_pages }}</a>
+                    {% endif %}
+
+                    {% if page < total_pages %}
+                        <a href="/admin/stocks?{{ query_base(p=page + 1) }}" class="page-link">→</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const stockAdminStorageKey = 'stock-admin-selection-draft';
+const stockAdminMarketMapKey = 'stock-admin-market-map';
+const stockAdminServerSelections = {{ registered_codes | tojson }};
+const stockAdminServerMarketMap = {{ market_map | tojson }};
+const stockAdminCurrentMarket = {{ market | tojson }};
+const stockAdminForceSync = {{ 'true' if force_sync else 'false' }};
+
+/*
+  선택키 → 시장 맵.
+
+  ⚠️ 서버는 **초안에 들어갈 만한 것**(구독 중 + 이 페이지)만 준다. 원본 PHP 처럼 종목
+     1.8만 개를 통째로 실으면 JSON 만 438KB 라 매 요청이 무거워진다. 대신 방문한
+     페이지의 조각을 sessionStorage 에 누적해, 다른 페이지에서 고른 종목도 셀 수 있게 한다.
+*/
+function loadStockAdminMarketMap() {
+    let stored = {};
+    try {
+        const parsed = JSON.parse(sessionStorage.getItem(stockAdminMarketMapKey) || '{}');
+        if (parsed && typeof parsed === 'object') stored = parsed;
+    } catch (error) { stored = {}; }
+
+    const merged = Object.assign(stored, stockAdminServerMarketMap);
+    sessionStorage.setItem(stockAdminMarketMapKey, JSON.stringify(merged));
+    return merged;
+}
+
+const stockAdminSelectionMarketMap = loadStockAdminMarketMap();
+
+function loadStockAdminDraft() {
+    if (stockAdminForceSync || !sessionStorage.getItem(stockAdminStorageKey)) {
+        sessionStorage.setItem(stockAdminStorageKey, JSON.stringify(stockAdminServerSelections));
+    }
+
+    try {
+        const parsed = JSON.parse(sessionStorage.getItem(stockAdminStorageKey) || '[]');
+        return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+        sessionStorage.setItem(stockAdminStorageKey, JSON.stringify(stockAdminServerSelections));
+        return new Set(stockAdminServerSelections);
+    }
+}
+
+function saveStockAdminDraft(selectionSet) {
+    sessionStorage.setItem(stockAdminStorageKey, JSON.stringify(Array.from(selectionSet)));
+}
+
+function countStockAdminSelectionsForMarket(selectionSet, market) {
+    let count = 0;
+
+    selectionSet.forEach((selectionKey) => {
+        if ((stockAdminSelectionMarketMap[selectionKey] || null) === market) {
+            count += 1;
+        }
+    });
+
+    return count;
+}
+
+function updateStockAdminSelectionCount(selectionSet) {
+    const label = document.getElementById('selectedCountLabel');
+    if (label) {
+        label.textContent = countStockAdminSelectionsForMarket(selectionSet, stockAdminCurrentMarket).toLocaleString();
+    }
+}
+
+function syncStockAdminCheckboxes(selectionSet) {
+    document.querySelectorAll('.admin-stock-checkbox').forEach((checkbox) => {
+        const isChecked = selectionSet.has(checkbox.value);
+        checkbox.checked = isChecked;
+        const row = checkbox.closest('.admin-table-row');
+        if (row) {
+            row.classList.toggle('is-selected', isChecked);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('stockAdminForm');
+    const resetButton = document.getElementById('resetSelectionButton');
+    const dynamicSelectionInputs = document.getElementById('dynamicSelectionInputs');
+    const selectionSet = loadStockAdminDraft();
+
+    syncStockAdminCheckboxes(selectionSet);
+    updateStockAdminSelectionCount(selectionSet);
+
+    document.querySelectorAll('.admin-stock-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', function () {
+            if (this.checked) {
+                selectionSet.add(this.value);
+            } else {
+                selectionSet.delete(this.value);
+            }
+
+            const row = this.closest('.admin-table-row');
+            if (row) {
+                row.classList.toggle('is-selected', this.checked);
+            }
+
+            saveStockAdminDraft(selectionSet);
+            updateStockAdminSelectionCount(selectionSet);
+        });
+    });
+
+    if (resetButton) {
+        resetButton.addEventListener('click', function () {
+            selectionSet.clear();
+            stockAdminServerSelections.forEach((value) => selectionSet.add(value));
+            saveStockAdminDraft(selectionSet);
+            syncStockAdminCheckboxes(selectionSet);
+            updateStockAdminSelectionCount(selectionSet);
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            // 초안이 곧 최종 목록이다 — 안전망 히든을 버리고 초안 전체로 갈아끼운다.
+            if (selectionSet.size === 0) {
+                event.preventDefault();
+                alert('선택한 종목이 없습니다. 전부 해제하면 시세 수집이 멈추므로 저장하지 않습니다.');
+                return;
+            }
+            if (!confirm('선택한 ' + selectionSet.size + '개 종목으로 구독 목록을 통째로 교체합니다. 진행할까요?')) {
+                event.preventDefault();
+                return;
+            }
+            // 체크박스는 그냥 둔다 — 초안과 값이 겹쳐도 서버가 집합으로 받아 중복이 사라지고,
+            // 체크 상태는 초안과 항상 동기화되므로 초안에 없는 값이 실려 갈 수 없다.
+            dynamicSelectionInputs.innerHTML = '';
+            Array.from(selectionSet).sort().forEach((value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_codes';
+                input.value = value;
+                dynamicSelectionInputs.appendChild(input);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

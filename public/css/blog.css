@@ -16,7 +16,11 @@ header::after, nav::after, aside::after, div::after, section::after, li::after, 
     cursor: auto;
 }
 
-/* 최상위에서 가로 오버플로우 차단 */
+/* 최상위에서 가로 오버플로우 차단.
+   ⚠️ body 에는 주지 않는다. `overflow-x: hidden` 은 그 요소를 **스크롤 컨테이너로** 만드는데,
+      그러면 안쪽의 `position: sticky` 가 body 안에 갇혀 화면을 따라오지 못한다(주식 목록
+      오른쪽 TOP 10 사이드바가 실제로 그랬다). html 하나로도 가로 스크롤은 막힌다 —
+      html 의 overflow 는 뷰포트로 전파되므로 sticky 는 뷰포트 기준으로 정상 동작한다. */
 html {
     overflow-x: hidden;
 }
@@ -29,7 +33,6 @@ body {
     color: var(--text-secondary);
     font-family: "arial", sans-serif;
     box-sizing: border-box;
-    overflow-x: hidden;
 }
 
 /* ===========================================

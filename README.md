@@ -5,10 +5,11 @@ MVC 구조 기반의 PHP 블로그 + 주식/암호화폐 대시보드 애플리�
 ## 주요 기능
 
 - **블로그**: 게시글 CRUD, 카테고리 기반 분류, 권한별 접근 제어, Quill 리치 에디터
-- **주식/시장**: KR·US·COIN 3개 시장 지원, 캔들 차트, 체결 내역, 종목 검색
-- **관리자**: 사용자/카테고리/캐시/주식구독/주식분할/WOL/IP 차단 관리, 감사 로그
+- **주식/시장**: KR·US·COIN 3개 시장 지원, 캔들 차트, 체결 내역, 종목 검색, 백테스트
+- **인터랙트(`/func`)**: YouTube 알고리즘 분석, 분석 결과 공유 링크·반응, 분석 이력
+- **관리자**: 사용자/카테고리/캐시/주식구독/주식분할/WOL/IP 차단/외부 API 키 관리, 감사 로그
 - **보안**: Argon2ID 비밀번호 해싱, CSRF 토큰, CSP nonce, 세션 바인딩, IP 자동 차단, 봇 UA 차단
-- **캐시**: 메모리 + 파일 2계층 캐시, 패턴 기반 무효화
+- **캐시**: 메모리 + 파일 + 주식 일봉 전용 gzip 3계층, 패턴 기반 무효화
 
 ## 아키텍처
 
@@ -28,16 +29,19 @@ MVC + PSR-4 오토로딩 (Blog\ → src/)
 │   └── vendor/            # 프론트엔드 라이브러리 (Quill, Chart.js)
 ├── src/
 │   ├── Controllers/       # BaseController 상속, 뷰 렌더링 & 비즈니스 로직
-│   ├── Core/              # 인프라 (Router, Auth, Session, Cache, View, Logger, HtmlSanitizer)
+│   ├── Core/              # 인프라 (Router, Auth, Session, Cache, View, Logger, HtmlSanitizer, ClientIp)
 │   ├── Database/          # PDO 싱글턴 래퍼, 쿼리 로깅
-│   └── Models/            # DB 접근 + 캐시 계층
+│   ├── Models/            # DB 접근 + 캐시 계층
+│   └── Services/          # 외부 API 통합 (YouTube, Gemini, OpenAI, Backtest)
 ├── views/
 │   ├── home/              # 공통 partials + 로그인
 │   ├── blog/              # 블로그 목록/상세/에디터
 │   ├── admin/             # 관리자 페이지
+│   ├── func/              # 인터랙트 (YouTube 분석·이력)
 │   └── stock/             # 주식 목록/상세
-├── cache/                 # 파일 캐시 (data/) + HTMLPurifier 캐시
-├── sql/                   # DB 스키마 정의
+├── cache/                 # 파일 캐시 (data/) + 주식 일봉 gzip 캐시 (stock/) + HTMLPurifier 캐시
+├── sql/                   # DB 스키마 정의 (마이그레이션 도구 없음 — 수동 적용)
+├── .github/workflows/     # main 푸시 시 릴리스 + 배포 파이프라인
 └── Dockerfile             # PHP 8.2-Apache 컨테이너
 ```
 
@@ -64,10 +68,17 @@ docker build -t php-blog:latest .
 
 ### 테스트
 
-```bash
-composer test              # PHPUnit 실행
-composer test-coverage     # HTML 커버리지 리포트
-```
+`composer test` / `composer test-coverage` 스크립트와 PHPUnit 11 의존성은 준비돼 있지만, **아직 `tests/` 디렉토리와 `phpunit.xml`이 없어 실제로 실행되는 테스트는 없습니다.** 현재 검증은 문법 검사(`php -l`)와 테스트 환경에서의 동작 확인으로 합니다.
+
+### 배포
+
+`main` 브랜치에 푸시(PR 머지)되면 [GitHub Actions](.github/workflows/release.yml)가 자동으로 실행됩니다.
+
+1. **검증** — `src public config` 아래 모든 PHP 파일 `php -l` (테스트는 `tests/`가 있을 때만 실행)
+2. **릴리스** — `package.json`의 `version`으로 태그를 만들고 소스 아카이브를 GitHub Release에 첨부. 같은 태그가 이미 있으면 지우고 다시 만듭니다
+3. **배포** — self-hosted 러너가 서버의 배포 디렉토리에서 `git reset --hard origin/main`
+
+배포는 **추적 파일만** 갱신합니다. `config/`는 `.gitignore` 대상이라 배포로 전달되지 않으므로, 새 설정 키가 생기면 서버의 `config/`를 직접 갱신해야 합니다. DB 스키마도 자동 반영되지 않습니다(`sql/` 수동 적용).
 
 ## 라우트 맵
 
@@ -78,6 +89,17 @@ composer test-coverage     # HTML 커버리지 리포트
 | GET | `/`, `/index.php` | → `/blog` 리다이렉트 |
 | GET | `/blog` | HomeController::index |
 | GET | `/blog/search`, `/search` | HomeController::search (JSON) |
+
+### 인터랙트
+
+| 메서드 | 경로 | 핸들러 |
+|--------|------|--------|
+| GET | `/func` | FuncController::index |
+| GET | `/func/youtube-feed` | FuncController::youtubeFeed |
+| GET | `/func/analyze` | FuncController::analyze |
+| POST | `/func/analyze/react` | FuncController::reactAnalysis |
+| GET | `/func/history` | FuncController::history |
+| GET | `/a/:id` | FuncController::analyzeShort (공유 단축 링크) |
 
 ### 인증
 
@@ -155,7 +177,8 @@ composer test-coverage     # HTML 커버리지 리포트
 - **CSP**: 동적 nonce 기반 `Content-Security-Policy` 헤더
 - **세션**: HttpOnly + SameSite=Lax + Secure 쿠키, IP+UA 바인딩, 활동 기반 만료
 - **HTTPS**: HTTP → HTTPS 301 리다이렉트, HSTS 헤더
-- **IP 자동 차단**: 과다 요청(분당 60회), 404 반복, 로그인 실패, 의심 URL 패턴(18개), 봇 UA(16패턴) → 위험도별 차단
+- **IP 자동 차단**: 과다 요청(분당 200회), 404 반복(분당 30회), 로그인 실패(5회), 의심 URL 패턴(18개), 봇 UA(16패턴) → 위험도별 차단(1분/1시간/7일)
+- **클라이언트 IP**: 리버스 프록시 뒤에서는 `REMOTE_ADDR`이 프록시 IP로 고정되므로, `trusted_proxies`에 등록된 소스에 한해 `X-Real-IP`(우선) 또는 `X-Forwarded-For` 최우측 값으로 실제 방문자 IP를 복원 (`Core\ClientIp`). 차단·레이트 리미팅이 모두 이 값을 사용
 - **API 보호**: `X-Requested-With` + Origin/Referer 이중 검증
 - **봇 방어**: 검색 Rate Limiting(분당 20회), Pagination 상한 제한, Honeypot 필드, `noindex/nofollow` 메타 태그, `robots.txt` Crawl-delay
 - **로그인 보호**: IP/사용자별 레이트 리미팅, 타이밍 공격 완화 딜레이

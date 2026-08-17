@@ -1,0 +1,125 @@
+{#
+  Wake-on-LAN — PHP `views/admin/wol.php` 를 옮긴 것이다.
+
+  ⚠️ **원본 마크업을 그대로 쓴다.** 스타일은 `/css/admin.css` 가 준다
+     (`admin-content`·`admin-card`·`collapsible-card`·`stat-row`·`admin-form`·`wol-device`).
+     블로그 카드(`post-wrapper`)로 감싸면 관리자 화면이 통째로 다른 디자인이 된다 —
+     실제로 그랬다.
+  ⚠️ 장치 한 대에 **폼이 셋**이다(수정·전원·삭제). 표 안에 폼을 겹쳐 넣을 수 없어
+     원본은 폼을 밖에 두고 버튼의 `form=` 속성으로 잇는다. id 규칙을 바꾸지 말 것.
+  ⚠️ "패킷을 보냈다" 와 "장비가 켜졌다" 는 다르다. 컨테이너에서 나가는 UDP 브로드캐스트라
+     도커 네트워크에 갇히면 LAN 까지 닿지 않는다. 화면 문구도 전송까지만 말한다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}WOL · Developer Blog{% endblock %}
+
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+    {% if msg %}
+    <div class="alert alert-info">{{ msg }}</div>
+    {% endif %}
+
+    <div class="admin-card collapsible-card collapsed">
+        <h2>WOL (Wake-on-LAN)</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value">{{ rows | length }}</span></div>
+        </div>
+        <hr>
+        <h3 class="collapsible-header">
+            새 장치 등록
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
+        <form method="post" action="/admin/wol/create" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label>장치 이름</label>
+                    <input type="text" name="device_name" required maxlength="100" placeholder="예: 메인 PC">
+                </div>
+                <div class="admin-form-field">
+                    <label>IP 대역</label>
+                    <input type="text" name="ip_range" required maxlength="100" placeholder="예: 192.168.0.10 또는 192.168.0.0/24">
+                </div>
+                <div class="admin-form-field">
+                    <label>MAC 주소</label>
+                    <input type="text" name="mac_address" required maxlength="17" placeholder="예: AA-BB-CC-DD-EE-FF">
+                </div>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary">등록</button>
+            </div>
+        </form>
+        </div>
+
+        {% if not rows %}
+            <p class="admin-placeholder">등록된 장치가 없습니다.</p>
+        {% else %}
+            <div class="wol-device-list">
+                {% for d in rows %}
+                    <div class="wol-device">
+                        <div class="wol-device-info">
+                            <form method="post" action="/admin/wol/update" class="wol-edit-form" id="wol-edit-{{ d.wol_device_id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
+                                <div class="wol-edit-row">
+                                    <label>이름</label>
+                                    <input type="text" name="device_name" value="{{ d.wol_device_name }}" required maxlength="100" class="inline-input">
+                                </div>
+                                <div class="wol-edit-row">
+                                    <label>IP 대역</label>
+                                    <input type="text" name="ip_range" value="{{ d.wol_device_ip_range }}" required maxlength="100" class="inline-input">
+                                </div>
+                                <div class="wol-edit-row">
+                                    <label>MAC</label>
+                                    <input type="text" name="mac_address" value="{{ d.wol_device_mac_address }}" required maxlength="17" class="inline-input">
+                                </div>
+                            </form>
+                            <form method="post" action="/admin/wol/execute" id="wol-exec-{{ d.wol_device_id }}" class="wol-hidden-form"
+                                  onsubmit="return confirm('{{ d.wol_device_name }}에 WOL 패킷을 전송하시겠습니까?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
+                            </form>
+                            <form method="post" action="/admin/wol/delete" id="wol-del-{{ d.wol_device_id }}" class="wol-hidden-form"
+                                  onsubmit="return confirm('{{ d.wol_device_name }} 장치를 삭제하시겠습니까?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
+                            </form>
+                            <div class="wol-device-actions">
+                                <button type="submit" form="wol-edit-{{ d.wol_device_id }}" class="btn btn-sm btn-primary wol-save-btn" disabled>저장</button>
+                                <button type="submit" form="wol-exec-{{ d.wol_device_id }}" class="btn btn-sm btn-wol">전원 켜기</button>
+                                <button type="submit" form="wol-del-{{ d.wol_device_id }}" class="btn btn-sm btn-danger">삭제</button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="admin-card">
+        <h3>WOL 안내</h3>
+        <div class="admin-help">
+            <p>* WOL은 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다</p>
+            <p>* 대상 장치의 BIOS/UEFI에서 WOL이 활성화되어 있어야 합니다</p>
+            <p>* 패킷 전송 성공이 장치 부팅을 보장하지는 않습니다</p>
+            <p>* MAC 주소 형식: <code>AA-BB-CC-DD-EE-FF</code> 또는 <code>AA:BB:CC:DD:EE:FF</code></p>
+        </div>
+    </div>
+</div>
+
+<script>
+// 값을 고치기 전에는 저장 버튼을 눌러도 의미가 없어 비활성으로 둔다(원본과 같다).
+document.querySelectorAll('.wol-edit-form').forEach(function (form) {
+    var btn = document.querySelector('button[form="' + form.id + '"]');
+    if (!btn) return;
+    form.querySelectorAll('.inline-input').forEach(function (input) {
+        input.addEventListener('input', function () { btn.disabled = false; });
+    });
+});
+</script>
+{% endblock %}
