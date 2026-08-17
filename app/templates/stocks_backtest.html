@@ -212,6 +212,12 @@
                     <input type="date" id="endDate" class="backtest-input">
                 </div>
             </div>
+            {#
+              고를 수 있는 기간을 글로 알려 준다. 안 그러면 "오늘이 왜 선택이 안 되지" 하고
+              헤맨다 — 휴장일이거나 수집이 늦으면 마지막 거래일까지만 가능한데, 달력은
+              그냥 회색으로만 보여 이유를 말해주지 않는다.
+            #}
+            <div class="backtest-date-hint" id="dateRangeHint" hidden></div>
         </div>
 
         <!-- 전략 선택 -->
