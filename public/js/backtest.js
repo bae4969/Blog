@@ -67,7 +67,9 @@
                         if (startEl.value && startEl.value > json.data.max) startEl.value = json.data.max;
                         if (endEl.value && endEl.value < json.data.min) endEl.value = json.data.min;
                         if (endEl.value && endEl.value > json.data.max) endEl.value = json.data.max;
+                        showDateHint(json.data.min, json.data.max);
                     } else {
+                        showDateHint(null, null);
                         startEl.removeAttribute('min');
                         startEl.removeAttribute('max');
                         endEl.removeAttribute('min');
@@ -379,6 +381,22 @@
     /* =========================================
        UI 컨트롤러
        ========================================= */
+
+
+    /*
+      고를 수 있는 기간을 글로 보여 준다. 달력이 오늘을 회색으로 막아도 **왜** 막혔는지는
+      안 알려 주기 때문이다(휴장일이거나 수집이 아직 안 된 경우). 종목마다 데이터 시작일이
+      달라 교집합으로 좁혀지는 것도 여기서 드러난다.
+    */
+    function showDateHint(min, max) {
+        var el = document.getElementById('dateRangeHint');
+        if (!el) return;
+        if (!min || !max) { el.hidden = true; el.textContent = ''; return; }
+        var today = new Date().toISOString().slice(0, 10);
+        var tail = (max < today) ? ' (오늘은 데이터가 없어 선택할 수 없습니다)' : '';
+        el.textContent = '선택한 종목의 데이터: ' + min + ' ~ ' + max + tail;
+        el.hidden = false;
+    }
 
     // 종목 검색 — 자동완성
     function initStockSearch(inputId, resultsId, onAddPortfolio, onAddBenchmark) {

@@ -22,7 +22,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 from app.core import ip_block
-from app.core.security import current_user_or_none, fetch_public_key
+from app.core.security import (
+    attach_session,
+    current_user_or_none,
+    fetch_public_key,
+    refresh_session,
+)
 from app.db.session import db_session
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
@@ -58,11 +63,34 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
 
     ⚠️ 다른 서비스(ai_center·ai_usage)의 미들웨어와 달리 **막지 않는다.** 블로그는 공개
     사이트라 비로그인 방문자가 정상 경로다. 권한은 라우트가 등급으로 판단한다.
+
+    세션이 만료됐는데 기기 신뢰 쿠키가 있으면 **여기서 조용히 갱신한다.** 화면이든 API 든
+    한 곳에서 처리되므로 라우트와 JS 를 손댈 필요가 없다 — 클라이언트마다 401 을 잡아
+    재시도하게 만들면 fetch 호출 지점을 전부 고쳐야 한다.
     """
 
+    #: 갱신을 시도하지 않을 경로. 정적 파일·헬스체크까지 auth 를 부르면 낭비다.
+    _SKIP = ("/healthz", "/favicon.ico", "/robots.txt")
+    _SKIP_PREFIX = ("/css/", "/js/", "/res/", "/vendor/", "/uploads/", "/static-api/")
+
     async def dispatch(self, request: Request, call_next):
-        request.state.user = current_user_or_none(request)
-        return await call_next(request)
+        user = current_user_or_none(request)
+        renewed = None
+        if user is None and not self._skip(request.url.path):
+            got = await refresh_session(request)
+            if got is not None:
+                user, token, device_token = got
+                renewed = (token, device_token)
+                logger.info("세션 자동 갱신: uid=%s", user.uid)
+
+        request.state.user = user
+        response = await call_next(request)
+        if renewed is not None:
+            attach_session(response, *renewed)
+        return response
+
+    def _skip(self, path: str) -> bool:
+        return path in self._SKIP or path.startswith(self._SKIP_PREFIX)
 
 
 class BlockedIpMiddleware(BaseHTTPMiddleware):

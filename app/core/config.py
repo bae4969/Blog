@@ -37,6 +37,12 @@ class Settings(BaseSettings):
         default="https://auth.bdda.duckdns.org", alias="AUTH_PUBLIC_URL"
     )
     cookie_name: str = "session"
+    #: 기기 신뢰(자동 로그인) 쿠키. 세션이 만료됐을 때 이 값으로 조용히 새 세션을 받는다.
+    device_cookie_name: str = "device_refresh"
+    #: 쿠키를 심을 도메인. 서브도메인이 공유해야 하므로 앞에 점을 붙인다(auth 와 같은 규약).
+    @property
+    def cookie_domain(self) -> str:
+        return f".{self.base_domain}"
 
     # ── 권한 ──────────────────────────────────────────────────────
     # PHP 규약을 그대로 따른다: level 은 **낮을수록** 권한이 높다(0:root … 4:visitor).
