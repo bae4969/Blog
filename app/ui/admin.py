@@ -1,7 +1,8 @@
-"""관리자 화면 — PHP `AdminController` 를 영역별로 옮기는 중.
+"""관리자 화면 — PHP `AdminController` 를 옮긴 것.
 
-지금 옮긴 것: 진입점·**카테고리**·**IP 차단**·**로그**·**WOL**. 나머지(users·cache·
-stocks·stock-splits)는 아직 PHP 가 갖고 있다.
+7개 전부 옮겼다(진입점·로그·사용자·카테고리·주식 구독·액면분할·WOL·IP 차단).
+되살리지 않은 것은 `cache`(PHP 전용 파일 캐시라 포팅본에 대응물이 없다)와
+`api-settings`(func 기능과 함께 제거)뿐이다.
 
 접근 권한은 PHP 와 같다 — `level <= 1`(root·admin). 화면을 숨기는 것과 별개로
 **모든 라우트가 다시 검사한다.**
