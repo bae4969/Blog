@@ -39,8 +39,9 @@
         <hr>
 
         <div class="admin-help">
-            <p>계정 생성과 비밀번호 변경은 <strong>중앙 인증</strong>에서 합니다. 이 화면은
-               블로그 쪽 등급·글 제한·활성 여부만 다룹니다.</p>
+            <p>계정 생성·비밀번호·<strong>등급</strong>은 <strong>중앙 인증</strong>에서 관리합니다.
+               여기 표시되는 등급은 참고용이며 실제 권한은 인증 토큰을 따릅니다.
+               이 화면에서 바꿀 수 있는 것은 <strong>활성 여부와 글 제한</strong>입니다.</p>
         </div>
 
         <div class="admin-card-header">
@@ -75,22 +76,15 @@
                                 <strong>{{ u.user_id }}</strong>
                                 {% if is_self %}<span class="badge-self">나</span>{% endif %}
                             </td>
+                            {#
+                              등급은 **중앙 auth 가 소유한다**(2026-08-17). 블로그는 토큰의
+                              역할로 판단하므로 여기서 고쳐 봐야 효과가 없다 — 고칠 수 있는
+                              것처럼 보이지 않게 읽기 전용으로 둔다.
+                              ⚠️ 이 값은 `user_list.user_level` 이라 **auth 와 어긋날 수 있다.**
+                                 실제로 적용되는 등급은 auth 쪽 값이다.
+                            #}
                             <td>
-                                {% if is_self %}
-                                    <span class="level-badge">{{ levels.get(u.user_level, '알 수 없음') }}</span>
-                                {% else %}
-                                    <form method="post" action="/admin/users/update" class="inline-form">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <input type="hidden" name="q" value="{{ q }}">
-                                        <input type="hidden" name="user_index" value="{{ u.user_index }}">
-                                        <input type="hidden" name="action" value="update_level">
-                                        <select name="user_level" onchange="this.form.submit()">
-                                            {% for lv, label in levels.items() %}
-                                                <option value="{{ lv }}" {% if u.user_level == lv %}selected{% endif %}>{{ label }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </form>
-                                {% endif %}
+                                <span class="level-badge">{{ levels.get(u.user_level, '알 수 없음') }}</span>
                             </td>
                             <td>
                                 {% if is_self %}

@@ -35,13 +35,22 @@ async def find(db, user: AuthUser | None) -> BlogUser | None:
 
     아직 옛 `user_list` 에 없는 auth 계정은 글을 쓸 수 없다. 계정 이관이 끝나기 전까지
     새 사용자를 받으려면 그쪽에 행을 만들어 줘야 한다.
+
+    ⚠️ **등급은 `user_list.user_level` 이 아니라 auth 토큰의 역할에서 온다**(2026-08-17).
+       두 곳이 같은 0~4 체계를 들고 있어 진실의 원천이 둘이었다 — 지금은 사용자가 하나뿐이라
+       우연히 일치했을 뿐, 어긋나면 화면(역할 기준)과 쓰기 권한(user_level 기준)이 따로
+       놀았다. auth 가 "누구인가와 등급" 을 책임지므로 그쪽을 따른다.
+       `user_state`·글 수·글 제한은 블로그 도메인 데이터라 여기 남는다.
     """
     if user is None:
         return None
+    # 순환 임포트를 피해 호출 시점에 가져온다 — routes 가 이 모듈을 쓴다.
+    from app.ui.routes import _user_level
+
     row = (
         await db.execute(
             text(
-                "SELECT user_index, user_id, user_level, "
+                "SELECT user_index, user_id, "
                 "       user_posting_count, user_posting_limit "
                 "FROM user_list WHERE user_id = :u AND user_state = 0"
             ),
@@ -53,9 +62,9 @@ async def find(db, user: AuthUser | None) -> BlogUser | None:
     return BlogUser(
         user_index=int(row[0]),
         user_id=row[1],
-        level=int(row[2]),
-        posting_count=int(row[3]),
-        posting_limit=int(row[4]),
+        level=_user_level(user),
+        posting_count=int(row[2]),
+        posting_limit=int(row[3]),
     )
 
 
