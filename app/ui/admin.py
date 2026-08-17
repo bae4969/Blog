@@ -907,15 +907,11 @@ async def user_update(
         is_self = user_index == me.user_index
 
         if action == "update_level":
-            if user_level not in _USER_LEVELS:
-                return _deny("invalid_level", f"{back}{sep}msg=유효하지+않은+등급입니다")
-            if is_self:
-                return _deny("self_update_blocked", f"{back}{sep}msg=자신의+권한은+변경할+수+없습니다")
-            await db.execute(
-                text("UPDATE user_list SET user_level = :lv WHERE user_index = :i"),
-                {"lv": user_level, "i": user_index},
-            )
-            logger.info("사용자 등급 변경: %s(%s) -> %s", target_id, user_index, user_level)
+            # ⚠️ 등급은 **auth 가 소유한다**(2026-08-17). 블로그는 토큰의 역할로 등급을
+            #    판단하므로 `user_list.user_level` 을 고쳐도 아무 효과가 없다. 효과 없는
+            #    수정을 조용히 받으면 화면이 거짓말을 하게 되므로 거절한다.
+            return _deny("level_moved_to_auth",
+                         f"{back}{sep}msg=등급은+중앙+인증에서+변경합니다")
 
         elif action == "toggle_state":
             if is_self:
