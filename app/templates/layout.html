@@ -1,0 +1,269 @@
+{#
+  블로그 레이아웃 — PHP `views/blog/layout.php` + `views/home/{partials-head,header,footer}.php`
+  를 하나로 옮긴 것이다.
+
+  ⚠️ **DOM 구조와 id·class 를 그대로 유지한다.** 스타일은 기존 `public/css/{common,blog}.css`
+     를 쓰므로 `#blog > section > (#side-panel, #content)` 중첩이 하나라도 어긋나면 화면이
+     무너진다(실제로 래퍼를 빼고 렌더했다가 카드 레이아웃이 통째로 깨졌다).
+  ⚠️ 정적 자산(`/css`, `/res`)은 **PHP 컨테이너가 서빙**한다. 그 경로는 Traefik 이 아직
+     PHP 로 보내므로 여기서 다시 다루지 않는다.
+#}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}Developer Blog{% endblock %}</title>
+    <link rel="stylesheet" href="/css/common.css?v={{ static_v }}">
+    <link rel="stylesheet" href="/css/blog.css?v={{ static_v }}">
+    {#
+      화면별 추가 CSS. PHP 는 컨트롤러가 `additionalCss` 로 넘겼다 — 관리자는
+      `/css/admin.css`, 주식은 `/css/stocks.css`. 이걸 안 실으면 해당 화면이 블로그
+      스타일만 먹어 세로로 늘어진다.
+    #}
+    {% block extra_css %}{% endblock %}
+</head>
+{#
+  ⚠️ body 클래스는 장식이 아니다. blog.css 가 `body.stock-page #blogTitle { width:35% }`,
+     `body.stock-page #title { padding:40px 0 }` 처럼 **이 클래스로만** 스타일을 준다.
+     PHP 는 레이아웃 파일이 셋(blog/stock/admin)이라 각자 박아뒀지만 여기는 하나로
+     합쳤으므로 화면 종류를 보고 붙인다.
+#}
+<body{% if is_stock_page %} class="stock-page"{% elif admin_menu is defined %} class="admin-page"{% endif %}>
+<div id="blog">
+
+    {#
+      좌상단 라벨과 로고 링크는 **지금 보고 있는 화면 종류**를 따른다(PHP `views/home/header.php`).
+      주식 화면에서 "블로그 ▾" 가 뜨거나 로고가 /blog 로 가면 안 된다 — 실제로 그랬다.
+    #}
+    {% if admin_menu is defined %}
+        {% set nav_label, title_link = '관리자', '/admin' %}
+    {% elif is_stock_page %}
+        {% set nav_label, title_link = '주식', '/stocks' %}
+    {% elif request.url.path == '/' or request.url.path.startswith(('/blog', '/reader.php', '/writer.php', '/post/')) %}
+        {% set nav_label, title_link = '블로그', '/blog' %}
+    {% else %}
+        {% set nav_label, title_link = '이동', '/blog' %}
+    {% endif %}
+
+    <header>
+        <div id="topNav">
+            <div id="topNavSelected">{{ nav_label }} ▾</div>
+            <div id="topNavDropdown">
+                <a href="/blog">블로그</a>
+                <a href="/stocks">주식</a>
+                {% if level <= 1 %}<a href="/admin">관리자</a>{% endif %}
+            </div>
+        </div>
+        {#
+          로그인·로그아웃은 **중앙 auth** 로 보낸다(PHP 의 /login.php 가 아니다).
+          이 페이지가 포팅본이라도 세션은 auth 가 발급한 것을 쓰기 때문이다.
+          next 로 돌아올 곳을 실어 로그인 뒤 보던 목록으로 되돌아오게 한다.
+        #}
+        <div id="topRight" onclick="location.href='{{ auth_public_url }}/{{ 'logout' if user else 'login' }}?next={{ request.url | string | urlencode }}'">
+            {{ '로그아웃' if user else '로그인' }}
+        </div>
+        {% if user and level <= 2 %}
+        <div id="topWrite" data-button-role="blog-write" onclick="location.href='/writer.php'">글쓰기</div>
+        {% endif %}
+        <div id="title">
+            <img id="blogTitle" onclick="location.href='{{ title_link }}'" src="/res/title.png" alt="Blog Page" />
+        </div>
+    </header>
+
+    {#
+      주식 화면의 `section` 은 배경·패딩이 없다(`section.stock-page-section { padding:0;
+      background:transparent }`). 안 붙이면 표 바깥에 회색 판이 한 겹 더 깔린다.
+    #}
+    <section{% if is_stock_page %} class="stock-page-section"{% endif %}>
+        {#
+          주식 화면은 사이드바가 없다 — PHP 도 블로그와 다른 레이아웃(`stock`)을 썼다.
+          사이드바를 두면 본문이 220px 좁아져 표가 눌린다(운영 1560px vs 여기 1340px 이었다).
+        #}
+        {% if not hide_sidebar %}
+        <aside id="side-panel">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">메뉴</button>
+            <div class="sidebar-content">
+                {#
+                  관리자 화면의 프로필 칸은 원본이 "관리자: 이름" 한 줄이다(방문자 수도
+                  없다) — 블로그 인사말을 그대로 두면 사이드바 높이부터 어긋난다.
+                #}
+                {% if admin_menu is defined %}
+                <div id="profile">관리자: {{ user.cn or user.uid if user else '' }}</div>
+                {% else %}
+                <div id="profile">
+                    {% if user %}
+                        안녕하세요<br>
+                        <span class="profile-user-id">{{ user.cn or user.uid }} 님</span>
+                    {% else %}
+                        로그인해주세요
+                    {% endif %}
+                </div>
+                <div id="user_count">방문자: {{ '{:,}'.format(visitor_count or 0) }}</div>
+                {% endif %}
+                {#
+                  관리자 화면에서는 사이드바가 카테고리 대신 관리 메뉴가 된다(PHP 와 같다).
+                  ⚠️ 아직 PHP 에 있는 화면도 함께 걸어 둔다 — Traefik 이 경로로 가르므로
+                     사용자는 어느 쪽이 처리하는지 몰라도 된다. 포팅이 끝나면 이 목록은
+                     그대로 두고 라우팅만 바뀐다.
+                #}
+                {# 캐시 관리(/admin/cache)는 목록에 없다 — PHP 전용 파일 캐시라 포팅하지
+                   않으며, PHP 세션을 따로 요구해 눌러도 /login.php 로 튕긴다. PHP 를
+                   걷어낼 때 화면째 사라진다.
+                   ⚠️ 주석을 아래 리스트 리터럴 **안에** 두면 표현식이 깨져 관리자 화면이
+                      전부 500 이 된다. 반드시 태그 밖에 둘 것. #}
+                {% if admin_menu is defined %}
+                <ul id="category">
+                    {% for key, label, url in [
+                        ('logs', '로그', '/admin/logs'),
+                        ('users', '사용자 관리', '/admin/users'),
+                        ('categories', '블로그 카테고리', '/admin/categories'),
+                        ('stocks', '주식 구독 관리', '/admin/stocks'),
+                        ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
+                        ('wol', 'WOL', '/admin/wol'),
+                        ('ip-blocks', 'IP 차단 관리', '/admin/ip-blocks'),
+                    ] %}
+                    <li class="category {% if admin_menu == key %}category-selected{% endif %}"
+                        onclick="location.href='{{ url }}'">{{ label }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <ul id="category">
+                    <li class="category {% if not category_id %}category-selected{% endif %}"
+                        onclick="selectCategory(-1)">전체</li>
+                    {% for c in categories %}
+                    <li class="category {% if category_id == c.category_index %}category-selected{% endif %}"
+                        onclick="selectCategory({{ c.category_index }})">{{ c.category_name }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if admin_menu is not defined %}
+                <div id="search_posting_div">
+                    <div class="search-container">
+                        <div class="search-input-group">
+                            <input id="search_posting_text" type="text" placeholder="검색..."
+                                   value="{{ search }}"
+                                   onkeyup="if(event.keyCode==13){searchPostingClick()}" />
+                            <button id="search_posting_btn" onclick="searchPostingClick()" class="search-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="search-filter-group">
+                            <select id="search_category_list">
+                                <option value="-1">전체</option>
+                                {% for c in categories %}
+                                <option value="{{ c.category_index }}"
+                                        {% if category_id == c.category_index %}selected{% endif %}>{{ c.category_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
+        {% endif %}
+
+        {#
+          사이드바가 없으면 `#content` 의 `width: calc(100% - 220px)` 가 남아 본문이 좁아진다.
+          blog.css 에 이미 준비된 `stock-page-content`(width:100%)를 붙여 푼다.
+        #}
+        <div id="content" {% if hide_sidebar %}class="stock-page-content"{% endif %}>
+            <div class="content-alert-container"></div>
+            {% block content %}{% endblock %}
+        </div>
+    </section>
+
+    <footer>
+        <p>
+            Contact: {{ contact_email }}<br>
+            Github: <a class="footer" href="{{ github_url }}">{{ github_url }}</a>
+        </p>
+    </footer>
+
+</div>
+
+<script>
+// 좌상단 "이동" 드롭다운. CSS 가 `#topNav.open #topNavDropdown { display:block }` 이라
+// 클래스를 토글해 줘야 열린다 — PHP 는 이 스크립트를 푸터(`partials-footer-scripts.php`)에
+// 두고 있었고, 그 파일을 걷어내면서 함께 사라져 메뉴가 안 열렸다.
+(function () {
+    const nav = document.getElementById('topNav');
+    const sel = document.getElementById('topNavSelected');
+    if (!nav || !sel) return;
+    sel.addEventListener('click', function (e) {
+        e.stopPropagation();
+        nav.classList.toggle('open');
+    });
+    document.addEventListener('click', function (e) {
+        if (!nav.contains(e.target)) nav.classList.remove('open');
+    });
+})();
+
+// 검색창 편의 기능 — blog.js `initSearchEnhancements` 에서 옮겼다.
+// Enter 는 입력창의 onkeyup 이 이미 처리하므로 여기서는 다루지 않는다.
+(function () {
+    const box = document.getElementById('search_posting_text');
+    if (!box) return;
+    const btn = document.getElementById('search_posting_btn');
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            box.focus();
+            box.select();
+        }
+    });
+    box.addEventListener('input', function () {
+        this.style.borderColor = this.value.trim() ? '#4CAF50' : '';
+    });
+    box.title = '게시글 제목으로 검색 (Ctrl+S로 포커스)';
+    if (btn) btn.title = '검색 (Enter 또는 Ctrl+S)';
+})();
+
+// PHP 쪽 `views/blog/index.php` 의 스크립트를 그대로 옮겼다. 쿼리 파라미터 이름을
+// 바꾸지 않는다 — 두 스택이 서로의 URL 을 참조하는 중이다.
+function selectCategory(idx) {
+    const url = idx === -1 ? '/blog' : '/blog?category_index=' + idx;
+    location.href = url;
+}
+function searchPostingClick() {
+    const cat = document.getElementById('search_category_list').value;
+    const text = document.getElementById('search_posting_text').value;
+    let url = '/blog?';
+    if (cat !== '-1') url += 'category_index=' + cat + '&';
+    if (text.trim()) url += 'search_string=' + encodeURIComponent(text.trim());
+    location.href = url;
+}
+function toggleSidebar() {
+    const c = document.querySelector('.sidebar-content');
+    const b = document.querySelector('.sidebar-toggle');
+    if (c.classList.contains('expanded')) { c.classList.remove('expanded'); b.classList.add('collapsed'); }
+    else { c.classList.add('expanded'); b.classList.remove('collapsed'); }
+}
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.innerWidth <= 1024) {
+        const b = document.querySelector('.sidebar-toggle');
+        if (b) b.classList.add('collapsed');
+    }
+    // 관리자 화면의 접기/펼치기 카드. PHP 는 admin 레이아웃 푸터에 두고 있었다 —
+    // 이게 없으면 `collapsed` 로 접힌 카드를 눌러도 펴지지 않아 폼이 영영 안 보인다.
+    document.querySelectorAll('.collapsible-header').forEach(function (h) {
+        h.addEventListener('click', function () {
+            this.closest('.collapsible-card').classList.toggle('collapsed');
+        });
+    });
+});
+</script>
+{#
+  화면별 추가 스크립트. PHP 는 컨트롤러가 `additionalJs` 로 넘겨 푸터 맨 끝에 붙였다 —
+  ⚠️ 반드시 본문 뒤여야 한다. 주식 상세는 본문 안 인라인 스크립트가 `stockCode` 같은
+     전역을 먼저 정의하고 `/js/stocks.js` 가 그걸 읽기 때문이다.
+#}
+{% block extra_js %}{% endblock %}
+</body>
+</html>

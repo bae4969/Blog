@@ -1,0 +1,160 @@
+{#
+  IP 차단 관리 — PHP `views/admin/ip-blocks.php` 를 옮긴 것이다.
+
+  ⚠️ **원본 마크업을 그대로 쓴다**(`admin-content`·`admin-card`·`collapsible-card`·
+     `stat-row`·`admin-form`·`admin-table-wrap`). 스타일은 `/css/admin.css` 가 준다.
+  ⚠️ **원본의 두 번째 카드("자동 차단 설정 현황")는 옮기지 않았다.** PHP 는 미들웨어가
+     분당 과다요청·404 반복·로그인 실패·의심 URL 패턴을 보고 **스스로 차단**했는데,
+     포팅본에는 그 기능이 없다(미들웨어도 `ip_block` 설정도 없다). 없는 기능의 설정을
+     화면에 띄우면 거짓말이 되므로 대신 그렇다고 적는다. 기능을 옮기기로 하면 이 자리에
+     원본 카드를 되살린다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}IP 차단 관리 · Developer Blog{% endblock %}
+
+{# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+    {% if msg %}
+    <div class="alert alert-info">{{ msg }}</div>
+    {% endif %}
+
+    <div class="admin-card collapsible-card collapsed">
+        <h2>IP 차단 관리</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">전체 차단</span> <span class="stat-value">{{ stats.total }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">자동</span> <span class="stat-value">{{ stats.active_auto }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">수동</span> <span class="stat-value">{{ stats.active_manual }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">만료됨</span> <span class="stat-value" style="color:#999">{{ stats.expired }}</span></div>
+        </div>
+        <hr>
+
+        <h3 class="collapsible-header">
+            수동 IP 차단 추가
+            <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </h3>
+        <div class="collapsible-body">
+            <form method="post" action="/admin/ip-blocks/add" class="admin-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="admin-form-grid">
+                    <div class="admin-form-field">
+                        <label>IP 주소 <span style="color:#e53935">*</span></label>
+                        <input type="text" name="ip_address" required maxlength="45" placeholder="예: 192.168.1.100 또는 2001:db8::1">
+                    </div>
+                    <div class="admin-form-field">
+                        <label>사유</label>
+                        <input type="text" name="reason" maxlength="500" placeholder="차단 사유 (선택)">
+                    </div>
+                    <div class="admin-form-field">
+                        <label>차단 기간</label>
+                        <select name="duration_type" id="ipblock-duration-type" onchange="toggleDurationInput()">
+                            <option value="permanent">영구 차단</option>
+                            <option value="temporary">시간 제한</option>
+                        </select>
+                    </div>
+                    <div class="admin-form-field" id="ipblock-duration-hours-field" style="visibility:hidden;height:0;overflow:hidden;margin:0;padding:0">
+                        <label>차단 시간 (시간)</label>
+                        <input type="number" name="duration_hours" min="1" max="8760" value="24" placeholder="시간 단위">
+                    </div>
+                </div>
+                <div class="admin-form-actions">
+                    <button type="submit" class="btn btn-primary">차단 추가</button>
+                </div>
+            </form>
+        </div>
+
+        {% if not rows %}
+            <p class="admin-placeholder">차단된 IP가 없습니다.</p>
+        {% else %}
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>IP 주소</th>
+                            <th>사유</th>
+                            <th>유형</th>
+                            <th>차단 일시</th>
+                            <th>만료 일시</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for b in rows %}
+                        <tr class="{% if b.expired %}row-disabled{% endif %}">
+                            <td><strong>{{ b.ip_address }}</strong></td>
+                            <td class="text-muted">{{ b.reason or '-' }}</td>
+                            <td>
+                                {% if b.block_type == 'auto' %}
+                                    <span class="ip-badge ip-badge-auto">자동</span>
+                                {% else %}
+                                    <span class="ip-badge ip-badge-manual">수동</span>
+                                {% endif %}
+                            </td>
+                            {# DB 에 KST 로 들어 있는 값이다 — 변환하지 않는다. #}
+                            <td class="text-muted">{{ b.blocked_at }}</td>
+                            <td class="text-muted">
+                                {% if b.expires_at is none %}
+                                    <span style="color:#e53935">영구</span>
+                                {% elif b.expired %}
+                                    <span style="color:#999">만료됨</span>
+                                {% else %}
+                                    {{ b.expires_at }}
+                                {% endif %}
+                            </td>
+                            <td class="action-cell">
+                                <form method="post" action="/admin/ip-blocks/remove" style="display:inline" onsubmit="return confirm('{{ b.ip_address }} 차단을 해제하시겠습니까?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="block_id" value="{{ b.blocked_ip_id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger">해제</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if stats.expired > 0 %}
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+                <span class="text-muted">만료된 차단 {{ stats.expired }}건이 있습니다.</span>
+                <form method="post" action="/admin/ip-blocks/clean" style="margin:0" onsubmit="return confirm('만료된 차단을 모두 정리하시겠습니까?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-secondary">만료된 차단 정리</button>
+                </form>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="admin-card">
+        <h3>자동 차단</h3>
+        <div class="admin-help">
+            <p><strong>지금은 자동 차단이 동작하지 않습니다.</strong> 이 화면은 수동으로 넣은
+               차단만 관리합니다.</p>
+            <p class="text-muted">PHP 시절에는 미들웨어가 분당 과다 요청·404 반복 접근·로그인
+               실패 누적·의심 URL 패턴을 보고 스스로 차단했습니다. 그 기능은 아직 옮기지
+               않았습니다 — 목록의 "자동" 표시는 그때 쌓인 기록입니다.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// "시간 제한" 을 골랐을 때만 시간 입력칸을 보인다. display 가 아니라 visibility+height 로
+// 감추는 것은 grid 칸 자리를 유지해 폼이 흔들리지 않게 하려는 것이다(원본과 같다).
+function toggleDurationInput() {
+    var type = document.getElementById('ipblock-duration-type').value;
+    var field = document.getElementById('ipblock-duration-hours-field');
+    var on = type === 'temporary';
+    field.style.visibility = on ? '' : 'hidden';
+    field.style.height = on ? '' : '0';
+    field.style.overflow = on ? '' : 'hidden';
+    field.style.margin = on ? '' : '0';
+    field.style.padding = on ? '' : '0';
+}
+</script>
+{% endblock %}

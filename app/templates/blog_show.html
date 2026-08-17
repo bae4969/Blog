@@ -1,0 +1,77 @@
+{#
+  글 상세 — PHP `views/blog/show.php` 를 옮긴 것이다. 클래스 이름은 기존 CSS 를 쓰므로
+  그대로 유지한다.
+
+  ⚠️ `content` 는 **서버에서 이미 정화한** HTML 이다(`app/core/sanitize.py`). 그래서
+     `| safe` 로 내보낸다 — 다른 값에는 절대 붙이지 말 것. 정화를 거치지 않은 값에
+     `| safe` 를 쓰면 그 순간 XSS 가 된다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}{{ post.posting_title }} · Developer Blog{% endblock %}
+
+{% block content %}
+<div id="post-detail" class="post-wrapper {% if post.posting_state != 0 %}post-wrapper-disabled{% endif %}">
+    <article class="post">
+        <header class="post-header">
+            <h1 class="post-title">{{ post.posting_title }}</h1>
+            <div class="post-meta">
+                <span class="post-category">{{ post.category_name or '미분류' }}</span>
+                <span class="post-author">{{ post.user_id or '익명' }}</span>
+                {# DB 에 KST 로 들어 있는 값이다 — 변환하지 않는다. #}
+                <span class="post-date">{{ post.posting_first_post_datetime.strftime('%Y-%m-%d %H:%M') if post.posting_first_post_datetime else '' }}</span>
+                {% if post.posting_last_edit_datetime and post.posting_last_edit_datetime != post.posting_first_post_datetime %}
+                <span class="post-updated">(수정: {{ post.posting_last_edit_datetime.strftime('%Y-%m-%d %H:%M') }})</span>
+                {% endif %}
+                <span class="post-read-count">조회: {{ read_cnt }}</span>
+            </div>
+        </header>
+
+        <div class="post-content">{{ content | safe }}</div>
+    </article>
+
+    {#
+      ⚠️ `.post-actions` 는 `text-align: right` 만 준다 — 안의 요소가 인라인이어야 가로로
+         늘어선다. PHP 는 버튼을 직접 넣었지만 여기서는 CSRF 때문에 `<form>` 으로 감싸는데,
+         form 은 블록이라 그대로 두면 **세로로 쌓인다**(실제로 그랬다).
+         `inline-form` 은 admin.css 에만 있고 blog.css 에는 없어 여기서 직접 준다.
+    #}
+    <style>
+      .post-actions form { display: inline; margin: 0; }
+      .post-actions .btn { margin-left: .4rem; }
+    </style>
+    <div class="post-actions">
+        {#
+          상태 변경은 POST 다(GET 으로 두면 링크를 여는 것만으로 글이 지워진다).
+          CSRF 토큰을 함께 실어 보낸다 — 서버가 쿠키와 대조한다.
+          버튼을 보이는 기준은 PHP 와 같다: 수정은 본인 글, 숨김은 본인이거나 그 카테고리
+          쓰기 권한, 복구·영구삭제는 관리자.
+        #}
+        {% if post.posting_state == 0 %}
+            {% if is_owner %}
+            <a href="/post/edit/{{ post.posting_index }}" class="btn btn-edit">수정</a>
+            {% endif %}
+            {% if can_moderate %}
+            <form method="post" action="/post/disable/{{ post.posting_index }}" class="inline-form"
+                  onsubmit="return confirm('이 글을 숨길까요? 나중에 복구할 수 있습니다.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-disable">삭제</button>
+            </form>
+            {% endif %}
+        {% elif level <= 1 %}
+            <form method="post" action="/post/enable/{{ post.posting_index }}" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-enable">복구</button>
+            </form>
+            <form method="post" action="/post/hard-delete/{{ post.posting_index }}" class="inline-form"
+                  onsubmit="return confirm('영구 삭제하면 되돌릴 수 없습니다. 계속할까요?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger">영구 삭제</button>
+            </form>
+        {% endif %}
+        {# `.btn` 만으로는 배경이 없어 보라색 링크로 보인다 — 색까지 주는 modifier 가 필요하다. #}
+        <a href="/blog{% if category_id %}?category_index={{ category_id }}{% endif %}"
+           class="btn btn-secondary">목록</a>
+    </div>
+</div>
+{% endblock %}

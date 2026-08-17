@@ -23,23 +23,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          php-version: '8.2'
-          tools: composer
+          python-version: '3.12'
 
       - name: Install dependencies for CI
-        run: composer install --no-interaction --prefer-dist
+        run: pip install --no-cache-dir -r requirements-api.txt
 
-      - name: PHP lint
+      # PHP 스택을 걷어냈다. 옛 `php -l` 자리 — 컴파일만 확인한다(실행하지 않는다).
+      - name: Python 문법 검사
+        run: python -m compileall -q app
+
+      # 템플릿은 문법이 깨져도 임포트로는 안 드러난다. 실제로 관리자 화면 전부가
+      # 500 이 된 적이 있어(리스트 리터럴 안의 Jinja 주석) 컴파일을 따로 확인한다.
+      - name: Jinja 템플릿 검사
         run: |
-          find src public config -type f -name "*.php" -print0 | xargs -0 -n1 php -l
+          python - <<'PY'
+          from jinja2 import Environment, FileSystemLoader
+          from pathlib import Path
+          env = Environment(loader=FileSystemLoader("app/templates"))
+          bad = []
+          for p in sorted(Path("app/templates").rglob("*.html")):
+              name = str(p.relative_to("app/templates"))
+              try:
+                  env.get_template(name)
+              except Exception as e:
+                  bad.append(f"{name}: {type(e).__name__} {e}")
+          print("\n".join(bad) if bad else "템플릿 OK")
+          raise SystemExit(1 if bad else 0)
+          PY
 
       - name: Run tests when tests directory exists
         run: |
           if [ -d tests ]; then
-            composer test
+            python -m pytest -q
           else
             echo "No tests directory. Skipping tests."
           fi

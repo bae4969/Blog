@@ -1,0 +1,22 @@
+/* ===== AI Center 다크 — shadow / scrollbar 전용 =====
+ * 색 토큰·시맨틱 클래스는 theme.css 가 단일 소스다(SoT). 이 파일은 색
+ * 하이재킹 규칙을 두지 않고, 다크 전용 그림자·스크롤바 스타일만 남긴다.
+ * (theme.css 가 먼저 로드돼 --bae-* 토큰이 :root 에 정의됨.)
+ */
+
+/* --- Shadows (Tailwind .shadow* 에 다크 톤 그림자) --- */
+/* 원본 dark.css 와 동일 범위만 유지 — shadow-lg 등은 의도적으로 미오버라이드. */
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3); }
+.shadow    { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4); }
+.shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4); }
+
+/* --- Scrollbar styling (theme-wide: main + aside + modal + nested) --- */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bae-border-hover) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bae-border-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bae-text-dim); }
+::-webkit-scrollbar-corner { background: transparent; }

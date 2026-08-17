@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div id="postings">
+    <div>
+        {% if not posts %}
+            <div class="alert alert-info">게시글이 없습니다.</div>
+        {% else %}
+        <div id="left">
+            {% for p in posts %}
+            <div class="posting {% if p.posting_state != 0 %}posting-disabled{% endif %}"
+                 onclick="location.href='/reader.php?posting_index={{ p.posting_index }}'">
+                <div class="posting_title">{{ p.posting_title }}</div>
+                <div class="post-meta">
+                    <span class="post-category">{{ p.category_name or '미분류' }}</span>
+                    <span class="post-author">{{ p.user_id or '익명' }}</span>
+                    {# 이 시각은 DB 에 이미 KST 로 들어 있다 — 변환하면 9시간 밀린다. #}
+                    <span class="post-date">{{ p.posting_first_post_datetime.strftime('%Y-%m-%d %H:%M') if p.posting_first_post_datetime else '' }}</span>
+                    {#
+                      수정된 글에만 붙는다. DB 컬럼은 `posting_last_edit_datetime` 인데 PHP 는
+                      쿼리에서 `posting_last_post_datetime` 으로 별칭을 줬다 — 같은 값이다.
+                      작성 시각과 다를 때만 보여준다(PHP 와 같은 조건).
+                    #}
+                    {% if p.posting_last_edit_datetime and p.posting_last_edit_datetime != p.posting_first_post_datetime %}
+                    <span class="post-updated">(수정: {{ p.posting_last_edit_datetime.strftime('%Y-%m-%d %H:%M') }})</span>
+                    {% endif %}
+                    <span class="post-read-count">조회: {{ '{:,}'.format(p.posting_read_cnt or 0) }}</span>
+                </div>
+                <hr>
+                <div class="posting_content_wrapper {% if not p.posting_thumbnail %}no-thumbnail{% endif %}">
+                    {% if p.posting_thumbnail %}
+                    <div class="posting_thumbnail_container">
+                        <img class="posting_thumbnail" src="data:image/webp;base64,{{ p.posting_thumbnail }}" alt="썸네일">
+                    </div>
+                    {% endif %}
+                    <div class="posting_summary">
+                        {%- set s = p.posting_summary | striptags | trim -%}
+                        {%- if s -%}{{ s[:200] }}{% if s|length > 200 %} ...{% endif %}
+                        {%- else -%}내용이 없습니다.{%- endif -%}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="right"></div>
+        {% endif %}
+    </div>
+
+    {#
+      페이저 — PHP `views/blog/index.php` 의 규칙을 그대로 옮겼다.
+      현재 쪽 좌우 4개 + 첫 쪽·마지막 쪽, 끊기면 …. 클래스 이름(`page-current`,
+      `page-ellipsis`)도 같아야 기존 CSS 가 그대로 먹는다.
+      쿼리 파라미터는 값이 있을 때만 붙인다(PHP 의 array_filter 와 같은 동작) —
+      안 그러면 1쪽 링크가 `?page=1` 이 되어 PHP 가 만든 URL 과 달라진다.
+    #}
+    {% if pages > 1 %}
+    {% macro q(p) -%}
+        {%- set parts = [] -%}
+        {%- if p > 1 %}{% set _ = parts.append('page=' ~ p) %}{% endif -%}
+        {%- if category_id %}{% set _ = parts.append('category_index=' ~ category_id) %}{% endif -%}
+        {%- if search %}{% set _ = parts.append('search_string=' ~ search | urlencode) %}{% endif -%}
+        {{- '?' ~ parts | join('&') if parts else '' -}}
+    {%- endmacro %}
+    {% set start = [1, page - 4] | max %}
+    {% set end = [pages, page + 4] | min %}
+    <div class="pagination">
+        {% if page > 1 %}<a href="{{ q(page - 1) }}" class="page-link">←</a>{% endif %}
+
+        {% if start > 1 %}
+            <a href="{{ q(1) }}" class="page-link">1</a>
+            {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
+        {% endif %}
+
+        {% for p in range(start, end + 1) %}
+            {% if p == page %}
+            <span class="page-link page-current">{{ p }}</span>
+            {% else %}
+            <a href="{{ q(p) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if end < pages %}
+            {% if end < pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
+            <a href="{{ q(pages) }}" class="page-link">{{ pages }}</a>
+        {% endif %}
+
+        {% if page < pages %}<a href="{{ q(page + 1) }}" class="page-link">→</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{#
+  글 목록 2열 배치 — PHP `public/js/blog.js` 의 `setPostingList` 계열을 옮겼다.
+
+  blog.js 를 통째로 싣지 않는 이유: 그 파일은 `/get/login_verify` 폴링과 PHP 세션 감시를
+  함께 하는데, 그 라우트는 이제 없다(인증은 중앙 auth 하나로 간다). 여기서는 **레이아웃
+  동작만** 가져온다.
+
+  ⚠️ 히스테리시스가 핵심이다. 단순히 `width >= 1200` 으로 판정하면 경계 근처에서 창을
+     조금만 흔들어도 1열↔2열이 계속 뒤집힌다. 그래서 현재 상태에 따라 기준선을 ±50px
+     달리 둔다(2열이면 1150 미만에서만 접고, 1열이면 1250 이상에서만 편다).
+#}
+<script>
+(function () {
+    const BREAKPOINT = 1200, HYSTERESIS = 50;
+    let showState = 0;          // 0: 초기, 1: 1열, 2: 2열
+    let resizeTimer = null, relayoutTimer = null;
+
+    function shouldUseTwoCols(width, state) {
+        if (state === 2) return width >= (BREAKPOINT - HYSTERESIS);
+        if (state === 1) return width >= (BREAKPOINT + HYSTERESIS);
+        return width >= BREAKPOINT;
+    }
+
+    function setPostingList(isInitial) {
+        const left = document.getElementById('left');
+        const right = document.getElementById('right');
+        const root = document.getElementById('postings');
+        if (!left || !right || !root) return;
+
+        const posts = Array.from(root.querySelectorAll('.posting, .posting_ban'));
+        if (posts.length === 0) return;
+
+        if (!shouldUseTwoCols(document.body.offsetWidth, showState)) {
+            if (showState !== 1 || isInitial) {
+                showState = 1;
+                left.style.width = '100%';
+                right.style.width = '0%';
+                posts.forEach(p => left.appendChild(p));
+            }
+            return;
+        }
+
+        if (showState !== 2 || isInitial) {
+            showState = 2;
+            left.style.width = '50%';
+            right.style.width = '50%';
+            while (left.firstChild) left.removeChild(left.firstChild);
+            while (right.firstChild) right.removeChild(right.firstChild);
+            // 매번 실제 높이를 재서 낮은 쪽에 붙인다 — 글마다 높이가 달라서
+            // 짝수/홀수로 나누면 한쪽이 길어진다.
+            posts.forEach(p => {
+                (left.offsetHeight <= right.offsetHeight ? left : right).appendChild(p);
+            });
+        }
+    }
+
+    function scheduleRelayout(delay) {
+        if (relayoutTimer) cancelAnimationFrame(relayoutTimer);
+        relayoutTimer = requestAnimationFrame(() => setTimeout(() => setPostingList(false), delay));
+    }
+
+    // 썸네일이 늦게 뜨면 높이가 바뀌므로 다시 배치한다.
+    function attachImageHandlers() {
+        document.querySelectorAll('#postings img.posting_thumbnail').forEach(img => {
+            if (img.dataset._relayout === '1') return;
+            img.dataset._relayout = '1';
+            if (!img.complete) {
+                img.addEventListener('load', () => scheduleRelayout(50));
+                img.addEventListener('error', () => scheduleRelayout(50));
+            }
+        });
+    }
+
+    window.addEventListener('resize', function () {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => scheduleRelayout(0), 150);
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        setPostingList(true);
+        attachImageHandlers();
+        const root = document.getElementById('postings');
+        if (root) {
+            new MutationObserver(() => {
+                attachImageHandlers();
+                scheduleRelayout(80);
+            }).observe(root, { childList: true, subtree: true });
+        }
+    });
+})();
+</script>
+{% endblock %}
