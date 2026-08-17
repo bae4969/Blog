@@ -1,187 +1,116 @@
-# PHP 블로그 애플리케이션
+# 블로그 + 주식 대시보드
 
-MVC 구조 기반의 PHP 블로그 + 주식/암호화폐 대시보드 애플리케이션입니다.
+FastAPI 로 만든 개인 블로그와 주식·암호화폐 분석 화면입니다. 인증은 직접 하지 않고
+중앙 인증 서비스(`10.auth`)가 발급한 토큰을 검증만 합니다.
 
-## 주요 기능
+> **2026-08-17 에 PHP 를 걷어내고 파이썬으로 전환했습니다.** 그전 코드는 `php-final`
+> 태그에 있습니다. 이 문서는 전환 이후 기준입니다.
 
-- **블로그**: 게시글 CRUD, 카테고리 기반 분류, 권한별 접근 제어, Quill 리치 에디터
-- **주식/시장**: KR·US·COIN 3개 시장 지원, 캔들 차트, 체결 내역, 종목 검색, 백테스트
-- **인터랙트(`/func`)**: YouTube 알고리즘 분석, 분석 결과 공유 링크·반응, 분석 이력
-- **관리자**: 사용자/카테고리/캐시/주식구독/주식분할/WOL/IP 차단/외부 API 키 관리, 감사 로그
-- **보안**: Argon2ID 비밀번호 해싱, CSRF 토큰, CSP nonce, 세션 바인딩, IP 자동 차단, 봇 UA 차단
-- **캐시**: 메모리 + 파일 + 주식 일봉 전용 gzip 3계층, 패턴 기반 무효화
+## 무엇이 있나
 
-## 아키텍처
+- **블로그** — 글 CRUD, 카테고리, 등급별 열람 제한, Quill 에디터, 이미지 업로드
+- **주식** — KR·US·COIN 세 시장, 캔들 차트, 체결 내역, 종목 검색, 액면분할 소급 보정
+- **백테스트** — 포트폴리오 시뮬레이션(적립식·리밸런싱·신호 매매), 지표·점수·등급, 벤치마크 비교
+- **관리자** — 사용자·카테고리·주식 구독·액면분할·WOL·IP 차단·로그 뷰어
+
+## 구조
 
 ```
-MVC + PSR-4 오토로딩 (Blog\ → src/)
-단일 진입점: public/index.php
+인터넷 → NPM(TLS 종료) → Traefik(라벨 라우팅) → uvicorn (app.main:app)
 ```
-
-### 디렉토리 구조
 
 ```text
-├── config.example/        # 설정 템플릿 (config/는 .gitignore)
-├── public/                # 웹 루트 (DocumentRoot)
-│   ├── index.php          # 단일 진입점 — 라우트 등록 & 디스패치
-│   ├── css/               # 스타일시트 (common, blog, stocks, admin, home)
-│   ├── js/                # 클라이언트 스크립트
-│   └── vendor/            # 프론트엔드 라이브러리 (Quill, Chart.js)
-├── src/
-│   ├── Controllers/       # BaseController 상속, 뷰 렌더링 & 비즈니스 로직
-│   ├── Core/              # 인프라 (Router, Auth, Session, Cache, View, Logger, HtmlSanitizer, ClientIp)
-│   ├── Database/          # PDO 싱글턴 래퍼, 쿼리 로깅
-│   ├── Models/            # DB 접근 + 캐시 계층
-│   └── Services/          # 외부 API 통합 (YouTube, Gemini, OpenAI, Backtest)
-├── views/
-│   ├── home/              # 공통 partials + 로그인
-│   ├── blog/              # 블로그 목록/상세/에디터
-│   ├── admin/             # 관리자 페이지
-│   ├── func/              # 인터랙트 (YouTube 분석·이력)
-│   └── stock/             # 주식 목록/상세
-├── cache/                 # 파일 캐시 (data/) + 주식 일봉 gzip 캐시 (stock/) + HTMLPurifier 캐시
-├── sql/                   # DB 스키마 정의 (마이그레이션 도구 없음 — 수동 적용)
-├── .github/workflows/     # main 푸시 시 릴리스 + 배포 파이프라인
-└── Dockerfile             # PHP 8.2-Apache 컨테이너
+app/
+├── main.py           # 진입점. 미들웨어(인증 자동갱신·IP 차단)와 정적 마운트
+├── core/             # config · security(JWT 검증) · csrf · ip_block · blog_user · sanitize
+├── db/               # SQLAlchemy 비동기 세션
+├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음)
+├── ui/               # 라우트: routes(블로그) · stocks · backtest · admin
+└── templates/        # Jinja2
+public/               # 정적 파일. **앱이 직접 서빙한다**(css·js·res·vendor·uploads)
+sql/                  # DB 스키마 정의. 마이그레이션 도구는 없고 수동 적용이다
+.github/workflows/    # main 푸시 → 검사 → 릴리스 → 배포
 ```
 
-## 설치 및 실행
+규모: 파이썬 5,161줄 · 템플릿 3,759줄 · JS 4,636줄 · CSS 7,163줄 · 라우트 46개.
 
-### 로컬 개발
+⚠️ **`public/` 의 URL 경로를 바꾸지 마세요.** 글 본문이 `/uploads/...` 를 직접 가리키고
+있어서 바꾸면 기존 글의 이미지가 전부 깨집니다.
+
+## 실행
 
 ```bash
-composer install
-cp config.example/* config/        # 설정 파일 복사 후 편집
-mkdir -p cache/data && chmod 755 cache cache/data
-php -S localhost:80 -t public    # 개발 서버 → http://localhost:80/blog
+# 의존성: 공용 이미지(fastapi-py312)에 대부분 들어 있고, 없는 것만 requirements-api.txt 에 적는다
+pip install -r requirements-api.txt
+# .env.api 를 만들어 아래 표의 키를 채운다 (예시 파일은 없다 — 값이 전부 비밀이라)
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allow-ips "*"
 ```
 
-### Docker
+⚠️ `--proxy-headers` 가 없으면 **모든 방문자가 게이트웨이 IP 하나로 보입니다.** 백테스트
+포트폴리오는 소유권을 IP 로 가리므로 이게 빠지면 아무나 남의 것을 고칠 수 있게 됩니다.
 
-```bash
-docker build -t php-blog:latest .
-```
+### 설정 (`.env.api`)
 
-- PHP 8.2-Apache, 확장: pdo_mysql, mysqli, mbstring, exif, bcmath, sockets, gd, opcache, xdebug
-- DocumentRoot: `/var/www/html/public`
-- 헬스체크: `curl http://localhost/` (30초 간격)
+| 키 | 설명 |
+|---|---|
+| `DATABASE_URL` | `mariadb+aiomysql://user:pw@host:3306/DB` |
+| `AUTH_BASE_URL` | 서버 간 호출용 auth 주소(컨테이너 이름) |
+| `AUTH_PUBLIC_URL` | 브라우저를 보낼 auth 주소 |
+| `BASE_DOMAIN` | 쿠키 스코프 계산에 쓴다 |
 
-### 테스트
+⚠️ `.env.api` 는 `.gitignore` 대상이라 **배포로 따라가지 않습니다.** 각 환경에서 직접
+관리해야 합니다.
 
-`composer test` / `composer test-coverage` 스크립트와 PHPUnit 11 의존성은 준비돼 있지만, **아직 `tests/` 디렉토리와 `phpunit.xml`이 없어 실제로 실행되는 테스트는 없습니다.** 현재 검증은 문법 검사(`php -l`)와 테스트 환경에서의 동작 확인으로 합니다.
+## 인증
 
-### 배포
+이 앱은 **로그인을 처리하지 않습니다.** 중앙 auth 가 RS256 으로 서명한 JWT 를 공개키로
+검증만 합니다. 개인키가 없으므로 이 서비스가 뚫려도 토큰을 위조할 수 없습니다.
 
-`main` 브랜치에 푸시(PR 머지)되면 [GitHub Actions](.github/workflows/release.yml)가 자동으로 실행됩니다.
+- 세션은 10분입니다. 만료되면 미들웨어가 **기기 신뢰 쿠키로 조용히 갱신**합니다 —
+  화면이든 API 든 한 곳에서 처리되어 사용자는 끊김을 못 느낍니다.
+- **등급의 진실의 원천은 auth** 입니다. 블로그는 토큰의 역할로 등급을 판단하고,
+  활성 여부·글 수·글 제한만 자기 것으로 둡니다.
 
-1. **검증** — `src public config` 아래 모든 PHP 파일 `php -l` (테스트는 `tests/`가 있을 때만 실행)
-2. **릴리스** — `package.json`의 `version`으로 태그를 만들고 소스 아카이브를 GitHub Release에 첨부. 같은 태그가 이미 있으면 지우고 다시 만듭니다
-3. **배포** — self-hosted 러너가 서버의 배포 디렉토리에서 `git reset --hard origin/main`
+### 권한 등급 — **낮을수록 높습니다**
 
-배포는 **추적 파일만** 갱신합니다. `config/`는 `.gitignore` 대상이라 배포로 전달되지 않으므로, 새 설정 키가 생기면 서버의 `config/`를 직접 갱신해야 합니다. DB 스키마도 자동 반영되지 않습니다(`sql/` 수동 적용).
-
-## 라우트 맵
-
-### 블로그
-
-| 메서드 | 경로 | 핸들러 |
-|--------|------|--------|
-| GET | `/`, `/index.php` | → `/blog` 리다이렉트 |
-| GET | `/blog` | HomeController::index |
-| GET | `/blog/search`, `/search` | HomeController::search (JSON) |
-
-### 인터랙트
-
-| 메서드 | 경로 | 핸들러 |
-|--------|------|--------|
-| GET | `/func` | FuncController::index |
-| GET | `/func/youtube-feed` | FuncController::youtubeFeed |
-| GET | `/func/analyze` | FuncController::analyze |
-| POST | `/func/analyze/react` | FuncController::reactAnalysis |
-| GET | `/func/history` | FuncController::history |
-| GET | `/a/:id` | FuncController::analyzeShort (공유 단축 링크) |
-
-### 인증
-
-| 메서드 | 경로 | 핸들러 |
-|--------|------|--------|
-| GET/POST | `/login.php` | AuthController::loginForm / login |
-| GET/POST | `/logout.php` | AuthController::logoutRedirect / logout |
-| GET | `/get/login_verify` | AuthController::verify (JSON) |
-
-### 게시글
-
-| 메서드 | 경로 | 핸들러 |
-|--------|------|--------|
-| GET | `/reader.php?posting_index={id}` | PostController::show |
-| GET | `/writer.php` | PostController::createForm |
-| POST | `/writer.php` | PostController::create |
-| GET | `/post/edit/:id` | PostController::editForm |
-| POST | `/post/update/:id` | PostController::update |
-| POST | `/post/enable/:id` | PostController::enable |
-| POST | `/post/disable/:id` | PostController::disable |
-| POST | `/post/hard-delete/:id` | PostController::hardDelete |
-
-### 관리자 (`/admin/*` — level ≤ 1)
-
-| 메서드 | 경로 | 기능 |
-|--------|------|------|
-| GET | `/admin` | 관리자 메인 |
-| GET | `/admin/logs` | 감사 로그 |
-| GET/POST | `/admin/users`, `users/create`, `users/update` | 사용자 관리 |
-| GET/POST | `/admin/categories`, `categories/create\|update\|delete\|reorder` | 카테고리 관리 |
-| GET/POST | `/admin/cache`, `cache/clear\|clear-expired\|clear-pattern\|warmup\|stock-day-cleanup\|stock-day-clear` | 캐시 관리 |
-| GET/POST | `/admin/stocks`, `stocks/subscriptions` | 주식 구독 관리 |
-| GET/POST | `/admin/stock-splits`, `stock-splits/create\|delete` | 주식 분할/병합 이벤트 |
-| GET/POST | `/admin/wol`, `wol/execute\|create\|update\|delete` | WOL 장치 관리 |
-| GET/POST | `/admin/ip-blocks`, `ip-blocks/add\|remove\|clean` | IP 차단 관리 |
-
-### 주식
-
-| 메서드 | 경로 | 핸들러 |
-|--------|------|--------|
-| GET | `/stocks` | StockController::index |
-| GET | `/stocks/view?code={code}&market={market}` | StockController::show |
-| GET | `/stocks/api/candle` | StockController::apiCandleData (JSON) |
-| GET | `/stocks/api/executions` | StockController::apiRecentExecutions (JSON) |
-| GET | `/stocks/api/search` | StockController::apiSearch (JSON) |
-
-## 설정
-
-설정 파일은 `config.example/`을 `config/`에 복사하여 사용합니다.
-
-| 파일 | 주요 항목 |
-|------|----------|
-| `database.php` | DB 호스트, 인증 정보, charset (utf8mb4) |
-| `config.php` | 앱 이름, 세션 만료, 업로드 제한, 로그인 레이트 리미팅, IP 자동 차단 (임계값·차단 기간·의심 URL 패턴·봇 UA 패턴) |
-| `cache.php` | 캐시 키별 TTL 설정 |
-
-## 권한 체계
-
-**낮은 `user_level` = 높은 권한**
-
-| 레벨 | 역할 | 주요 권한 |
-|------|------|----------|
-| 0 | 슈퍼관리자 | 전체 접근 |
-| 1 | 관리자 | 관리자 패널 |
-| 2 | 편집자 | 게시글 작성/편집 |
-| 3 | 작성자 | 게시글 작성 |
-| 4 | 구독자 | 읽기 전용 (미로그인 기본값) |
+| 등급 | 역할 | 할 수 있는 것 |
+|---|---|---|
+| 0 | 슈퍼관리자 | 전부 |
+| 1 | 관리자 | 관리자 화면 |
+| 2 | 에디터 | 글 작성·편집 |
+| 3 | 작성자 | 글 작성 |
+| 4 | 구독자 | 읽기 (비로그인 기본값) |
 
 ## 보안
 
-- **비밀번호**: 서버 측 Argon2ID 해싱 (`password_hash`/`password_verify`), 레거시 SHA256 자동 마이그레이션
-- **SQL 인젝션 방지**: PDO Prepared Statement 강제
-- **CSRF**: 모든 POST 폼에 일회용 토큰, 검증 후 자동 재생성
-- **XSS 방지**: HTMLPurifier (리치 콘텐츠) + `htmlspecialchars` (일반 출력)
-- **CSP**: 동적 nonce 기반 `Content-Security-Policy` 헤더
-- **세션**: HttpOnly + SameSite=Lax + Secure 쿠키, IP+UA 바인딩, 활동 기반 만료
-- **HTTPS**: HTTP → HTTPS 301 리다이렉트, HSTS 헤더
-- **IP 자동 차단**: 과다 요청(분당 200회), 404 반복(분당 30회), 로그인 실패(5회), 의심 URL 패턴(18개), 봇 UA(16패턴) → 위험도별 차단(1분/1시간/7일)
-- **클라이언트 IP**: 리버스 프록시 뒤에서는 `REMOTE_ADDR`이 프록시 IP로 고정되므로, `trusted_proxies`에 등록된 소스에 한해 `X-Real-IP`(우선) 또는 `X-Forwarded-For` 최우측 값으로 실제 방문자 IP를 복원 (`Core\ClientIp`). 차단·레이트 리미팅이 모두 이 값을 사용
-- **API 보호**: `X-Requested-With` + Origin/Referer 이중 검증
-- **봇 방어**: 검색 Rate Limiting(분당 20회), Pagination 상한 제한, Honeypot 필드, `noindex/nofollow` 메타 태그, `robots.txt` Crawl-delay
-- **로그인 보호**: IP/사용자별 레이트 리미팅, 타이밍 공격 완화 딜레이
+- **XSS** — 본문은 `nh3`(Rust ammonia)로 정화합니다. ⚠️ DB 에는 정화 전 원본이 들어
+  있어서, 출력 경로에서 정화를 빼먹으면 그대로 XSS 가 됩니다.
+- **CSRF** — 폼은 double submit cookie. JSON·GET API 는 토큰을 실을 자리가 없어
+  `X-Requested-With` + Origin/Referer 를 봅니다(`csrf.require_internal`).
+- **SQL 인젝션** — 바인딩 파라미터. 테이블명·정렬 컬럼은 바인딩이 안 되므로
+  **화이트리스트**로 거릅니다.
+- **IP 차단** — `blocked_ip_list` 를 미들웨어가 실제로 집행합니다. 자동 판정은 넣지
+  않았습니다(로그인 실패는 auth 가 알고, 요청 수 제한은 앞단이 할 일입니다).
+
+## 배포
+
+`main` 에 머지되면 GitHub Actions 가 검사 → 릴리스 → 배포까지 합니다.
+
+⚠️ **`main` 직접 푸시는 저장소 규칙이 막습니다. PR 로만 들어갑니다.**
+
+⚠️ **버전을 올리고 머지하세요.** 릴리스 태그는 `package.json` 의 `version` 으로 만드는데,
+같은 태그가 있으면 **지우고 다시 만듭니다** — 안 올리면 직전 릴리스가 사라집니다.
+
+⚠️ 배포는 파일만 바꾸는 게 아니라 **컨테이너를 재시작**합니다. uvicorn 은 떠 있는
+프로세스라 파일만 갈아끼우면 옛 코드가 계속 돕니다.
+
+## 테스트
+
+자동화된 테스트는 없습니다. CI 는 파이썬 컴파일과 **Jinja 템플릿 컴파일**만 확인합니다.
+
+⚠️ 템플릿은 컴파일만으로 부족합니다. 리스트 리터럴 안의 Jinja 주석 때문에 관리자 화면이
+전부 500 이 난 적이 있는데 컴파일은 통과했습니다. 화면을 바꿨으면 **실제로 렌더해서**
+확인하세요.
 
 ## 라이선스
 
