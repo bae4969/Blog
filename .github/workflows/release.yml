@@ -33,8 +33,15 @@ jobs:
         with:
           python-version: '3.12'
 
+      # ⚠️ `requirements-api.txt` 에는 **공용 이미지에 없는 것만** 적혀 있다(지금은 nh3 하나).
+      #    런타임 의존성은 `fastapi-py312` 이미지가 들고 있는데 CI 러너에는 그 이미지가
+      #    없다. 그래서 아래 검사에 필요한 것을 여기서 따로 깐다 — 안 그러면
+      #    템플릿 검사가 `ModuleNotFoundError: jinja2` 로 죽는다(2026-08-17 실제로 그랬다.
+      #    이 검사는 PHP 시절 이후 main 푸시가 없어 한 번도 돌아본 적이 없었다).
       - name: Install dependencies for CI
-        run: pip install --no-cache-dir -r requirements-api.txt
+        run: |
+          pip install --no-cache-dir -r requirements-api.txt
+          pip install --no-cache-dir jinja2
 
       # PHP 스택을 걷어냈다. 옛 `php -l` 자리 — 컴파일만 확인한다(실행하지 않는다).
       - name: Python 문법 검사
