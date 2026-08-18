@@ -1,20 +1,16 @@
 """관리자 화면 — PHP `AdminController` 를 옮긴 것.
 
-7개 전부 옮겼다(진입점·로그·사용자·카테고리·주식 구독·액면분할·WOL·IP 차단).
-되살리지 않은 것은 `cache`(PHP 전용 파일 캐시라 포팅본에 대응물이 없다)와
-`api-settings`(func 기능과 함께 제거)뿐이다.
+⚠️ **로그 뷰어는 2026-08-18 에 걷어냈다.** 블로그는 `Log.blog_log` 에 쓰지 않고(PHP 시절
+이력에서 멈췄다) 정작 큰 `stock_ticker_log` 는 `23.stock_ticker` 의 것이라, 남의 로그를
+블로그가 들고 있을 이유가 없어 `01.core` 로 넘겼다.
 
 접근 권한은 PHP 와 같다 — `level <= 1`(root·admin). 화면을 숨기는 것과 별개로
 **모든 라우트가 다시 검사한다.**
 """
 
-import hashlib
-import json
 import logging
 import re
 import socket
-import time
-from datetime import datetime, timedelta
 from ipaddress import ip_address as ip_address_obj
 from urllib.parse import quote
 
@@ -25,7 +21,7 @@ from sqlalchemy import bindparam, text
 from app.core import blog_user, csrf
 from app.core import ip_block
 from app.db.session import db_session
-from app.ui.routes import _KST, _int_arg, _shell_ctx, templates
+from app.ui.routes import _int_arg, _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
@@ -940,213 +936,6 @@ async def user_update(
     return RedirectResponse(back, status_code=status.HTTP_303_SEE_OTHER)
 
 
-# ── 로그 뷰어 ───────────────────────────────────────────────────────
-#
-# `Log` 스키마는 블로그 것이 아니라 **여러 서비스가 함께 쓰는 곳**이다. 여기서는
-# 읽기만 한다 — 계정에도 그 스키마 쓰기 권한이 없다.
-
-#: 정렬에 쓸 수 있는 컬럼. **화이트리스트가 아니면 SQL 에 넣지 않는다** —
-#: ORDER BY 는 바인딩 파라미터가 안 되므로 문자열로 붙일 수밖에 없고, 그래서 값을
-#: 목록으로 못 박는 것이 유일한 방어다.
-_LOG_SORTS = ("log_datetime", "log_name", "log_type", "log_function", "log_file")
-_LOG_ORDERS = ("ASC", "DESC")
-_LOG_TYPES = ("I", "W", "E", "N")
-_LOG_PER_PAGE = 50
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-#: 로그 테이블에 반드시 있어야 하는 컬럼. 이게 다 있어야 같은 모양으로 UNION 할 수 있다.
-_LOG_REQUIRED_COLS = ("log_datetime", "log_name", "log_type", "log_message")
-#: 테이블 이름 발견 결과 캐시 — (목록, 읽은 시각). PHP 는 파일 캐시로 10분 뒀다.
-_log_tables_cache: tuple[tuple[str, ...], float] = ((), 0.0)
-_LOG_TABLES_TTL = 600.0
-
-
-async def _log_table_names(db) -> tuple[str, ...]:
-    """`Log` 스키마에서 로그 테이블을 **찾아낸다**(PHP `Logger::getLogTableNames`).
-
-    목록을 상수로 박지 않는 이유는 수집기가 테이블을 늘릴 수 있어서다 — 박아두면 새
-    테이블이 화면에서 조용히 빠진다. 대신 이름이 그대로 SQL 에 붙으므로(테이블명은
-    바인딩이 안 된다) **영숫자와 밑줄만** 통과시키고, 여기서 나온 이름만 쓴다.
-    """
-    global _log_tables_cache
-    names, at = _log_tables_cache
-    if names and time.monotonic() - at < _LOG_TABLES_TTL:
-        return names
-
-    # ⚠️ 별칭을 `t` 로 두면 안 된다 — SQLAlchemy 2.0 의 `Row.t` 는 **행 전체를 튜플로**
-    #    주는 내장 접근자라 같은 이름의 컬럼을 가린다. 그러면 테이블 이름 대신
-    #    `('blog_log', 4)` 가 SQL 에 붙는다(실제로 당했다).
-    rows = (await db.execute(text(
-        "SELECT TABLE_NAME AS tbl, COUNT(*) AS c FROM information_schema.COLUMNS "
-        "WHERE TABLE_SCHEMA = 'Log' AND COLUMN_NAME IN :cols "
-        "AND TABLE_NAME REGEXP '^[A-Za-z0-9_]+$' "
-        "GROUP BY TABLE_NAME HAVING c = :n ORDER BY TABLE_NAME"
-    ).bindparams(bindparam("cols", expanding=True)),
-        {"cols": list(_LOG_REQUIRED_COLS), "n": len(_LOG_REQUIRED_COLS)})).all()
-
-    found = tuple(r.tbl for r in rows)
-    if found:
-        _log_tables_cache = (found, time.monotonic())
-    # 못 찾으면(권한·장애) 캐시에 넣지 않는다 — 다음 요청에서 다시 시도하게.
-    return found or ("blog_log",)
-
-
-def _log_row(row) -> dict:
-    """행 + JSON 메시지 해석. 구조화 로그는 요약만 보이고 원문은 접어 둔다.
-
-    ⚠️ 문자열·숫자도 유효한 JSON 이라 `json.loads` 만으로는 판별이 안 된다. PHP 는
-       `is_array` 로 걸렀는데, 여기서는 **dict 일 때만** 구조화로 본다 — 요약이 읽는
-       `action`·`result` 는 키가 있는 객체에만 있고, JSON 배열이면 PHP 도 "0, 1, 2"
-       같은 무의미한 요약을 내놓기 때문이다.
-    """
-    out = dict(row._mapping)
-    msg = out.get("log_message") or ""
-    try:
-        parsed = json.loads(msg)
-    except (ValueError, TypeError):
-        parsed = None
-    detail = parsed if isinstance(parsed, dict) else None
-
-    out["detail"] = detail
-    if detail is not None:
-        out["detail_pretty"] = json.dumps(detail, indent=4, ensure_ascii=False)
-        # id 는 DOM 에서만 쓰이므로 충돌만 안 나면 된다 — 보안 용도가 아니다.
-        seed = f"{msg}{out.get('log_datetime') or ''}"
-        out["detail_id"] = "log-detail-" + hashlib.md5(seed.encode()).hexdigest()
-    return out
-
-
-def _log_union(tables, where_sql: str) -> str:
-    """테이블들을 같은 컬럼 모양으로 UNION ALL 한 서브쿼리.
-
-    ⚠️ WHERE 를 **각 SELECT 안으로 밀어 넣는다.** 밖에 한 번만 걸면 38만 행을 전부
-       모아놓고 거르게 되어 인덱스를 못 쓴다.
-    ⚠️ `COLLATE` 를 붙이는 이유는 테이블마다 컬럼 콜레이션이 달라 UNION 이 거부될 수
-       있어서다(PHP 도 같은 이유로 붙였다).
-    """
-    cols = ("log_datetime, "
-            "log_name COLLATE utf8mb4_unicode_ci AS log_name, "
-            "log_type COLLATE utf8mb4_unicode_ci AS log_type, "
-            "log_message COLLATE utf8mb4_unicode_ci AS log_message, "
-            "log_function COLLATE utf8mb4_unicode_ci AS log_function, "
-            "log_file COLLATE utf8mb4_unicode_ci AS log_file, log_line")
-    parts = [f"SELECT {cols} FROM Log.`{t}` {where_sql}".rstrip() for t in tables]
-    return "(" + " UNION ALL ".join(parts) + ") AS combined_logs"
-
-
-@router.get("/logs", response_class=HTMLResponse, include_in_schema=False)
-async def logs(request: Request):
-    """로그 조회. 필터가 하나도 없으면 최근 7일로 좁힌다(PHP 와 같은 기본값).
-
-    로그가 수만 건이라 조건 없이 전체를 훑으면 화면도 DB 도 무겁다.
-    """
-    qp = request.query_params
-    sort = qp.get("sort", "log_datetime")
-    if sort not in _LOG_SORTS:
-        sort = "log_datetime"
-    order = qp.get("order", "DESC").upper()
-    if order not in _LOG_ORDERS:
-        order = "DESC"
-
-    name = (qp.get("name") or "").strip()[:255]
-    q = (qp.get("q") or "").strip()[:200]
-    types = [t for t in qp.getlist("type") if t in _LOG_TYPES]
-    date_from = qp.get("date_from", "")
-    date_to = qp.get("date_to", "")
-    if not _DATE_RE.match(date_from or ""):
-        date_from = ""
-    if not _DATE_RE.match(date_to or ""):
-        date_to = ""
-
-    # 아무 조건도 없으면 최근 7일. 사용자가 하나라도 걸면 그 조건만 쓴다.
-    if not any((name, q, types, date_from, date_to)):
-        date_from = (datetime.now(_KST) - timedelta(days=7)).strftime("%Y-%m-%d")
-
-    where, params = [], {}
-    if name:
-        # PHP 와 같이 **정확일치**다. 이름은 목록에서 고르게 하므로 부분검색이 필요 없다.
-        where.append("log_name = :name")
-        params["name"] = name
-    if q:
-        where.append("log_message LIKE :q")
-        params["q"] = f"%{q}%"
-    if types:
-        # IN 절도 바인딩으로 — 값 개수만큼 이름을 만든다.
-        keys = []
-        for i, t in enumerate(types):
-            k = f"t{i}"
-            keys.append(f":{k}")
-            params[k] = t
-        where.append(f"log_type IN ({', '.join(keys)})")
-    if date_from:
-        where.append("log_datetime >= :dfrom")
-        params["dfrom"] = f"{date_from} 00:00:00"
-    if date_to:
-        where.append("log_datetime <= :dto")
-        params["dto"] = f"{date_to} 23:59:59"
-
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
-    page = max(1, int(qp.get("page", 1)) if (qp.get("page") or "1").isdigit() else 1)
-
-    async with db_session() as db:
-        me = await _require_admin(request, db)
-        if me is None:
-            return _deny("not_admin /admin/logs")
-
-        all_tables = await _log_table_names(db)
-        # 고른 것 중 실재하는 것만. 하나도 안 고르면 **전부** 본다(PHP 와 같다).
-        picked = tuple(t for t in qp.getlist("table") if t in all_tables)
-        source = _log_union(picked or all_tables, clause)
-
-        total = (await db.execute(
-            text(f"SELECT COUNT(*) FROM {source}"), params)).scalar() or 0
-        pages = max(1, (total + _LOG_PER_PAGE - 1) // _LOG_PER_PAGE)
-        page = min(page, pages)
-
-        rows = (
-            await db.execute(
-                text(
-                    f"SELECT log_datetime, log_name, log_type, log_message, "
-                    f"       log_function, log_file, log_line FROM {source} "
-                    # ⚠️ 정렬 키를 **하나만** 쓰면 안 된다. MariaDB 12.1.2 에서
-                    #    `ORDER BY <인덱스 컬럼> DESC LIMIT n` 이 이 테이블에서
-                    #    **빈 결과**를 돌려준다(COUNT 는 90인데 SELECT 만 0행). ASC 는
-                    #    정상이고 IGNORE INDEX 를 걸어도 정상이라 옵티마이저 문제로 보인다.
-                    #    tie-breaker 를 하나 더 붙이면 계획이 바뀌어 제대로 나온다 —
-                    #    같은 값이 여럿일 때 쪽 넘김이 흔들리지 않는 효과도 함께 얻는다.
-                    f"ORDER BY {sort} {order}, log_name {order} "
-                    f"LIMIT {int(_LOG_PER_PAGE)} OFFSET {int((page - 1) * _LOG_PER_PAGE)}"
-                ),
-                params,
-            )
-        ).all()
-
-        # 이름 목록 — 최근 90일에 실제로 찍힌 것만 보여준다(PHP 와 같다).
-        log_names = [r[0] for r in (await db.execute(text(
-            f"SELECT DISTINCT log_name FROM "
-            f"{_log_union(all_tables, 'WHERE log_datetime >= :since')} "
-            f"ORDER BY log_name LIMIT 200"),
-            {"since": (datetime.now(_KST) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")},
-        )).all() if r[0]]
-
-        ctx = await _shell_ctx(request, db, me.level)
-
-    return templates.TemplateResponse(
-        request,
-        "admin_logs.html",
-        {
-            **ctx,
-            "admin_menu": "logs",
-            "rows": [_log_row(r) for r in rows],
-            "sel_tables": list(picked), "log_tables": all_tables, "log_names": log_names,
-            "sort": sort, "order": order,
-            "name": name, "q": q, "types": types,
-            "date_from": date_from, "date_to": date_to,
-            "page": page, "pages": pages, "total": total,
-        },
-    )
-
-
 # ── Wake-on-LAN ─────────────────────────────────────────────────────
 
 #: 매직 패킷을 보낼 포트. 장비마다 듣는 포트가 달라 둘 다 시도한다(PHP 와 같다).
@@ -1331,8 +1120,8 @@ async def wol_delete(request: Request, csrf_token: str = Form(""), device_id: in
 @router.get("", include_in_schema=False)
 @router.get("/", include_in_schema=False)
 async def admin_home(request: Request):
-    """관리자 진입점. PHP 와 같이 로그 화면으로 보낸다(따로 대시보드가 없다)."""
+    """관리자 진입점. 대시보드가 없어 첫 메뉴로 보낸다(로그 화면을 걷어내기 전엔 그쪽이었다)."""
     async with db_session() as db:
         if await _require_admin(request, db) is None:
             return _deny("not_admin /admin")
-    return RedirectResponse("/admin/logs", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse("/admin/categories", status_code=status.HTTP_303_SEE_OTHER)
