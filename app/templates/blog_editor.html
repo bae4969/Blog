@@ -1,10 +1,9 @@
 {#
   글쓰기·수정 — PHP `views/blog/editor.php` 를 옮긴 것이다.
 
-  ⚠️ Quill 에디터와 CSS 는 **PHP 컨테이너가 서빙**하는 자산을 그대로 쓴다
-     (`/vendor/quill/*`, `/css/*`). 그 경로는 Traefik 이 아직 PHP 로 보낸다.
-  ⚠️ 아래 JS 는 원본을 그대로 옮겼다(썸네일 추출·이미지 리사이즈 등). 손대지 않는 편이
-     동작 차이를 줄인다 — 고칠 일이 생기면 PHP 쪽과 함께 볼 것.
+  ⚠️ Quill 에디터와 CSS(`/vendor/quill/*`, `/css/*`)는 **이 앱이 직접 서빙**한다.
+  ⚠️ 아래 JS 는 PHP 원본을 그대로 옮겼다(썸네일 추출·이미지 리사이즈 등). 손대지 않는
+     편이 동작 차이를 줄인다 — 원본은 `php-final` 태그에 있다.
 #}
 {% extends "layout.html" %}
 

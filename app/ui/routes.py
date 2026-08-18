@@ -69,7 +69,6 @@ async def root_by_subdomain(request: Request) -> RedirectResponse:
     PHP `HomeController::redirectBySubdomain` 을 그대로 옮겼다 — 쿼리스트링을 붙여 넘기고
     상태코드도 302 로 맞춘다(PHP `View::redirect` 와 같다).
 
-    `/stocks` 는 아직 PHP 가 갖고 있지만 경로가 달라 Traefik 이 알아서 그쪽으로 보낸다.
     """
     host = request.headers.get("host", "localhost").split(":")[0]
     subdomain = host.split(".")[0]
