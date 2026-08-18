@@ -200,7 +200,7 @@
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .market-stat-item-h .market-sep {
@@ -295,8 +295,8 @@
     width: 22px;
     height: 22px;
     border-radius: var(--border-radius-circle);
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -306,8 +306,12 @@
     flex-shrink: 0;
 }
 
-.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); }
-.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); }
+/* 1~3위만 색을 준다. 4위부터는 위의 중립 동그라미 그대로 — 예전엔 4위부터 primary 색이
+   이어졌는데 accent 가 밝아지면서 순위표 절반이 연보라가 됐다.
+   ⚠️ 글자색도 함께 지정한다. 위 기본값(중립 회색)은 어두운 회색 배경에 맞춘 것이라
+   빨강·주황 위에서는 대비가 모자란다. */
+.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); color: #fff; }
+.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); color: #fff; }
 .top10-item:nth-child(3) .top10-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
 
 .top10-info {
@@ -337,7 +341,7 @@
 .top10-primary {
     font-size: 13px;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .top10-secondary {
@@ -368,7 +372,7 @@
 
 .top10-value.score-mid .top10-primary,
 .top10-value.score-mid .top10-secondary {
-    color: var(--primary-color);
+    color: var(--success-color);
 }
 
 .top10-value.score-low .top10-primary,
@@ -586,11 +590,11 @@
 
 .stock-price {
     font-weight: 600;
-    color: var(--text-accent);
+    color: var(--text-primary);
 }
 
 .stock-cap {
-    color: var(--info-color);
+    color: var(--text-secondary);
 }
 
 .market-badge,
@@ -604,7 +608,7 @@
 
 .market-badge {
     background: var(--bg-quaternary);
-    color: var(--info-color);
+    color: var(--text-secondary);
 }
 
 .type-badge {
@@ -612,7 +616,7 @@
 }
 
 .type-badge.type-stock {
-    color: var(--primary-color);
+    color: var(--text-secondary);
 }
 
 .type-badge.type-etf {

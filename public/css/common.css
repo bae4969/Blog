@@ -90,7 +90,11 @@
     --text-primary: var(--bae-text-primary);
     --text-secondary: var(--bae-text-muted);
     --text-muted: var(--bae-text-dim);
-    --text-accent: var(--bae-accent);
+    /* ⚠️ accent 가 아니다. 이 이름을 쓰는 곳이 **분류 배지·등급 라벨**(글 카테고리·권한)
+       인데, 한 화면에 수십 개가 반복된다. 거기까지 accent 로 칠하면 화면이 통째로
+       연보라가 되고, 정작 강조해야 할 선택 상태·주 액션이 묻힌다. 배지는 중립 칩으로
+       두고 accent 는 아래 --primary-color 를 쓰는 곳에만 남긴다. */
+    --text-accent: var(--bae-text-muted);
     --text-tertiary: rgba(255,255,255,0.3);
 
     /* 테두리 */
@@ -126,8 +130,9 @@
     --text-nav: var(--bae-text-muted);
     --text-dim: var(--bae-text-dim);
     --text-light: var(--bae-text-dim);
-    /* 글쓴이 링크 — 파란색이던 것을 accent 로. 링크색이 저쪽과 같아진다. */
-    --text-link-info: var(--bae-accent);
+    /* 글쓴이 링크 — 목록에 글 수만큼 반복된다. 평소엔 중립으로 두고 hover 에서만
+       accent 를 준다(.post-author). */
+    --text-link-info: var(--bae-text-muted);
     --text-date: var(--bae-text-muted);
     --text-date-alt: var(--bae-text-muted);
     --text-footer: var(--bae-text-dim);
@@ -181,8 +186,10 @@
        관리자 표에 그대로 남아 있던 것. 다크 tint 로 바꾼다. */
     --ip-badge-auto-bg: rgba(var(--bae-warn-rgb), 0.18);
     --ip-badge-auto-color: var(--bae-warn);
-    --ip-badge-manual-bg: rgba(var(--bae-accent-rgb), 0.18);
-    --ip-badge-manual-color: var(--bae-accent);
+    /* 수동 차단은 분류 라벨이지 강조가 아니다 — accent 를 주면 표에서 그것만 튄다.
+       (주식 액면분할 화면이 시장 라벨 KR/US 에 이 클래스를 재사용한다.) */
+    --ip-badge-manual-bg: var(--bg-quaternary);
+    --ip-badge-manual-color: var(--text-secondary);
 
     /* 테이블 배경 */
     --bg-table-header: rgba(255, 255, 255, 0.03);

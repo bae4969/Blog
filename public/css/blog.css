@@ -232,11 +232,12 @@ li.category:hover {
     box-shadow: var(--shadow-medium); 
 }
 
-/* 선택된 카테고리 */
+/* 선택된 카테고리 — accent 는 배경 tint 와 좌측 막대가 이미 낸다. 글자까지 accent 면
+   대비가 떨어져 오히려 덜 읽힌다. 흰색으로 또렷하게. */
 li.category-selected {
     background: var(--primary-bg-light);
     border-left: 3px solid var(--primary-color);
-    color: var(--text-accent);
+    color: var(--text-primary);
     position: relative;
     font-weight: 600;
 }
@@ -801,11 +802,16 @@ footer a:hover {
     line-height: 1;
 }
 
-.post-author { 
+.post-author {
     color: var(--text-link-info);
     display: flex;
     align-items: center;
     line-height: 1;
+}
+
+/* 글 수만큼 반복되는 이름이라 평소엔 중립. 짚을 때만 accent 를 준다. */
+.post-author:hover {
+    color: var(--primary-color);
 }
 
 .post-date { 

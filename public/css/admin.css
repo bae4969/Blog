@@ -535,8 +535,8 @@
 }
 
 .state-active {
-    background: var(--primary-bg);
-    color: var(--primary-color);
+    background: var(--bg-success);
+    color: var(--success-color);
 }
 
 .state-inactive {
@@ -649,7 +649,7 @@
    캐시 관리
    =========================================== */
 .stat-active {
-    color: var(--primary-color);
+    color: var(--success-color);
 }
 
 .stat-expired {
@@ -695,8 +695,8 @@
 .cache-tag {
     display: inline-block;
     padding: 3px 10px;
-    background: var(--primary-bg);
-    color: var(--primary-color);
+    background: var(--bg-quaternary);
+    color: var(--text-secondary);
     border-radius: var(--border-radius-pill);
     font-size: 12px;
     margin: 2px 3px;
@@ -1933,7 +1933,7 @@
 }
 
 .log-result-ok {
-    color: var(--primary-color);
+    color: var(--success-color);
     font-weight: 600;
     font-size: 12px;
 }
