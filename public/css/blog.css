@@ -138,10 +138,15 @@ header {
     clear: both;
 }
 
-#blogTitle { 
-    width: 70%; 
-    max-width: 600px; 
-    cursor: pointer; 
+/* ⚠️ 로고는 **폭으로만** 크기를 정한다 — 높이는 이미지 비율이 따라 정한다. 그래서
+   로고를 갈아끼울 때 비율이 달라지면 헤더 높이가 통째로 바뀐다. 옛 로고(DEVELOPER
+   NEWS BLOG)는 3.76:1 이라 600px 에서 160px 였는데, 지금 로고(bae.dev)는 2.34:1 이라
+   같은 600px 이면 256px 가 되어 첫 글 카드가 화면 밖으로 밀렸다. 헤더 높이를 비슷하게
+   두려고 폭을 줄인 것이다 — 로고 크기를 바꾸려면 이 두 숫자만 만지면 된다. */
+#blogTitle {
+    width: 70%;
+    max-width: 520px;
+    cursor: pointer;
 }
 
 body.stock-page #title,
@@ -154,7 +159,7 @@ body.stock-page #blogTitle,
 body.admin-page #blogTitle,
 body.func-page #blogTitle {
     width: 35%;
-    max-width: 350px;
+    max-width: 300px;   /* 위와 같은 비율로 줄였다(350 → 300) */
     display: block;
     margin: 0 auto;
 }
