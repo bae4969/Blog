@@ -606,10 +606,29 @@
     font-weight: 600;
 }
 
+/* 시장 배지 — 값마다 색을 가른다. 하나로 칠하면 표에서 이 열이 아무 정보도 안 준다.
+ *
+ * 찬 계열로 묶는 이유: 옆의 유형 배지(ETF·ETN·코인)가 따뜻한 계열이라, 색 가족만으로
+ * "이 둘은 서로 다른 축"이 읽힌다. 밝기대는 common.css 의 분류 보조색과 같은 300 계열.
+ * 한국은 파랑→시안, 미국은 청록→초록으로 나라끼리도 갈린다.
+ *
+ * ⚠️ 클래스는 템플릿이 `market-{{ 시장|lower }}` 로 만든다(stocks_index·stocks_show·
+ *    admin_stocks). 새 시장이 생기면 여기 한 줄과 그 클래스가 함께 있어야 색이 붙는다 —
+ *    없으면 아래 기본값(중립)으로 떨어진다. */
 .market-badge {
     background: var(--bg-quaternary);
     color: var(--text-secondary);
 }
+
+.market-badge.market-kospi   { color: #93C5FD; }
+.market-badge.market-kosdaq  { color: #7DD3FC; }
+.market-badge.market-konex   { color: #67E8F9; }
+.market-badge.market-nasdaq  { color: #5EEAD4; }
+.market-badge.market-nyse    { color: #6EE7B7; }
+.market-badge.market-amex    { color: #86EFAC; }
+/* 목록은 'COIN', 상세는 'Bithumb' 을 싣는다(app/ui/stocks.py) — 둘 다 받는다. */
+.market-badge.market-coin,
+.market-badge.market-bithumb { color: var(--color-coin); }
 
 .type-badge {
     background: var(--bg-quaternary);

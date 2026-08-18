@@ -11,8 +11,9 @@
       안 보인다 — 정본은 `--bae-*` 하나로 두고 옛 이름은 여기서 별칭으로만 잇는다
       (`24.home_iot` 과 같은 판단: **색만 같고 구조는 각자 방식**).
 
-   ⚠️ 도메인 색은 팔레트 밖이다 — 주식 등락(빨강/초록)·순위 배지·ETF/ETN/코인은
-      시장 관례에 붙은 색이라 테마를 따라가지 않는다.
+   ⚠️ 주식 등락(빨강/초록)과 순위 배지는 팔레트 밖이다 — 시장 관례에 붙은 색이라
+      테마를 따라가지 않는다. 반면 **분류 색**(시장·유형·글 카테고리)은 뜻이 아니라
+      구분이 목적이므로, 아래 "분류 보조색" 규칙에 맞춰 같은 밝기대로 통일한다.
    =========================================== */
 
 :root {
@@ -51,6 +52,18 @@
     --bae-text-muted:    #C7C7C7;
     --bae-text-dim:      #9A9A9A;
 
+    /* ── 분류 보조색 ─────────────────────────────────────────────────
+     * accent 는 **강조·상호작용 전용**이라 분류 라벨에는 쓰지 않는다. 그렇다고 전부
+     * 회색으로 두면 표가 단색이 된다 — 분류마다 색이 다른 것이 원래 이 화면을 읽는
+     * 방법이었다(시장=파랑·유형=초록·글쓴이=연파랑).
+     *
+     * 옛 원색(#2196F3·#4CAF50·#a8e3a1)은 채도가 높아 다크 표면에서 튀므로, accent
+     * (violet-300)와 **같은 밝기대(Tailwind 300)** 로 골라 한 가족으로 묶는다.
+     * 시장별 색은 도메인이라 stocks.css 에 둔다(여기 규칙과 같은 300 계열).
+     */
+    --bae-info:          #93C5FD;   /* 파랑 — 분류·메타·정보 알림 */
+    --bae-mint:          #6EE7B7;   /* 민트 — 분류(글 카테고리·등급 라벨) */
+
     /* Status — 채운 배경으로도 쓰므로 rgb 채널값을 함께 둔다(tint 파생용). */
     --bae-danger:        #FF99A4;
     --bae-danger-rgb:    255, 153, 164;
@@ -73,8 +86,9 @@
     /* stocks.css 가 10곳에서 --success-color 를 쓰는데 **정의가 없어** 폴백(#10b981)으로
        그려지고 있었다(백테스트 점수·수익률). 팔레트 값으로 못을 박는다. */
     --success-color: var(--bae-success);
-    /* info 는 저쪽에서 accent tint 다(.badge-info) — 따로 파란색을 두지 않는다. */
-    --info-color: var(--bae-accent);
+    /* 정보 알림(.alert-info·.notification-info) — 파랑이 뜻에 맞고, accent 를
+       강조 자리에 남겨둔다. */
+    --info-color: var(--bae-info);
     --warning-color: var(--bae-warn);
 
     /* 배경색 — 페이지 < 본문 < 카드 < 칩 의 사다리를 그대로 옮겼다.
@@ -90,11 +104,11 @@
     --text-primary: var(--bae-text-primary);
     --text-secondary: var(--bae-text-muted);
     --text-muted: var(--bae-text-dim);
-    /* ⚠️ accent 가 아니다. 이 이름을 쓰는 곳이 **분류 배지·등급 라벨**(글 카테고리·권한)
-       인데, 한 화면에 수십 개가 반복된다. 거기까지 accent 로 칠하면 화면이 통째로
-       연보라가 되고, 정작 강조해야 할 선택 상태·주 액션이 묻힌다. 배지는 중립 칩으로
-       두고 accent 는 아래 --primary-color 를 쓰는 곳에만 남긴다. */
-    --text-accent: var(--bae-text-muted);
+    /* ⚠️ accent 가 아니다. 이 이름을 쓰는 곳은 **분류 배지·등급 라벨**(글 카테고리·권한)
+       이고 한 화면에 수십 개가 반복된다. accent 로 칠하면 화면이 통째로 연보라가 되어
+       정작 강조해야 할 선택 상태·주 액션이 묻힌다. 그렇다고 회색으로 두면 단색이 된다
+       — 분류는 분류의 색(민트)을 준다. */
+    --text-accent: var(--bae-mint);
     --text-tertiary: rgba(255,255,255,0.3);
 
     /* 테두리 */
@@ -130,9 +144,9 @@
     --text-nav: var(--bae-text-muted);
     --text-dim: var(--bae-text-dim);
     --text-light: var(--bae-text-dim);
-    /* 글쓴이 링크 — 목록에 글 수만큼 반복된다. 평소엔 중립으로 두고 hover 에서만
-       accent 를 준다(.post-author). */
-    --text-link-info: var(--bae-text-muted);
+    /* 글쓴이 링크 — 원래 연파랑이었다. 목록에 글 수만큼 반복되므로 accent 는 과하고,
+       회색이면 링크로 안 보인다. 분류·메타의 파랑으로 두고 hover 에서 accent 를 준다. */
+    --text-link-info: var(--bae-info);
     --text-date: var(--bae-text-muted);
     --text-date-alt: var(--bae-text-muted);
     --text-footer: var(--bae-text-dim);
@@ -159,9 +173,11 @@
     --rank-1st: #e74c3c;
     --rank-2nd: #e67e22;
     --rank-3rd: #f1c40f;
-    --color-etf: #ff9800;
-    --color-etn: #9c27b0;
-    --color-coin: #f7931a;
+    /* 유형 배지 — 시장(찬 계열)과 다른 축이라 따뜻한 계열로 묶는다. 같은 300 밝기대.
+       ⚠️ ETN 이 #9c27b0 이던 것을 바꿨다 — 진한 보라라 accent 와 부딪혔다. */
+    --color-etf: #FCD34D;
+    --color-etn: #F0ABFC;
+    --color-coin: #FDBA74;
 
     /* Func 도메인 — MBTI 축 보조색 (accent 와 대비) */
     --func-axis-secondary: #ec4899;

@@ -112,7 +112,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="stock-code">{{ stock.code or '' }}</td>
-                                <td><span class="market-badge">{{ stock.market or '' }}</span></td>
+                                <td><span class="market-badge market-{{ (stock.market or '') | lower }}">{{ stock.market or '' }}</span></td>
                                 <td><span class="type-badge type-{{ (stock.stock_type or 'stock')|lower }}">{{ stock.stock_type or '' }}</span></td>
                                 <td class="stock-price">
                                     {{- '$' if is_us else '' -}}

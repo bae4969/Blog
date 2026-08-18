@@ -64,7 +64,7 @@
             </div>
             <div class="stock-header-badges">
                 <span class="code-badge">{{ stock.stock_code }}</span>
-                <span class="market-badge">{{ stock.stock_market }}</span>
+                <span class="market-badge market-{{ (stock.stock_market or '') | lower }}">{{ stock.stock_market }}</span>
                 <span class="type-badge type-{{ (stock.stock_type or '') | lower }}">{{ stock.stock_type }}</span>
             </div>
             <div class="stock-price-section">
