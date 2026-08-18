@@ -1,13 +1,17 @@
-"""관리자 화면 — PHP `AdminController` 를 옮긴 것.
+"""관리자 화면 — 카테고리·주식 구독·액면분할·WOL.
 
-⚠️ **로그 뷰어는 2026-08-18 에 걷어냈다.** 블로그는 `Log.blog_log` 에 쓰지 않고(PHP 시절
-이력에서 멈췄다) 정작 큰 `stock_ticker_log` 는 `23.stock_ticker` 의 것이라, 남의 로그를
-블로그가 들고 있을 이유가 없어 `01.core` 로 넘겼다.
+PHP `AdminController` 에서 옮겨 온 7개 중 셋을 2026-08-18 에 걷어냈다:
 
-⚠️ **사용자 관리도 걷어냈다.** 등급 소유가 auth 로 간 뒤(2026-08-17) 화면의
-`update_level` 은 아무도 안 읽는 컬럼을 쓰고 있었고, 계정 생성·비밀번호는 애초에 여기
-없다. `user_list` 테이블은 남는다 — `blog_user.find()` 가 auth username → `user_index` 를
-잇고 글의 글쓴이가 그 값을 가리킨다. `user_state`·`user_posting_limit` 집행도 그대로다.
+- **로그 뷰어** — 블로그는 `Log.blog_log` 에 쓰지 않는다(PHP 시절 이력에서 멈췄고),
+  정작 큰 `stock_ticker_log` 는 `23.stock_ticker` 의 것이다. 남의 로그를 블로그가
+  들고 있을 이유가 없어 `01.core` 로 넘겼다.
+- **사용자 관리** — 등급 소유가 auth 로 간 뒤(2026-08-17) 화면의 `update_level` 은
+  **아무도 안 읽는 컬럼**을 쓰고 있었다. 계정 생성·비밀번호는 애초에 여기 없다.
+  `user_list` 테이블은 남는다 — `blog_user.find()` 가 auth username → `user_index` 를
+  잇고 글의 글쓴이가 그 값을 가리킨다. `user_state`·`user_posting_limit` 집행도 그대로다.
+- **IP 차단** — 자동 판정은 처음부터 안 옮겼고(2026-08-15), 수동 차단은 운영·테스트
+  모두 0건이었다. 그 0건을 위해 미들웨어가 매 요청 DB 세션을 열고 있었다. 요청 수
+  제한은 앞단(Traefik)이 할 일이다.
 
 접근 권한은 PHP 와 같다 — `level <= 1`(root·admin). 화면을 숨기는 것과 별개로
 **모든 라우트가 다시 검사한다.**
@@ -24,7 +28,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
 from app.core import blog_user, csrf
-from app.core import ip_block
 from app.db.session import db_session
 from app.ui.routes import _int_arg, _shell_ctx, templates
 
@@ -251,173 +254,6 @@ async def category_reorder(
 
     logger.info("카테고리 순서 변경: id=%s %s", category_index, direction)
     return RedirectResponse("/admin/categories",
-                            status_code=status.HTTP_303_SEE_OTHER)
-
-
-# ── IP 차단 ─────────────────────────────────────────────────────────
-#
-# 자동 차단(`block_type='auto'`)은 아직 **PHP 미들웨어가** 넣는다. 여기서는 사람이 하는
-# 관리(목록·수동 추가·해제·만료 정리)만 다룬다 — 자동 차단 로직까지 옮기면 두 스택이
-# 같은 요청을 두 번 세게 된다.
-
-#: 차단할 수 없는 주소. PHP `config/config.php` 의 `ip_block.whitelist` 와 같아야 한다.
-#: 여기가 어긋나면 자기 자신이나 내부망을 차단해 서비스에 못 들어가게 된다.
-_IP_WHITELIST = {"127.0.0.1", "::1", "172.16.9.1"}
-#: 대역 형태는 문자열 비교로 안 되므로 따로 둔다.
-_IP_WHITELIST_NETS = ("192.168.135.",)
-
-
-def _is_whitelisted(ip: str) -> bool:
-    return ip in _IP_WHITELIST or ip.startswith(_IP_WHITELIST_NETS)
-
-
-@router.get("/ip-blocks", response_class=HTMLResponse, include_in_schema=False)
-async def ip_blocks(request: Request):
-    """차단 목록. 만료된 것도 함께 보여준다 — 정리 버튼의 대상이 보여야 해서다."""
-    async with db_session() as db:
-        me = await _require_admin(request, db)
-        if me is None:
-            return _deny("not_admin /admin/ip-blocks")
-
-        rows = (
-            await db.execute(
-                text(
-                    "SELECT blocked_ip_id, ip_address, reason, block_type, blocked_at, "
-                    "       expires_at, "
-                    "       (expires_at IS NOT NULL AND expires_at <= NOW()) AS expired "
-                    "FROM blocked_ip_list ORDER BY blocked_at DESC LIMIT 1000"
-                )
-            )
-        ).all()
-        # 카드 머리의 요약. 만료된 건은 목록에 남지만 실제로 막지는 않는다 —
-        # "정리" 버튼을 띄울지 정하는 기준이라 따로 센다.
-        stats = (
-            await db.execute(
-                text(
-                    "SELECT COUNT(*) AS total, "
-                    "  SUM(block_type = 'auto' AND (expires_at IS NULL OR expires_at > NOW())) AS active_auto, "
-                    "  SUM(block_type <> 'auto' AND (expires_at IS NULL OR expires_at > NOW())) AS active_manual, "
-                    "  SUM(expires_at IS NOT NULL AND expires_at <= NOW()) AS expired "
-                    "FROM blocked_ip_list"
-                )
-            )
-        ).first()
-        ctx = await _shell_ctx(request, db, me.level)
-
-    token = csrf.new_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "admin_ip_blocks.html",
-        {**ctx, "admin_menu": "ip-blocks", "rows": rows,
-         "stats": {k: int(v or 0) for k, v in stats._mapping.items()},
-         "csrf_token": token, "msg": request.query_params.get("msg")},
-    )
-    csrf.attach(response, token)
-    return response
-
-
-@router.post("/ip-blocks/add", include_in_schema=False)
-async def ip_block_add(
-    request: Request,
-    csrf_token: str = Form(""),
-    ip_address: str = Form(""),
-    reason: str = Form(""),
-    duration_hours: int = Form(0),
-):
-    """수동 차단. `duration_hours` 가 0 이면 영구다.
-
-    같은 IP 를 다시 넣으면 덮어쓴다(`ip_address` 가 UNIQUE) — PHP 의 ON DUPLICATE KEY
-    UPDATE 와 같은 동작이라, 기간만 바꾸고 싶을 때 지우고 다시 넣지 않아도 된다.
-    """
-    if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/ip-blocks")
-
-    ip = ip_address.strip()
-    if not ip:
-        return _deny("empty_ip", "/admin/ip-blocks?msg=IP+를+입력하세요")
-    try:
-        ip_address_obj(ip)  # v4·v6 모두 허용. 형식이 틀리면 ValueError.
-    except ValueError:
-        return _deny(f"invalid_ip {ip}", "/admin/ip-blocks?msg=IP+형식이+올바르지+않습니다")
-    if _is_whitelisted(ip):
-        # 자기 발등을 찍는 실수를 막는다 — 내부망·루프백을 차단하면 관리 화면에 못 들어온다.
-        return _deny(f"whitelisted {ip}", "/admin/ip-blocks?msg=화이트리스트+IP+는+차단할+수+없습니다")
-
-    async with db_session() as db:
-        me = await _require_admin(request, db)
-        if me is None:
-            return _deny("not_admin ip_block.add")
-
-        if duration_hours > 0:
-            sql = (
-                "INSERT INTO blocked_ip_list "
-                "(ip_address, reason, block_type, blocked_at, expires_at, created_by) "
-                "VALUES (:ip, :r, 'manual', NOW(), DATE_ADD(NOW(), INTERVAL :h HOUR), :u) "
-                "ON DUPLICATE KEY UPDATE reason=VALUES(reason), block_type='manual', "
-                "  blocked_at=NOW(), expires_at=DATE_ADD(NOW(), INTERVAL :h HOUR), "
-                "  created_by=VALUES(created_by)"
-            )
-        else:
-            sql = (
-                "INSERT INTO blocked_ip_list "
-                "(ip_address, reason, block_type, blocked_at, expires_at, created_by) "
-                "VALUES (:ip, :r, 'manual', NOW(), NULL, :u) "
-                "ON DUPLICATE KEY UPDATE reason=VALUES(reason), block_type='manual', "
-                "  blocked_at=NOW(), expires_at=NULL, created_by=VALUES(created_by)"
-            )
-        await db.execute(text(sql),
-                         {"ip": ip, "r": reason.strip() or None,
-                          "h": duration_hours, "u": me.user_index})
-        await db.commit()
-
-    ip_block.invalidate()   # 다음 요청부터 바로 먹게
-    logger.info("IP 차단: %s (%s시간)", ip, duration_hours or "영구")
-    return RedirectResponse("/admin/ip-blocks?msg=차단했습니다",
-                            status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/ip-blocks/remove", include_in_schema=False)
-async def ip_block_remove(
-    request: Request, csrf_token: str = Form(""), blocked_ip_id: int = Form(-1)
-):
-    """차단 해제."""
-    if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/ip-blocks")
-
-    async with db_session() as db:
-        if await _require_admin(request, db) is None:
-            return _deny("not_admin ip_block.remove")
-        await db.execute(
-            text("DELETE FROM blocked_ip_list WHERE blocked_ip_id = :i"),
-            {"i": blocked_ip_id},
-        )
-        await db.commit()
-
-    ip_block.invalidate()   # 다음 요청부터 바로 먹게
-    logger.info("IP 차단 해제: id=%s", blocked_ip_id)
-    return RedirectResponse("/admin/ip-blocks?msg=해제했습니다",
-                            status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/ip-blocks/clean", include_in_schema=False)
-async def ip_block_clean(request: Request, csrf_token: str = Form("")):
-    """기간이 지난 차단을 지운다. 영구 차단(`expires_at IS NULL`)은 건드리지 않는다."""
-    if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/ip-blocks")
-
-    async with db_session() as db:
-        if await _require_admin(request, db) is None:
-            return _deny("not_admin ip_block.clean")
-        res = await db.execute(
-            text("DELETE FROM blocked_ip_list "
-                 "WHERE expires_at IS NOT NULL AND expires_at <= NOW()")
-        )
-        await db.commit()
-        n = res.rowcount
-
-    ip_block.invalidate()   # 다음 요청부터 바로 먹게
-    logger.info("만료 IP 차단 정리: %s건", n)
-    return RedirectResponse(f"/admin/ip-blocks?msg={n}건+정리했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
