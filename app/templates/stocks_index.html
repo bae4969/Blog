@@ -145,7 +145,7 @@
                             {% if r.name_en %}<div class="stock-name-en">{{ r.name_en }}</div>{% endif %}
                         </td>
                         <td class="stock-code">{{ r.code }}</td>
-                        <td><span class="market-badge">{{ r.market }}</span></td>
+                        <td><span class="market-badge market-{{ (r.market or '') | lower }}">{{ r.market }}</span></td>
                         <td><span class="type-badge type-{{ (r.stock_type or '') | lower }}">{{ r.stock_type or '' }}</span></td>
                         <td class="stock-price">
                             {%- if is_us -%}${{ '{:,.2f}'.format(price) }}

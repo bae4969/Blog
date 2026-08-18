@@ -232,7 +232,7 @@ function initSearchEnhancements() {
     searchText.addEventListener('input', function() {
         const value = this.value.trim();
         if (value.length > 0) {
-            this.style.borderColor = '#4CAF50';
+            this.style.borderColor = 'var(--primary-color)';
         } else {
             this.style.borderColor = '';
         }

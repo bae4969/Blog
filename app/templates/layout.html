@@ -219,7 +219,7 @@
         }
     });
     box.addEventListener('input', function () {
-        this.style.borderColor = this.value.trim() ? '#4CAF50' : '';
+        this.style.borderColor = this.value.trim() ? 'var(--primary-color)' : '';
     });
     box.title = '게시글 제목으로 검색 (Ctrl+S로 포커스)';
     if (btn) btn.title = '검색 (Enter 또는 Ctrl+S)';

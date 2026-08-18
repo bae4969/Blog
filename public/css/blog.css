@@ -138,10 +138,14 @@ header {
     clear: both;
 }
 
-#blogTitle { 
-    width: 70%; 
-    max-width: 600px; 
-    cursor: pointer; 
+/* ⚠️ 로고는 **폭으로만** 크기를 정한다 — 높이는 이미지 비율이 따라 정한다. 그래서
+   로고를 갈아끼울 때 비율이 달라지면 헤더 높이가 통째로 바뀐다. 지금 로고는 한 줄짜리
+   워드마크라 7.6:1 로 납작하다(옛 로고는 3.76:1). 같은 600px 이면 높이가 79px 밖에 안 돼
+   허전해서 폭을 900 까지 키운 것이다 — 로고 크기를 바꾸려면 이 두 숫자만 만지면 된다. */
+#blogTitle {
+    width: 70%;
+    max-width: 900px;
+    cursor: pointer;
 }
 
 body.stock-page #title,
@@ -154,7 +158,7 @@ body.stock-page #blogTitle,
 body.admin-page #blogTitle,
 body.func-page #blogTitle {
     width: 35%;
-    max-width: 350px;
+    max-width: 520px;   /* 위와 같은 비율(900 × 350/600) */
     display: block;
     margin: 0 auto;
 }
@@ -228,11 +232,12 @@ li.category:hover {
     box-shadow: var(--shadow-medium); 
 }
 
-/* 선택된 카테고리 */
+/* 선택된 카테고리 — accent 는 배경 tint 와 좌측 막대가 이미 낸다. 글자까지 accent 면
+   대비가 떨어져 오히려 덜 읽힌다. 흰색으로 또렷하게. */
 li.category-selected {
     background: var(--primary-bg-light);
     border-left: 3px solid var(--primary-color);
-    color: var(--text-accent);
+    color: var(--text-primary);
     position: relative;
     font-weight: 600;
 }
@@ -340,7 +345,7 @@ li.category-selected::before {
 }
 
 #search_category_list:focus {
-    background-color: rgba(76, 175, 80, 0.1);
+    background-color: rgba(var(--bae-accent-rgb), 0.1);
 }
 
 #search_category_list option {
@@ -388,8 +393,8 @@ li.category-selected::before {
 /* 검색 애니메이션 */
 @keyframes searchPulse {
     0% { box-shadow: 0 0 0 0 var(--primary-shadow); }
-    70% { box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+    70% { box-shadow: 0 0 0 6px rgba(var(--bae-accent-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--bae-accent-rgb), 0); }
 }
 
 .search-input-group.searching {
@@ -639,9 +644,8 @@ li.category-selected::before {
     border: 1px solid var(--info-color); 
 }
 
-/* ===========================================
-   인증 페이지 → home.css로 이동
-   =========================================== */
+/* 인증 페이지 스타일은 home.css 로 옮겨뒀다가 그 파일째 걷어냈다 — 로그인·로그아웃은
+   중앙 인증(`10.auth`)이 자기 화면으로 처리하므로 이 저장소에 인증 화면이 없다. */
 
 /* ===========================================
    폼 스타일
@@ -702,9 +706,9 @@ footer a {
     text-decoration: none; 
 }
 
-footer a:hover { 
-    text-decoration: underline; 
-    color: #FF2E2E; 
+footer a:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
 }
 
 /* ===========================================
@@ -798,11 +802,16 @@ footer a:hover {
     line-height: 1;
 }
 
-.post-author { 
+.post-author {
     color: var(--text-link-info);
     display: flex;
     align-items: center;
     line-height: 1;
+}
+
+/* 글 수만큼 반복되는 이름이라 평소엔 중립. 짚을 때만 accent 를 준다. */
+.post-author:hover {
+    color: var(--primary-color);
 }
 
 .post-date { 
@@ -870,7 +879,7 @@ footer a:hover {
 /* 색상 변형 */
 .btn-primary {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -890,7 +899,7 @@ footer a:hover {
 
 .btn-danger {
     background: var(--btn-danger);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -909,10 +918,10 @@ footer a:hover {
     border-color: var(--primary-color);
 }
 
-/* Warning: 주황색 계열 */
+/* Warning: 노랑 계열 */
 .btn-warning {
     background: var(--btn-warning);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-warning:hover:not(:disabled) {

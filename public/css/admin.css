@@ -502,7 +502,7 @@
     display: inline-block;
     padding: 2px 8px;
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary);
     border-radius: var(--border-radius-pill);
     font-size: 11px;
     font-weight: 600;
@@ -535,8 +535,8 @@
 }
 
 .state-active {
-    background: var(--primary-bg);
-    color: var(--primary-color);
+    background: var(--bg-success);
+    color: var(--success-color);
 }
 
 .state-inactive {
@@ -619,7 +619,7 @@
 
 .btn-arrow:hover {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-arrow.disabled {
@@ -649,7 +649,7 @@
    캐시 관리
    =========================================== */
 .stat-active {
-    color: var(--primary-color);
+    color: var(--success-color);
 }
 
 .stat-expired {
@@ -695,8 +695,8 @@
 .cache-tag {
     display: inline-block;
     padding: 3px 10px;
-    background: var(--primary-bg);
-    color: var(--primary-color);
+    background: var(--bg-quaternary);
+    color: var(--text-secondary);
     border-radius: var(--border-radius-pill);
     font-size: 12px;
     margin: 2px 3px;
@@ -824,7 +824,7 @@
     justify-content: center;
     padding: 10px 24px;
     background: var(--btn-warning);
-    color: white;
+    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius);
     font-size: 14px;
@@ -1038,7 +1038,7 @@
     margin-left: 8px;
     font-size: 12px;
     font-weight: 400;
-    color: var(--accent, #6ea8ff);
+    color: var(--primary-color);
     text-decoration: none;
 }
 
@@ -1158,7 +1158,7 @@
 .stock-admin-market-tab.active,
 .stock-admin-market-tab:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
 }
 
 .stock-admin-search-form {
@@ -1719,11 +1719,11 @@
 }
 
 .checkbox-dropdown-toggle:hover {
-    border-color: var(--accent-color);
+    border-color: var(--primary-color);
 }
 
 .checkbox-dropdown.open .checkbox-dropdown-toggle {
-    border-color: var(--accent-color);
+    border-color: var(--primary-color);
 }
 
 .checkbox-dropdown-menu {
@@ -1933,7 +1933,7 @@
 }
 
 .log-result-ok {
-    color: var(--primary-color);
+    color: var(--success-color);
     font-weight: 600;
     font-size: 12px;
 }

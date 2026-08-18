@@ -168,17 +168,11 @@
     flex-shrink: 0;
 }
 
-.market-stat-item-h.market-kr .market-name .market-symbol {
-    color: #111827;
-}
-
-.market-stat-item-h.market-us .market-name .market-symbol {
-    color: #1e3a8a;
-}
-
-.market-stat-item-h.market-coin .market-name .market-symbol {
-    color: #f59e0b;
-}
+/* 아이콘의 `currentColor` 는 **테두리 획**에만 닿는다(태극·성조기의 빨강·파랑은 SVG 안의
+   고정값이다 — stocks_index.html 참고). 시장마다 테두리를 따로 칠하던 값이 라이트 테마
+   시절의 것이라, 한국은 #111827(거의 검정)이 어두운 카드 위에서 대비 1.2:1 로 사실상
+   안 보였다. 시장 구분은 국기·라벨이 이미 하므로 테두리는 accent 하나로 통일한다
+   (위 `.market-symbol` 기본 규칙의 색을 그대로 쓴다). */
 
 .market-stat-item-h.active .market-name .market-symbol {
     filter: saturate(1.15);
@@ -206,7 +200,7 @@
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .market-stat-item-h .market-sep {
@@ -301,8 +295,8 @@
     width: 22px;
     height: 22px;
     border-radius: var(--border-radius-circle);
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -312,8 +306,12 @@
     flex-shrink: 0;
 }
 
-.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); }
-.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); }
+/* 1~3위만 색을 준다. 4위부터는 위의 중립 동그라미 그대로 — 예전엔 4위부터 primary 색이
+   이어졌는데 accent 가 밝아지면서 순위표 절반이 연보라가 됐다.
+   ⚠️ 글자색도 함께 지정한다. 위 기본값(중립 회색)은 어두운 회색 배경에 맞춘 것이라
+   빨강·주황 위에서는 대비가 모자란다. */
+.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); color: #fff; }
+.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); color: #fff; }
 .top10-item:nth-child(3) .top10-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
 
 .top10-info {
@@ -343,7 +341,7 @@
 .top10-primary {
     font-size: 13px;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .top10-secondary {
@@ -374,7 +372,7 @@
 
 .top10-value.score-mid .top10-primary,
 .top10-value.score-mid .top10-secondary {
-    color: var(--primary-color);
+    color: var(--success-color);
 }
 
 .top10-value.score-low .top10-primary,
@@ -411,7 +409,7 @@
     background: var(--primary-color);
     border: none;
     border-radius: var(--border-radius-sm);
-    color: white;
+    color: var(--text-on-primary);
     cursor: pointer;
     transition: var(--transition);
     display: flex;
@@ -423,8 +421,8 @@
     display: block;
     width: 20px;
     height: 20px;
-    stroke: white;
-    color: white;
+    stroke: var(--text-on-primary);
+    color: var(--text-on-primary);
 }
 
 .stocks-search-bar .search-btn:hover,
@@ -592,11 +590,11 @@
 
 .stock-price {
     font-weight: 600;
-    color: var(--text-accent);
+    color: var(--text-primary);
 }
 
 .stock-cap {
-    color: var(--info-color);
+    color: var(--text-secondary);
 }
 
 .market-badge,
@@ -608,17 +606,36 @@
     font-weight: 600;
 }
 
+/* 시장 배지 — 값마다 색을 가른다. 하나로 칠하면 표에서 이 열이 아무 정보도 안 준다.
+ *
+ * 찬 계열로 묶는 이유: 옆의 유형 배지(ETF·ETN·코인)가 따뜻한 계열이라, 색 가족만으로
+ * "이 둘은 서로 다른 축"이 읽힌다. 밝기대는 common.css 의 분류 보조색과 같은 300 계열.
+ * 한국은 파랑→시안, 미국은 청록→초록으로 나라끼리도 갈린다.
+ *
+ * ⚠️ 클래스는 템플릿이 `market-{{ 시장|lower }}` 로 만든다(stocks_index·stocks_show·
+ *    admin_stocks). 새 시장이 생기면 여기 한 줄과 그 클래스가 함께 있어야 색이 붙는다 —
+ *    없으면 아래 기본값(중립)으로 떨어진다. */
 .market-badge {
     background: var(--bg-quaternary);
-    color: var(--info-color);
+    color: var(--text-secondary);
 }
+
+.market-badge.market-kospi   { color: #93C5FD; }
+.market-badge.market-kosdaq  { color: #7DD3FC; }
+.market-badge.market-konex   { color: #67E8F9; }
+.market-badge.market-nasdaq  { color: #5EEAD4; }
+.market-badge.market-nyse    { color: #6EE7B7; }
+.market-badge.market-amex    { color: #86EFAC; }
+/* 목록은 'COIN', 상세는 'Bithumb' 을 싣는다(app/ui/stocks.py) — 둘 다 받는다. */
+.market-badge.market-coin,
+.market-badge.market-bithumb { color: var(--color-coin); }
 
 .type-badge {
     background: var(--bg-quaternary);
 }
 
 .type-badge.type-stock {
-    color: var(--primary-color);
+    color: var(--text-secondary);
 }
 
 .type-badge.type-etf {
@@ -1068,7 +1085,7 @@
 .chart-type-btn.active {
     background: var(--primary-color);
     border-color: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .chart-wrapper {
@@ -2244,7 +2261,7 @@ details[open] > .config-section-title.clickable {
 
 .sr-add-btn:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border-color: var(--primary-color);
 }
 
@@ -2427,7 +2444,7 @@ details[open] > .config-section-title.clickable {
 
 .strategy-tab.active {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border-color: var(--primary-color);
 }
 
@@ -2625,7 +2642,7 @@ details[open] > .config-section-title.clickable {
 
 .btn-primary {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
@@ -2668,7 +2685,7 @@ details[open] > .config-section-title.clickable {
 
 .btn-danger {
     background: var(--danger-color, #ef4444);
-    color: #fff;
+    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
@@ -2943,8 +2960,8 @@ details[open] > .config-section-title.clickable {
 
 .metric-info:hover,
 .metric-info:focus {
-    background: var(--primary-color, #3b82f6);
-    color: #fff;
+    background: var(--primary-color);
+    color: var(--text-on-primary);
     outline: none;
 }
 

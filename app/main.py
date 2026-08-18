@@ -71,7 +71,7 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
 
     #: 갱신을 시도하지 않을 경로. 정적 파일·헬스체크까지 auth 를 부르면 낭비다.
     _SKIP = ("/healthz", "/favicon.ico", "/robots.txt")
-    _SKIP_PREFIX = ("/css/", "/js/", "/res/", "/vendor/", "/uploads/", "/static-api/")
+    _SKIP_PREFIX = ("/css/", "/js/", "/res/", "/vendor/", "/uploads/")
 
     async def dispatch(self, request: Request, call_next):
         user = current_user_or_none(request)
@@ -121,9 +121,6 @@ class BlockedIpMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(OptionalAuthMiddleware)
 app.add_middleware(BlockedIpMiddleware)   # 바깥쪽 — 인증보다 먼저 돈다
-
-_STATIC = Path(__file__).parent / "static"
-app.mount("/static-api", StaticFiles(directory=_STATIC), name="static-api")
 
 # ── 정적 파일 — 옛 PHP 문서루트(`public/`)를 그대로 서빙한다 ──────────────
 #
