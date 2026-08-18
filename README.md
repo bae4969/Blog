@@ -11,7 +11,7 @@ FastAPI 로 만든 개인 블로그와 주식·암호화폐 분석 화면입니�
 - **블로그** — 글 CRUD, 카테고리, 등급별 열람 제한, Quill 에디터, 이미지 업로드
 - **주식** — KR·US·COIN 세 시장, 캔들 차트, 체결 내역, 종목 검색, 액면분할 소급 보정
 - **백테스트** — 포트폴리오 시뮬레이션(적립식·리밸런싱·신호 매매), 지표·점수·등급, 벤치마크 비교
-- **관리자** — 사용자·카테고리·주식 구독·액면분할·WOL·IP 차단·로그 뷰어
+- **관리자** — 카테고리·주식 구독·액면분할·WOL
 
 ## 구조
 
@@ -21,8 +21,8 @@ FastAPI 로 만든 개인 블로그와 주식·암호화폐 분석 화면입니�
 
 ```text
 app/
-├── main.py           # 진입점. 미들웨어(인증 자동갱신·IP 차단)와 정적 마운트
-├── core/             # config · security(JWT 검증) · csrf · ip_block · blog_user · sanitize
+├── main.py           # 진입점. 미들웨어(인증 자동갱신)와 정적 마운트
+├── core/             # config · security(JWT 검증) · csrf · blog_user · sanitize
 ├── db/               # SQLAlchemy 비동기 세션
 ├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음)
 ├── ui/               # 라우트: routes(블로그) · stocks · backtest · admin
@@ -32,7 +32,7 @@ sql/                  # DB 스키마 정의. 마이그레이션 도구는 없고
 .github/workflows/    # main 푸시 → 검사 → 릴리스 → 배포
 ```
 
-규모: 파이썬 5,161줄 · 템플릿 3,759줄 · JS 4,636줄 · CSS 7,163줄 · 라우트 46개.
+규모: 파이썬 4,558줄 · 템플릿 3,194줄 · JS 4,636줄 · CSS 6,768줄 · 라우트 46개.
 
 ⚠️ **`public/` 의 URL 경로를 바꾸지 마세요.** 글 본문이 `/uploads/...` 를 직접 가리키고
 있어서 바꾸면 기존 글의 이미지가 전부 깨집니다.
@@ -89,8 +89,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allo
   `X-Requested-With` + Origin/Referer 를 봅니다(`csrf.require_internal`).
 - **SQL 인젝션** — 바인딩 파라미터. 테이블명·정렬 컬럼은 바인딩이 안 되므로
   **화이트리스트**로 거릅니다.
-- **IP 차단** — `blocked_ip_list` 를 미들웨어가 실제로 집행합니다. 자동 판정은 넣지
-  않았습니다(로그인 실패는 auth 가 알고, 요청 수 제한은 앞단이 할 일입니다).
+> **IP 차단은 2026-08-18 에 걷어냈습니다.** 자동 판정은 애초에 옮기지 않았고 수동 차단은
+> 0건이었는데, 미들웨어가 그 0건을 위해 모든 요청마다 DB 세션을 열고 있었습니다. 요청 수
+> 제한이 필요해지면 앞단(Traefik)이 제자리입니다.
 
 ## 배포
 

@@ -1,7 +1,6 @@
-"""주식 화면 — PHP `StockController` 를 옮기는 중.
+"""주식 화면 — PHP `StockController` 를 옮긴 것.
 
-지금 옮긴 것: 목록(`/stocks`)·검색 API(`/stocks/api/search`).
-아직 PHP(`php-final` 태그)에만 있는 것: 상세·차트(`/stocks/view`)·백테스트 계열.
+목록·상세·차트·검색 API 까지 전부 여기 있다(2026-08-17 전환 완료).
 
 ## 이 화면이 보는 데이터
 
