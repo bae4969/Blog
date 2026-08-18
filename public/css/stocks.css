@@ -168,17 +168,11 @@
     flex-shrink: 0;
 }
 
-.market-stat-item-h.market-kr .market-name .market-symbol {
-    color: #111827;
-}
-
-.market-stat-item-h.market-us .market-name .market-symbol {
-    color: #1e3a8a;
-}
-
-.market-stat-item-h.market-coin .market-name .market-symbol {
-    color: #f59e0b;
-}
+/* 아이콘의 `currentColor` 는 **테두리 획**에만 닿는다(태극·성조기의 빨강·파랑은 SVG 안의
+   고정값이다 — stocks_index.html 참고). 시장마다 테두리를 따로 칠하던 값이 라이트 테마
+   시절의 것이라, 한국은 #111827(거의 검정)이 어두운 카드 위에서 대비 1.2:1 로 사실상
+   안 보였다. 시장 구분은 국기·라벨이 이미 하므로 테두리는 accent 하나로 통일한다
+   (위 `.market-symbol` 기본 규칙의 색을 그대로 쓴다). */
 
 .market-stat-item-h.active .market-name .market-symbol {
     filter: saturate(1.15);
@@ -411,7 +405,7 @@
     background: var(--primary-color);
     border: none;
     border-radius: var(--border-radius-sm);
-    color: white;
+    color: var(--text-on-primary);
     cursor: pointer;
     transition: var(--transition);
     display: flex;
@@ -423,8 +417,8 @@
     display: block;
     width: 20px;
     height: 20px;
-    stroke: white;
-    color: white;
+    stroke: var(--text-on-primary);
+    color: var(--text-on-primary);
 }
 
 .stocks-search-bar .search-btn:hover,
@@ -1068,7 +1062,7 @@
 .chart-type-btn.active {
     background: var(--primary-color);
     border-color: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .chart-wrapper {
@@ -2244,7 +2238,7 @@ details[open] > .config-section-title.clickable {
 
 .sr-add-btn:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border-color: var(--primary-color);
 }
 
@@ -2427,7 +2421,7 @@ details[open] > .config-section-title.clickable {
 
 .strategy-tab.active {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border-color: var(--primary-color);
 }
 
@@ -2625,7 +2619,7 @@ details[open] > .config-section-title.clickable {
 
 .btn-primary {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
@@ -2668,7 +2662,7 @@ details[open] > .config-section-title.clickable {
 
 .btn-danger {
     background: var(--danger-color, #ef4444);
-    color: #fff;
+    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
@@ -2943,8 +2937,8 @@ details[open] > .config-section-title.clickable {
 
 .metric-info:hover,
 .metric-info:focus {
-    background: var(--primary-color, #3b82f6);
-    color: #fff;
+    background: var(--primary-color);
+    color: var(--text-on-primary);
     outline: none;
 }
 

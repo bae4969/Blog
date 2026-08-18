@@ -42,27 +42,27 @@
                 <input type="hidden" name="ratio_to" id="splitRatioTo">
                 <div class="admin-form-grid">
                     <div class="admin-form-field" style="position:relative">
-                        <label>종목 검색 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <label>종목 검색 <span style="color:var(--danger-color)">*</span></label>
                         <input type="text" id="splitStockSearch" autocomplete="off" placeholder="종목명 또는 코드 검색 (예: 엔비디아, NVDA, 삼성전자)" required>
-                        <div id="splitSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;max-height:240px;overflow-y:auto;border:1px solid var(--border-color, #464646);border-radius:4px;background:var(--card-bg, #1e1e1e)"></div>
-                        <div id="splitSelectedStock" style="display:none;margin-top:0.4rem;padding:0.4rem 0.7rem;border-radius:4px;background:var(--bg-tertiary, #2a2a2a);font-size:0.9rem">
+                        <div id="splitSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;max-height:240px;overflow-y:auto;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary)"></div>
+                        <div id="splitSelectedStock" style="display:none;margin-top:0.4rem;padding:0.4rem 0.7rem;border-radius:4px;background:var(--bg-tertiary);font-size:0.9rem">
                             <span id="splitSelectedInfo"></span>
-                            <button type="button" onclick="clearSplitSelection()" style="float:right;background:none;border:none;color:var(--text-muted, #9aa0a6);cursor:pointer;font-size:0.85rem">✕ 초기화</button>
+                            <button type="button" onclick="clearSplitSelection()" style="float:right;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.85rem">✕ 초기화</button>
                         </div>
                     </div>
                     <div class="admin-form-field">
-                        <label>이벤트 일자 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <label>이벤트 일자 <span style="color:var(--danger-color)">*</span></label>
                         <input type="date" name="event_date" id="splitEventDate" required>
                     </div>
                     <div class="admin-form-field">
-                        <label>유형 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <label>유형 <span style="color:var(--danger-color)">*</span></label>
                         <select id="splitType" onchange="updateSplitDescription()" required>
                             <option value="split">액면분할 (1주 → N주)</option>
                             <option value="merge">주식병합 (N주 → 1주)</option>
                         </select>
                     </div>
                     <div class="admin-form-field">
-                        <label id="splitRatioLabel">배수 <span style="color:var(--danger-color, #e53935)">*</span></label>
+                        <label id="splitRatioLabel">배수 <span style="color:var(--danger-color)">*</span></label>
                         <input type="number" id="splitRatio" required min="2" max="10000" placeholder="예: 10 (1주→10주)">
                     </div>
                     <div class="admin-form-field">
@@ -110,9 +110,9 @@
                             <td><strong>{{ e.ratio_from }}:{{ e.ratio_to }}</strong></td>
                             <td>
                                 {% if e.ratio_from < e.ratio_to %}
-                                    <span style="color:var(--success-color, #4CAF50)">분할</span>
+                                    <span style="color:var(--success-color)">분할</span>
                                 {% else %}
-                                    <span style="color:var(--warning-color, #FF9800)">병합</span>
+                                    <span style="color:var(--warning-color)">병합</span>
                                 {% endif %}
                             </td>
                             <td class="text-muted">{{ e.description or '-' }}</td>
@@ -173,17 +173,17 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data.success || !data.data.length) {
-                    resultsBox.innerHTML = '<div style="padding:0.6rem;color:var(--text-muted,#9aa0a6)">검색 결과 없음</div>';
+                    resultsBox.innerHTML = '<div style="padding:0.6rem;color:var(--text-muted)">검색 결과 없음</div>';
                     resultsBox.style.display = 'block';
                     return;
                 }
                 var html = '';
                 data.data.forEach(function (s) {
                     var market = resolveMarket(s.stock_market, s.stock_type);
-                    html += '<div class="split-search-item" style="padding:0.5rem 0.7rem;cursor:pointer;border-bottom:1px solid var(--border-color,#464646)" '
+                    html += '<div class="split-search-item" style="padding:0.5rem 0.7rem;cursor:pointer;border-bottom:1px solid var(--border-color)" '
                         + 'onmousedown="selectSplitStock(\'' + escAttr(s.stock_code) + '\',\'' + escAttr(s.stock_name_kr) + '\',\'' + market + '\')">'
                         + '<strong>' + esc(s.stock_code) + '</strong> '
-                        + '<span style="color:var(--text-secondary,#C3C3C3)">' + esc(s.stock_name_kr) + '</span> '
+                        + '<span style="color:var(--text-secondary)">' + esc(s.stock_name_kr) + '</span> '
                         + '<span class="ip-badge" style="font-size:0.75rem">' + market + '</span>'
                         + '</div>';
                 });
@@ -227,10 +227,10 @@
         var desc = document.getElementById('splitDescription');
 
         if (type === 'split') {
-            label.innerHTML = '분할 배수 <span style="color:var(--danger-color,#e53935)">*</span>';
+            label.innerHTML = '분할 배수 <span style="color:var(--danger-color)">*</span>';
             if (ratio) desc.value = '1:' + ratio + ' 액면분할';
         } else {
-            label.innerHTML = '병합 배수 <span style="color:var(--danger-color,#e53935)">*</span>';
+            label.innerHTML = '병합 배수 <span style="color:var(--danger-color)">*</span>';
             if (ratio) desc.value = ratio + ':1 주식병합';
         }
     };

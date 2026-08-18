@@ -34,7 +34,7 @@
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">수동</span> <span class="stat-value">{{ stats.active_manual }}</span></div>
             <span class="stat-sep">·</span>
-            <div class="stat-item"><span class="stat-label">만료됨</span> <span class="stat-value" style="color:#999">{{ stats.expired }}</span></div>
+            <div class="stat-item"><span class="stat-label">만료됨</span> <span class="stat-value" style="color:var(--text-muted)">{{ stats.expired }}</span></div>
         </div>
         <hr>
 
@@ -47,7 +47,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="admin-form-grid">
                     <div class="admin-form-field">
-                        <label>IP 주소 <span style="color:#e53935">*</span></label>
+                        <label>IP 주소 <span style="color:var(--danger-color)">*</span></label>
                         <input type="text" name="ip_address" required maxlength="45" placeholder="예: 192.168.1.100 또는 2001:db8::1">
                     </div>
                     <div class="admin-form-field">
@@ -103,9 +103,9 @@
                             <td class="text-muted">{{ b.blocked_at }}</td>
                             <td class="text-muted">
                                 {% if b.expires_at is none %}
-                                    <span style="color:#e53935">영구</span>
+                                    <span style="color:var(--danger-color)">영구</span>
                                 {% elif b.expired %}
-                                    <span style="color:#999">만료됨</span>
+                                    <span style="color:var(--text-muted)">만료됨</span>
                                 {% else %}
                                     {{ b.expires_at }}
                                 {% endif %}

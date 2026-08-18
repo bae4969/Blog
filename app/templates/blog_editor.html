@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 p.style.cssText = `
                     margin: 20px 0;
                     height: 2px;
-                    background: linear-gradient(to right, transparent, #36383A, transparent);
+                    background: linear-gradient(to right, transparent, var(--border-color), transparent);
                     border: none;
                     padding: 0;
                     position: relative;
@@ -662,42 +662,42 @@ function showNotification(message, type = 'info') {
 const quillDarkTheme = `
     <style>
     .ql-toolbar {
-        background-color: #222426 !important;
-        border-color: #36383A !important;
-        color: #C3C3C3 !important;
+        background-color: var(--bg-tertiary) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-secondary) !important;
     }
     
     .ql-toolbar .ql-stroke {
-        stroke: #C3C3C3 !important;
+        stroke: var(--text-secondary) !important;
     }
     
     .ql-toolbar .ql-fill {
-        fill: #C3C3C3 !important;
+        fill: var(--text-secondary) !important;
     }
     
     .ql-toolbar button:hover {
-        background-color: #36383A !important;
+        background-color: var(--bg-hover) !important;
     }
     
     .ql-toolbar button.ql-active {
-        background-color: #36383A !important;
+        background-color: var(--bg-hover) !important;
         color: white !important;
     }
     
     .ql-container {
-        background-color: #1A1C1D !important;
-        color: #C3C3C3 !important;
-        border-color: #36383A !important;
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-secondary) !important;
+        border-color: var(--border-color) !important;
     }
     
     .ql-editor {
-        background-color: #1A1C1D !important;
-        color: #C3C3C3 !important;
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-secondary) !important;
         min-height: 300px !important;
     }
     
     .ql-editor.ql-blank::before {
-        color: #666 !important;
+        color: var(--text-muted) !important;
     }
     
     .quill-container {
@@ -718,7 +718,7 @@ const quillDarkTheme = `
     /* 구분선 스타일 */
     .ql-editor hr {
         border: none;
-        border-top: 2px solid #36383A;
+        border-top: 2px solid var(--border-color);
         margin: 20px 0;
         background: none;
     }
@@ -727,7 +727,7 @@ const quillDarkTheme = `
         content: '';
         display: block;
         height: 1px;
-        background: linear-gradient(to right, transparent, #36383A, transparent);
+        background: linear-gradient(to right, transparent, var(--border-color), transparent);
         margin-top: 1px;
     }
     
@@ -737,7 +737,7 @@ const quillDarkTheme = `
         display: inline-block;
         width: 18px;
         height: 18px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C3C3C3' stroke-width='2'%3E%3Cline x1='3' y1='12' x2='21' y2='12'%3E%3C/line%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C7C7C7' stroke-width='2'%3E%3Cline x1='3' y1='12' x2='21' y2='12'%3E%3C/line%3E%3C/svg%3E");
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
@@ -752,7 +752,7 @@ const quillDarkTheme = `
     .ql-editor p:empty {
         margin: 20px 0;
         height: 2px;
-        background: linear-gradient(to right, transparent, #36383A, transparent);
+        background: linear-gradient(to right, transparent, var(--border-color), transparent);
         border: none;
         padding: 0;
     }
@@ -773,7 +773,7 @@ const quillDarkTheme = `
         display: block;
         width: 100%;
         height: 2px;
-        background: linear-gradient(to right, transparent, #36383A, transparent);
+        background: linear-gradient(to right, transparent, var(--border-color), transparent);
         position: absolute;
         top: 50%;
         left: 0;

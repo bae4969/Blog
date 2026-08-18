@@ -1,38 +1,103 @@
 /* ===========================================
    공통 CSS 변수 정의
+
+   색은 `30.ai_center`·`24.home_iot`·`10.auth`·`31.ai_usage` 와 **같은 팔레트**다
+   (2026-08-18). 한 계정으로 오가는 서비스가 서로 다른 색이면 남의 사이트로 넘어간
+   것처럼 보인다 — 저쪽 중 하나를 고치면 여기도 고칠 것.
+
+   ⚠️ 저쪽은 Tailwind + 시맨틱 클래스(`.surface`·`.txt-muted`)를 쓰지만 여기는 안 쓴다.
+      이 블로그는 PHP 시절 CSS 7천 줄을 물려받았고 그것들이 전부 아래 **옛 이름**을
+      참조한다. 이름을 다 갈아치우면 diff 가 파일 전체가 되어 무엇이 실제로 바뀌었는지
+      안 보인다 — 정본은 `--bae-*` 하나로 두고 옛 이름은 여기서 별칭으로만 잇는다
+      (`24.home_iot` 과 같은 판단: **색만 같고 구조는 각자 방식**).
+
+   ⚠️ 도메인 색은 팔레트 밖이다 — 주식 등락(빨강/초록)·순위 배지·ETF/ETN/코인은
+      시장 관례에 붙은 색이라 테마를 따라가지 않는다.
    =========================================== */
 
 :root {
-    /* 기본 색상 */
-    --primary-color: #4CAF50;
-    --primary-hover: #45a049;
-    --primary-dark: #3d8b40;
-    --secondary-color: #6c757d;
-    --secondary-hover: #5a6268;
-    --danger-color: #f44336;
-    --info-color: #2196F3;
-    --warning-color: #ffd17a;
+    /* ── 정본: bae 공용 팔레트 ─────────────────────────────────────────
+     * 테마색을 바꾸려면 아래 accent 5줄만 고친다. tint 는 rgba(--bae-accent-rgb, α)
+     * 로 파생되므로 따로 손댈 곳이 없다.
+     *
+     * ⚠️ --bae-accent-rgb 는 --bae-accent 와 반드시 같은 색의 R,G,B 채널값.
+     * ⚠️ CSS 밖은 이 토큰이 닿지 않아 함께 갱신해야 한다:
+     *    ① public/res/title.png — 로고. 색이 이미지에 구워져 있다.
+     *       `temp/scripts/make_logo.js` 의 hex 를 바꿔 browserless 로 다시 구우면 된다
+     *       (temp 는 gitignore 라 없어질 수 있다 — 그때는 브라우저로 조판해 다시 만든다).
+     *    ② public/favicon.ico
+     */
+    --bae-accent:        #C4B5FD;
+    --bae-accent-rgb:    196, 181, 253;
+    --bae-accent-hover:  #D3C2FF;
+    --bae-accent-press:  #AC9BEF;
+    /* ⚠️ accent 가 **연보라(밝은 색)** 라 그 위 글씨는 흰색이 아니라 검정이어야 읽힌다.
+       초록 시절의 `color: white` 를 그대로 두면 버튼 글씨가 안 보인다. */
+    --bae-accent-text:   #000000;
 
-    /* 배경색 */
-    --bg-primary: #181A1B;
-    --bg-secondary: #1A1C1D;
-    --bg-tertiary: #222426;
-    --bg-quaternary: #2b2d2f;
-    --bg-hover: #36383A;
-    --bg-input: #2b2d2f;
+    /* Surfaces */
+    --bae-bg:            #202020;
+    --bae-bg-alt:        #1C1C1C;
+    --bae-surface:       #2B2B2B;
+    --bae-surface-alt:   #323232;
+    --bae-surface-hover: #3A3A3A;
+
+    /* Borders */
+    --bae-border:        #3A3A3A;
+    --bae-border-hover:  #4A4A4A;
+
+    /* Text */
+    --bae-text-primary:  #FFFFFF;
+    --bae-text-muted:    #C7C7C7;
+    --bae-text-dim:      #9A9A9A;
+
+    /* Status — 채운 배경으로도 쓰므로 rgb 채널값을 함께 둔다(tint 파생용). */
+    --bae-danger:        #FF99A4;
+    --bae-danger-rgb:    255, 153, 164;
+    --bae-danger-hover:  #FFB3BC;
+    --bae-success:       #6CCB5F;
+    --bae-success-rgb:   108, 203, 95;
+    --bae-warn:          #FDE047;
+    --bae-warn-rgb:      253, 224, 71;
+
+    /* ── 옛 이름 → 위 토큰의 별칭 ──────────────────────────────────── */
+
+    /* 기본 색상 */
+    --primary-color: var(--bae-accent);
+    --primary-hover: var(--bae-accent-hover);
+    --primary-dark: var(--bae-accent-press);
+    /* 보조 버튼은 채운 색이 아니라 중립 표면으로 — ai_center 의 .badge-neutral 과 같은 톤. */
+    --secondary-color: var(--bae-border-hover);
+    --secondary-hover: var(--bae-surface-hover);
+    --danger-color: var(--bae-danger);
+    /* stocks.css 가 10곳에서 --success-color 를 쓰는데 **정의가 없어** 폴백(#10b981)으로
+       그려지고 있었다(백테스트 점수·수익률). 팔레트 값으로 못을 박는다. */
+    --success-color: var(--bae-success);
+    /* info 는 저쪽에서 accent tint 다(.badge-info) — 따로 파란색을 두지 않는다. */
+    --info-color: var(--bae-accent);
+    --warning-color: var(--bae-warn);
+
+    /* 배경색 — 페이지 < 본문 < 카드 < 칩 의 사다리를 그대로 옮겼다.
+       (원본도 body 가 section 보다 어두웠다 — 순서를 뒤집지 않는다.) */
+    --bg-primary: var(--bae-bg-alt);        /* 페이지 배경 */
+    --bg-secondary: var(--bae-bg);          /* 본문 영역 */
+    --bg-tertiary: var(--bae-surface);      /* 카드 */
+    --bg-quaternary: var(--bae-surface-alt);/* 칩·태그 */
+    --bg-hover: var(--bae-surface-hover);
+    --bg-input: var(--bae-surface-alt);
 
     /* 텍스트 색상 */
-    --text-primary: #ffffff;
-    --text-secondary: #C3C3C3;
-    --text-muted: #9aa0a6;
-    --text-accent: #a8e3a1;
+    --text-primary: var(--bae-text-primary);
+    --text-secondary: var(--bae-text-muted);
+    --text-muted: var(--bae-text-dim);
+    --text-accent: var(--bae-accent);
     --text-tertiary: rgba(255,255,255,0.3);
 
     /* 테두리 */
-    --border-color: #464646;
-    --border-hover: #5b5f63;
+    --border-color: var(--bae-border);
+    --border-hover: var(--bae-border-hover);
 
-    /* 차트 색상 */
+    /* 차트 색상 — ⚠️ 도메인 색(등락 관례). 테마를 따라가지 않는다. */
     --chart-up-color: #ef5350;
     --chart-down-color: #26a69a;
     --chart-unchanged-color: #999;
@@ -58,33 +123,34 @@
     --shadow-heavy: 0 6px 20px rgba(0,0,0,0.35);
 
     /* 텍스트 색상 (보조) */
-    --text-nav: #C8C3BC;
-    --text-dim: #888;
-    --text-light: #aaa;
-    --text-link-info: #9dc1ff;
-    --text-date: #c6c6c6;
-    --text-date-alt: #bbbbbb;
-    --text-footer: darkgray;
+    --text-nav: var(--bae-text-muted);
+    --text-dim: var(--bae-text-dim);
+    --text-light: var(--bae-text-dim);
+    /* 글쓴이 링크 — 파란색이던 것을 accent 로. 링크색이 저쪽과 같아진다. */
+    --text-link-info: var(--bae-accent);
+    --text-date: var(--bae-text-muted);
+    --text-date-alt: var(--bae-text-muted);
+    --text-footer: var(--bae-text-dim);
 
     /* 테두리 (보조) */
-    --border-input: #3a3d40;
-    --border-tag: #4e5256;
+    --border-input: var(--bae-border);
+    --border-tag: var(--bae-border-hover);
 
     /* Primary 투명도 계열 */
-    --primary-bg-subtle: rgba(76, 175, 80, 0.05);
-    --primary-bg-light: rgba(76, 175, 80, 0.12);
-    --primary-bg: rgba(76, 175, 80, 0.15);
-    --primary-bg-emphasis: rgba(76, 175, 80, 0.2);
-    --primary-outline: rgba(76, 175, 80, 0.25);
-    --primary-shadow-sm: rgba(76, 175, 80, 0.3);
-    --primary-shadow: rgba(76, 175, 80, 0.4);
+    --primary-bg-subtle: rgba(var(--bae-accent-rgb), 0.05);
+    --primary-bg-light: rgba(var(--bae-accent-rgb), 0.12);
+    --primary-bg: rgba(var(--bae-accent-rgb), 0.15);
+    --primary-bg-emphasis: rgba(var(--bae-accent-rgb), 0.2);
+    --primary-outline: rgba(var(--bae-accent-rgb), 0.25);
+    --primary-shadow-sm: rgba(var(--bae-accent-rgb), 0.3);
+    --primary-shadow: rgba(var(--bae-accent-rgb), 0.4);
 
     /* Danger 투명도 계열 */
-    --danger-bg-subtle: rgba(244, 67, 54, 0.05);
-    --danger-bg: rgba(244, 67, 54, 0.15);
-    --danger-outline: rgba(244, 67, 54, 0.25);
+    --danger-bg-subtle: rgba(var(--bae-danger-rgb), 0.05);
+    --danger-bg: rgba(var(--bae-danger-rgb), 0.15);
+    --danger-outline: rgba(var(--bae-danger-rgb), 0.25);
 
-    /* 랭킹/배지 색상 */
+    /* 랭킹/배지 색상 — ⚠️ 도메인 색. 테마를 따라가지 않는다. */
     --rank-1st: #e74c3c;
     --rank-2nd: #e67e22;
     --rank-3rd: #f1c40f;
@@ -92,27 +158,31 @@
     --color-etn: #9c27b0;
     --color-coin: #f7931a;
 
-    /* Func 도메인 — MBTI 축 보조색 (primary green과 대비) */
+    /* Func 도메인 — MBTI 축 보조색 (accent 와 대비) */
     --func-axis-secondary: #ec4899;
-    --text-on-primary: #fff;
+    /* ⚠️ 채운 accent·danger·warn 위의 글씨. 연보라·연분홍·노랑이라 **검정**이어야 읽힌다
+       — 초록 시절의 흰 글씨를 그대로 두면 안 보인다. */
+    --text-on-primary: var(--bae-accent-text);
     --text-rank-dark: #333;
 
-    /* 로그 타입 색상 */
-    --log-warn-color: #ffc107;
-    --log-warn-bg: rgba(255, 193, 7, 0.15);
-    --log-warn-row-bg: rgba(255, 193, 7, 0.04);
-    --log-error-bg: rgba(244, 67, 54, 0.15);
-    --log-error-row-bg: rgba(244, 67, 54, 0.05);
+    /* 로그 타입 색상 — 경고/오류는 팔레트를 따르고, 정보(파랑)·알림(회색)은 레벨 구분용
+       도메인 색이라 그대로 둔다(accent 와 겹치면 등급이 안 읽힌다). */
+    --log-warn-color: var(--bae-warn);
+    --log-warn-bg: rgba(var(--bae-warn-rgb), 0.15);
+    --log-warn-row-bg: rgba(var(--bae-warn-rgb), 0.04);
+    --log-error-bg: rgba(var(--bae-danger-rgb), 0.15);
+    --log-error-row-bg: rgba(var(--bae-danger-rgb), 0.05);
     --log-normal-color: #64b5f6;
     --log-normal-bg: rgba(100, 181, 246, 0.15);
     --log-notice-color: #9e9e9e;
     --log-notice-bg: rgba(158, 158, 158, 0.15);
 
-    /* IP 뱃지 색상 */
-    --ip-badge-auto-bg: #fff3e0;
-    --ip-badge-auto-color: #e65100;
-    --ip-badge-manual-bg: #e3f2fd;
-    --ip-badge-manual-color: #1565c0;
+    /* IP 뱃지 색상 — 라이트 테마 시절의 파스텔 칩(밝은 배경 + 진한 글씨)이 어두운
+       관리자 표에 그대로 남아 있던 것. 다크 tint 로 바꾼다. */
+    --ip-badge-auto-bg: rgba(var(--bae-warn-rgb), 0.18);
+    --ip-badge-auto-color: var(--bae-warn);
+    --ip-badge-manual-bg: rgba(var(--bae-accent-rgb), 0.18);
+    --ip-badge-manual-color: var(--bae-accent);
 
     /* 테이블 배경 */
     --bg-table-header: rgba(255, 255, 255, 0.03);
@@ -141,19 +211,21 @@
     /* 트랜지션 */
     --transition: all 0.2s ease;
 
-    /* 의미별 배경색 */
-    --bg-success: #2d4a2d;
-    --bg-danger: #4a2d2d;
-    --bg-info: #2d3a4a;
-    --bg-focus: #2f3133;
+    /* 의미별 배경색 — 알림 상자 배경. 저쪽의 .tint-* 와 같은 방식(색 위 α tint). */
+    --bg-success: rgba(var(--bae-success-rgb), 0.15);
+    --bg-danger: rgba(var(--bae-danger-rgb), 0.15);
+    --bg-info: rgba(var(--bae-accent-rgb), 0.15);
+    --bg-focus: var(--bae-surface-alt);
 
-    /* 버튼 색상 */
-    --btn-warning: #ff9800;
-    --btn-warning-hover: #f57c00;
-    --btn-danger: #d32f2f;
-    --btn-danger-hover: #b71c1c;
-    --btn-edit: #3f5e46;
-    --btn-edit-hover: #344e3b;
+    /* 버튼 색상 — 채운 경고/위험은 팔레트의 밝은 색이라 글씨가 검정이다(--text-on-primary).
+       수정/활성/비활성 3종은 관리자에서 뜻으로 구분되는 어두운 칩이라 명도는 그대로 두고,
+       초록이던 '수정'만 accent 계열로 옮긴다. */
+    --btn-warning: var(--bae-warn);
+    --btn-warning-hover: #FFE879;
+    --btn-danger: var(--bae-danger);
+    --btn-danger-hover: var(--bae-danger-hover);
+    --btn-edit: #4A4266;
+    --btn-edit-hover: #3E3856;
     --btn-disable: #8a3a3a;
     --btn-disable-hover: #7a3030;
     --btn-enable: #3a5a8a;
