@@ -41,7 +41,9 @@ jobs:
       - name: Install dependencies for CI
         run: |
           pip install --no-cache-dir -r requirements-api.txt
-          pip install --no-cache-dir jinja2
+          # ⚠️ 러너에는 공용 이미지(fastapi-py312)가 없다. 앱을 임포트하려면 런타임
+          #    의존성을 여기서 다시 깔아야 한다 — 목록과 이유는 requirements-ci.txt 참조.
+          pip install --no-cache-dir -r requirements-ci.txt
 
       # PHP 스택을 걷어냈다. 옛 `php -l` 자리 — 컴파일만 확인한다(실행하지 않는다).
       - name: Python 문법 검사
