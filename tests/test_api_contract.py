@@ -176,3 +176,33 @@ class TestWriteSchema:
         r = client.post("/api/v1/posts", json=body,
                         headers={"Authorization": "Bearer dummy-token"})
         assert r.status_code == 422
+
+
+class TestBacktestRoutes:
+    """`/api/v1/backtest` — 실행은 공개, 프리셋은 Bearer."""
+
+    def test_등록된_경로(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/backtest/run",
+                "/api/v1/backtest/presets",
+                "/api/v1/backtest/presets/{preset_id}"} <= paths
+
+    @pytest.mark.parametrize("body", [
+        {},                                                     # stocks 없음
+        {"stocks": [{"code": "005930"}]},                       # 날짜 없음
+        {"stocks": [{"code": "005930"}], "startDate": "2026-1-1",
+         "endDate": "2026-06-30"},                              # 날짜 형식
+    ])
+    def test_잘못된_입력은_422(self, client, body):
+        assert client.post("/api/v1/backtest/run", json=body).status_code == 422
+
+    @pytest.mark.parametrize("method,url", [
+        ("get", "/api/v1/backtest/presets"),
+        ("delete", "/api/v1/backtest/presets/1"),
+    ])
+    def test_프리셋은_Bearer_가_필요하다(self, client, method, url):
+        assert client.request(method.upper(), url).status_code == 401
+
+    def test_실행은_토큰_없이도_401_이_아니다(self, client):
+        """계산은 공개다 — 여기서 401 이면 회귀다(422 는 입력 문제라 정상)."""
+        assert client.post("/api/v1/backtest/run", json={}).status_code != 401
