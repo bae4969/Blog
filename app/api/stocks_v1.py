@@ -22,7 +22,9 @@ from app.schemas.stock import Candle, Execution, StockOut
 from app.schemas import Page
 from app.ui.stocks import (
     _KST,
+    _latest_closes,
     _norm_market,
+    _prefix_of,
     _resolve_is_coin,
     _resolve_source,
     _stock_page,
@@ -50,12 +52,17 @@ async def stocks(
 ):
     async with db_session() as db:
         total, rows = await _stock_page(db, _norm_market(market) or "", (q or "").strip(), page)
+        # ⚠️ `stock_info.stock_price` 는 **갱신이 늦다.** 화면은 `candle` 의 최신 종가를
+        #    씌워서 그리는데 API 가 그 단계를 빼먹어, 같은 종목이 화면과 API 에서 다른
+        #    값으로 나갔다(2026-08-19 실측: 5/5 불일치. DB 로 판정하니 화면이 맞았다 —
+        #    tick 의 최신 체결가와 종가가 같고 stock_price 만 옛값이었다).
+        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
 
     pages = max(1, (total + size - 1) // size)
     items = [
         StockOut(code=r.code, name_kr=r.name_kr, name_en=r.name_en, market=r.market,
-                 type=r.stock_type, price=_f(r.price), market_cap=_f(r.cap),
-                 quantity=_f(r.quantity))
+                 type=r.stock_type, price=_f(closes.get(r.code, r.price)),
+                 market_cap=_f(r.cap), quantity=_f(r.quantity))
         for r in rows[:size]
     ]
     return Page[StockOut](items=items, total=total, page=page, size=size, pages=pages)

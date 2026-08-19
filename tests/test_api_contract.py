@@ -239,3 +239,23 @@ class TestPortfolioOwnership:
         r = client.patch("/api/v1/backtest/portfolios/1", json=body,
                          headers={"Authorization": "Bearer dummy-token"})
         assert r.status_code == 422
+
+
+class TestStockPriceSource:
+    """⚠️ 종목 가격은 `stock_info.stock_price` 가 아니라 **candle 의 최신 종가**다.
+
+    `stock_price` 는 갱신이 늦어 화면과 API 가 다른 값을 내보낸 적이 있다(2026-08-19,
+    KR 5종목 전부 불일치). DB 로 판정하니 화면이 맞았다 — tick 의 최신 체결가와 종가가
+    같고 `stock_price` 만 옛값이었다.
+
+    ⚠️ 값 자체는 DB 가 있어야 확인할 수 있어 여기서는 **경로가 살아 있는지**만 본다.
+    """
+
+    def test_목록이_최신_종가를_씌운다(self):
+        import inspect
+
+        from app.api import stocks_v1
+
+        src = inspect.getsource(stocks_v1.stocks)
+        assert "_latest_closes" in src, "최신 종가 덮어쓰기가 빠졌다 — 화면과 값이 갈라진다"
+        assert "closes.get(" in src
