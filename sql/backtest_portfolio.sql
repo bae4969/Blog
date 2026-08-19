@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `backtest_portfolio` (
     -- 투자 조합이 본인도 모르게 랭킹(/stocks 사이드바)에 뜬다.
     `is_public` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0:비공개 1:공개(랭킹 노출)',
     -- ⚠️ 이제 소유권 판정에 쓰지 않는다(위 user_index 참조). 옛 데이터로만 남아 있다.
-    `ip_address` VARCHAR(45) NOT NULL,
+    `ip_address` VARCHAR(45) NULL DEFAULT NULL COMMENT '옛 소유권 근거. 2026-08-19 이후 기록하지 않는다',
     `config_hash` CHAR(32) NOT NULL COMMENT 'MD5(정렬된 종목코드+전략) — 동일 IP+조합 중복 방지',
     `config_json` JSON NOT NULL COMMENT '전체 백테스트 설정',
     `display_score` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '사용자 설정 기준 점수 (0-100)',

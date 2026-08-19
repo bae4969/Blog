@@ -48,10 +48,6 @@ _MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
 
 
-def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
-
-
 async def _json_body(request: Request) -> dict | None:
     """JSON 본문. 객체가 아니면 None — 호출부가 400 을 돌려준다."""
     try:
@@ -140,11 +136,6 @@ async def api_date_range(request: Request):
 # 포트폴리오 — 소유권은 IP 로 가린다
 # ---------------------------------------------------------------------------
 
-_PORTFOLIO_LIST_COLS = (
-    "portfolio_id, portfolio_name, ranking_score, ranking_grade, display_score, "
-    "display_grade, metrics_json, stock_summary, strategy, period_start, period_end, "
-    "initial_capital, monthly_dca, updated_at"
-)
 
 
 def _row_to_dict(row, *json_cols: str) -> dict:
@@ -160,17 +151,6 @@ def _row_to_dict(row, *json_cols: str) -> dict:
     return out
 
 
-@router.get("/stocks/api/top-portfolios", include_in_schema=False)
-async def api_top_portfolios(request: Request):
-    """점수 상위 10개. `/stocks` 사이드바가 서버 렌더로 쓰는 것과 같은 목록이다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    async with db_session() as db:
-        rows = (await db.execute(text(
-            f"SELECT {_PORTFOLIO_LIST_COLS} FROM backtest_portfolio "
-            "WHERE is_public = 1 ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
-    return JSONResponse(jsonable([_row_to_dict(r, "metrics_json") for r in rows]))
 
 
 @router.get("/stocks/api/portfolio", include_in_schema=False)
@@ -593,7 +573,11 @@ async def api_backtest(request: Request):
     try:
         portfolio_id, portfolio_name, portfolio_mine, portfolio_public = \
             await _save_portfolio(request, config, result)
-    except Exception:                                   # 저장이 실패해도 결과는 돌려준다
+    except Exception:
+        # 저장이 실패해도 계산 결과는 돌려준다 — 사용자가 기다린 것은 그쪽이다.
+        # ⚠️ **그래서 저장이 깨져도 응답은 200 이다.** 이 경로를 건드렸으면 응답이 아니라
+        #    `portfolioId` 가 채워지는지와 로그를 봐야 한다. 실제로 컬럼 하나를 INSERT 에서
+        #    빼는 변경이 여기서 조용히 삼켜져 한동안 못 볼 뻔했다(2026-08-19).
         logger.exception("포트폴리오 저장 실패")
 
     return JSONResponse(
@@ -631,7 +615,7 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
     owner = await _owner_index(request)
     score = engine.compute_score(result["metrics"])
     params = {
-        "name": name, "ip": _client_ip(request),
+        "name": name,
         "owner": owner, "pub": 0 if owner is not None else 1,
         "hash": _config_hash(config["stocks"], config["strategy"]),
         "cfg": json.dumps(config, ensure_ascii=False),
@@ -660,11 +644,14 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
             pid = int(existing)
         else:
             res = await db.execute(text(
+                # ⚠️ `ip_address` 는 더 이상 쓰지 않는다 — 소유권 근거에서 빠졌고,
+                #    앞단이 진짜 IP 를 안 넘겨 게이트웨이만 쌓이던 값이다. 쓸모없는
+                #    개인정보를 계속 모으지 않는다(옛 행은 그대로 둔다).
                 "INSERT INTO backtest_portfolio (portfolio_name, user_index, is_public, "
-                "ip_address, config_hash, "
+                "config_hash, "
                 "config_json, display_score, display_grade, ranking_score, ranking_grade, "
                 "metrics_json, stock_summary, strategy, period_start, period_end, "
-                "initial_capital, monthly_dca) VALUES (:name, :owner, :pub, :ip, :hash, "
+                "initial_capital, monthly_dca) VALUES (:name, :owner, :pub, :hash, "
                 ":cfg, :ds, :dg, "
                 ":rs, :rg, :metrics, :summary, :strategy, :ps, :pe, :cap, :dca)"), params)
             pid = int(res.lastrowid)
