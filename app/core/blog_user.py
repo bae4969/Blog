@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import text
 
+from app.core.config import settings
 from app.core.security import AuthUser
 
 
@@ -30,6 +31,29 @@ class BlogUser:
         return self.posting_count >= self.posting_limit
 
 
+def level_of(user: AuthUser | None) -> int:
+    """중앙 auth 의 역할 → 옛 블로그 등급.
+
+    ⚠️ **등급은 낮을수록 권한이 높다.** auth 는 role 문자열(root/admin/…)을 주고 블로그는
+    숫자를 쓰므로 여기서 한 번만 옮긴다. 비로그인은 4(visitor) — PHP `Auth.php:122` 와 같다.
+
+    화면(`app/ui`)과 API(`app/api`)가 **같은 값을 봐야** 한 쪽에서만 보이는 글이 생기지
+    않는다. 그래서 UI 모듈이 아니라 여기 둔다 — 원래 `ui/routes.py` 에 있어서 이 모듈이
+    순환 임포트를 피하려고 함수 안에서 가져오고 있었다.
+    """
+    if user is None:
+        return settings.anonymous_level
+    if "root" in user.roles:
+        return 0
+    if "admin" in user.roles:
+        return 1
+    if "poster" in user.roles:
+        return 2
+    if "member" in user.roles:
+        return 3
+    return settings.anonymous_level
+
+
 async def find(db, user: AuthUser | None) -> BlogUser | None:
     """로그인한 auth 계정에 대응하는 블로그 계정. 없으면 None(글을 못 쓴다).
 
@@ -44,9 +68,6 @@ async def find(db, user: AuthUser | None) -> BlogUser | None:
     """
     if user is None:
         return None
-    # 순환 임포트를 피해 호출 시점에 가져온다 — routes 가 이 모듈을 쓴다.
-    from app.ui.routes import _user_level
-
     row = (
         await db.execute(
             text(
@@ -62,7 +83,7 @@ async def find(db, user: AuthUser | None) -> BlogUser | None:
     return BlogUser(
         user_index=int(row[0]),
         user_id=row[1],
-        level=_user_level(user),
+        level=level_of(user),
         posting_count=int(row[2]),
         posting_limit=int(row[3]),
     )
