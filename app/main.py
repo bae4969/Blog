@@ -9,6 +9,7 @@
 """
 
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -98,6 +99,10 @@ app.add_middleware(OptionalAuthMiddleware)
 #
 # ⚠️ `uploads` 는 사용자가 올린 이미지라 **글 본문이 이 URL 을 직접 가리킨다.** 경로를 바꾸면
 #    기존 글의 이미지가 전부 깨진다.
+# ⚠️ 이 이미지의 파이썬은 `.webp` 를 모른다 — 등록하지 않으면 StaticFiles 가
+#    `application/octet-stream` 으로 내보낸다(썸네일이 전부 webp 다).
+mimetypes.add_type("image/webp", ".webp")
+
 _PUBLIC = Path(__file__).parent.parent / "public"
 for _sub in ("css", "js", "res", "vendor", "uploads"):
     _dir = _PUBLIC / _sub

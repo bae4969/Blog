@@ -18,6 +18,7 @@ from binascii import Error as BinasciiError
 from html import escape, unescape
 
 import nh3
+from app.core import thumbnail
 
 #: PHP `HTML.Allowed` 와 같은 목록.
 _TAGS: set[str] = {
@@ -130,9 +131,16 @@ def clean_title(raw: str | None) -> str:
 
 
 def validate_thumbnail(thumb: str | None) -> str:
-    """썸네일 base64 검증 — PHP `validateThumbnail` 과 같은 기준. 실패하면 빈 문자열."""
+    """썸네일 값 검증 — PHP `validateThumbnail` 과 같은 기준. 실패하면 빈 문자열.
+
+    ⚠️ **파일 경로는 그대로 통과시킨다.** 썸네일을 파일로 옮긴 뒤로 수정 화면의 hidden
+       input 에는 경로가 실려 되돌아온다. 아래 base64 정규식(`^[A-Za-z0-9+/=]+$`)은 `.` 을
+       거부하므로, 이 분기가 없으면 **글을 수정할 때마다 썸네일이 사라진다.**
+    """
     if not thumb:
         return ""
+    if thumbnail.is_path(thumb):
+        return thumb
     if len(thumb) > _THUMB_MAX:
         return ""
     if not _THUMB_CHARS.match(thumb):
@@ -159,7 +167,7 @@ def insert_thumbnail(content: str, thumbnail_b64: str) -> str:
     """
     block = (
         '<div class="post-thumbnail-container">'
-        f'<img class="post-thumbnail" src="data:image/webp;base64,{escape(thumbnail_b64)}" alt="썸네일">'
+        f'<img class="post-thumbnail" src="{escape(thumbnail.src(thumbnail_b64))}" alt="썸네일">'
         "</div>"
     )
     spots = [m.start() for m in _HEADING.finditer(content)]

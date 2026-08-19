@@ -5,7 +5,8 @@ temp/
 cache/
 vendor/
 config/
-public/uploads/images/
+# 사용자가 올린 이미지와 글 썸네일. 배포로 따라가지 않고 환경마다 각자 갖는다.
+public/uploads/
 
 # FastAPI 포팅본 — 환경 설정(계정·비밀번호). .env 와 같은 이유로 제외한다.
 .env.api

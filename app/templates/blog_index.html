@@ -30,7 +30,7 @@
                 <div class="posting_content_wrapper {% if not p.posting_thumbnail %}no-thumbnail{% endif %}">
                     {% if p.posting_thumbnail %}
                     <div class="posting_thumbnail_container">
-                        <img class="posting_thumbnail" src="data:image/webp;base64,{{ p.posting_thumbnail }}" alt="썸네일">
+                        <img class="posting_thumbnail" src="{{ p.posting_thumbnail | thumb_src }}" alt="썸네일" loading="lazy">
                     </div>
                     {% endif %}
                     <div class="posting_summary">
