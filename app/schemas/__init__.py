@@ -8,6 +8,13 @@
    계약이 되면 컬럼을 못 바꾸게 된다. 이름은 여기서 한 번 옮긴다.
 """
 
-from app.schemas.blog import CategoryOut, Page, PostDetail, PostSummary
+from app.schemas.blog import (
+    CategoryOut,
+    Page,
+    PostCreate,
+    PostDetail,
+    PostSummary,
+    PostUpdate,
+)
 
-__all__ = ["CategoryOut", "Page", "PostDetail", "PostSummary"]
+__all__ = ["CategoryOut", "Page", "PostCreate", "PostDetail", "PostSummary", "PostUpdate"]

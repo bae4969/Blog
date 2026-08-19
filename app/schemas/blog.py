@@ -48,3 +48,26 @@ class Page(BaseModel, Generic[T]):
     page: int
     size: int
     pages: int = Field(description="전체 쪽수. 최소 1")
+
+
+class PostCreate(BaseModel):
+    """글 작성 입력.
+
+    ⚠️ 본문은 **저장용 정화**를 거친 뒤 들어간다(`sanitize_for_save`). 화면과 같은
+       정책이라, 여기로 넣은 글과 에디터로 쓴 글이 같은 태그 집합을 갖는다.
+    """
+
+    title: str = Field(min_length=1, max_length=255)
+    content: str = Field(default="", description="HTML. 저장 시 정화된다")
+    category_id: int = Field(description="쓰기 등급을 넘는 카테고리여야 한다")
+    #: base64 WebP 또는 이미 저장된 경로. 넣으면 파일로 구워 경로만 저장한다.
+    thumbnail: str | None = None
+
+
+class PostUpdate(BaseModel):
+    """글 수정 입력. 준 항목만 바뀐다."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    content: str | None = None
+    category_id: int | None = None
+    thumbnail: str | None = None
