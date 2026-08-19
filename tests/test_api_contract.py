@@ -206,3 +206,36 @@ class TestBacktestRoutes:
     def test_실행은_토큰_없이도_401_이_아니다(self, client):
         """계산은 공개다 — 여기서 401 이면 회귀다(422 는 입력 문제라 정상)."""
         assert client.post("/api/v1/backtest/run", json={}).status_code != 401
+
+
+class TestPortfolioOwnership:
+    """포트폴리오 공개/비공개 — 소유권이 계정으로 바뀐 뒤의 계약.
+
+    ⚠️ 예전에는 IP 를 소유권 근거로 썼는데 앞단이 진짜 IP 를 안 넘겨 **모두가 같은
+       주인**이었다. 지금은 계정이다. 이 경계가 무너지면 남의 투자 조합이 노출되거나
+       남이 내 포트폴리오를 고칠 수 있다.
+    """
+
+    def test_등록된_경로(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/backtest/portfolios",
+                "/api/v1/backtest/portfolios/{portfolio_id}"} <= paths
+
+    @pytest.mark.parametrize("method,url", [
+        ("get", "/api/v1/backtest/portfolios"),
+        ("patch", "/api/v1/backtest/portfolios/1"),
+    ])
+    def test_토큰_없으면_401(self, client, method, url):
+        r = client.request(method.upper(), url, json={"is_public": True})
+        assert r.status_code == 401
+
+    def test_쿠키만으로는_401(self, client):
+        """읽기와 달리 내 포트폴리오 목록은 쓰기와 같은 관문을 쓴다."""
+        r = client.get("/api/v1/backtest/portfolios", cookies={"session": "dummy"})
+        assert r.status_code == 401
+
+    @pytest.mark.parametrize("body", [{}, {"is_public": "네"}, {"public": True}])
+    def test_잘못된_본문은_422(self, client, body):
+        r = client.patch("/api/v1/backtest/portfolios/1", json=body,
+                         headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
