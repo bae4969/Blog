@@ -28,6 +28,9 @@ class PostSummary(BaseModel):
     category: CategoryOut | None = None
     author: str | None = Field(default=None, description="글쓴이 아이디. 계정이 지워졌으면 null")
     read_count: int
+    #: 숨긴 글인가(`posting_state != 0`). 관리자에게만 목록에 나타나고 흐리게 표시된다 —
+    #: 일반 사용자 응답에는 숨긴 글 자체가 없으므로 항상 false 다.
+    is_hidden: bool = False
     created_at: datetime
     updated_at: datetime
 
