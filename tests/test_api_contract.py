@@ -72,3 +72,49 @@ class TestDocsAreAdminOnly:
     @pytest.mark.parametrize("url", ["/docs", "/redoc", "/openapi.json"])
     def test_기본_경로는_열려_있지_않다(self, client, url):
         assert client.get(url).status_code == 404
+
+
+class TestStockRoutes:
+    """`/api/v1/stocks/*` 도 같은 규약을 따르는지."""
+
+    def test_등록된_경로(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/stocks",
+                "/api/v1/stocks/{code}/candles",
+                "/api/v1/stocks/{code}/executions"} <= paths
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/stocks?size=101",
+        "/api/v1/stocks?page=0",
+        "/api/v1/stocks/005930/candles?limit=1001",   # 한 번에 전부 긁어가지 못하게
+        "/api/v1/stocks/005930/candles?days=0",
+        "/api/v1/stocks/005930/executions?limit=501",
+    ])
+    def test_잘못된_입력은_422(self, client, url):
+        assert client.get(url).status_code == 422
+
+
+class TestCandleTimeBase:
+    """⚠️ 캔들 조회 구간은 **KST 로** 재야 한다.
+
+    컨테이너 시계는 UTC 인데 DB 안의 시각은 전부 KST 다(`db/session.py` 가 세션 TZ 를
+    +09:00 으로 못박는다). `datetime.now()` 로 재면 구간이 9시간 밀려 화면과 다른 캔들이
+    나간다 — 2026-08-19 에 실제로 그렇게 짰다가 옛 API 와 종가·저가가 달라져서 잡았다.
+    """
+
+    def test_KST_기준시를_쓴다(self):
+        import inspect
+
+        from app.api import stocks_v1
+
+        src = inspect.getsource(stocks_v1.candles)
+        assert "_KST" in src, "캔들 구간을 KST 로 재지 않는다 — 9시간 어긋난다"
+
+    def test_기준시가_UTC_보다_9시간_앞선다(self):
+        from datetime import datetime, timedelta, timezone
+
+        from app.ui.stocks import _KST
+
+        assert _KST == timezone(timedelta(hours=9))
+        gap = datetime.now(_KST).replace(tzinfo=None) - datetime.now(timezone.utc).replace(tzinfo=None)
+        assert timedelta(hours=8, minutes=59) < gap < timedelta(hours=9, minutes=1)
