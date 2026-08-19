@@ -19,6 +19,69 @@
     var autoRecalcTimer = null;
     var dateRangeTimer = null;
 
+    /* =========================================
+       `/api/v1` 호출 — 개인 데이터는 Bearer 가 필요하다
+
+       ⚠️ 인증 쿠키는 `httponly` 라 JS 가 못 읽는다. 그래서 `/api/v1/auth/token` 에서
+          지금 세션의 토큰을 받아 `Authorization` 에 싣는다. 쿠키를 그대로 쓰지 않는
+          이유는 CSRF 다 — 쿠키는 남의 사이트가 붙일 수 있지만 헤더는 못 붙인다.
+
+       토큰 수명은 10분이라 캐시해 두고 만료 30초 전에 다시 받는다.
+       ========================================= */
+    var _token = null;
+    var _tokenExpiresAt = 0;
+
+    function authToken() {
+        if (_token && Date.now() < _tokenExpiresAt) return Promise.resolve(_token);
+        // ⚠️ 로그인 안 했으면 아예 부르지 않는다. 그냥 두면 백테스트를 돌릴 때마다 401 이
+        //    콘솔에 찍혀, 진짜 오류를 볼 때 눈이 가려진다.
+        if (!window.__BACKTEST_USER_LOGGED_IN) {
+            return Promise.reject(new Error('로그인이 필요합니다'));
+        }
+        return fetch('/api/v1/auth/token', { method: 'POST' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('로그인이 필요합니다');
+                return r.json();
+            })
+            .then(function (j) {
+                _token = j.access_token;
+                _tokenExpiresAt = Date.now() + Math.max(0, (j.expires_in - 30)) * 1000;
+                return _token;
+            });
+    }
+
+    /** 토큰을 실어 부른다. 실패는 HTTP 상태코드로 온다(옛 API 의 `success:false` 가 아니다). */
+    function apiFetch(url, options) {
+        return authToken().then(function (t) {
+            var opts = options || {};
+            var headers = Object.assign({}, opts.headers, { 'Authorization': 'Bearer ' + t });
+            return fetch(url, Object.assign({}, opts, { headers: headers }));
+        });
+    }
+
+    /**
+     * 토큰이 **있으면** 싣고 없으면 그냥 보낸다.
+     * 백테스트 실행과 포트폴리오 열람은 비로그인도 돼야 한다 — 토큰이 있으면 소유권이
+     * 붙고(비공개로 저장), 없으면 주인 없는 공개 항목이 된다.
+     */
+    function apiFetchOptional(url, options) {
+        return authToken()
+            .then(function (t) { return t; }, function () { return null; })
+            .then(function (t) {
+                var opts = options || {};
+                var headers = Object.assign({}, opts.headers);
+                if (t) headers['Authorization'] = 'Bearer ' + t;
+                return fetch(url, Object.assign({}, opts, { headers: headers }));
+            });
+    }
+
+    /** 응답 본문의 `detail` 을 오류 메시지로 꺼낸다 — FastAPI 가 그 키에 담는다. */
+    function apiError(response) {
+        return response.json()
+            .then(function (j) { return new Error(j && j.detail ? j.detail : ('HTTP ' + response.status)); })
+            .catch(function () { return new Error('HTTP ' + response.status); });
+    }
+
     // 벤치마크 차트 색상 팔레트
     var BMK_COLORS = [
         'rgb(249, 115, 22)',
@@ -53,21 +116,25 @@
             var codes = allStocks.map(function (s) { return s.code; }).join(',');
             var markets = allStocks.map(function (s) { return s.market || ''; }).join(',');
 
-            fetch('/stocks/api/date-range?codes=' + encodeURIComponent(codes) + '&markets=' + encodeURIComponent(markets), {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-                .then(function (r) { return r.json(); })
+            // 기간 조회는 공개 읽기라 토큰이 없어도 된다.
+            fetch('/api/v1/backtest/date-range?codes=' + encodeURIComponent(codes) +
+                  '&markets=' + encodeURIComponent(markets))
+                .then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
                 .then(function (json) {
-                    if (json.success && json.data) {
-                        startEl.setAttribute('min', json.data.min);
-                        startEl.setAttribute('max', json.data.max);
-                        endEl.setAttribute('min', json.data.min);
-                        endEl.setAttribute('max', json.data.max);
-                        if (startEl.value && startEl.value < json.data.min) startEl.value = json.data.min;
-                        if (startEl.value && startEl.value > json.data.max) startEl.value = json.data.max;
-                        if (endEl.value && endEl.value < json.data.min) endEl.value = json.data.min;
-                        if (endEl.value && endEl.value > json.data.max) endEl.value = json.data.max;
-                        showDateHint(json.data.min, json.data.max);
+                    // 겹치는 구간이 없으면 `min`·`max` 가 null 이다(오류가 아니다).
+                    if (json && json.min && json.max) {
+                        startEl.setAttribute('min', json.min);
+                        startEl.setAttribute('max', json.max);
+                        endEl.setAttribute('min', json.min);
+                        endEl.setAttribute('max', json.max);
+                        if (startEl.value && startEl.value < json.min) startEl.value = json.min;
+                        if (startEl.value && startEl.value > json.max) startEl.value = json.max;
+                        if (endEl.value && endEl.value < json.min) endEl.value = json.min;
+                        if (endEl.value && endEl.value > json.max) endEl.value = json.max;
+                        showDateHint(json.min, json.max);
                     } else {
                         showDateHint(null, null);
                         startEl.removeAttribute('min');
@@ -857,32 +924,26 @@
         progressFill.style.width = '30%';
         progressText.textContent = '서버에서 시뮬레이션 중...';
 
-        fetch('/stocks/api/backtest', {
+        // `save=true` 라야 랭킹에 들어간다 — 옛 API 는 항상 저장했다.
+        apiFetchOptional('/api/v1/backtest/run?save=true', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                return r.json();
+            })
             .then(function (json) {
                 progressFill.style.width = '100%';
-                if (!json.success) {
-                    if (!silent) alert(json.error || '시뮬레이션 실패');
-                    btn.disabled = false;
-                    updateRunButtonState();
-                    progressDiv.style.display = 'none';
-                    return;
-                }
-
                 progressDiv.style.display = 'none';
-                displayResults(json.data);
+                // ⚠️ 결과가 한 겹 더 감싸여 있지 않다 — 엔진 결과 위에 `portfolio` 만 얹혀 온다.
+                displayResults(json);
 
-                // 포트폴리오 자동 저장 결과 처리
-                if (json.portfolioId) {
-                    updatePortfolioNameUI(json.portfolioId, json.portfolioName || '',
-                                          json.portfolioMine, json.portfolioPublic);
+                // 저장이 실패해도 계산 결과는 온다(그때는 `portfolio` 가 없다).
+                if (json.portfolio && json.portfolio.id) {
+                    updatePortfolioNameUI(json.portfolio.id, json.portfolio.name || '',
+                                          json.portfolio.mine, json.portfolio.is_public);
                 }
 
                 hasRunOnce = true;
@@ -894,7 +955,7 @@
             })
             .catch(function (err) {
                 console.error('백테스트 에러:', err);
-                if (!silent) alert('시뮬레이션 중 오류가 발생했습니다.');
+                if (!silent) alert(err.message || '시뮬레이션 중 오류가 발생했습니다.');
                 btn.disabled = false;
                 updateRunButtonState();
                 progressDiv.style.display = 'none';
@@ -944,32 +1005,27 @@
     function savePortfolioPublic(next) {
         if (!currentPortfolioId) return;
         var statusEl = document.getElementById('portfolioNameStatus');
-        fetch('/stocks/api/portfolio/public', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ id: currentPortfolioId, isPublic: next })
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(currentPortfolioId), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_public: next })
         })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                return r.json();
+            })
             .then(function (json) {
-                if (json && json.success) {
-                    renderPublicToggle(true, next);
-                    if (statusEl) {
-                        statusEl.textContent = next ? '랭킹에 공개했습니다' : '비공개로 바꿨습니다';
-                        statusEl.style.opacity = '1';
-                        setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
-                    }
-                } else if (statusEl) {
-                    statusEl.textContent = (json && json.error) || '변경하지 못했습니다';
+                // 서버가 돌려준 값을 그대로 반영한다 — 눌린 값을 믿지 않는다.
+                renderPublicToggle(true, json.is_public);
+                if (statusEl) {
+                    statusEl.textContent = json.is_public ? '랭킹에 공개했습니다' : '비공개로 바꿨습니다';
                     statusEl.style.opacity = '1';
-                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
+                    setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
                 }
             })
-            .catch(function () {
+            .catch(function (err) {
                 if (statusEl) {
-                    statusEl.textContent = '변경하지 못했습니다';
+                    statusEl.textContent = err.message || '변경하지 못했습니다';
                     statusEl.style.opacity = '1';
                     setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
                 }
@@ -981,29 +1037,24 @@
      */
     function savePortfolioName(name) {
         if (!currentPortfolioId || !name) return;
-        fetch('/stocks/api/portfolio/name', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ id: currentPortfolioId, name: name })
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(currentPortfolioId), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
         })
-            .then(function (r) { return r.json(); })
-            .then(function (json) {
-                var statusEl = document.getElementById('portfolioNameStatus');
-                if (json.success) {
-                    if (statusEl) {
-                        statusEl.textContent = '저장됨';
-                        statusEl.style.opacity = '1';
-                        setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
-                    }
-                }
-            })
-            .catch(function () {
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 var statusEl = document.getElementById('portfolioNameStatus');
                 if (statusEl) {
-                    statusEl.textContent = '저장 실패';
+                    statusEl.textContent = '저장됨';
+                    statusEl.style.opacity = '1';
+                    setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
+                }
+            })
+            .catch(function (err) {
+                var statusEl = document.getElementById('portfolioNameStatus');
+                if (statusEl) {
+                    statusEl.textContent = err.message || '저장 실패';
                     statusEl.style.opacity = '1';
                     setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
                 }
@@ -1014,18 +1065,16 @@
      * URL 파라미터에서 포트폴리오 ID로 설정 로드
      */
     function loadFromPortfolioId(id) {
-        return fetch('/stocks/api/portfolio?id=' + encodeURIComponent(id), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(function (r) { return r.json(); })
+        // 랭킹에서 넘어온 비로그인 방문자도 공개분은 열 수 있어야 한다 — 토큰은 선택이다.
+        return apiFetchOptional('/api/v1/backtest/portfolios/' + encodeURIComponent(id))
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
             .then(function (json) {
-                if (!json.success || !json.data || !json.data.config) return false;
-                applyConfig(json.data.config);
-
-                // 포트폴리오 이름 표시
-                updatePortfolioNameUI(json.data.portfolio_id, json.data.portfolio_name,
-                                      json.data.mine, json.data.is_public);
-
+                if (!json || !json.config) return false;
+                applyConfig(json.config);
+                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public);
                 return true;
             })
             .catch(function () { return false; });
@@ -1163,26 +1212,26 @@
         var countEl = document.getElementById('presetCount');
         if (!listEl) return;
 
-        fetch('/stocks/api/presets', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (json) {
-                if (!json.success || !json.data) { listEl.innerHTML = ''; return; }
-                if (countEl) countEl.textContent = json.data.length + '/20';
+        apiFetch('/api/v1/backtest/presets')
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (rows) {
+                if (countEl) countEl.textContent = rows.length + '/20';
 
-                if (json.data.length === 0) {
+                if (rows.length === 0) {
                     listEl.innerHTML = '<p class="empty-hint">저장된 프리셋이 없습니다</p>';
                     return;
                 }
 
                 var html = '';
-                json.data.forEach(function (p) {
+                rows.forEach(function (p) {
                     var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
-                    html += '<div class="preset-item" data-id="' + p.preset_id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
-                        '<span class="preset-item-name preset-load-btn" data-id="' + p.preset_id + '">' + escapeHtml(p.preset_name) + '</span>' +
+                    html += '<div class="preset-item" data-id="' + p.id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
+                        '<span class="preset-item-name preset-load-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</span>' +
                         '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
-                        '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.preset_id + '">&times;</button>' +
+                        '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.id + '">&times;</button>' +
                         '</div>';
                 });
                 listEl.innerHTML = html;
@@ -1234,25 +1283,18 @@
             if (!config) { alert('종목을 1개 이상 추가하세요.'); return; }
         }
 
-        fetch('/stocks/api/preset/save', {
+        apiFetch('/api/v1/backtest/presets', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: name, config: config })
         })
-            .then(function (r) { return r.json(); })
-            .then(function (json) {
-                if (json.success) {
-                    showPresetStatus('저장됨');
-                    nameInput.value = '';
-                    loadPresetList();
-                } else {
-                    alert(json.error || '저장 실패');
-                }
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                showPresetStatus('저장됨');
+                nameInput.value = '';
+                loadPresetList();
             })
-            .catch(function () { alert('프리셋 저장 중 오류가 발생했습니다.'); });
+            .catch(function (err) { alert(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
     }
 
     /**
@@ -1296,40 +1338,28 @@
     }
 
     function loadPreset(id) {
-        fetch('/stocks/api/preset?id=' + encodeURIComponent(id), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (json) {
-                if (!json.success || !json.data || !json.data.config) {
-                    alert(json.error || '프리셋을 불러올 수 없습니다.');
-                    return;
-                }
-                applyConfig(json.data.config);
-                showPresetStatus('"' + (json.data.preset_name || '') + '" 적용됨');
+        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id))
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                return r.json();
             })
-            .catch(function () { alert('프리셋 불러오기 중 오류가 발생했습니다.'); });
+            .then(function (json) {
+                if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
+                applyConfig(json.config);
+                showPresetStatus('"' + (json.name || '') + '" 적용됨');
+            })
+            .catch(function (err) { alert(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
     }
 
     function deletePreset(id) {
-        fetch('/stocks/api/preset/delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ id: id })
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (json) {
-                if (json.success) {
-                    showPresetStatus('삭제됨');
-                    loadPresetList();
-                } else {
-                    alert(json.error || '삭제 실패');
-                }
+        // 삭제 성공은 204 라 본문이 없다.
+        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id), { method: 'DELETE' })
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                showPresetStatus('삭제됨');
+                loadPresetList();
             })
-            .catch(function () { alert('프리셋 삭제 중 오류가 발생했습니다.'); });
+            .catch(function (err) { alert(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
     }
 
     /**

@@ -341,3 +341,77 @@ class TestStockPriceSource:
         src = inspect.getsource(stocks_v1.stocks)
         assert "_latest_closes" in src, "최신 종가 덮어쓰기가 빠졌다 — 화면과 값이 갈라진다"
         assert "closes.get(" in src
+
+
+class TestSessionTokenBridge:
+    """⚠️ `/api/v1/auth/token` 은 **쿠키를 Bearer 로 바꿔 주는 다리**다.
+
+    화면이 `/api/v1` 을 쓰려면 이게 필요하다 — 인증 쿠키가 `httponly` 라 JS 가 토큰을
+    읽을 수 없기 때문이다. 대신 여기가 뚫리면 CSRF 방어가 통째로 무너지므로, 무엇을
+    받고 무엇을 안 받는지 고정해 둔다.
+
+    남의 사이트가 이걸 부르게 만들 수는 있지만 **응답을 읽을 수 없다**(동일 출처 정책,
+    이 서버는 CORS 허용 헤더를 안 낸다). 그래서 토큰을 손에 넣지 못한다.
+    """
+
+    def test_쿠키가_없으면_401(self, client):
+        assert client.post("/api/v1/auth/token").status_code == 401
+
+    def test_망가진_쿠키는_401(self, client):
+        from app.core.config import settings
+
+        r = client.post("/api/v1/auth/token", cookies={settings.cookie_name: "not-a-jwt"})
+        assert r.status_code == 401
+
+    def test_헤더만으로는_안_준다(self, client):
+        """⚠️ **쿠키만 본다.** 헤더를 받아 주면 남의 토큰을 되돌려 주는 통로가 하나 더 생긴다."""
+        r = client.post("/api/v1/auth/token",
+                        headers={"Authorization": "Bearer whatever"})
+        assert r.status_code == 401
+
+    def test_유효한_쿠키면_그_토큰을_준다(self, client, monkeypatch):
+        """토큰을 새로 만들지 않는다 — 이 서비스엔 서명할 열쇠가 없다(중앙 auth 가 발급)."""
+        import time
+
+        from app.api import auth_v1
+        from app.core.config import settings
+
+        exp = int(time.time()) + 600
+        monkeypatch.setattr(auth_v1, "verify_token", lambda t: {"sub": "u", "exp": exp})
+
+        r = client.post("/api/v1/auth/token", cookies={settings.cookie_name: "dummy-jwt"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["access_token"] == "dummy-jwt"
+        assert body["token_type"] == "bearer"
+        assert 0 < body["expires_in"] <= 600
+        # ⚠️ 자격증명이다. 중간 캐시에 남으면 다음 사람이 받아 간다.
+        assert r.headers.get("cache-control") == "no-store"
+
+
+class TestBacktestRoutesMoved:
+    """옛 `/stocks/api/*` 백테스트 계열을 걷어낸 자리."""
+
+    def test_새_경로가_다_있다(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/auth/token",
+                "/api/v1/backtest/date-range",
+                "/api/v1/backtest/run",
+                "/api/v1/backtest/presets",
+                "/api/v1/backtest/presets/{preset_id}",
+                "/api/v1/backtest/portfolios",
+                "/api/v1/backtest/portfolios/{portfolio_id}"} <= paths
+
+    @pytest.mark.parametrize("url", [
+        "/stocks/api/search", "/stocks/api/candle", "/stocks/api/executions",
+        "/stocks/api/date-range", "/stocks/api/portfolio", "/stocks/api/presets",
+        "/stocks/api/preset", "/stocks/api/backtest",
+    ])
+    def test_옛_경로는_사라졌다(self, client, url):
+        assert client.get(url).status_code == 404
+
+    def test_PATCH_는_바꿀_것을_줘야_한다(self, client):
+        """`is_public` 도 `name` 도 없으면 422 — 조용히 아무것도 안 하는 성공보다 낫다."""
+        r = client.patch("/api/v1/backtest/portfolios/1", json={},
+                         headers={"Authorization": "Bearer x"})
+        assert r.status_code == 422
