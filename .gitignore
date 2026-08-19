@@ -5,6 +5,9 @@ temp/
 cache/
 vendor/
 config/
+# npm 산출물. 배포 zip 도 이미 제외하고 있다(release.yml).
+node_modules/
+
 # 사용자가 올린 이미지와 글 썸네일. 배포로 따라가지 않고 환경마다 각자 갖는다.
 public/uploads/
 
