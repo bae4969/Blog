@@ -25,6 +25,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
+from app.core import blog_user
 from app.core.csrf import require_internal
 from app.db.session import db_session
 from app.ui.routes import _int_arg, _shell_ctx, templates
@@ -294,8 +295,7 @@ async def stocks_index(request: Request):
 
 
 def _level(request: Request) -> int:
-    from app.ui.routes import _user_level
-    return _user_level(getattr(request.state, "user", None))
+    return blog_user.level_of(getattr(request.state, "user", None))
 
 
 async def _stock_page(db, market: str, search: str, page: int):
