@@ -292,7 +292,12 @@ async def post_detail(request: Request):
         if counted:
             await db.execute(
                 text(
-                    "UPDATE posting_list SET posting_read_cnt = posting_read_cnt + 1 "
+                    # ⚠️ `posting_last_edit_datetime` 을 **일부러 자기 값으로 다시 넣는다.**
+                    #    이 컬럼은 `ON UPDATE current_timestamp()` 라, 명시하지 않으면 조회수만
+                    #    올려도 수정 시각이 지금으로 밀린다 — 화면의 "수정:" 이 실제로는
+                    #    "마지막 조회" 가 되어 버린다(2026-08-19 확인, 그 전까진 그렇게 돌고 있었다).
+                    "UPDATE posting_list SET posting_read_cnt = posting_read_cnt + 1, "
+                    "  posting_last_edit_datetime = posting_last_edit_datetime "
                     "WHERE posting_index = :i"
                 ),
                 {"i": post_id},
@@ -614,7 +619,10 @@ async def _state_change(request: Request, post_id: int, csrf_token: str,
             return _reject(f"denied user={me.user_id} post={post_id}")
 
         await db.execute(
-            text("UPDATE posting_list SET posting_state = :s WHERE posting_index = :i"),
+            # 위와 같은 이유로 수정 시각을 고정한다 — 숨김·복구는 글을 고친 것이 아니다.
+            text("UPDATE posting_list SET posting_state = :s, "
+                 "  posting_last_edit_datetime = posting_last_edit_datetime "
+                 "WHERE posting_index = :i"),
             {"s": new_state, "i": post_id},
         )
         await db.commit()
