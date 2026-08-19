@@ -6,7 +6,7 @@
   ⚠️ 폼이 보내는 것은 `ratio_from`·`ratio_to` 인데 사람이 넣는 것은 "배수" 하나다.
      분할이면 1:N, 병합이면 N:1 로 **JS 가 제출 직전에 채운다**. 숨은 input 의 id 를
      바꾸면 값이 비어 나간다.
-  ⚠️ 종목은 직접 타이핑하지 않고 `/stocks/api/search` 로 골라야 한다 — 코드가 틀리면
+  ⚠️ 종목은 직접 타이핑하지 않고 `/api/v1/stocks?q=` 로 골라야 한다 — 코드가 틀리면
      보정이 엉뚱한 종목에 걸리기 때문이다.
 #}
 {% extends "layout.html" %}
@@ -167,23 +167,27 @@
     });
 
     function searchStocks(q) {
-        fetch('/stocks/api/search?q=' + encodeURIComponent(q) + '&limit=10', {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        {# 종목 검색은 `/api/v1/stocks` 의 `q` 로 옮겼다(2026-08-19).
+           ⚠️ 옛 `/stocks/api/search` 응답에는 `stock_type` 이 없어 `resolveMarket` 의 둘째
+              인자가 **항상 undefined** 였다. 새 API 는 `type` 을 준다. #}
+        fetch('/api/v1/stocks?q=' + encodeURIComponent(q) + '&size=10')
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
             })
-            .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!data.success || !data.data.length) {
+                if (!data.items || !data.items.length) {
                     resultsBox.innerHTML = '<div style="padding:0.6rem;color:var(--text-muted)">검색 결과 없음</div>';
                     resultsBox.style.display = 'block';
                     return;
                 }
                 var html = '';
-                data.data.forEach(function (s) {
-                    var market = resolveMarket(s.stock_market, s.stock_type);
+                data.items.forEach(function (s) {
+                    var market = resolveMarket(s.market, s.type);
                     html += '<div class="split-search-item" style="padding:0.5rem 0.7rem;cursor:pointer;border-bottom:1px solid var(--border-color)" '
-                        + 'onmousedown="selectSplitStock(\'' + escAttr(s.stock_code) + '\',\'' + escAttr(s.stock_name_kr) + '\',\'' + market + '\')">'
-                        + '<strong>' + esc(s.stock_code) + '</strong> '
-                        + '<span style="color:var(--text-secondary)">' + esc(s.stock_name_kr) + '</span> '
+                        + 'onmousedown="selectSplitStock(\'' + escAttr(s.code) + '\',\'' + escAttr(s.name_kr) + '\',\'' + market + '\')">'
+                        + '<strong>' + esc(s.code) + '</strong> '
+                        + '<span style="color:var(--text-secondary)">' + esc(s.name_kr) + '</span> '
                         + '<span class="ip-badge" style="font-size:0.75rem">' + market + '</span>'
                         + '</div>';
                 });

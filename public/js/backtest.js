@@ -410,26 +410,30 @@
             var q = input.value.trim();
             if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
             debounce = setTimeout(function () {
-                fetch('/stocks/api/search?q=' + encodeURIComponent(q) + '&limit=10', {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                    .then(function (r) { return r.json(); })
+                // 종목 검색은 `/api/v1/stocks` 의 `q` 로 옮겼다(2026-08-19).
+                // ⚠️ 옛 `/stocks/api/search` 응답에는 `stock_type` 이 아예 없어서
+                //    `s.stock_type === 'COIN'` 은 **항상 거짓**이었다. 새 API 는 `type` 을 준다.
+                fetch('/api/v1/stocks?q=' + encodeURIComponent(q) + '&size=10')
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
                     .then(function (json) {
-                        if (!json.success || !json.data || json.data.length === 0) {
+                        if (!json.items || json.items.length === 0) {
                             resultsDiv.innerHTML = '<div class="search-empty">검색 결과 없음</div>';
                             resultsDiv.style.display = 'block';
                             return;
                         }
                         var html = '';
-                        json.data.forEach(function (s) {
-                            var market = s.stock_type === 'COIN' ? 'COIN' : (
-                                ['NYSE', 'NASDAQ', 'AMEX'].indexOf(s.stock_market) >= 0 ? 'US' : 'KR'
+                        json.items.forEach(function (s) {
+                            var market = s.type === 'COIN' ? 'COIN' : (
+                                ['NYSE', 'NASDAQ', 'AMEX'].indexOf(s.market) >= 0 ? 'US' : 'KR'
                             );
-                            html += '<div class="search-result-item" data-code="' + escapeHtml(s.stock_code) +
-                                '" data-name="' + escapeHtml(s.stock_name_kr || s.stock_code) +
+                            html += '<div class="search-result-item" data-code="' + escapeHtml(s.code) +
+                                '" data-name="' + escapeHtml(s.name_kr || s.code) +
                                 '" data-market="' + escapeHtml(market) + '">' +
-                                '<span class="sr-name">' + escapeHtml(s.stock_name_kr || s.stock_code) + '</span>' +
-                                '<span class="sr-code">' + escapeHtml(s.stock_code) + '</span>' +
+                                '<span class="sr-name">' + escapeHtml(s.name_kr || s.code) + '</span>' +
+                                '<span class="sr-code">' + escapeHtml(s.code) + '</span>' +
                                 '<span class="sr-market badge-' + escapeHtml(market.toLowerCase()) + '">' + escapeHtml(market) + '</span>' +
                                 '<span class="sr-actions">' +
                                 '<button type="button" class="sr-add-btn sr-add-portfolio">+ 포폴</button>' +

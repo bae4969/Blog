@@ -22,13 +22,12 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
 from app.core import blog_user
-from app.core.csrf import require_internal
 from app.db.session import db_session
-from app.ui.routes import _int_arg, _shell_ctx, templates
+from app.ui.routes import _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -615,27 +614,3 @@ async def _coin_by_code(db, code: str):
         "FROM Bithumb.coin_info WHERE coin_code = :c"), {"c": code})).first()
 
 
-@router.get("/stocks/api/search", include_in_schema=False)
-async def stocks_api_search(request: Request):
-    """종목 검색 JSON. 차트 화면의 종목 선택 콤보박스가 쓴다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    search = (request.query_params.get("q") or "").strip()[:50]
-    market = _norm_market(request.query_params.get("market"))
-    limit = min(100, max(1, _int_arg(request, "limit", 20)))
-
-    async with db_session() as db:
-        _, rows = await _stock_page(db, market or "", search, 1)
-
-    data = [
-        {
-            "stock_code": r.code,
-            "stock_name_kr": r.name_kr,
-            "stock_name_en": r.name_en,
-            "stock_market": r.market,
-            "stock_price": float(r.price) if r.price is not None else None,
-        }
-        for r in rows[:limit]
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)})
