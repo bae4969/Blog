@@ -19,7 +19,17 @@ let useLogScale = false;
 let yAxisRangeRafId = null;
 let axisDragState = null;
 const CHART_LOG_SCALE_STORAGE_KEY = 'stockChart.useLogScale';
+/**
+ * 한 번에 **그리는** 캔들 수. 초기 로딩은 여기에 지표 워밍업분을 더해 받는다.
+ *
+ * ⚠️ 이 값을 무한 스크롤의 총 상한으로 쓰면 안 된다. 초기 로딩이 이미
+ *    `MAX_CANDLES + INDICATOR_WARMUP_COUNT` 개라 그 순간 상한을 넘어, 더 받아올 여지가
+ *    없다고 판단해 버린다(2026-08-19 에 실제로 그래서 죽어 있었다).
+ */
 const MAX_CANDLES = 360;
+
+/** 과거로 끌어가며 쌓을 수 있는 **총** 캔들 수. 메모리·차트 성능을 위한 천장이다. */
+const MAX_TOTAL_CANDLES = 2000;
 
 function loadLogScalePreference() {
     try {
@@ -995,7 +1005,9 @@ function initChart() {
         initialXMin = totalLabels - currentVisibleCandleCount;
     }
 
-    visibleRangeMinLimit = Math.max(0, totalLabels - MAX_CANDLES);
+    // ⚠️ 0 이어야 한다. `totalLabels - MAX_CANDLES` 로 두면 데이터가 360개를 넘는 순간
+    //    **그 앞으로는 밀 수 없게** 막혀, 과거를 더 받아와도 볼 수가 없다.
+    visibleRangeMinLimit = 0;
     visibleRangeMaxLimit = initialXMax;
 
     // 데이터 범위 계산 (보이는 캔들 범위 기준)
@@ -1083,7 +1095,20 @@ function showChartError(message) {
    ======================================== */
 function prepareChartData(data, chartType) {
     var fullData = Array.isArray(data) ? data : [];
-    var displayCount = Math.min(MAX_CANDLES, fullData.length);
+    // 앞쪽 `INDICATOR_WARMUP_COUNT` 개는 지표(이평·볼린저) 계산에만 쓰고 그리지 않는다 —
+    // 그게 없으면 화면 왼쪽 끝에서 지표선이 끊긴다.
+    //
+    // ⚠️ 예전에는 `Math.min(MAX_CANDLES, len)` 이라 **항상 최근 360개만** 그렸다. 그래서
+    //    과거 데이터를 앞에 붙여도 그리는 쪽에서 그대로 잘려나가, 무한 스크롤이 성립할
+    //    수 없었다. 워밍업분만 덜어내고 나머지는 다 그린다(천장은 MAX_TOTAL_CANDLES).
+    //
+    // ⚠️ 워밍업분을 **무조건** 빼면 안 된다. 데이터가 애초에 420개가 안 되는 구간
+    //    (6시간봉·주봉이 그렇다)에서는 예전에 있는 대로 다 그렸는데, 빼버리면 60개가
+    //    사라진다 — 실제로 그렇게 짰다가 운영과 픽셀 비교에서 6H·1W 만 어긋나 잡았다.
+    //    그래서 "최소 MAX_CANDLES(있는 만큼)" 를 바닥으로 깔고 그 위로만 키운다.
+    var floor = Math.min(MAX_CANDLES, fullData.length);
+    var displayCount = Math.min(MAX_TOTAL_CANDLES,
+                                Math.max(fullData.length - INDICATOR_WARMUP_COUNT, floor));
     var displayStartIndex = Math.max(0, fullData.length - displayCount);
     displayedCandleData = fullData.slice(displayStartIndex);
 
@@ -1584,11 +1609,9 @@ function loadChartData(period) {
    과거 데이터 무한 스크롤
    ======================================== */
 function checkAndLoadMoreData() {
-    return;
-
     if (!stockChart || !stockChart.scales || !stockChart.scales.x) return;
     if (isLoadingMoreData || allDataLoaded || !candleData || candleData.length === 0) return;
-    if (candleData.length >= MAX_CANDLES) {
+    if (candleData.length >= MAX_TOTAL_CANDLES) {
         allDataLoaded = true;
         return;
     }
@@ -1651,8 +1674,8 @@ function loadMoreHistoricalData() {
 
                 var prependedCount = newData.length;
 
-                // 최대 캔들 수 제한
-                var room = MAX_CANDLES - candleData.length;
+                // 최대 캔들 수 제한 — 천장에 닿으면 더 안 받는다.
+                var room = MAX_TOTAL_CANDLES - candleData.length;
                 if (room <= 0) {
                     allDataLoaded = true;
                     return;
