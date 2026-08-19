@@ -161,7 +161,7 @@ function updateCurrentPriceFromCandles(data) {
     if (!Array.isArray(data) || data.length === 0) return;
 
     const latestCandle = data[data.length - 1];
-    const latestClose = parseFloat(latestCandle.execution_close);
+    const latestClose = parseFloat(latestCandle.close);
     if (isNaN(latestClose)) return;
 
     const mainPriceEl = document.getElementById('currentPriceMainValue');
@@ -580,15 +580,15 @@ function getMarketParam() {
 }
 
 function loadInitialExecutions() {
-    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam(), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
+        // ⚠️ 이제 실패는 HTTP 상태코드로 온다. 옛 API 는 200 에 `success:false` 를 실었다.
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateExecutionList(data.data);
-                syncExecutionHeaderSpacing();
-            }
+        .then(rows => {
+            updateExecutionList(rows);
+            syncExecutionHeaderSpacing();
         })
         .catch(error => {
             console.error('체결 정보 로드 실패:', error);
@@ -1087,27 +1087,27 @@ function prepareChartData(data, chartType) {
     var displayStartIndex = Math.max(0, fullData.length - displayCount);
     displayedCandleData = fullData.slice(displayStartIndex);
 
-    var labels = displayedCandleData.map(function(d) { return formatDateTime(d.execution_datetime); });
-    var closePrices = displayedCandleData.map(function(d) { return parseFloat(d.execution_close); });
+    var labels = displayedCandleData.map(function(d) { return formatDateTime(d.at); });
+    var closePrices = displayedCandleData.map(function(d) { return parseFloat(d.close); });
 
     // 거래량 데이터 (양봉/음봉 색상 분기)
     var volumes = displayedCandleData.map(function(d) {
         return Math.max(
-            parseFloat(d.execution_non_volume || 0),
-            parseFloat(d.execution_ask_volume || 0) + parseFloat(d.execution_bid_volume || 0)
+            parseFloat(d.non_volume || 0),
+            parseFloat(d.ask_volume || 0) + parseFloat(d.bid_volume || 0)
         );
     });
     var volumeColors = displayedCandleData.map(function(d) {
-        var open = parseFloat(d.execution_open);
-        var close = parseFloat(d.execution_close);
+        var open = parseFloat(d.open);
+        var close = parseFloat(d.close);
         return close >= open ? chartColors.volumeUp : chartColors.volumeDown;
     });
 
-    var fullClosePrices = fullData.map(function(d) { return parseFloat(d.execution_close); });
+    var fullClosePrices = fullData.map(function(d) { return parseFloat(d.close); });
     var fullVolumes = fullData.map(function(d) {
         return Math.max(
-            parseFloat(d.execution_non_volume || 0),
-            parseFloat(d.execution_ask_volume || 0) + parseFloat(d.execution_bid_volume || 0)
+            parseFloat(d.non_volume || 0),
+            parseFloat(d.ask_volume || 0) + parseFloat(d.bid_volume || 0)
         );
     });
 
@@ -1248,10 +1248,10 @@ function prepareChartData(data, chartType) {
     // 투명 라인 (y축 스케일링 + 툴팁 인터랙션) + 거래량 바 + OHLC 데이터
     var ohlcData = displayedCandleData.map(function(d) {
         return {
-            o: parseFloat(d.execution_open),
-            h: parseFloat(d.execution_max),
-            l: parseFloat(d.execution_min),
-            c: parseFloat(d.execution_close)
+            o: parseFloat(d.open),
+            h: parseFloat(d.high),
+            l: parseFloat(d.low),
+            c: parseFloat(d.close)
         };
     });
 
@@ -1416,8 +1416,8 @@ function getChartOptions(chartType, dataRange, initialRange) {
         var maxVol = 0;
         for (var i = 0; i < volumeScaleSource.length; i++) {
             var v = Math.max(
-                parseFloat(volumeScaleSource[i].execution_non_volume || 0),
-                parseFloat(volumeScaleSource[i].execution_ask_volume || 0) + parseFloat(volumeScaleSource[i].execution_bid_volume || 0)
+                parseFloat(volumeScaleSource[i].non_volume || 0),
+                parseFloat(volumeScaleSource[i].ask_volume || 0) + parseFloat(volumeScaleSource[i].bid_volume || 0)
             );
             if (v > maxVol) maxVol = v;
         }
@@ -1553,14 +1553,17 @@ function loadChartData(period) {
 
     showChartLoading(true);
     
-    fetch('/stocks/api/candle?code=' + encodeURIComponent(stockCode) + '&start=' + startDateStr + '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam(), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
+          '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam())
+        // ⚠️ 이제 실패는 HTTP 상태코드로 온다. 옛 API 는 200 에 `success:false` 를 실었다.
+        .then(function(response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
+        .then(function(rows) {
             showChartLoading(false);
-            if (data.success && data.data.length > 0) {
-                candleData = data.data;
+            if (rows.length > 0) {
+                candleData = rows;
                 updateCurrentPriceFromCandles(candleData);
                 showChartNoData(false);
                 initChart();
@@ -1601,7 +1604,7 @@ function loadMoreHistoricalData() {
 
     isLoadingMoreData = true;
 
-    var earliestDatetime = candleData[0].execution_datetime;
+    var earliestDatetime = candleData[0].at;
     var earliestDate = new Date(earliestDatetime.replace(' ', 'T'));
     var fetchCount = 60;
 
@@ -1620,21 +1623,21 @@ function loadMoreHistoricalData() {
     var startDateStr = formatDateForAPI(newStartDate);
     var endDateStr = formatDateForAPI(new Date(earliestDate.getTime() - 1000));
 
-    fetch('/stocks/api/candle?code=' + encodeURIComponent(stockCode) +
-          '&start=' + startDateStr + '&end=' + endDateStr +
-          '&timeframe=' + currentTimeframe + '&limit=' + fetchCount + getMarketParam(), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
+          '&end=' + endDateStr + '&timeframe=' + currentTimeframe + '&limit=' + fetchCount + getMarketParam())
+        .then(function(response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
+        .then(function(rows) {
             isLoadingMoreData = false;
-            if (data.success && data.data.length > 0) {
+            if (rows.length > 0) {
                 var existingTimes = {};
                 for (var i = 0; i < candleData.length; i++) {
-                    existingTimes[candleData[i].execution_datetime] = true;
+                    existingTimes[candleData[i].at] = true;
                 }
-                var newData = data.data.filter(function(d) {
-                    return !existingTimes[d.execution_datetime];
+                var newData = rows.filter(function(d) {
+                    return !existingTimes[d.at];
                 });
 
                 if (newData.length === 0) {
@@ -1699,8 +1702,8 @@ function prependChartData(prependedCount) {
     var maxVol = 0;
     for (var i = 0; i < candleData.length; i++) {
         var v = Math.max(
-            parseFloat(candleData[i].execution_non_volume || 0),
-            parseFloat(candleData[i].execution_ask_volume || 0) + parseFloat(candleData[i].execution_bid_volume || 0)
+            parseFloat(candleData[i].non_volume || 0),
+            parseFloat(candleData[i].ask_volume || 0) + parseFloat(candleData[i].bid_volume || 0)
         );
         if (v > maxVol) maxVol = v;
     }
@@ -1788,15 +1791,14 @@ function toggleLogScale(enabled) {
    체결 정보
    ======================================== */
 function refreshExecutions() {
-    fetch('/stocks/api/executions?code=' + encodeURIComponent(stockCode) + '&limit=50' + getMarketParam(), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
+        .then(function(response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-            if (data.success) {
-                updateExecutionList(data.data);
-                syncExecutionHeaderSpacing();
-            }
+        .then(function(rows) {
+            updateExecutionList(rows);
+            syncExecutionHeaderSpacing();
         })
         .catch(function(error) { console.error('체결 정보 로드 실패:', error); });
 }
@@ -1835,16 +1837,16 @@ function updateExecutionList(executions) {
     var html = '';
     for (var i = 0; i < executions.length; i++) {
         var exec = executions[i];
-        var isBuy = parseFloat(exec.execution_bid_volume) > parseFloat(exec.execution_ask_volume);
+        var isBuy = parseFloat(exec.bid_volume) > parseFloat(exec.ask_volume);
         var volume = Math.max(
-            parseFloat(exec.execution_non_volume || 0),
-            parseFloat(exec.execution_bid_volume || 0),
-            parseFloat(exec.execution_ask_volume || 0)
+            parseFloat(exec.non_volume || 0),
+            parseFloat(exec.bid_volume || 0),
+            parseFloat(exec.ask_volume || 0)
         );
         
         html += '<div class="execution-item ' + (isBuy ? 'buy' : 'sell') + '">' +
-                    '<div class="exec-time">' + formatTime(exec.execution_datetime) + '</div>' +
-                    '<div class="exec-price">' + formatPrice(exec.execution_price) + '</div>' +
+                    '<div class="exec-time">' + formatTime(exec.at) + '</div>' +
+                    '<div class="exec-price">' + formatPrice(exec.price) + '</div>' +
                     '<div class="exec-volume">' + formatNumber(volume) + '</div>' +
                     '<div class="exec-type">' + (isBuy ? '매수' : '매도') + '</div>' +
                 '</div>';

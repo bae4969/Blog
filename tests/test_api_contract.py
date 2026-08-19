@@ -92,9 +92,25 @@ class TestStockRoutes:
         "/api/v1/stocks/005930/candles?days=0",
         "/api/v1/stocks/005930/executions?limit=501",
         "/api/v1/stocks/top?limit=51",
+        # 구간을 거꾸로 주면 빈 목록이 아니라 잘못된 요청이다
+        "/api/v1/stocks/005930/candles?start=2026-08-02T00:00:00&end=2026-08-01T00:00:00",
+        "/api/v1/stocks/005930/candles?start=말이안되는값",
     ])
     def test_잘못된_입력은_422(self, client, url):
         assert client.get(url).status_code == 422
+
+    def test_구간을_직접_줄_수_있다(self):
+        """⚠️ 차트가 **과거로 거슬러 올라가려면** `start`/`end` 가 있어야 한다.
+
+        `days` 만 있으면 지금부터 이어진 구간밖에 못 잡아, 무한 스크롤이 이미 받은 것보다
+        더 옛 구간을 지목할 수 없다. 옛 `/stocks/api/candle` 은 이걸 갖고 있었다.
+        """
+        import inspect
+
+        from app.api import stocks_v1
+
+        params = inspect.signature(stocks_v1.candles).parameters
+        assert {"start", "end", "days"} <= set(params)
 
     @pytest.mark.parametrize("url", [
         "/api/v1/stocks?market=KOSPI",     # 개별 시장이 아니라 묶음 이름을 받는다

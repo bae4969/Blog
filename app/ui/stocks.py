@@ -351,14 +351,6 @@ _HOUR_RE = re.compile(r"^(\d+)h$")
 _TIMEFRAMES = ("raw", "10m", "30m", "1h", "3h", "6h", "1d", "1w", "1M")
 
 
-def _num(v):
-    """DB 의 double 을 JSON 숫자로. 정수면 정수로 찍어 PHP 응답과 모양을 맞춘다."""
-    if v is None:
-        return None
-    f = float(v)
-    return int(f) if f.is_integer() else f
-
-
 def _is_sub_daily(tf: str) -> bool:
     """분봉·시간봉이면 True. 일봉 이상(1d/1w/1M)은 False."""
     return bool(_MIN_RE.match(tf) or _HOUR_RE.match(tf))
@@ -569,88 +561,6 @@ async def candle_rows(db, code: str, market: str, start: datetime, end: datetime
     events = await _split_events(db, code, "COIN" if is_coin else (market or "KR"))
     is_kr = not is_coin and market in ("KR", "")
     return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
-
-
-def _parse_dt(v: str | None, default: datetime) -> datetime:
-    """`YYYY-MM-DD HH:MM:SS` 를 받는다. 초는 버린다(PHP 도 분 단위로 정규화했다)."""
-    if not v:
-        return default
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(v.strip()[:19], fmt).replace(second=0, microsecond=0)
-        except ValueError:
-            continue
-    return default
-
-
-@router.get("/stocks/api/candle", include_in_schema=False)
-async def stocks_api_candle(request: Request):
-    """차트용 캔들 JSON. 화면이 그린 뒤 비동기로 부른다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    code = (request.query_params.get("code") or "").strip()[:32]
-    if not code:
-        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
-        return JSONResponse({"success": False, "error": "Stock code is required"},
-                            status_code=400)
-
-    now = datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
-    start = _parse_dt(request.query_params.get("start"), now - timedelta(days=30))
-    end = _parse_dt(request.query_params.get("end"), now)
-    limit = min(1000, max(1, _int_arg(request, "limit", 500)))
-    tf = (request.query_params.get("timeframe") or "1h").strip()
-    if tf not in _TIMEFRAMES:
-        tf = "1h"
-    market = _norm_market(request.query_params.get("market"))
-
-    async with db_session() as db:
-        rows = await candle_rows(db, code, market, start, end, limit, tf)
-
-    data = [
-        {k: (v.strftime("%Y-%m-%d %H:%M:%S") if k == "execution_datetime" else _num(v))
-         for k, v in r.items()}
-        for r in rows
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)},
-                        headers={"Cache-Control": "private, max-age=60"})
-
-
-@router.get("/stocks/api/executions", include_in_schema=False)
-async def stocks_api_executions(request: Request):
-    """최근 체결 JSON. `tick` 스키마의 종목별 테이블을 최신순으로 읽는다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    code = (request.query_params.get("code") or "").strip()[:32]
-    if not code:
-        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
-        return JSONResponse({"success": False, "error": "Stock code is required"},
-                            status_code=400)
-
-    limit = min(200, max(1, _int_arg(request, "limit", 100)))
-    market = _norm_market(request.query_params.get("market"))
-
-    async with db_session() as db:
-        is_coin = await _resolve_is_coin(db, code, market)
-        table = await _resolve_source(db, "tick", code, "c" if is_coin else "s")
-        if table is None:
-            return JSONResponse({"success": True, "data": [], "count": 0})
-        rows = (await db.execute(text(
-            "SELECT execution_datetime, execution_price, execution_non_volume, "
-            f"execution_ask_volume, execution_bid_volume FROM `tick`.`{table}` "
-            "ORDER BY execution_datetime DESC LIMIT :limit"), {"limit": limit})).all()
-
-    data = [
-        {"execution_datetime": r.execution_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-         "execution_price": _num(r.execution_price),
-         "execution_non_volume": _num(r.execution_non_volume),
-         "execution_ask_volume": _num(r.execution_ask_volume),
-         "execution_bid_volume": _num(r.execution_bid_volume)}
-        for r in rows
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)},
-                        headers={"Cache-Control": "private, max-age=10"})
 
 
 @router.get("/stocks/view", response_class=HTMLResponse, include_in_schema=False)

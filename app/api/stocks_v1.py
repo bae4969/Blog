@@ -85,6 +85,16 @@ async def stocks(
     return Page[StockOut](items=items, total=total, page=page, size=size, pages=pages)
 
 
+def _kst_naive(v: datetime) -> datetime:
+    """DB 안의 시각은 전부 **KST 이면서 표기가 없다**. 받은 값을 그 기준에 맞춘다.
+
+    표기가 붙어 온 값(`...+00:00`)을 그대로 비교하면 9시간 어긋난 구간을 읽는다.
+    """
+    if v.tzinfo is not None:
+        v = v.astimezone(_KST).replace(tzinfo=None)
+    return v.replace(second=0, microsecond=0)
+
+
 @router.get("/{code}/candles", response_model=list[Candle], summary="캔들")
 async def candles(
     code: str,
@@ -92,7 +102,12 @@ async def candles(
     timeframe: str = Query("1h", description=f"{', '.join(_TIMEFRAMES)}"),
     limit: int = Query(500, ge=1, le=_MAX_CANDLES),
     days: int = Query(30, ge=1, le=3650, description="지금부터 거슬러 올라갈 일수"),
+    start: datetime | None = Query(None, description="구간 시작. 주면 days 를 대신한다"),
+    end: datetime | None = Query(None, description="구간 끝. 기본은 지금"),
 ):
+    """⚠️ `start`/`end` 는 차트가 **과거로 거슬러 올라갈 때** 쓴다. `days` 만으로는 지금부터
+    이어진 구간밖에 못 잡아서, 무한 스크롤이 이미 받은 것보다 더 옛 구간을 지목할 수 없다.
+    """
     if timeframe not in _TIMEFRAMES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                             f"timeframe 은 {_TIMEFRAMES} 중 하나여야 합니다")
@@ -100,8 +115,11 @@ async def candles(
     #    (`db/session.py` 가 세션 TZ 를 +09:00 으로 못박는다). `datetime.now()` 를 쓰면
     #    조회 구간이 9시간 어긋나 화면과 다른 캔들이 나간다 — 실제로 그렇게 짰다가
     #    옛 API 와 종가·저가가 달라져서 잡았다(2026-08-19).
-    end = datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
-    start = end - timedelta(days=days)
+    end = _kst_naive(end) if end else datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
+    start = _kst_naive(start) if start else end - timedelta(days=days)
+    if start >= end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "start 는 end 보다 앞서야 합니다")
 
     async with db_session() as db:
         rows = await candle_rows(db, code[:32], _norm_market(market), start, end, limit, timeframe)
