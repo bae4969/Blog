@@ -27,6 +27,7 @@ from app.core.security import (
     fetch_public_key,
     refresh_session,
 )
+from app.api.stocks_v1 import router as api_stocks_router
 from app.api.v1 import router as api_v1_router
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
@@ -114,7 +115,8 @@ for _sub in ("css", "js", "res", "vendor", "uploads"):
     if _dir.is_dir():
         app.mount(f"/{_sub}", StaticFiles(directory=_dir), name=f"public-{_sub}")
 
-app.include_router(api_v1_router)  # /api/v1/* — 외부에 내주는 읽기 API
+app.include_router(api_v1_router)      # /api/v1/* — 블로그 읽기
+app.include_router(api_stocks_router)  # /api/v1/stocks/* — 종목·캔들·체결
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트
