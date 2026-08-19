@@ -13,11 +13,13 @@ import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core import blog_user
 from app.core.config import settings
 from app.core.security import (
     attach_session,
@@ -25,6 +27,7 @@ from app.core.security import (
     fetch_public_key,
     refresh_session,
 )
+from app.api.v1 import router as api_v1_router
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
 from app.ui.routes import router as ui_router
@@ -47,9 +50,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     lifespan=lifespan,
+    # ⚠️ 기본 경로는 계속 닫아 둔다. 아래에서 **관리자에게만** 같은 것을 내준다 —
+    #    스키마는 어떤 자원이 어떤 파라미터를 받는지를 통째로 알려주는 지도라,
+    #    인터넷에 그냥 열어 두지 않는다는 방침은 그대로다(인증 API 와 같다).
     docs_url=None,
     redoc_url=None,
-    # 인증 API 와 같은 방침 — 스키마를 인터넷에 그냥 내주지 않는다.
     openapi_url=None,
 )
 
@@ -109,10 +114,35 @@ for _sub in ("css", "js", "res", "vendor", "uploads"):
     if _dir.is_dir():
         app.mount(f"/{_sub}", StaticFiles(directory=_dir), name=f"public-{_sub}")
 
+app.include_router(api_v1_router)  # /api/v1/* — 외부에 내주는 읽기 API
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트
 app.include_router(backtest_router) # /stocks/api/* — 포트폴리오·프리셋 (엔진·화면은 아직)
+
+
+# ── API 문서 — 관리자만 ──────────────────────────────────────────────
+#
+# `/api/v1` 을 만들면서 스키마가 생겼는데, 그걸 볼 수단이 없으면 소비자가 코드를 읽어야
+# 한다. 그렇다고 공개하면 위 주석의 이유로 곤란하다 — 그래서 등급으로 가른다.
+
+
+def _require_admin_docs(request: Request) -> None:
+    """관리자(0·1)가 아니면 문서가 **있다는 사실도** 알리지 않는다 — 403 이 아니라 404."""
+    if blog_user.level_of(getattr(request.state, "user", None)) > 1:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+
+@app.get("/api/openapi.json", include_in_schema=False)
+async def openapi_schema(request: Request):
+    _require_admin_docs(request)
+    return JSONResponse(app.openapi())
+
+
+@app.get("/api/docs", include_in_schema=False)
+async def api_docs(request: Request):
+    _require_admin_docs(request)
+    return get_swagger_ui_html(openapi_url="/api/openapi.json", title=f"{settings.app_name} API")
 
 
 @app.get("/favicon.ico", include_in_schema=False)

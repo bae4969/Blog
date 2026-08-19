@@ -43,23 +43,8 @@ templates.env.filters["thumb_src"] = thumbnail.src
 _KST = timezone(timedelta(hours=9))
 
 
-def _user_level(user: AuthUser | None) -> int:
-    """중앙 auth 의 역할 → 옛 블로그 등급.
-
-    ⚠️ 등급은 낮을수록 권한이 높다. auth 는 role 문자열(root/admin/…)을 주고 블로그는
-    숫자를 쓰므로 여기서 한 번만 옮긴다. 비로그인은 4(visitor) — PHP `Auth.php:122` 와 같다.
-    """
-    if user is None:
-        return settings.anonymous_level
-    if "root" in user.roles:
-        return 0
-    if "admin" in user.roles:
-        return 1
-    if "poster" in user.roles:
-        return 2
-    if "member" in user.roles:
-        return 3
-    return settings.anonymous_level
+#: 등급 매핑은 `app/core/blog_user.py` 로 옮겼다 — API 도 같은 값을 봐야 한다.
+_user_level = blog_user.level_of
 
 
 @router.get("/", include_in_schema=False)

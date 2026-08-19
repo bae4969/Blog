@@ -1,0 +1,28 @@
+# CI 러너 전용 — **런타임에는 쓰지 않는다.**
+#
+# 왜 따로 있나:
+#   운영·테스트 컨테이너는 공용 이미지(`fastapi-py312`)가 fastapi·sqlalchemy 같은 것을
+#   이미 들고 있어서, `requirements-api.txt` 에는 **그 이미지에 없는 것만**(nh3) 적는다.
+#   그런데 GitHub 호스팅 러너에는 그 이미지가 없다 — 맨 python 이다. 그래서 `tests/` 를
+#   돌리려면 여기에 런타임 의존성을 다시 적어야 한다.
+#
+# ⚠️ 이 목록이 빠지면 CI 가 `ModuleNotFoundError` 로 죽는다. 2026-08-17 에 템플릿 검사가
+#    jinja2 없이 죽은 것과 **같은 함정**이다(그때는 한 줄만 더하고 넘어갔다).
+#    앱이 새 라이브러리를 쓰기 시작하면 여기도 함께 늘려야 한다.
+#
+# ⚠️ 버전을 고정하지 않는다. 여기는 **문법·계약이 깨졌는지** 보는 자리라 최신으로 도는
+#    편이 낫고, 실제로 배포되는 버전은 공용 이미지가 정한다.
+
+# 앱이 임포트 시점에 필요로 하는 것
+fastapi
+pydantic
+pydantic-settings
+SQLAlchemy
+aiomysql
+PyJWT
+python-multipart      # 폼 라우트(Form(...))가 있으면 임포트 단계에서 요구한다
+jinja2                # 템플릿 컴파일 검사에도 쓰인다
+
+# 테스트 도구
+pytest
+httpx                 # fastapi.testclient 가 쓴다
