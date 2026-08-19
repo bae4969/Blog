@@ -76,59 +76,16 @@ async def blog_index(request: Request):
     user: AuthUser | None = getattr(request.state, "user", None)
     level = _user_level(user)
 
-    page = max(1, _int_arg(request, "page", 1))
+    # 목록 자체는 JS 가 가져가지만, 이 값들은 **껍데기**에 여전히 필요하다 —
+    # 사이드바가 선택된 카테고리를 표시하고 검색창에 입력값을 되살린다.
     category_id = _int_arg(request, "category_index", -1)
     category_id = category_id if category_id > 0 else None
     search = (request.query_params.get("search_string") or "").strip()
 
-    per_page = settings.posts_per_page
-
     async with db_session() as db:
-        where = [Category.category_read_level >= level]
-        if level > 1:
-            where.append(Post.posting_state == 0)
-        if category_id is not None:
-            where.append(Post.category_index == category_id)
-        if search:
-            where.append(Post.posting_title.like(f"%{search}%"))
-
-        total = (
-            await db.execute(
-                select(func.count())
-                .select_from(Post)
-                .join(Category, Category.category_index == Post.category_index)
-                .where(*where)
-            )
-        ).scalar() or 0
-
-        pages = max(1, (total + per_page - 1) // per_page)
-        page = min(page, pages)
-
-        rows = (
-            await db.execute(
-                # 본문(posting_content)은 빼고 읽는다 — 목록에 필요 없고 mediumtext 라 무겁다.
-                select(
-                    Post.posting_index,
-                    Post.posting_title,
-                    Post.posting_summary,
-                    Post.posting_thumbnail,
-                    Post.posting_read_cnt,
-                    Post.posting_state,
-                    Post.posting_first_post_datetime,
-                    Post.posting_last_edit_datetime,
-                    Category.category_name,
-                    Category.category_index,
-                    User.user_id,
-                )
-                .select_from(Post)
-                .join(Category, Category.category_index == Post.category_index)
-                .outerjoin(User, User.user_index == Post.user_index)
-                .where(*where)
-                .order_by(Post.posting_index.desc())
-                .limit(per_page)
-                .offset((page - 1) * per_page)
-            )
-        ).all()
+        # ⚠️ 글 목록은 여기서 읽지 않는다(2026-08-19). `/js/blog_list.js` 가
+        #    `/api/v1/posts` 로 가져간다 — 서버가 또 조회하면 같은 쿼리를 두 번 도는 셈이다.
+        #    남은 것은 **껍데기에 필요한 것**뿐이다: 사이드바 카테고리와 방문자 수.
 
         categories = (
             await db.execute(
@@ -162,13 +119,9 @@ async def blog_index(request: Request):
         {
             "user": user,
             "level": level,
-            "posts": rows,
             "categories": categories,
             "category_id": category_id,
             "search": search,
-            "page": page,
-            "pages": pages,
-            "total": total,
             "visitor_count": visitor_count,
             "auth_public_url": settings.auth_public_url,
             "contact_email": settings.contact_email,
