@@ -97,6 +97,9 @@
     /** 페이저 — 현재 쪽 좌우 4개 + 첫·마지막, 끊기면 …. 서버 규칙과 같다. */
     function renderPager(state, pages) {
         pagerEl.innerHTML = '';
+        // ⚠️ 비워 두는 것만으로는 부족하다. `.pagination` 은 `margin-top: 20px` 이라
+        //    빈 채로 남으면 한 쪽짜리 목록 밑에 여백만 생긴다(서버 렌더는 아예 안 그렸다).
+        pagerEl.style.display = pages > 1 ? '' : 'none';
         if (pages <= 1) return;
 
         var start = Math.max(1, state.page - 4);

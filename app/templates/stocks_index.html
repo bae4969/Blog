@@ -28,28 +28,8 @@
 {%- endif -%}
 {%- endmacro %}
 
-{% macro qty(v) -%}
-{#- 상장주식수·발행량. PHP 는 시가총액과 달리 억·만을 **소수 1자리**로 찍는다. -#}
-{%- if not v -%}0
-{%- elif v >= 1e16 -%}{{ '{:,.2f}'.format(v / 1e16) }}경
-{%- elif v >= 1e12 -%}{{ '{:,.2f}'.format(v / 1e12) }}조
-{%- elif v >= 1e8 -%}{{ '{:,.1f}'.format(v / 1e8) }}억
-{%- elif v >= 1e4 -%}{{ '{:,.1f}'.format(v / 1e4) }}만
-{%- else -%}{{ '{:,.0f}'.format(v) }}
-{%- endif -%}
-{%- endmacro %}
-
-{% macro amt(v) -%}
-{#- 거래대금. 시가총액(`won`)과 달리 해·경·조를 **소수 1자리**로 찍는다. -#}
-{%- if not v -%}0
-{%- elif v >= 1e20 -%}{{ '{:,.1f}'.format(v / 1e20) }}해
-{%- elif v >= 1e16 -%}{{ '{:,.1f}'.format(v / 1e16) }}경
-{%- elif v >= 1e12 -%}{{ '{:,.1f}'.format(v / 1e12) }}조
-{%- elif v >= 1e8 -%}{{ '{:,.0f}'.format(v / 1e8) }}억
-{%- elif v >= 1e4 -%}{{ '{:,.0f}'.format(v / 1e4) }}만
-{%- else -%}{{ '{:,.0f}'.format(v) }}
-{%- endif -%}
-{%- endmacro %}
+{# 상장주식수(`qty`)·거래대금(`amt`) 포맷은 `/js/stocks_list.js` 로 옮겼다 — 표와 TOP10
+   을 JS 가 그리므로 여기서는 더 쓰지 않는다. 시가총액(`won`)만 통계 바가 아직 쓴다. #}
 
 {% macro market_symbol(grp) -%}
 {#-
@@ -85,14 +65,31 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="stocks-container">
+{#
+  ⚠️ **표·페이저·거래대금 TOP10 은 서버가 그리지 않는다**(2026-08-19). `/js/stocks_list.js`
+     가 `/api/v1/stocks*` 를 읽어 채운다 — 블로그 목록에 이은 SPA 2단계다.
+
+  서버에 남긴 것: 시장 통계 바·검색폼·포트폴리오 TOP10. 통계 바는 **탭을 바꿔도 내용이
+  같고**(구독 종목 수·시가총액 합계) 인라인 SVG 3종을 들고 있어, JS 로 옮기면 아이콘
+  마크업만 두 벌이 된다. JS 는 `active` 만 옮긴다.
+
+  ⚠️ 기본 탭은 **시간대에 따라 다르다**(`_default_market`: 평일 08~18시 KST 면 KR).
+     JS 가 그 규칙을 다시 구현하면 두 곳이 갈라지므로, 서버가 정한 값을 `data-market` 으로
+     넘겨받는다.
+#}
+<div class="stocks-container" id="stocksRoot" data-market="{{ market }}">
 
     {# 시장별 통계 — 가로 배치. 누르면 그 시장으로 필터된다. #}
     <div class="market-stats-horizontal">
         {% for s in stats %}
         {% if s.grp in ('KR', 'US', 'COIN') %}
+        {#
+          ⚠️ 예전의 `onclick="location.href=…"` 을 뺐다. 인라인 핸들러는 HTML 파싱 시점에
+             달려서 **JS 가 나중에 등록하는 리스너보다 먼저** 실행된다 — 가로채려 해도
+             그냥 이동해 버린다. 이동은 `stocks_list.js` 가 맡는다.
+        #}
         <div class="market-stat-item-h market-{{ s.grp | lower }} {% if market == s.grp %}active{% endif %}"
-             onclick="location.href='/stocks?market={{ s.grp }}'">
+             data-group="{{ s.grp }}">
             <div class="market-name">{{ market_symbol(s.grp) }}<span>{{ s.label }}</span></div>
             <div class="market-info">
                 <span class="market-count">{{ '{:,}'.format(s.cnt) }}종목</span>
@@ -129,83 +126,17 @@
                         <th>유형</th>
                         <th>현재가</th>
                         <th>시가총액</th>
-                        <th>{{ '총 발행량' if market == 'COIN' else '상장주식수' }}</th>
+                        {# 코인 탭에서는 "총 발행량" 이 된다. 탭이 JS 로 바뀌므로 JS 도 이걸 고친다. #}
+                        <th id="stockQtyHead">{{ '총 발행량' if market == 'COIN' else '상장주식수' }}</th>
                     </tr>
                 </thead>
-                <tbody>
-                {% for r in rows %}
-                    {% set is_us = r.market in ('NYSE', 'NASDAQ', 'AMEX') %}
-                    {% set is_coin = r.stock_type == 'COIN' %}
-                    {# 최신 종가가 있으면 그걸 쓴다 — stock_price 는 갱신이 늦다(PHP 와 같다). #}
-                    {% set price = closes.get(r.code, r.price) or 0 %}
-                    <tr class="stock-row"
-                        onclick="location.href='/stocks/view?code={{ r.code | urlencode }}{% if is_coin %}&market=COIN{% endif %}'">
-                        <td class="stock-name-cell">
-                            <div class="stock-name-kr">{{ r.name_kr or r.code }}</div>
-                            {% if r.name_en %}<div class="stock-name-en">{{ r.name_en }}</div>{% endif %}
-                        </td>
-                        <td class="stock-code">{{ r.code }}</td>
-                        <td><span class="market-badge market-{{ (r.market or '') | lower }}">{{ r.market }}</span></td>
-                        <td><span class="type-badge type-{{ (r.stock_type or '') | lower }}">{{ r.stock_type or '' }}</span></td>
-                        <td class="stock-price">
-                            {%- if is_us -%}${{ '{:,.2f}'.format(price) }}
-                            {%- else -%}{{ '{:,.0f}'.format(price) }}원
-                            {%- endif -%}
-                        </td>
-                        <td class="stock-cap">
-                            {%- if is_us -%}${{ '{:,.2f}'.format((r.cap or 0) / 1e9) }}B
-                            {%- else -%}{{ won(r.cap or 0) }}
-                            {%- endif -%}
-                        </td>
-                        <td>{{ qty(r.quantity or 0) }}</td>
-                    </tr>
-                {% else %}
-                    <tr><td colspan="7" class="no-data">조회된 종목이 없습니다.</td></tr>
-                {% endfor %}
-                </tbody>
+                {# 행은 `/js/stocks_list.js` 가 채운다. #}
+                <tbody id="stockRows"></tbody>
             </table>
         </div>
 
-        {#
-          페이지 번호는 현재 쪽 기준 ±4 만 펴고, 잘린 쪽 끝에는 첫·마지막 쪽과 `…` 을 둔다
-          (블로그 목록과 같은 규칙이다).
-          ⚠️ 현재 쪽은 `page-link page-current` **두 클래스**를 다 받아야 한다 —
-             `page-link` 가 버튼 모양을 주므로 하나만 주면 글자만 덩그러니 남는다.
-        #}
-        {% if total_pages > 1 %}
-        {% macro q(p) -%}
-            {%- set parts = [] -%}
-            {%- if p > 1 %}{% set _ = parts.append('page=' ~ p) %}{% endif -%}
-            {%- if market %}{% set _ = parts.append('market=' ~ market) %}{% endif -%}
-            {%- if search %}{% set _ = parts.append('search=' ~ search | urlencode) %}{% endif -%}
-            {{- '?' ~ parts | join('&') if parts else '' -}}
-        {%- endmacro %}
-        {% set start = [1, page - 4] | max %}
-        {% set end = [total_pages, page + 4] | min %}
-        <div class="pagination">
-            {% if page > 1 %}<a href="{{ q(page - 1) }}" class="page-link">←</a>{% endif %}
-
-            {% if start > 1 %}
-                <a href="{{ q(1) }}" class="page-link">1</a>
-                {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
-            {% endif %}
-
-            {% for p in range(start, end + 1) %}
-                {% if p == page %}
-                <span class="page-link page-current">{{ p }}</span>
-                {% else %}
-                <a href="{{ q(p) }}" class="page-link">{{ p }}</a>
-                {% endif %}
-            {% endfor %}
-
-            {% if end < total_pages %}
-                {% if end < total_pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
-                <a href="{{ q(total_pages) }}" class="page-link">{{ total_pages }}</a>
-            {% endif %}
-
-            {% if page < total_pages %}<a href="{{ q(page + 1) }}" class="page-link">→</a>{% endif %}
-        </div>
-        {% endif %}
+        {# 페이저도 JS 가 채운다. 규칙(현재 쪽 ±4, 양끝에 첫·마지막과 `…`)은 그대로다. #}
+        <div class="pagination" id="stockPager"></div>
     </div>
 
     {#
@@ -215,7 +146,8 @@
          테이블들을 UNION 해 기간 거래대금을 계산한다. 자리만 두고 안내한다.
     #}
     <div class="stocks-sidebar-right">
-        <form method="get" action="/stocks" class="stocks-search-bar sidebar-search">
+        {# 폼은 그대로 둔다 — JS 가 submit 을 가로채고, 못 가로채면 서버 이동이라도 된다. #}
+        <form method="get" action="/stocks" class="stocks-search-bar sidebar-search" id="stockSearchForm">
             <input type="hidden" name="market" value="{{ market }}">
             <input type="text" name="search" value="{{ search }}" placeholder="종목명 또는 코드 검색...">
             <button type="submit" class="search-btn">
@@ -229,29 +161,8 @@
 
         <div class="top10-section">
             <h3>거래대금 TOP 10</h3>
-            <div class="top10-list">
-                {% for s in top_stocks %}
-                {% set us = s.stock_market in ('NYSE', 'NASDAQ', 'AMEX') %}
-                <div class="top10-item"
-                     onclick="location.href='/stocks/view?code={{ s.stock_code | urlencode }}{% if s.stock_market == 'Bithumb' %}&market=COIN{% endif %}'">
-                    <div class="top10-rank">{{ loop.index }}</div>
-                    <div class="top10-info">
-                        <div class="top10-name">{{ s.stock_name_kr }}</div>
-                        <div class="top10-code">{{ s.stock_code }}</div>
-                    </div>
-                    <div class="top10-value">
-                        <div class="top10-primary">
-                            {%- if us -%}${{ '{:,.2f}'.format(s.stock_price or 0) }}
-                            {%- else -%}{{ '{:,.0f}'.format(s.stock_price or 0) }}원
-                            {%- endif -%}
-                        </div>
-                        <div class="top10-secondary">{{ amt(s.total_amount or 0) }}</div>
-                    </div>
-                </div>
-                {% else %}
-                <div class="top10-empty">데이터가 없습니다.</div>
-                {% endfor %}
-            </div>
+            {# 탭을 바꾸면 내용이 바뀐다 — JS 가 `/api/v1/stocks/top` 으로 채운다. #}
+            <div class="top10-list" id="stockTop10"></div>
         </div>
 
         <div class="top10-section">
@@ -284,16 +195,7 @@
     </div>
 </div>
 
-<script>
-// 보던 시장 탭을 기억해 둔다 — 상세 화면의 "목록으로"(goBackToStockList)가 이걸 읽어
-// 같은 탭으로 돌아온다. 이 스크립트가 없으면 항상 기본 탭으로 튕긴다.
-(function () {
-    const m = (new URLSearchParams(location.search).get('market') || '').toUpperCase();
-    if (m === 'KR' || m === 'US' || m === 'COIN') {
-        sessionStorage.setItem('stock_market_preference', m);
-    } else {
-        sessionStorage.removeItem('stock_market_preference');
-    }
-})();
-</script>
+{# 보던 시장 탭 기억(`stock_market_preference`)도 stocks_list.js 로 옮겼다 — 탭이 이제
+   페이지 이동 없이 바뀌므로, 주소가 바뀔 때마다 다시 써야 한다. #}
+<script src="/js/stocks_list.js?v={{ static_v }}" defer></script>
 {% endblock %}
