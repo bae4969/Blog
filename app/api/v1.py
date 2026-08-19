@@ -8,14 +8,25 @@
 - `level > 1` 이면 `posting_state == 0` — 관리자(0·1)가 아니면 숨긴 글은 안 보인다.
 """
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
-from sqlalchemy import func, select
+import logging
 
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from sqlalchemy import func, select, text
+
+from app.api.deps import writer
 from app.core import blog_user, thumbnail
-from app.core.sanitize import sanitize
+from app.core.sanitize import (
+    clean_title,
+    make_summary,
+    sanitize,
+    sanitize_for_save,
+    validate_thumbnail,
+)
 from app.db.models import Category, Post, User
 from app.db.session import db_session
-from app.schemas import CategoryOut, Page, PostDetail, PostSummary
+from app.schemas import CategoryOut, Page, PostCreate, PostDetail, PostSummary, PostUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["blog"])
 
@@ -138,3 +149,131 @@ async def post(request: Request, post_id: int):
     # ⚠️ DB 에는 정화 전 원본이 들어 있다. 여기서 거르지 않으면 그대로 XSS 가 된다
     #    (화면도 출력 시점에 `sanitize()` 를 거친다).
     return PostDetail(**base.model_dump(), content=sanitize(row.posting_content))
+
+
+# ── 쓰기 ─────────────────────────────────────────────────────────────
+#
+# ⚠️ **Bearer 토큰만 받는다.** 이유는 `app/api/deps.py` 참조 — 쿠키를 받으면 CSRF 를
+#    따로 막아야 하는데, 브라우저는 Authorization 헤더를 자동으로 붙이지 않으므로
+#    Bearer 전용이면 그 위험 자체가 없다.
+#
+# 권한 규칙은 화면과 같다. 다르면 API 로 우회해 화면에서 못 하는 일을 하게 된다:
+#   작성 — 블로그 계정 있음 + 작성 제한 안 걸림 + 카테고리 쓰기 등급 통과
+#   수정 — **소유자만**(관리자도 남의 글은 못 고친다. 화면이 그렇다)
+#   숨김·복구 — 소유자 **또는** 그 카테고리에 쓸 수 있는 등급
+
+
+async def _load_for_write(db, post_id: int):
+    row = (await db.execute(
+        text("SELECT user_index, category_index FROM posting_list WHERE posting_index = :i"),
+        {"i": post_id},
+    )).first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "글을 찾을 수 없습니다")
+    return int(row[0]), int(row[1])
+
+
+async def _check_category(db, level: int, category_id: int) -> None:
+    if not await blog_user.can_write_category(db, level, category_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "그 카테고리에 쓸 수 있는 등급이 아닙니다")
+
+
+@router.post("/posts", response_model=PostDetail, status_code=status.HTTP_201_CREATED,
+             summary="글 작성")
+async def create_post(request: Request, body: PostCreate):
+    async with db_session() as db:
+        me = await writer(db, request)
+        await _check_category(db, me.level, body.category_id)
+
+        title = clean_title(body.title)
+        if not title:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "제목이 비었습니다")
+        content = sanitize_for_save(body.content)
+        thumb = thumbnail.store(validate_thumbnail(body.thumbnail))
+
+        res = await db.execute(
+            text("INSERT INTO posting_list "
+                 "(posting_title, posting_content, posting_summary, posting_thumbnail, "
+                 " category_index, user_index, posting_first_post_datetime) "
+                 "VALUES (:t, :c, :s, :th, :cat, :u, NOW())"),
+            {"t": title, "c": content, "s": make_summary(content), "th": thumb,
+             "cat": body.category_id, "u": me.user_index},
+        )
+        new_id = res.lastrowid
+        # 작성 수를 함께 올린다 — 이게 빠지면 제한이 영원히 안 걸린다(화면과 같다).
+        await db.execute(
+            text("UPDATE user_list SET user_posting_count = user_posting_count + 1 "
+                 "WHERE user_index = :u"),
+            {"u": me.user_index},
+        )
+        await db.commit()
+
+    logger.info("API 글 작성: user=%s id=%s", me.user_id, new_id)
+    return await post(request, new_id)
+
+
+@router.patch("/posts/{post_id}", response_model=PostDetail, summary="글 수정")
+async def update_post(request: Request, post_id: int, body: PostUpdate):
+    async with db_session() as db:
+        me = await writer(db, request)
+        owner, current_cat = await _load_for_write(db, post_id)
+        # ⚠️ 소유자만. 화면도 관리자에게 남의 글 수정 폼을 열어 주지 않는다.
+        if owner != me.user_index:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "자기 글만 수정할 수 있습니다")
+
+        cat = body.category_id if body.category_id is not None else current_cat
+        await _check_category(db, me.level, cat)
+
+        sets, params = ["category_index = :cat"], {"cat": cat, "i": post_id}
+        if body.title is not None:
+            title = clean_title(body.title)
+            if not title:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "제목이 비었습니다")
+            sets.append("posting_title = :t"); params["t"] = title
+        if body.content is not None:
+            content = sanitize_for_save(body.content)
+            sets += ["posting_content = :c", "posting_summary = :s"]
+            params |= {"c": content, "s": make_summary(content)}
+        if body.thumbnail is not None:
+            sets.append("posting_thumbnail = :th")
+            params["th"] = thumbnail.store(validate_thumbnail(body.thumbnail))
+
+        # 여기서는 수정 시각을 **일부러 갱신한다** — 실제로 글을 고친 것이므로.
+        sets.append("posting_last_edit_datetime = NOW()")
+        await db.execute(
+            text(f"UPDATE posting_list SET {', '.join(sets)} WHERE posting_index = :i"), params)
+        await db.commit()
+
+    logger.info("API 글 수정: user=%s id=%s", me.user_id, post_id)
+    return await post(request, post_id)
+
+
+async def _set_state(request: Request, post_id: int, new_state: int) -> None:
+    async with db_session() as db:
+        me = await writer(db, request)
+        owner, cat = await _load_for_write(db, post_id)
+        # 숨김·복구는 소유자가 아니어도 그 카테고리에 쓸 수 있으면 된다(화면과 같다).
+        if owner != me.user_index and not await blog_user.can_write_category(db, me.level, cat):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "이 글을 다룰 권한이 없습니다")
+        await db.execute(
+            # ⚠️ 수정 시각을 자기 값으로 다시 넣어 자동갱신을 막는다 — 상태를 바꾼 것이지
+            #    글을 고친 것이 아니다(`ON UPDATE current_timestamp()`).
+            text("UPDATE posting_list SET posting_state = :s, "
+                 "  posting_last_edit_datetime = posting_last_edit_datetime "
+                 "WHERE posting_index = :i"),
+            {"s": new_state, "i": post_id},
+        )
+        await db.commit()
+    logger.info("API 글 상태: user=%s id=%s state=%s", me.user_id, post_id, new_state)
+
+
+@router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT, summary="글 숨김")
+async def hide_post(request: Request, post_id: int):
+    """⚠️ **지우지 않는다.** `posting_state=1` 로 숨길 뿐이라 복구할 수 있다(화면과 같다)."""
+    await _set_state(request, post_id, 1)
+
+
+@router.post("/posts/{post_id}/restore", status_code=status.HTTP_204_NO_CONTENT,
+             summary="숨긴 글 복구")
+async def restore_post(request: Request, post_id: int):
+    await _set_state(request, post_id, 0)

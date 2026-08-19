@@ -277,8 +277,11 @@ async def stocks_index(request: Request):
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
         top_stocks = await _top_by_trading_amount(db, market)
         portfolios = (await db.execute(text(
+            # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
+            #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
-            "FROM backtest_portfolio ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
+            "FROM backtest_portfolio WHERE is_public = 1 "
+            "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(
@@ -587,7 +590,9 @@ async def stocks_api_candle(request: Request):
 
     code = (request.query_params.get("code") or "").strip()[:32]
     if not code:
-        return JSONResponse({"error": "Stock code is required"}, status_code=400)
+        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
+        return JSONResponse({"success": False, "error": "Stock code is required"},
+                            status_code=400)
 
     now = datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
     start = _parse_dt(request.query_params.get("start"), now - timedelta(days=30))
@@ -618,7 +623,9 @@ async def stocks_api_executions(request: Request):
 
     code = (request.query_params.get("code") or "").strip()[:32]
     if not code:
-        return JSONResponse({"error": "Stock code is required"}, status_code=400)
+        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
+        return JSONResponse({"success": False, "error": "Stock code is required"},
+                            status_code=400)
 
     limit = min(200, max(1, _int_arg(request, "limit", 100)))
     market = _norm_market(request.query_params.get("market"))

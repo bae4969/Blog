@@ -118,3 +118,124 @@ class TestCandleTimeBase:
         assert _KST == timezone(timedelta(hours=9))
         gap = datetime.now(_KST).replace(tzinfo=None) - datetime.now(timezone.utc).replace(tzinfo=None)
         assert timedelta(hours=8, minutes=59) < gap < timedelta(hours=9, minutes=1)
+
+
+class TestWriteIsBearerOnly:
+    """⚠️ 쓰기는 **Bearer 토큰만** 받는다 — 이게 CSRF 방어의 전부다.
+
+    쿠키는 브라우저가 요청마다 알아서 붙이므로, 쿠키 인증 쓰기를 열면 남의 사이트가
+    사용자의 쿠키를 업고 글을 쓰게 할 수 있다. `Authorization` 헤더는 자동으로 붙지
+    않으니 Bearer 전용이면 그 위험 자체가 없다.
+
+    ⚠️ 이 테스트가 깨지면 **쿠키로 쓰기가 뚫린 것**이다. DB 없이 401 에서 판정되므로
+       CI 에서도 돈다.
+    """
+
+    WRITES = [
+        ("post", "/api/v1/posts"),
+        ("patch", "/api/v1/posts/1"),
+        ("delete", "/api/v1/posts/1"),
+        ("post", "/api/v1/posts/1/restore"),
+    ]
+
+    @staticmethod
+    def _send(client, method, url, **kw):
+        # ⚠️ `client.delete(json=...)` 는 httpx 시그니처상 못 쓴다(DELETE 는 본문이
+        #    없다고 본다). 네 메서드를 한 줄로 다루려면 request() 를 써야 한다.
+        return client.request(method.upper(), url, json={"title": "x", "category_id": 1}, **kw)
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_토큰_없으면_401(self, client, method, url):
+        assert self._send(client, method, url).status_code == 401
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_쿠키만으로는_401(self, client, method, url):
+        """세션 쿠키가 있어도 헤더가 없으면 거절한다."""
+        # ⚠️ 쿠키·헤더 값은 ASCII 여야 한다 — 한글을 넣으면 httpx 가 인코딩에서 죽는다.
+        assert self._send(client, method, url, cookies={"session": "dummy"}).status_code == 401
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_401_은_WWW_Authenticate_를_준다(self, client, method, url):
+        assert self._send(client, method, url).headers.get("www-authenticate") == "Bearer"
+
+    def test_읽기는_토큰_없이도_401_이_아니다(self, client):
+        """읽기까지 막으면 공개 블로그가 아니게 된다 — 여기서 401 이면 회귀다."""
+        assert client.get("/api/v1/posts").status_code != 401
+
+
+class TestWriteSchema:
+    """입력 검증 — 핸들러(=DB)에 닿기 전에 걸러야 하는 것들."""
+
+    @pytest.mark.parametrize("body", [
+        {},                                    # category_id 없음
+        {"category_id": 1},                    # title 없음
+        {"title": "", "category_id": 1},       # 빈 제목
+        {"title": "x" * 256, "category_id": 1},  # 제목 상한 초과
+    ])
+    def test_잘못된_본문은_422(self, client, body):
+        r = client.post("/api/v1/posts", json=body,
+                        headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
+
+
+class TestBacktestRoutes:
+    """`/api/v1/backtest` — 실행은 공개, 프리셋은 Bearer."""
+
+    def test_등록된_경로(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/backtest/run",
+                "/api/v1/backtest/presets",
+                "/api/v1/backtest/presets/{preset_id}"} <= paths
+
+    @pytest.mark.parametrize("body", [
+        {},                                                     # stocks 없음
+        {"stocks": [{"code": "005930"}]},                       # 날짜 없음
+        {"stocks": [{"code": "005930"}], "startDate": "2026-1-1",
+         "endDate": "2026-06-30"},                              # 날짜 형식
+    ])
+    def test_잘못된_입력은_422(self, client, body):
+        assert client.post("/api/v1/backtest/run", json=body).status_code == 422
+
+    @pytest.mark.parametrize("method,url", [
+        ("get", "/api/v1/backtest/presets"),
+        ("delete", "/api/v1/backtest/presets/1"),
+    ])
+    def test_프리셋은_Bearer_가_필요하다(self, client, method, url):
+        assert client.request(method.upper(), url).status_code == 401
+
+    def test_실행은_토큰_없이도_401_이_아니다(self, client):
+        """계산은 공개다 — 여기서 401 이면 회귀다(422 는 입력 문제라 정상)."""
+        assert client.post("/api/v1/backtest/run", json={}).status_code != 401
+
+
+class TestPortfolioOwnership:
+    """포트폴리오 공개/비공개 — 소유권이 계정으로 바뀐 뒤의 계약.
+
+    ⚠️ 예전에는 IP 를 소유권 근거로 썼는데 앞단이 진짜 IP 를 안 넘겨 **모두가 같은
+       주인**이었다. 지금은 계정이다. 이 경계가 무너지면 남의 투자 조합이 노출되거나
+       남이 내 포트폴리오를 고칠 수 있다.
+    """
+
+    def test_등록된_경로(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/backtest/portfolios",
+                "/api/v1/backtest/portfolios/{portfolio_id}"} <= paths
+
+    @pytest.mark.parametrize("method,url", [
+        ("get", "/api/v1/backtest/portfolios"),
+        ("patch", "/api/v1/backtest/portfolios/1"),
+    ])
+    def test_토큰_없으면_401(self, client, method, url):
+        r = client.request(method.upper(), url, json={"is_public": True})
+        assert r.status_code == 401
+
+    def test_쿠키만으로는_401(self, client):
+        """읽기와 달리 내 포트폴리오 목록은 쓰기와 같은 관문을 쓴다."""
+        r = client.get("/api/v1/backtest/portfolios", cookies={"session": "dummy"})
+        assert r.status_code == 401
+
+    @pytest.mark.parametrize("body", [{}, {"is_public": "네"}, {"public": True}])
+    def test_잘못된_본문은_422(self, client, body):
+        r = client.patch("/api/v1/backtest/portfolios/1", json=body,
+                         headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422

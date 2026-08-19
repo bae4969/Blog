@@ -2769,6 +2769,35 @@ details[open] > .config-section-title.clickable {
     background: var(--bg-hover);
 }
 
+/* 공개/비공개 토글 — 이름 옆 작은 알약 버튼. 켜짐(공개)은 accent tint 로 표시한다.
+   ⚠️ 색만으로 상태를 말하지 않는다 — 라벨(공개/비공개)이 함께 바뀐다. */
+.portfolio-public-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 3px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-quaternary);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.portfolio-public-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--text-secondary);
+}
+
+.portfolio-public-btn.is-public {
+    background: var(--primary-bg);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
 .portfolio-name-status {
     font-size: 11px;
     color: var(--success-color, #22c55e);

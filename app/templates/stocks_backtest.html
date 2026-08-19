@@ -38,6 +38,22 @@
             </svg>
         </button>
         <span class="portfolio-name-status" id="portfolioNameStatus"></span>
+
+        {#
+          공개 토글 — **내 포트폴리오일 때만** 보인다(JS 가 portfolioMine 을 보고 켠다).
+          비로그인이 돌린 것은 주인이 없어 공개로 고정이고, 남의 것은 애초에 여기 안 뜬다.
+          ⚠️ 백테스트는 돌리기만 해도 저장되므로 로그인 사용자의 것은 비공개로 시작한다.
+             이 버튼을 눌러야 /stocks 사이드바 랭킹에 올라간다.
+        #}
+        <button type="button" class="portfolio-public-btn" id="portfolioPublicToggle"
+                style="display:none" aria-pressed="false">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="portfolioPublicIcon">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span id="portfolioPublicLabel">비공개</span>
+        </button>
     </div>
 </div>
 

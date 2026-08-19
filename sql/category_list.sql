@@ -1,5 +1,5 @@
 -- 카테고리 테이블
--- 참조: src/Models/Category.php, src/Controllers/AdminController.php
+-- 참조: app/ui/routes.py · app/ui/admin.py
 CREATE TABLE IF NOT EXISTS `category_list` (
     `category_index` TINYINT(3) UNSIGNED NOT NULL AUTO_INCREMENT,
     `category_name` TEXT NOT NULL COLLATE 'utf8mb4_general_ci',

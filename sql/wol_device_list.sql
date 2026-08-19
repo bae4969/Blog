@@ -1,5 +1,5 @@
 -- WOL(Wake-on-LAN) 장치 테이블
--- 참조: src/Models/WolDevice.php, src/Controllers/AdminController.php
+-- 참조: app/ui/admin.py
 CREATE TABLE IF NOT EXISTS `wol_device_list` (
     `wol_device_id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
     `wol_device_name` TEXT NOT NULL COLLATE 'utf8mb4_uca1400_ai_ci',
