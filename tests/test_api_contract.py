@@ -118,3 +118,61 @@ class TestCandleTimeBase:
         assert _KST == timezone(timedelta(hours=9))
         gap = datetime.now(_KST).replace(tzinfo=None) - datetime.now(timezone.utc).replace(tzinfo=None)
         assert timedelta(hours=8, minutes=59) < gap < timedelta(hours=9, minutes=1)
+
+
+class TestWriteIsBearerOnly:
+    """⚠️ 쓰기는 **Bearer 토큰만** 받는다 — 이게 CSRF 방어의 전부다.
+
+    쿠키는 브라우저가 요청마다 알아서 붙이므로, 쿠키 인증 쓰기를 열면 남의 사이트가
+    사용자의 쿠키를 업고 글을 쓰게 할 수 있다. `Authorization` 헤더는 자동으로 붙지
+    않으니 Bearer 전용이면 그 위험 자체가 없다.
+
+    ⚠️ 이 테스트가 깨지면 **쿠키로 쓰기가 뚫린 것**이다. DB 없이 401 에서 판정되므로
+       CI 에서도 돈다.
+    """
+
+    WRITES = [
+        ("post", "/api/v1/posts"),
+        ("patch", "/api/v1/posts/1"),
+        ("delete", "/api/v1/posts/1"),
+        ("post", "/api/v1/posts/1/restore"),
+    ]
+
+    @staticmethod
+    def _send(client, method, url, **kw):
+        # ⚠️ `client.delete(json=...)` 는 httpx 시그니처상 못 쓴다(DELETE 는 본문이
+        #    없다고 본다). 네 메서드를 한 줄로 다루려면 request() 를 써야 한다.
+        return client.request(method.upper(), url, json={"title": "x", "category_id": 1}, **kw)
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_토큰_없으면_401(self, client, method, url):
+        assert self._send(client, method, url).status_code == 401
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_쿠키만으로는_401(self, client, method, url):
+        """세션 쿠키가 있어도 헤더가 없으면 거절한다."""
+        # ⚠️ 쿠키·헤더 값은 ASCII 여야 한다 — 한글을 넣으면 httpx 가 인코딩에서 죽는다.
+        assert self._send(client, method, url, cookies={"session": "dummy"}).status_code == 401
+
+    @pytest.mark.parametrize("method,url", WRITES)
+    def test_401_은_WWW_Authenticate_를_준다(self, client, method, url):
+        assert self._send(client, method, url).headers.get("www-authenticate") == "Bearer"
+
+    def test_읽기는_토큰_없이도_401_이_아니다(self, client):
+        """읽기까지 막으면 공개 블로그가 아니게 된다 — 여기서 401 이면 회귀다."""
+        assert client.get("/api/v1/posts").status_code != 401
+
+
+class TestWriteSchema:
+    """입력 검증 — 핸들러(=DB)에 닿기 전에 걸러야 하는 것들."""
+
+    @pytest.mark.parametrize("body", [
+        {},                                    # category_id 없음
+        {"category_id": 1},                    # title 없음
+        {"title": "", "category_id": 1},       # 빈 제목
+        {"title": "x" * 256, "category_id": 1},  # 제목 상한 초과
+    ])
+    def test_잘못된_본문은_422(self, client, body):
+        r = client.post("/api/v1/posts", json=body,
+                        headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
