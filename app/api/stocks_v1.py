@@ -15,12 +15,13 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.db.session import db_session
-from app.schemas.stock import Candle, Execution, StockOut
+from app.schemas.stock import Candle, Execution, MarketStat, StockOut, TopStock
 from app.schemas import Page
 from app.ui.stocks import (
+    _KR_MARKETS,
     _KST,
     _latest_closes,
     _norm_market,
@@ -29,6 +30,8 @@ from app.ui.stocks import (
     _resolve_source,
     _stock_page,
     _TIMEFRAMES,
+    _top_by_trading_amount,
+    _US_MARKETS,
     candle_rows,
 )
 
@@ -43,15 +46,29 @@ def _f(v) -> float | None:
     return None if v is None else float(v)
 
 
+def _market_arg(v: str | None) -> str:
+    """`market` 질의값. 알 수 없는 값을 **조용히 넘기지 않는다.**
+
+    `_norm_market` 은 모르는 값을 빈 문자열로 만드는데, 그 빈 값이 곳에 따라 뜻이 달라
+    (`/top` 에서는 미국) 오타가 그럴듯한 오답으로 돌아온다. 여기서 끊는다.
+    """
+    m = _norm_market(v)
+    if v and not m:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="market 은 KR·US·COIN 중 하나여야 합니다")
+    return m
+
+
 @router.get("", response_model=Page[StockOut], summary="종목 목록·검색")
 async def stocks(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=_MAX_SIZE),
-    market: str | None = Query(None, description="KR·US·COIN. 비우면 전부"),
+    market: str | None = Query(None, description="KR·US·COIN. 비우면 한국+미국(코인 제외)"),
     q: str | None = Query(None, max_length=50, description="종목명·코드 부분검색"),
 ):
+    m = _market_arg(market)          # 연결을 잡기 전에 거른다
     async with db_session() as db:
-        total, rows = await _stock_page(db, _norm_market(market) or "", (q or "").strip(), page)
+        total, rows = await _stock_page(db, m, (q or "").strip(), page, size)
         # ⚠️ `stock_info.stock_price` 는 **갱신이 늦다.** 화면은 `candle` 의 최신 종가를
         #    씌워서 그리는데 API 가 그 단계를 빼먹어, 같은 종목이 화면과 API 에서 다른
         #    값으로 나갔다(2026-08-19 실측: 5/5 불일치. DB 로 판정하니 화면이 맞았다 —
@@ -63,7 +80,7 @@ async def stocks(
         StockOut(code=r.code, name_kr=r.name_kr, name_en=r.name_en, market=r.market,
                  type=r.stock_type, price=_f(closes.get(r.code, r.price)),
                  market_cap=_f(r.cap), quantity=_f(r.quantity))
-        for r in rows[:size]
+        for r in rows
     ]
     return Page[StockOut](items=items, total=total, page=page, size=size, pages=pages)
 
@@ -130,3 +147,45 @@ async def executions(
                   bid_volume=_f(r.execution_bid_volume))
         for r in rows
     ]
+
+
+@router.get("/markets", response_model=list[MarketStat], summary="시장 통계")
+async def markets():
+    """한국·미국·코인 각각의 구독 종목 수와 시가총액 합계."""
+    async with db_session() as db:
+        rows = (await db.execute(text(
+            "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
+            "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
+            "       CASE WHEN si.stock_market IN :kr THEN '한국' "
+            "            WHEN si.stock_market IN :us THEN '미국' ELSE '기타' END AS label, "
+            "       COUNT(*) AS cnt, SUM(si.stock_capitalization) AS cap "
+            "FROM KoreaInvest.stock_info si "
+            "INNER JOIN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) w "
+            "  ON si.stock_code = w.stock_code "
+            "GROUP BY grp, label "
+            "UNION ALL "
+            "SELECT 'COIN', '코인', COUNT(*), SUM(ci.coin_price * ci.coin_amount) "
+            "FROM Bithumb.coin_info ci "
+            "INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) c "
+            "  ON ci.coin_code = c.coin_code "
+            "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
+            .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
+            {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
+    return [MarketStat(group=r.grp, label=r.label, count=r.cnt, market_cap=_f(r.cap))
+            for r in rows]
+
+
+@router.get("/top", response_model=list[TopStock], summary="거래대금 상위")
+async def top(
+    # ⚠️ 기본값이 있어야 한다. 빈 값은 "전부" 가 아니라 **미국** 으로 떨어진다
+    #    (`_top_by_trading_amount` 가 KR 이 아니면 US 로 가른다).
+    market: str = Query("KR", description="KR·US·COIN"),
+    limit: int = Query(10, ge=1, le=50),
+):
+    m = _market_arg(market)          # 연결을 잡기 전에 거른다
+    async with db_session() as db:
+        rows = await _top_by_trading_amount(db, m, limit)
+    return [TopStock(code=r["stock_code"], name_kr=r["stock_name_kr"],
+                     market=r["stock_market"], price=_f(r["stock_price"]),
+                     trading_amount=_f(r["total_amount"]))
+            for r in rows]

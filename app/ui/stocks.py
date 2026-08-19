@@ -244,19 +244,17 @@ async def _top_by_trading_amount(db, market: str, limit: int = 10) -> list[dict]
 
 @router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_index(request: Request):
-    """종목 목록. 구독 중인 종목만 시가총액 순으로 보여준다."""
+    """종목 목록의 **껍데기**. 표·페이저·거래대금 TOP10 은 `/js/stocks_list.js` 가
+    `/api/v1/stocks*` 를 읽어 채운다(2026-08-19, SPA 2단계).
+
+    그래서 여기서는 목록 쿼리를 돌리지 않는다 — 특히 `_top_by_trading_amount` 는 구독
+    종목별 candle 테이블을 UNION ALL 로 훑는 무거운 쿼리라, 화면이 안 쓰는데 매번 도는
+    일이 없게 한다.
+    """
     market = _norm_market(request.query_params.get("market")) or _default_market()
     search = (request.query_params.get("search") or "").strip()[:50]
-    page = max(1, _int_arg(request, "page", 1))
 
     async with db_session() as db:
-        total, rows = await _stock_page(db, market, search, page)
-        total_pages = max(1, -(-total // _PER_PAGE))
-        if page > total_pages:                       # PHP 와 같이 범위를 넘으면 마지막 페이지로
-            page = total_pages
-            total, rows = await _stock_page(db, market, search, page)
-
-        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
         stats = (await db.execute(text(
             "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
             "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
@@ -275,7 +273,6 @@ async def stocks_index(request: Request):
             "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
             .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
-        top_stocks = await _top_by_trading_amount(db, market)
         portfolios = (await db.execute(text(
             # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
             #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
@@ -289,10 +286,8 @@ async def stocks_index(request: Request):
         "stocks_index.html",
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "rows": rows, "closes": closes, "stats": stats,
-            "top_stocks": top_stocks, "portfolios": portfolios,
-            "market": market, "markets": _MARKETS, "search": search,
-            "page": page, "total": total, "total_pages": total_pages,
+            "stats": stats, "portfolios": portfolios,
+            "market": market, "search": search,
         },
     )
 
@@ -301,9 +296,15 @@ def _level(request: Request) -> int:
     return blog_user.level_of(getattr(request.state, "user", None))
 
 
-async def _stock_page(db, market: str, search: str, page: int):
-    """(전체 건수, 해당 페이지 행). 코인과 주식은 테이블이 달라 쿼리를 나눈다."""
-    params: dict = {"limit": _PER_PAGE, "offset": (page - 1) * _PER_PAGE}
+async def _stock_page(db, market: str, search: str, page: int, per_page: int = _PER_PAGE):
+    """(전체 건수, 해당 페이지 행). 코인과 주식은 테이블이 달라 쿼리를 나눈다.
+
+    ⚠️ `per_page` 는 **여기서 LIMIT/OFFSET 에 함께 쓰인다.** 예전에는 50 으로 고정이라
+       API 가 받은 `size` 를 결과 슬라이스로만 처리했는데, 그러면 OFFSET 은 50 단위로
+       뛰고 슬라이스는 size 단위라 2쪽부터 엉뚱한 구간이 나왔다(size=20 이면 2쪽이
+       21~40 이 아니라 51~70 이었고 21~50 은 어디로도 닿을 수 없었다).
+    """
+    params: dict = {"limit": per_page, "offset": (page - 1) * per_page}
     where: list[str] = []
 
     if market == "COIN":

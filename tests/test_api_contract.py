@@ -80,6 +80,8 @@ class TestStockRoutes:
     def test_등록된_경로(self):
         paths = set(app.openapi()["paths"])
         assert {"/api/v1/stocks",
+                "/api/v1/stocks/markets",
+                "/api/v1/stocks/top",
                 "/api/v1/stocks/{code}/candles",
                 "/api/v1/stocks/{code}/executions"} <= paths
 
@@ -89,9 +91,73 @@ class TestStockRoutes:
         "/api/v1/stocks/005930/candles?limit=1001",   # 한 번에 전부 긁어가지 못하게
         "/api/v1/stocks/005930/candles?days=0",
         "/api/v1/stocks/005930/executions?limit=501",
+        "/api/v1/stocks/top?limit=51",
     ])
     def test_잘못된_입력은_422(self, client, url):
         assert client.get(url).status_code == 422
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/stocks?market=KOSPI",     # 개별 시장이 아니라 묶음 이름을 받는다
+        "/api/v1/stocks?market=zz",
+        "/api/v1/stocks/top?market=KOSPI",
+    ])
+    def test_모르는_market_은_422(self, client, url):
+        """⚠️ 모르는 `market` 을 **조용히 넘기면 안 된다.**
+
+        예전에는 `_norm_market` 이 모르는 값을 빈 문자열로 만들었는데, 그 빈 값의 뜻이
+        곳마다 달랐다 — 목록에서는 "한국+미국", `/top` 에서는 **미국**이었다. 오타가
+        404 도 422 도 아닌 **그럴듯한 오답**으로 돌아왔다.
+
+        DB 를 잡기 전에 걸러야 여기(CI, DB 없음)서도 확인할 수 있다.
+        """
+        assert client.get(url).status_code == 422
+
+
+class TestStockPaging:
+    """⚠️ `size` 는 **SQL 의 LIMIT/OFFSET 까지** 가야 한다.
+
+    처음에는 `_stock_page` 가 50 으로 고정이고 API 가 결과를 `rows[:size]` 로 자르기만
+    했다. 그러면 OFFSET 은 50 단위로 뛰고 슬라이스는 size 단위라 2쪽부터 어긋난다 —
+    `size=20&page=2` 가 21~40번이 아니라 **51~70번**을 돌려줬고, 21~50번은 어떤 쪽으로도
+    닿을 수 없었다(2026-08-19, v2.4.0 으로 이미 나간 뒤 발견).
+    """
+
+    class _FakeResult:
+        def __init__(self, rows): self._rows = rows
+        def scalar(self): return 0
+        def all(self): return self._rows
+
+    class _FakeDb:
+        """`execute` 로 넘어온 파라미터만 받아 적는다 — DB 없이 LIMIT/OFFSET 을 본다."""
+
+        def __init__(self): self.calls = []
+
+        async def execute(self, stmt, params=None):
+            self.calls.append((str(stmt), dict(params or {})))
+            return TestStockPaging._FakeResult([])
+
+    @pytest.mark.parametrize("page,per_page,offset", [(1, 20, 0), (2, 20, 20), (3, 50, 100)])
+    def test_LIMIT_OFFSET_이_size_를_따른다(self, page, per_page, offset):
+        import asyncio
+
+        from app.ui.stocks import _stock_page
+
+        db = self._FakeDb()
+        asyncio.run(_stock_page(db, "KR", "", page, per_page))
+
+        sql, params = db.calls[-1]
+        assert "LIMIT :limit OFFSET :offset" in sql
+        assert params["limit"] == per_page
+        assert params["offset"] == offset
+
+    def test_API_가_size_를_그대로_넘긴다(self):
+        import inspect
+
+        from app.api import stocks_v1
+
+        src = inspect.getsource(stocks_v1.stocks)
+        assert "page, size)" in src, "size 가 쿼리까지 안 가면 2쪽부터 구간이 어긋난다"
+        assert "rows[:size]" not in src, "슬라이스로 자르면 OFFSET 과 단위가 달라진다"
 
 
 class TestCandleTimeBase:

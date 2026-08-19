@@ -48,3 +48,26 @@ class Execution(BaseModel):
     non_volume: float | None = None
     ask_volume: float | None = None
     bid_volume: float | None = None
+
+
+class MarketStat(BaseModel):
+    """시장 묶음 통계 — 화면 상단의 한국·미국·코인 탭이 쓴다.
+
+    ⚠️ **구독 중인 종목만** 센다(`stock_last_ws_query`·`coin_last_ws_query` 와 조인).
+       전체 종목을 세면 수집하지 않는 것까지 들어가 화면 숫자와 어긋난다.
+    """
+
+    group: str = Field(description="KR·US·COIN")
+    label: str = Field(description="한국·미국·코인")
+    count: int
+    market_cap: float | None = None
+
+
+class TopStock(BaseModel):
+    """거래대금 상위. `candle` 이 종목별 테이블이라 UNION 으로 합계를 낸 결과다."""
+
+    code: str
+    name_kr: str | None = None
+    market: str | None = None
+    price: float | None = None
+    trading_amount: float | None = Field(default=None, description="기간 거래대금 합계")
