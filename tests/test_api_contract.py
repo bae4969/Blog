@@ -80,6 +80,8 @@ class TestStockRoutes:
     def test_등록된_경로(self):
         paths = set(app.openapi()["paths"])
         assert {"/api/v1/stocks",
+                "/api/v1/stocks/markets",
+                "/api/v1/stocks/top",
                 "/api/v1/stocks/{code}/candles",
                 "/api/v1/stocks/{code}/executions"} <= paths
 
@@ -89,9 +91,89 @@ class TestStockRoutes:
         "/api/v1/stocks/005930/candles?limit=1001",   # 한 번에 전부 긁어가지 못하게
         "/api/v1/stocks/005930/candles?days=0",
         "/api/v1/stocks/005930/executions?limit=501",
+        "/api/v1/stocks/top?limit=51",
+        # 구간을 거꾸로 주면 빈 목록이 아니라 잘못된 요청이다
+        "/api/v1/stocks/005930/candles?start=2026-08-02T00:00:00&end=2026-08-01T00:00:00",
+        "/api/v1/stocks/005930/candles?start=말이안되는값",
     ])
     def test_잘못된_입력은_422(self, client, url):
         assert client.get(url).status_code == 422
+
+    def test_구간을_직접_줄_수_있다(self):
+        """⚠️ 차트가 **과거로 거슬러 올라가려면** `start`/`end` 가 있어야 한다.
+
+        `days` 만 있으면 지금부터 이어진 구간밖에 못 잡아, 무한 스크롤이 이미 받은 것보다
+        더 옛 구간을 지목할 수 없다. 옛 `/stocks/api/candle` 은 이걸 갖고 있었다.
+        """
+        import inspect
+
+        from app.api import stocks_v1
+
+        params = inspect.signature(stocks_v1.candles).parameters
+        assert {"start", "end", "days"} <= set(params)
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/stocks?market=KOSPI",     # 개별 시장이 아니라 묶음 이름을 받는다
+        "/api/v1/stocks?market=zz",
+        "/api/v1/stocks/top?market=KOSPI",
+    ])
+    def test_모르는_market_은_422(self, client, url):
+        """⚠️ 모르는 `market` 을 **조용히 넘기면 안 된다.**
+
+        예전에는 `_norm_market` 이 모르는 값을 빈 문자열로 만들었는데, 그 빈 값의 뜻이
+        곳마다 달랐다 — 목록에서는 "한국+미국", `/top` 에서는 **미국**이었다. 오타가
+        404 도 422 도 아닌 **그럴듯한 오답**으로 돌아왔다.
+
+        DB 를 잡기 전에 걸러야 여기(CI, DB 없음)서도 확인할 수 있다.
+        """
+        assert client.get(url).status_code == 422
+
+
+class TestStockPaging:
+    """⚠️ `size` 는 **SQL 의 LIMIT/OFFSET 까지** 가야 한다.
+
+    처음에는 `_stock_page` 가 50 으로 고정이고 API 가 결과를 `rows[:size]` 로 자르기만
+    했다. 그러면 OFFSET 은 50 단위로 뛰고 슬라이스는 size 단위라 2쪽부터 어긋난다 —
+    `size=20&page=2` 가 21~40번이 아니라 **51~70번**을 돌려줬고, 21~50번은 어떤 쪽으로도
+    닿을 수 없었다(2026-08-19, v2.4.0 으로 이미 나간 뒤 발견).
+    """
+
+    class _FakeResult:
+        def __init__(self, rows): self._rows = rows
+        def scalar(self): return 0
+        def all(self): return self._rows
+
+    class _FakeDb:
+        """`execute` 로 넘어온 파라미터만 받아 적는다 — DB 없이 LIMIT/OFFSET 을 본다."""
+
+        def __init__(self): self.calls = []
+
+        async def execute(self, stmt, params=None):
+            self.calls.append((str(stmt), dict(params or {})))
+            return TestStockPaging._FakeResult([])
+
+    @pytest.mark.parametrize("page,per_page,offset", [(1, 20, 0), (2, 20, 20), (3, 50, 100)])
+    def test_LIMIT_OFFSET_이_size_를_따른다(self, page, per_page, offset):
+        import asyncio
+
+        from app.ui.stocks import _stock_page
+
+        db = self._FakeDb()
+        asyncio.run(_stock_page(db, "KR", "", page, per_page))
+
+        sql, params = db.calls[-1]
+        assert "LIMIT :limit OFFSET :offset" in sql
+        assert params["limit"] == per_page
+        assert params["offset"] == offset
+
+    def test_API_가_size_를_그대로_넘긴다(self):
+        import inspect
+
+        from app.api import stocks_v1
+
+        src = inspect.getsource(stocks_v1.stocks)
+        assert "page, size)" in src, "size 가 쿼리까지 안 가면 2쪽부터 구간이 어긋난다"
+        assert "rows[:size]" not in src, "슬라이스로 자르면 OFFSET 과 단위가 달라진다"
 
 
 class TestCandleTimeBase:
@@ -238,4 +320,98 @@ class TestPortfolioOwnership:
     def test_잘못된_본문은_422(self, client, body):
         r = client.patch("/api/v1/backtest/portfolios/1", json=body,
                          headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
+
+
+class TestStockPriceSource:
+    """⚠️ 종목 가격은 `stock_info.stock_price` 가 아니라 **candle 의 최신 종가**다.
+
+    `stock_price` 는 갱신이 늦어 화면과 API 가 다른 값을 내보낸 적이 있다(2026-08-19,
+    KR 5종목 전부 불일치). DB 로 판정하니 화면이 맞았다 — tick 의 최신 체결가와 종가가
+    같고 `stock_price` 만 옛값이었다.
+
+    ⚠️ 값 자체는 DB 가 있어야 확인할 수 있어 여기서는 **경로가 살아 있는지**만 본다.
+    """
+
+    def test_목록이_최신_종가를_씌운다(self):
+        import inspect
+
+        from app.api import stocks_v1
+
+        src = inspect.getsource(stocks_v1.stocks)
+        assert "_latest_closes" in src, "최신 종가 덮어쓰기가 빠졌다 — 화면과 값이 갈라진다"
+        assert "closes.get(" in src
+
+
+class TestSessionTokenBridge:
+    """⚠️ `/api/v1/auth/token` 은 **쿠키를 Bearer 로 바꿔 주는 다리**다.
+
+    화면이 `/api/v1` 을 쓰려면 이게 필요하다 — 인증 쿠키가 `httponly` 라 JS 가 토큰을
+    읽을 수 없기 때문이다. 대신 여기가 뚫리면 CSRF 방어가 통째로 무너지므로, 무엇을
+    받고 무엇을 안 받는지 고정해 둔다.
+
+    남의 사이트가 이걸 부르게 만들 수는 있지만 **응답을 읽을 수 없다**(동일 출처 정책,
+    이 서버는 CORS 허용 헤더를 안 낸다). 그래서 토큰을 손에 넣지 못한다.
+    """
+
+    def test_쿠키가_없으면_401(self, client):
+        assert client.post("/api/v1/auth/token").status_code == 401
+
+    def test_망가진_쿠키는_401(self, client):
+        from app.core.config import settings
+
+        r = client.post("/api/v1/auth/token", cookies={settings.cookie_name: "not-a-jwt"})
+        assert r.status_code == 401
+
+    def test_헤더만으로는_안_준다(self, client):
+        """⚠️ **쿠키만 본다.** 헤더를 받아 주면 남의 토큰을 되돌려 주는 통로가 하나 더 생긴다."""
+        r = client.post("/api/v1/auth/token",
+                        headers={"Authorization": "Bearer whatever"})
+        assert r.status_code == 401
+
+    def test_유효한_쿠키면_그_토큰을_준다(self, client, monkeypatch):
+        """토큰을 새로 만들지 않는다 — 이 서비스엔 서명할 열쇠가 없다(중앙 auth 가 발급)."""
+        import time
+
+        from app.api import auth_v1
+        from app.core.config import settings
+
+        exp = int(time.time()) + 600
+        monkeypatch.setattr(auth_v1, "verify_token", lambda t: {"sub": "u", "exp": exp})
+
+        r = client.post("/api/v1/auth/token", cookies={settings.cookie_name: "dummy-jwt"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["access_token"] == "dummy-jwt"
+        assert body["token_type"] == "bearer"
+        assert 0 < body["expires_in"] <= 600
+        # ⚠️ 자격증명이다. 중간 캐시에 남으면 다음 사람이 받아 간다.
+        assert r.headers.get("cache-control") == "no-store"
+
+
+class TestBacktestRoutesMoved:
+    """옛 `/stocks/api/*` 백테스트 계열을 걷어낸 자리."""
+
+    def test_새_경로가_다_있다(self):
+        paths = set(app.openapi()["paths"])
+        assert {"/api/v1/auth/token",
+                "/api/v1/backtest/date-range",
+                "/api/v1/backtest/run",
+                "/api/v1/backtest/presets",
+                "/api/v1/backtest/presets/{preset_id}",
+                "/api/v1/backtest/portfolios",
+                "/api/v1/backtest/portfolios/{portfolio_id}"} <= paths
+
+    @pytest.mark.parametrize("url", [
+        "/stocks/api/search", "/stocks/api/candle", "/stocks/api/executions",
+        "/stocks/api/date-range", "/stocks/api/portfolio", "/stocks/api/presets",
+        "/stocks/api/preset", "/stocks/api/backtest",
+    ])
+    def test_옛_경로는_사라졌다(self, client, url):
+        assert client.get(url).status_code == 404
+
+    def test_PATCH_는_바꿀_것을_줘야_한다(self, client):
+        """`is_public` 도 `name` 도 없으면 422 — 조용히 아무것도 안 하는 성공보다 낫다."""
+        r = client.patch("/api/v1/backtest/portfolios/1", json={},
+                         headers={"Authorization": "Bearer x"})
         assert r.status_code == 422

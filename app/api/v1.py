@@ -52,6 +52,7 @@ def _summary(row) -> PostSummary:
         ),
         author=row.user_id,
         read_count=row.posting_read_cnt,
+        is_hidden=bool(getattr(row, 'posting_state', 0)),
         created_at=row.posting_first_post_datetime,
         updated_at=row.posting_last_edit_datetime,
     )
@@ -101,7 +102,7 @@ async def posts(
             # 본문은 빼고 읽는다 — 목록에 필요 없고 mediumtext 라 무겁다.
             select(
                 Post.posting_index, Post.posting_title, Post.posting_summary,
-                Post.posting_thumbnail, Post.posting_read_cnt,
+                Post.posting_thumbnail, Post.posting_read_cnt, Post.posting_state,
                 Post.posting_first_post_datetime, Post.posting_last_edit_datetime,
                 Category.category_name, Category.category_index, User.user_id,
             )
@@ -131,6 +132,7 @@ async def post(request: Request, post_id: int):
             select(
                 Post.posting_index, Post.posting_title, Post.posting_summary,
                 Post.posting_content, Post.posting_thumbnail, Post.posting_read_cnt,
+                Post.posting_state,
                 Post.posting_first_post_datetime, Post.posting_last_edit_datetime,
                 Category.category_name, Category.category_index, User.user_id,
             )

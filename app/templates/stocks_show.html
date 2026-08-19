@@ -4,7 +4,7 @@
   ⚠️ **클래스·id 를 바꾸지 말 것.** 스타일은 `/css/stocks.css` 가, 동작은 `/js/stocks.js`
      가 그대로 쓴다. `stocks.js` 는 `stockChart`·`executionList`·`periodSelect` 같은 id 로
      DOM 을 찾고, `setChartType`·`loadChartData` 같은 전역 함수를 onclick 으로 받는다.
-  ⚠️ 캔들·체결은 서버에서 싣지 않는다. 화면이 먼저 뜨고 `/stocks/api/{candle,executions}`
+  ⚠️ 캔들·체결은 서버에서 싣지 않는다. 화면이 먼저 뜨고 `/api/v1/stocks/{code}/{candles,executions}`
      로 채운다(PHP 와 같다 — 렌더가 DB 를 기다리지 않게).
   ⚠️ 맨 아래 인라인 스크립트가 `stockCode` 등 전역을 정의하고, 그 **뒤에** layout 의
      `extra_js` 가 stocks.js 를 붙인다. 순서가 뒤집히면 차트가 뜨지 않는다.

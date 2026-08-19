@@ -22,13 +22,12 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
 from app.core import blog_user
-from app.core.csrf import require_internal
 from app.db.session import db_session
-from app.ui.routes import _int_arg, _shell_ctx, templates
+from app.ui.routes import _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -244,19 +243,17 @@ async def _top_by_trading_amount(db, market: str, limit: int = 10) -> list[dict]
 
 @router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_index(request: Request):
-    """종목 목록. 구독 중인 종목만 시가총액 순으로 보여준다."""
+    """종목 목록의 **껍데기**. 표·페이저·거래대금 TOP10 은 `/js/stocks_list.js` 가
+    `/api/v1/stocks*` 를 읽어 채운다(2026-08-19, SPA 2단계).
+
+    그래서 여기서는 목록 쿼리를 돌리지 않는다 — 특히 `_top_by_trading_amount` 는 구독
+    종목별 candle 테이블을 UNION ALL 로 훑는 무거운 쿼리라, 화면이 안 쓰는데 매번 도는
+    일이 없게 한다.
+    """
     market = _norm_market(request.query_params.get("market")) or _default_market()
     search = (request.query_params.get("search") or "").strip()[:50]
-    page = max(1, _int_arg(request, "page", 1))
 
     async with db_session() as db:
-        total, rows = await _stock_page(db, market, search, page)
-        total_pages = max(1, -(-total // _PER_PAGE))
-        if page > total_pages:                       # PHP 와 같이 범위를 넘으면 마지막 페이지로
-            page = total_pages
-            total, rows = await _stock_page(db, market, search, page)
-
-        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
         stats = (await db.execute(text(
             "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
             "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
@@ -275,7 +272,6 @@ async def stocks_index(request: Request):
             "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
             .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
-        top_stocks = await _top_by_trading_amount(db, market)
         portfolios = (await db.execute(text(
             # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
             #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
@@ -289,10 +285,8 @@ async def stocks_index(request: Request):
         "stocks_index.html",
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "rows": rows, "closes": closes, "stats": stats,
-            "top_stocks": top_stocks, "portfolios": portfolios,
-            "market": market, "markets": _MARKETS, "search": search,
-            "page": page, "total": total, "total_pages": total_pages,
+            "stats": stats, "portfolios": portfolios,
+            "market": market, "search": search,
         },
     )
 
@@ -301,9 +295,15 @@ def _level(request: Request) -> int:
     return blog_user.level_of(getattr(request.state, "user", None))
 
 
-async def _stock_page(db, market: str, search: str, page: int):
-    """(전체 건수, 해당 페이지 행). 코인과 주식은 테이블이 달라 쿼리를 나눈다."""
-    params: dict = {"limit": _PER_PAGE, "offset": (page - 1) * _PER_PAGE}
+async def _stock_page(db, market: str, search: str, page: int, per_page: int = _PER_PAGE):
+    """(전체 건수, 해당 페이지 행). 코인과 주식은 테이블이 달라 쿼리를 나눈다.
+
+    ⚠️ `per_page` 는 **여기서 LIMIT/OFFSET 에 함께 쓰인다.** 예전에는 50 으로 고정이라
+       API 가 받은 `size` 를 결과 슬라이스로만 처리했는데, 그러면 OFFSET 은 50 단위로
+       뛰고 슬라이스는 size 단위라 2쪽부터 엉뚱한 구간이 나왔다(size=20 이면 2쪽이
+       21~40 이 아니라 51~70 이었고 21~50 은 어디로도 닿을 수 없었다).
+    """
+    params: dict = {"limit": per_page, "offset": (page - 1) * per_page}
     where: list[str] = []
 
     if market == "COIN":
@@ -348,14 +348,6 @@ async def _stock_page(db, market: str, search: str, page: int):
 _MIN_RE = re.compile(r"^(\d+)m$")
 _HOUR_RE = re.compile(r"^(\d+)h$")
 _TIMEFRAMES = ("raw", "10m", "30m", "1h", "3h", "6h", "1d", "1w", "1M")
-
-
-def _num(v):
-    """DB 의 double 을 JSON 숫자로. 정수면 정수로 찍어 PHP 응답과 모양을 맞춘다."""
-    if v is None:
-        return None
-    f = float(v)
-    return int(f) if f.is_integer() else f
 
 
 def _is_sub_daily(tf: str) -> bool:
@@ -570,88 +562,6 @@ async def candle_rows(db, code: str, market: str, start: datetime, end: datetime
     return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
 
 
-def _parse_dt(v: str | None, default: datetime) -> datetime:
-    """`YYYY-MM-DD HH:MM:SS` 를 받는다. 초는 버린다(PHP 도 분 단위로 정규화했다)."""
-    if not v:
-        return default
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(v.strip()[:19], fmt).replace(second=0, microsecond=0)
-        except ValueError:
-            continue
-    return default
-
-
-@router.get("/stocks/api/candle", include_in_schema=False)
-async def stocks_api_candle(request: Request):
-    """차트용 캔들 JSON. 화면이 그린 뒤 비동기로 부른다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    code = (request.query_params.get("code") or "").strip()[:32]
-    if not code:
-        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
-        return JSONResponse({"success": False, "error": "Stock code is required"},
-                            status_code=400)
-
-    now = datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
-    start = _parse_dt(request.query_params.get("start"), now - timedelta(days=30))
-    end = _parse_dt(request.query_params.get("end"), now)
-    limit = min(1000, max(1, _int_arg(request, "limit", 500)))
-    tf = (request.query_params.get("timeframe") or "1h").strip()
-    if tf not in _TIMEFRAMES:
-        tf = "1h"
-    market = _norm_market(request.query_params.get("market"))
-
-    async with db_session() as db:
-        rows = await candle_rows(db, code, market, start, end, limit, tf)
-
-    data = [
-        {k: (v.strftime("%Y-%m-%d %H:%M:%S") if k == "execution_datetime" else _num(v))
-         for k, v in r.items()}
-        for r in rows
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)},
-                        headers={"Cache-Control": "private, max-age=60"})
-
-
-@router.get("/stocks/api/executions", include_in_schema=False)
-async def stocks_api_executions(request: Request):
-    """최근 체결 JSON. `tick` 스키마의 종목별 테이블을 최신순으로 읽는다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    code = (request.query_params.get("code") or "").strip()[:32]
-    if not code:
-        # 성공 응답과 같은 봉투로 — 소비자가 `success` 하나만 보면 되게 한다.
-        return JSONResponse({"success": False, "error": "Stock code is required"},
-                            status_code=400)
-
-    limit = min(200, max(1, _int_arg(request, "limit", 100)))
-    market = _norm_market(request.query_params.get("market"))
-
-    async with db_session() as db:
-        is_coin = await _resolve_is_coin(db, code, market)
-        table = await _resolve_source(db, "tick", code, "c" if is_coin else "s")
-        if table is None:
-            return JSONResponse({"success": True, "data": [], "count": 0})
-        rows = (await db.execute(text(
-            "SELECT execution_datetime, execution_price, execution_non_volume, "
-            f"execution_ask_volume, execution_bid_volume FROM `tick`.`{table}` "
-            "ORDER BY execution_datetime DESC LIMIT :limit"), {"limit": limit})).all()
-
-    data = [
-        {"execution_datetime": r.execution_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-         "execution_price": _num(r.execution_price),
-         "execution_non_volume": _num(r.execution_non_volume),
-         "execution_ask_volume": _num(r.execution_ask_volume),
-         "execution_bid_volume": _num(r.execution_bid_volume)}
-        for r in rows
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)},
-                        headers={"Cache-Control": "private, max-age=10"})
-
-
 @router.get("/stocks/view", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_show(request: Request):
     """종목 상세. 캔들·체결은 싣지 않고 화면이 뜬 뒤 API 로 채운다(PHP 와 같다)."""
@@ -704,27 +614,3 @@ async def _coin_by_code(db, code: str):
         "FROM Bithumb.coin_info WHERE coin_code = :c"), {"c": code})).first()
 
 
-@router.get("/stocks/api/search", include_in_schema=False)
-async def stocks_api_search(request: Request):
-    """종목 검색 JSON. 차트 화면의 종목 선택 콤보박스가 쓴다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    search = (request.query_params.get("q") or "").strip()[:50]
-    market = _norm_market(request.query_params.get("market"))
-    limit = min(100, max(1, _int_arg(request, "limit", 20)))
-
-    async with db_session() as db:
-        _, rows = await _stock_page(db, market or "", search, 1)
-
-    data = [
-        {
-            "stock_code": r.code,
-            "stock_name_kr": r.name_kr,
-            "stock_name_en": r.name_en,
-            "stock_market": r.market,
-            "stock_price": float(r.price) if r.price is not None else None,
-        }
-        for r in rows[:limit]
-    ]
-    return JSONResponse({"success": True, "data": data, "count": len(data)})

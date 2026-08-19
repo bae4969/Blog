@@ -27,6 +27,7 @@ from app.core.security import (
     fetch_public_key,
     refresh_session,
 )
+from app.api.auth_v1 import router as api_auth_router
 from app.api.backtest_v1 import router as api_backtest_router
 from app.api.stocks_v1 import router as api_stocks_router
 from app.api.v1 import router as api_v1_router
@@ -119,10 +120,11 @@ for _sub in ("css", "js", "res", "vendor", "uploads"):
 app.include_router(api_v1_router)      # /api/v1/* — 블로그 읽기
 app.include_router(api_stocks_router)   # /api/v1/stocks/* — 종목·캔들·체결
 app.include_router(api_backtest_router) # /api/v1/backtest/* — 시뮬레이션·프리셋
+app.include_router(api_auth_router)     # /api/v1/auth/token — 화면이 Bearer 를 얻는 창구
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트
-app.include_router(backtest_router) # /stocks/api/* — 포트폴리오·프리셋 (엔진·화면은 아직)
+app.include_router(backtest_router) # /stocks/backtest — 백테스트 화면
 
 
 # ── API 문서 — 관리자만 ──────────────────────────────────────────────

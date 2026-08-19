@@ -15,18 +15,23 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.db.session import db_session
-from app.schemas.stock import Candle, Execution, StockOut
+from app.schemas.stock import Candle, Execution, MarketStat, StockOut, TopStock
 from app.schemas import Page
 from app.ui.stocks import (
+    _KR_MARKETS,
     _KST,
+    _latest_closes,
     _norm_market,
+    _prefix_of,
     _resolve_is_coin,
     _resolve_source,
     _stock_page,
     _TIMEFRAMES,
+    _top_by_trading_amount,
+    _US_MARKETS,
     candle_rows,
 )
 
@@ -41,24 +46,53 @@ def _f(v) -> float | None:
     return None if v is None else float(v)
 
 
+def _market_arg(v: str | None) -> str:
+    """`market` 질의값. 알 수 없는 값을 **조용히 넘기지 않는다.**
+
+    `_norm_market` 은 모르는 값을 빈 문자열로 만드는데, 그 빈 값이 곳에 따라 뜻이 달라
+    (`/top` 에서는 미국) 오타가 그럴듯한 오답으로 돌아온다. 여기서 끊는다.
+    """
+    m = _norm_market(v)
+    if v and not m:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="market 은 KR·US·COIN 중 하나여야 합니다")
+    return m
+
+
 @router.get("", response_model=Page[StockOut], summary="종목 목록·검색")
 async def stocks(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=_MAX_SIZE),
-    market: str | None = Query(None, description="KR·US·COIN. 비우면 전부"),
+    market: str | None = Query(None, description="KR·US·COIN. 비우면 한국+미국(코인 제외)"),
     q: str | None = Query(None, max_length=50, description="종목명·코드 부분검색"),
 ):
+    m = _market_arg(market)          # 연결을 잡기 전에 거른다
     async with db_session() as db:
-        total, rows = await _stock_page(db, _norm_market(market) or "", (q or "").strip(), page)
+        total, rows = await _stock_page(db, m, (q or "").strip(), page, size)
+        # ⚠️ `stock_info.stock_price` 는 **갱신이 늦다.** 화면은 `candle` 의 최신 종가를
+        #    씌워서 그리는데 API 가 그 단계를 빼먹어, 같은 종목이 화면과 API 에서 다른
+        #    값으로 나갔다(2026-08-19 실측: 5/5 불일치. DB 로 판정하니 화면이 맞았다 —
+        #    tick 의 최신 체결가와 종가가 같고 stock_price 만 옛값이었다).
+        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
 
     pages = max(1, (total + size - 1) // size)
     items = [
         StockOut(code=r.code, name_kr=r.name_kr, name_en=r.name_en, market=r.market,
-                 type=r.stock_type, price=_f(r.price), market_cap=_f(r.cap),
-                 quantity=_f(r.quantity))
-        for r in rows[:size]
+                 type=r.stock_type, price=_f(closes.get(r.code, r.price)),
+                 market_cap=_f(r.cap), quantity=_f(r.quantity))
+        for r in rows
     ]
     return Page[StockOut](items=items, total=total, page=page, size=size, pages=pages)
+
+
+def _kst_naive(v: datetime) -> datetime:
+    """DB 안의 시각은 전부 **KST 이면서 표기가 없다**. 받은 값을 그 기준에 맞춘다.
+
+    표기가 붙어 온 값(`...+00:00`)을 그대로 비교하면 9시간 어긋난 구간을 읽는다.
+    """
+    if v.tzinfo is not None:
+        v = v.astimezone(_KST).replace(tzinfo=None)
+    return v.replace(second=0, microsecond=0)
 
 
 @router.get("/{code}/candles", response_model=list[Candle], summary="캔들")
@@ -68,7 +102,12 @@ async def candles(
     timeframe: str = Query("1h", description=f"{', '.join(_TIMEFRAMES)}"),
     limit: int = Query(500, ge=1, le=_MAX_CANDLES),
     days: int = Query(30, ge=1, le=3650, description="지금부터 거슬러 올라갈 일수"),
+    start: datetime | None = Query(None, description="구간 시작. 주면 days 를 대신한다"),
+    end: datetime | None = Query(None, description="구간 끝. 기본은 지금"),
 ):
+    """⚠️ `start`/`end` 는 차트가 **과거로 거슬러 올라갈 때** 쓴다. `days` 만으로는 지금부터
+    이어진 구간밖에 못 잡아서, 무한 스크롤이 이미 받은 것보다 더 옛 구간을 지목할 수 없다.
+    """
     if timeframe not in _TIMEFRAMES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                             f"timeframe 은 {_TIMEFRAMES} 중 하나여야 합니다")
@@ -76,8 +115,11 @@ async def candles(
     #    (`db/session.py` 가 세션 TZ 를 +09:00 으로 못박는다). `datetime.now()` 를 쓰면
     #    조회 구간이 9시간 어긋나 화면과 다른 캔들이 나간다 — 실제로 그렇게 짰다가
     #    옛 API 와 종가·저가가 달라져서 잡았다(2026-08-19).
-    end = datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
-    start = end - timedelta(days=days)
+    end = _kst_naive(end) if end else datetime.now(_KST).replace(tzinfo=None, second=0, microsecond=0)
+    start = _kst_naive(start) if start else end - timedelta(days=days)
+    if start >= end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "start 는 end 보다 앞서야 합니다")
 
     async with db_session() as db:
         rows = await candle_rows(db, code[:32], _norm_market(market), start, end, limit, timeframe)
@@ -123,3 +165,45 @@ async def executions(
                   bid_volume=_f(r.execution_bid_volume))
         for r in rows
     ]
+
+
+@router.get("/markets", response_model=list[MarketStat], summary="시장 통계")
+async def markets():
+    """한국·미국·코인 각각의 구독 종목 수와 시가총액 합계."""
+    async with db_session() as db:
+        rows = (await db.execute(text(
+            "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
+            "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
+            "       CASE WHEN si.stock_market IN :kr THEN '한국' "
+            "            WHEN si.stock_market IN :us THEN '미국' ELSE '기타' END AS label, "
+            "       COUNT(*) AS cnt, SUM(si.stock_capitalization) AS cap "
+            "FROM KoreaInvest.stock_info si "
+            "INNER JOIN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) w "
+            "  ON si.stock_code = w.stock_code "
+            "GROUP BY grp, label "
+            "UNION ALL "
+            "SELECT 'COIN', '코인', COUNT(*), SUM(ci.coin_price * ci.coin_amount) "
+            "FROM Bithumb.coin_info ci "
+            "INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) c "
+            "  ON ci.coin_code = c.coin_code "
+            "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
+            .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
+            {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
+    return [MarketStat(group=r.grp, label=r.label, count=r.cnt, market_cap=_f(r.cap))
+            for r in rows]
+
+
+@router.get("/top", response_model=list[TopStock], summary="거래대금 상위")
+async def top(
+    # ⚠️ 기본값이 있어야 한다. 빈 값은 "전부" 가 아니라 **미국** 으로 떨어진다
+    #    (`_top_by_trading_amount` 가 KR 이 아니면 US 로 가른다).
+    market: str = Query("KR", description="KR·US·COIN"),
+    limit: int = Query(10, ge=1, le=50),
+):
+    m = _market_arg(market)          # 연결을 잡기 전에 거른다
+    async with db_session() as db:
+        rows = await _top_by_trading_amount(db, m, limit)
+    return [TopStock(code=r["stock_code"], name_kr=r["stock_name_kr"],
+                     market=r["stock_market"], price=_f(r["stock_price"]),
+                     trading_amount=_f(r["total_amount"]))
+            for r in rows]

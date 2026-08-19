@@ -1,25 +1,26 @@
-"""백테스트 — 포트폴리오·프리셋 CRUD 와 조회 기간 API.
+"""백테스트 — **화면과 계산 도우미만** 남은 모듈.
 
-PHP `StockController` 의 백테스트 계열 중 **DB 작업만** 옮긴 것이다. 시뮬레이션 엔진
-(`POST /stocks/api/backtest`, `BacktestService` 1,270줄)과 화면(`/stocks/backtest`)은
-아직 `php-final` 태그에만 있다.
+여기에 있던 JSON API 아홉 개(`/stocks/api/{backtest,portfolio*,preset*,date-range}`)는
+2026-08-19 에 `app/api/backtest_v1.py`(`/api/v1/backtest/*`)로 옮기고 지웠다. 옛것은
+`require_internal`(`X-Requested-With` + Origin/Referer)을 요구해 **브라우저 전용**이라
+앱·스크립트가 원리적으로 못 붙었고, 실패를 200 에 `{success:false}` 로 실었다.
 
-## 두 저장소가 소유권을 다르게 본다
+지금 이 파일이 갖는 것:
 
-- **포트폴리오**(`backtest_portfolio`)는 **IP 로** 주인을 가린다. 로그인 없이 백테스트를
-  돌릴 수 있어서다. 이름 수정은 저장할 때와 같은 IP 에서만 된다.
-- **프리셋**(`backtest_preset`)은 **로그인 계정으로** 가린다(`user_index`). 그래서 프리셋
-  API 는 전부 로그인이 필요하다.
+- `/stocks/backtest` 화면(껍데기만 그린다 — 계산·차트는 `/js/backtest.js` 가 한다)
+- API 와 **함께 쓰는 계산 도우미** — `_norm_config`·`_load_prices`·`_save_portfolio`·
+  `_candle_date_range`·`_stock_summary`·`_finite`·`_backtest_slots`.
+  `backtest_v1` 이 이걸 임포트해 쓴다. 검증·정규화를 다시 짜면 화면과 결과가 갈라진다.
 
-⚠️ IP 는 `request.client.host` 로 얻는다. uvicorn 이 `--proxy-headers` 로 떠 있어
-   X-Forwarded-For 가 반영된다 — 이게 없으면 모두가 게이트웨이 IP 하나로 보여
-   **아무나 남의 포트폴리오 이름을 고칠 수 있게 된다.**
+## 소유권은 계정이다
 
-## 내부요청 가드
+- **포트폴리오**(`backtest_portfolio`) — 로그인해서 돌린 것은 `user_index` 가 주인이고
+  **비공개로 시작**한다. 비로그인 것은 주인이 없어 **공개 고정**이다(아무도 못 고친다).
+- **프리셋**(`backtest_preset`) — `user_index` 로 가린다. 전부 로그인이 필요하다.
 
-여기 API 들은 CSRF 토큰이 없다(JSON 본문이라 폼 토큰을 실을 자리가 없다). 대신
-`app.core.csrf.require_internal` 로 `X-Requested-With` 와 Origin·Referer 를 본다 —
-PHP `BaseController::requireInternalRequest` 와 같은 기준이다.
+⚠️ 예전에는 포트폴리오를 **IP 로** 갈랐다. 그런데 앞단(NPM)이 진짜 클라이언트 IP 를 안
+   넘겨 **외부 요청이 전부 게이트웨이 하나로 보였다** — 즉 모두가 같은 주인이라 누구나
+   남의 포트폴리오 이름을 고칠 수 있었다. 그래서 계정 기준으로 바꿨다.
 """
 
 import asyncio
@@ -31,11 +32,10 @@ import re
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 
 from app.core import blog_user
-from app.core.csrf import require_internal
 from app.db.session import db_session
 from app.services import backtest as engine
 from app.ui.routes import _shell_ctx, templates
@@ -46,24 +46,6 @@ router = APIRouter()
 
 _MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
-
-
-async def _json_body(request: Request) -> dict | None:
-    """JSON 본문. 객체가 아니면 None — 호출부가 400 을 돌려준다."""
-    try:
-        body = json.loads(await request.body())
-    except (ValueError, UnicodeDecodeError):
-        return None
-    return body if isinstance(body, dict) else None
-
-
-async def _me(db, request: Request):
-    """로그인한 블로그 계정. ⚠️ `user_index` 는 0 이 실제 계정이라 `is None` 으로 본다."""
-    return await blog_user.find(db, getattr(request.state, "user", None))
-
-
-def _need_login() -> JSONResponse:
-    return JSONResponse({"success": False, "error": "로그인이 필요합니다."}, status_code=401)
 
 
 # ---------------------------------------------------------------------------
@@ -89,224 +71,13 @@ async def backtest_page(request: Request):
     """백테스팅 화면. 폼만 서버가 그리고 계산·차트는 전부 `/js/backtest.js` 가 한다.
 
     `?portfolio=<id>` 로 들어오면 그 설정을 복원하는데, 그것도 JS 가
-    `/stocks/api/portfolio` 를 불러 처리한다 — 서버는 여기서 아무것도 읽지 않는다.
+    `/api/v1/backtest/portfolios/{id}` 를 불러 처리한다 — 서버는 여기서 아무것도 읽지 않는다.
     """
     async with db_session() as db:
         ctx = await _shell_ctx(request, db, _level(request))
     return templates.TemplateResponse(
         request, "stocks_backtest.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True})
-
-
-@router.get("/stocks/api/date-range", include_in_schema=False)
-async def api_date_range(request: Request):
-    """여러 종목을 **함께** 백테스트할 수 있는 기간 = 각 종목 보유 기간의 교집합.
-
-    시작일은 가장 늦은 시작일, 종료일은 가장 이른 종료일을 고른다 — 한 종목이라도
-    데이터가 없는 날은 비교가 성립하지 않기 때문이다.
-    """
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    codes = [c.strip() for c in (request.query_params.get("codes") or "").split(",") if c.strip()]
-    markets = [m.strip() for m in (request.query_params.get("markets") or "").split(",") if m.strip()]
-    if not codes:
-        return JSONResponse({"success": True, "data": None})
-    codes = codes[:_MAX_RANGE_CODES]
-
-    lo = hi = None
-    async with db_session() as db:
-        for i, code in enumerate(codes):
-            rng = await _candle_date_range(db, code, markets[i] if i < len(markets) else "")
-            if rng is None:
-                continue
-            mn, mx = rng
-            lo = mn if lo is None or mn > lo else lo
-            hi = mx if hi is None or mx < hi else hi
-
-    if lo is None or hi is None or lo > hi:
-        return JSONResponse({"success": True, "data": None})
-    return JSONResponse(
-        {"success": True, "data": {"min": lo.isoformat(), "max": hi.isoformat()}},
-        headers={"Cache-Control": "private, max-age=300"},
-    )
-
-
-# ---------------------------------------------------------------------------
-# 포트폴리오 — 소유권은 IP 로 가린다
-# ---------------------------------------------------------------------------
-
-
-
-def _row_to_dict(row, *json_cols: str) -> dict:
-    """행을 dict 로. `*_json` 컬럼은 풀어서 접미사 없는 키로 바꾼다(PHP 와 같은 모양)."""
-    out = dict(row._mapping)
-    for col in json_cols:
-        raw = out.pop(col, None)
-        key = col[:-5]                                  # config_json → config
-        try:
-            out[key] = json.loads(raw) if raw else None
-        except (ValueError, TypeError):
-            out[key] = None
-    return out
-
-
-
-
-@router.get("/stocks/api/portfolio", include_in_schema=False)
-async def api_portfolio(request: Request):
-    """포트폴리오 하나. 저장된 설정(config)까지 준다 — 화면이 폼을 복원하는 데 쓴다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    pid = _int(request.query_params.get("id"))
-    if pid <= 0:
-        return JSONResponse({"success": False, "error": "Invalid id"}, status_code=400)
-
-    me = await _owner_index(request)
-    async with db_session() as db:
-        row = (await db.execute(text(
-            # ⚠️ `user_index`·`is_public` 도 함께 읽는다 — 화면이 **공개 토글을 보여줄지**
-            #    판단하려면 "내 것인가" 를 알아야 한다. 이게 없으면 저장 직후에는 토글이
-            #    뜨는데 `?portfolio=ID` 로 다시 열면 사라진다(실제로 그랬다).
-            "SELECT portfolio_id, portfolio_name, user_index, is_public, "
-            "config_json, display_score, display_grade, "
-            "ranking_score, ranking_grade, metrics_json, stock_summary, strategy, "
-            "period_start, period_end, initial_capital, monthly_dca, created_at, updated_at "
-            # ⚠️ 공개된 것이거나 **내 것**일 때만 준다. id 는 랭킹에 노출되므로,
-            #    소유권을 안 보면 번호만 알아도 남의 투자 조합 전체를 읽을 수 있다.
-            "FROM backtest_portfolio WHERE portfolio_id = :id AND "
-            "(is_public = 1 OR (user_index IS NOT NULL AND user_index = :me))"),
-            {"id": pid, "me": me})).first()
-
-    if row is None:
-        return JSONResponse({"success": False, "error": "Not found"}, status_code=404)
-    # ip_address 는 애초에 SELECT 하지 않는다 — 소유자 IP 가 응답에 실리면 안 된다.
-    data = _row_to_dict(row, "config_json", "metrics_json")
-    # 소유자 번호 자체는 내보내지 않는다 — 화면에 필요한 것은 "내 것인가" 뿐이다.
-    owner = data.pop("user_index", None)
-    data["mine"] = owner is not None and me is not None and owner == me
-    data["is_public"] = bool(data.get("is_public"))
-    return JSONResponse(jsonable(data))
-
-
-@router.post("/stocks/api/portfolio/name", include_in_schema=False)
-async def api_portfolio_rename(request: Request):
-    """이름 수정. **저장할 때와 같은 IP 에서만** 된다(로그인이 없어 IP 가 유일한 단서다)."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    body = await _json_body(request)
-    if body is None:
-        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
-
-    pid = _int(body.get("id"))
-    name = str(body.get("name") or "").strip()[:100]
-    if pid <= 0 or not name:
-        return JSONResponse({"success": False, "error": "id and name are required"}, status_code=400)
-
-    me = await _owner_index(request)
-    async with db_session() as db:
-        row = (await db.execute(
-            text("SELECT user_index FROM backtest_portfolio WHERE portfolio_id = :id"),
-            {"id": pid})).first()
-        # ⚠️ 주인이 없는 포트폴리오(비로그인이 돌린 것)는 **아무도 못 고친다.**
-        #    옛 IP 기준은 모두를 같은 주인으로 만들어 남의 것도 고칠 수 있었다.
-        owner = None if row is None else row[0]
-        if owner is None or me is None or owner != me:
-            logger.warning("포트폴리오 이름 수정 거절: id=%s owner=%s me=%s", pid, owner, me)
-            return JSONResponse({"success": False, "error": "수정 권한이 없습니다."}, status_code=403)
-        await db.execute(
-            text("UPDATE backtest_portfolio SET portfolio_name = :n WHERE portfolio_id = :id"),
-            {"n": name, "id": pid})
-        await db.commit()
-
-    logger.info("포트폴리오 이름 수정: id=%s name=%s", pid, name)
-    return JSONResponse({"success": True})
-
-
-@router.post("/stocks/api/portfolio/public", include_in_schema=False)
-async def api_portfolio_public(request: Request):
-    """공개/비공개 전환 — **화면 전용 창구**.
-
-    ⚠️ `/api/v1/backtest/portfolios/{id}` 와 같은 일을 하지만 여기가 따로 있는 이유는
-       인증 방식이 달라서다. 화면은 쿠키 세션으로 도는데 `/api/v1` 쓰기는 **Bearer 전용**
-       이다(쿠키를 받으면 CSRF 를 따로 막아야 해서). 화면 쪽은 `require_internal` 이
-       그 역할을 한다 — 두 창구가 같은 규칙을 쓰되 관문만 다르다.
-    """
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    body = await _json_body(request)
-    if body is None:
-        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
-    pid = body.get("id")
-    if not isinstance(pid, int) or not isinstance(body.get("isPublic"), bool):
-        return JSONResponse({"success": False, "error": "id and isPublic are required"},
-                            status_code=400)
-
-    me = await _owner_index(request)
-    if me is None:
-        return JSONResponse({"success": False, "error": "로그인이 필요합니다."}, status_code=401)
-
-    async with db_session() as db:
-        # 소유권 검사와 갱신을 한 문장에 — 남의 것은 rowcount 0 으로 떨어진다.
-        res = await db.execute(text(
-            "UPDATE backtest_portfolio SET is_public = :p "
-            "WHERE portfolio_id = :id AND user_index = :u"),
-            {"p": 1 if body["isPublic"] else 0, "id": pid, "u": me})
-        await db.commit()
-    if res.rowcount == 0:
-        logger.warning("포트폴리오 공개전환 거절: id=%s me=%s", pid, me)
-        return JSONResponse({"success": False, "error": "수정 권한이 없습니다."}, status_code=403)
-
-    logger.info("포트폴리오 공개전환: id=%s public=%s", pid, body["isPublic"])
-    return JSONResponse({"success": True, "isPublic": body["isPublic"]})
-
-
-# ---------------------------------------------------------------------------
-# 프리셋 — 소유권은 로그인 계정으로 가린다
-# ---------------------------------------------------------------------------
-
-@router.get("/stocks/api/presets", include_in_schema=False)
-async def api_presets(request: Request):
-    """내 프리셋 목록(최근 수정순). 설정 본문은 주지 않는다 — 목록은 가벼워야 한다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    async with db_session() as db:
-        me = await _me(db, request)
-        if me is None:
-            return _need_login()
-        rows = (await db.execute(text(
-            "SELECT preset_id, preset_name, stock_summary, strategy, updated_at "
-            "FROM backtest_preset WHERE user_index = :u ORDER BY updated_at DESC"),
-            {"u": me.user_index})).all()
-    return JSONResponse(jsonable([dict(r._mapping) for r in rows]))
-
-
-@router.get("/stocks/api/preset", include_in_schema=False)
-async def api_preset_load(request: Request):
-    """프리셋 하나. 남의 것은 못 본다 — user_index 를 WHERE 에 함께 넣는다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    pid = _int(request.query_params.get("id"))
-    if pid <= 0:
-        return JSONResponse({"success": False, "error": "Invalid id"}, status_code=400)
-
-    async with db_session() as db:
-        me = await _me(db, request)
-        if me is None:
-            return _need_login()
-        row = (await db.execute(text(
-            "SELECT preset_id, preset_name, config_json, stock_summary, strategy, updated_at "
-            "FROM backtest_preset WHERE preset_id = :id AND user_index = :u"),
-            {"id": pid, "u": me.user_index})).first()
-
-    if row is None:
-        return JSONResponse({"success": False, "error": "프리셋을 찾을 수 없습니다."}, status_code=404)
-    return JSONResponse(jsonable(_row_to_dict(row, "config_json")))
 
 
 def _stock_summary(stocks: list) -> str:
@@ -322,95 +93,6 @@ def _stock_summary(stocks: list) -> str:
     if len(stocks) > 5:
         summary += f" 외 {len(stocks) - 5}종목"
     return summary
-
-
-@router.post("/stocks/api/preset/save", include_in_schema=False)
-async def api_preset_save(request: Request):
-    """프리셋 저장. **같은 이름이면 덮어쓴다**(계정+이름이 UNIQUE)."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    body = await _json_body(request)
-    if body is None:
-        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
-
-    name = str(body.get("name") or "").strip()[:100]
-    if not name:
-        return JSONResponse({"success": False, "error": "프리셋 이름을 입력하세요."}, status_code=400)
-
-    config = body.get("config")
-    if not isinstance(config, dict) or not config.get("stocks"):
-        return JSONResponse({"success": False, "error": "유효한 설정이 필요합니다."}, status_code=400)
-
-    stocks = config["stocks"] if isinstance(config["stocks"], list) else []
-    params = {
-        "cfg": json.dumps(config, ensure_ascii=False),
-        "sum": _stock_summary(stocks),
-        "st": str(config.get("strategy") or "buyhold")[:20],
-        "name": name,
-    }
-
-    async with db_session() as db:
-        me = await _me(db, request)
-        if me is None:
-            return _need_login()
-        params["u"] = me.user_index
-
-        existing = (await db.execute(text(
-            "SELECT preset_id FROM backtest_preset WHERE user_index = :u AND preset_name = :name"),
-            params)).scalar()
-        if existing is not None:
-            await db.execute(text(
-                "UPDATE backtest_preset SET config_json = :cfg, stock_summary = :sum, "
-                "strategy = :st WHERE preset_id = :id"), {**params, "id": existing})
-            preset_id = int(existing)
-        else:
-            n = (await db.execute(text(
-                "SELECT COUNT(*) FROM backtest_preset WHERE user_index = :u"), params)).scalar() or 0
-            if n >= _MAX_PRESETS_PER_USER:
-                return JSONResponse(
-                    {"success": False,
-                     "error": f"프리셋은 최대 {_MAX_PRESETS_PER_USER}개까지 저장 가능합니다."},
-                    status_code=400)
-            res = await db.execute(text(
-                "INSERT INTO backtest_preset (user_index, preset_name, config_json, "
-                "stock_summary, strategy) VALUES (:u, :name, :cfg, :sum, :st)"), params)
-            preset_id = int(res.lastrowid)
-        await db.commit()
-
-    logger.info("프리셋 저장: user=%s id=%s name=%s", me.user_id, preset_id, name)
-    return JSONResponse({"success": True, "presetId": preset_id})
-
-
-@router.post("/stocks/api/preset/delete", include_in_schema=False)
-async def api_preset_delete(request: Request):
-    """프리셋 삭제. 남의 것은 못 지운다 — user_index 를 WHERE 에 함께 넣는다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    body = await _json_body(request)
-    if body is None:
-        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
-
-    pid = _int(body.get("id"))
-    if pid <= 0:
-        return JSONResponse({"success": False, "error": "Invalid id"}, status_code=400)
-
-    async with db_session() as db:
-        me = await _me(db, request)
-        if me is None:
-            return _need_login()
-        res = await db.execute(text(
-            "DELETE FROM backtest_preset WHERE preset_id = :id AND user_index = :u"),
-            {"id": pid, "u": me.user_index})
-        await db.commit()
-
-    if res.rowcount <= 0:
-        logger.warning("프리셋 삭제 거절: id=%s user=%s", pid, me.user_id)
-        return JSONResponse({"success": False, "error": "삭제 권한이 없거나 존재하지 않습니다."},
-                            status_code=403)
-    logger.info("프리셋 삭제: user=%s id=%s", me.user_id, pid)
-    return JSONResponse({"success": True})
 
 
 # ---------------------------------------------------------------------------
@@ -539,55 +221,6 @@ async def _load_prices(db, config: dict) -> tuple[dict, dict]:
     return await fetch(config["stocks"]), await fetch(config["benchmarks"])
 
 
-@router.post("/stocks/api/backtest", include_in_schema=False)
-async def api_backtest(request: Request):
-    """백테스트를 돌리고 결과를 돌려준다. 결과는 포트폴리오로도 자동 저장된다."""
-    if (deny := require_internal(request)) is not None:
-        return deny
-
-    body = await _json_body(request)
-    if body is None:
-        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
-
-    config, err = _norm_config(body)
-    if config is None:
-        return JSONResponse({"success": False, "error": err}, status_code=400)
-
-    if _backtest_slots.locked():
-        return JSONResponse({"success": False, "error": "서버가 바쁩니다. 잠시 후 다시 시도해주세요."},
-                            status_code=503)
-
-    async with _backtest_slots:
-        async with db_session() as db:
-            stock_data, bmk_data = await _load_prices(db, config)
-        # 순수 계산이라 DB 연결을 쥔 채로 돌지 않는다.
-        result = await asyncio.to_thread(engine.run, config, stock_data, bmk_data)
-
-    if result is None:
-        return JSONResponse({"success": False,
-                             "error": "No data available for the selected stocks and period"},
-                            status_code=404)
-
-    portfolio_id = portfolio_name = None
-    portfolio_mine = portfolio_public = False
-    try:
-        portfolio_id, portfolio_name, portfolio_mine, portfolio_public = \
-            await _save_portfolio(request, config, result)
-    except Exception:
-        # 저장이 실패해도 계산 결과는 돌려준다 — 사용자가 기다린 것은 그쪽이다.
-        # ⚠️ **그래서 저장이 깨져도 응답은 200 이다.** 이 경로를 건드렸으면 응답이 아니라
-        #    `portfolioId` 가 채워지는지와 로그를 봐야 한다. 실제로 컬럼 하나를 INSERT 에서
-        #    빼는 변경이 여기서 조용히 삼켜져 한동안 못 볼 뻔했다(2026-08-19).
-        logger.exception("포트폴리오 저장 실패")
-
-    return JSONResponse(
-        {"success": True, "data": _finite(result),
-         "portfolioId": portfolio_id, "portfolioName": portfolio_name,
-         # 내 것일 때만 화면이 공개 토글을 보여준다(비로그인 것은 공개 고정이라 못 바꾼다).
-         "portfolioMine": portfolio_mine, "portfolioPublic": portfolio_public},
-        headers={"Cache-Control": "private, no-cache"})
-
-
 async def _owner_index(request: Request) -> int | None:
     """이 요청의 포트폴리오 주인. 로그인 안 했으면 None."""
     user = getattr(request.state, "user", None)
@@ -680,23 +313,3 @@ def _int(v) -> int:
         return 0
 
 
-def jsonable(data):
-    """`{success, data}` 로 감싸면서 date·datetime·Decimal 을 JSON 이 아는 값으로 바꾼다."""
-    from datetime import date, datetime
-    from decimal import Decimal
-
-    def conv(v):
-        if isinstance(v, datetime):
-            return v.strftime("%Y-%m-%d %H:%M:%S")     # DB 가 KST 다 — 변환하지 않는다
-        if isinstance(v, date):
-            return v.isoformat()
-        if isinstance(v, Decimal):
-            f = float(v)
-            return int(f) if f.is_integer() else f
-        if isinstance(v, dict):
-            return {k: conv(x) for k, x in v.items()}
-        if isinstance(v, list):
-            return [conv(x) for x in v]
-        return v
-
-    return {"success": True, "data": conv(data)}
