@@ -1,25 +1,26 @@
-"""백테스트 — 포트폴리오·프리셋 CRUD 와 조회 기간 API.
+"""백테스트 — **화면과 계산 도우미만** 남은 모듈.
 
-PHP `StockController` 의 백테스트 계열 중 **DB 작업만** 옮긴 것이다. 시뮬레이션 엔진
-(`POST /stocks/api/backtest`, `BacktestService` 1,270줄)과 화면(`/stocks/backtest`)은
-아직 `php-final` 태그에만 있다.
+여기에 있던 JSON API 아홉 개(`/stocks/api/{backtest,portfolio*,preset*,date-range}`)는
+2026-08-19 에 `app/api/backtest_v1.py`(`/api/v1/backtest/*`)로 옮기고 지웠다. 옛것은
+`require_internal`(`X-Requested-With` + Origin/Referer)을 요구해 **브라우저 전용**이라
+앱·스크립트가 원리적으로 못 붙었고, 실패를 200 에 `{success:false}` 로 실었다.
 
-## 두 저장소가 소유권을 다르게 본다
+지금 이 파일이 갖는 것:
 
-- **포트폴리오**(`backtest_portfolio`)는 **IP 로** 주인을 가린다. 로그인 없이 백테스트를
-  돌릴 수 있어서다. 이름 수정은 저장할 때와 같은 IP 에서만 된다.
-- **프리셋**(`backtest_preset`)은 **로그인 계정으로** 가린다(`user_index`). 그래서 프리셋
-  API 는 전부 로그인이 필요하다.
+- `/stocks/backtest` 화면(껍데기만 그린다 — 계산·차트는 `/js/backtest.js` 가 한다)
+- API 와 **함께 쓰는 계산 도우미** — `_norm_config`·`_load_prices`·`_save_portfolio`·
+  `_candle_date_range`·`_stock_summary`·`_finite`·`_backtest_slots`.
+  `backtest_v1` 이 이걸 임포트해 쓴다. 검증·정규화를 다시 짜면 화면과 결과가 갈라진다.
 
-⚠️ IP 는 `request.client.host` 로 얻는다. uvicorn 이 `--proxy-headers` 로 떠 있어
-   X-Forwarded-For 가 반영된다 — 이게 없으면 모두가 게이트웨이 IP 하나로 보여
-   **아무나 남의 포트폴리오 이름을 고칠 수 있게 된다.**
+## 소유권은 계정이다
 
-## 내부요청 가드
+- **포트폴리오**(`backtest_portfolio`) — 로그인해서 돌린 것은 `user_index` 가 주인이고
+  **비공개로 시작**한다. 비로그인 것은 주인이 없어 **공개 고정**이다(아무도 못 고친다).
+- **프리셋**(`backtest_preset`) — `user_index` 로 가린다. 전부 로그인이 필요하다.
 
-여기 API 들은 CSRF 토큰이 없다(JSON 본문이라 폼 토큰을 실을 자리가 없다). 대신
-`app.core.csrf.require_internal` 로 `X-Requested-With` 와 Origin·Referer 를 본다 —
-PHP `BaseController::requireInternalRequest` 와 같은 기준이다.
+⚠️ 예전에는 포트폴리오를 **IP 로** 갈랐다. 그런데 앞단(NPM)이 진짜 클라이언트 IP 를 안
+   넘겨 **외부 요청이 전부 게이트웨이 하나로 보였다** — 즉 모두가 같은 주인이라 누구나
+   남의 포트폴리오 이름을 고칠 수 있었다. 그래서 계정 기준으로 바꿨다.
 """
 
 import asyncio
@@ -31,7 +32,7 @@ import re
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 
 from app.core import blog_user
@@ -45,11 +46,6 @@ router = APIRouter()
 
 _MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
-
-
-async def _me(db, request: Request):
-    """로그인한 블로그 계정. ⚠️ `user_index` 는 0 이 실제 계정이라 `is None` 으로 본다."""
-    return await blog_user.find(db, getattr(request.state, "user", None))
 
 
 # ---------------------------------------------------------------------------
@@ -75,23 +71,13 @@ async def backtest_page(request: Request):
     """백테스팅 화면. 폼만 서버가 그리고 계산·차트는 전부 `/js/backtest.js` 가 한다.
 
     `?portfolio=<id>` 로 들어오면 그 설정을 복원하는데, 그것도 JS 가
-    `/stocks/api/portfolio` 를 불러 처리한다 — 서버는 여기서 아무것도 읽지 않는다.
+    `/api/v1/backtest/portfolios/{id}` 를 불러 처리한다 — 서버는 여기서 아무것도 읽지 않는다.
     """
     async with db_session() as db:
         ctx = await _shell_ctx(request, db, _level(request))
     return templates.TemplateResponse(
         request, "stocks_backtest.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True})
-
-
-# ---------------------------------------------------------------------------
-# 포트폴리오 — 소유권은 IP 로 가린다
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# 프리셋 — 소유권은 로그인 계정으로 가린다
-# ---------------------------------------------------------------------------
 
 
 def _stock_summary(stocks: list) -> str:
