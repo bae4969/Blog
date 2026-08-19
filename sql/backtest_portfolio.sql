@@ -3,6 +3,15 @@
 CREATE TABLE IF NOT EXISTS `backtest_portfolio` (
     `portfolio_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
     `portfolio_name` VARCHAR(100) NOT NULL,
+    -- ⚠️ 소유권은 **계정**이다(2026-08-19). 그전에는 `ip_address` 로 갈랐는데 앞단(NPM)이
+    --    진짜 클라이언트 IP 를 안 넘겨 외부 요청이 전부 게이트웨이 하나로 보였다 —
+    --    즉 모두가 같은 주인이라 누구나 남의 것을 고칠 수 있었다.
+    --    NULL = 비로그인이 돌린 것. 주인이 없으므로 아무도 못 고치고 공개로 고정된다.
+    `user_index` INT(11) UNSIGNED NULL COMMENT '소유자. NULL 이면 비로그인',
+    -- 백테스트는 **돌리기만 해도 저장**된다. 로그인 사용자의 것을 비공개로 두지 않으면
+    -- 투자 조합이 본인도 모르게 랭킹(/stocks 사이드바)에 뜬다.
+    `is_public` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0:비공개 1:공개(랭킹 노출)',
+    -- ⚠️ 이제 소유권 판정에 쓰지 않는다(위 user_index 참조). 옛 데이터로만 남아 있다.
     `ip_address` VARCHAR(45) NOT NULL,
     `config_hash` CHAR(32) NOT NULL COMMENT 'MD5(정렬된 종목코드+전략) — 동일 IP+조합 중복 방지',
     `config_json` JSON NOT NULL COMMENT '전체 백테스트 설정',
@@ -19,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `backtest_portfolio` (
     `monthly_dca` BIGINT UNSIGNED NOT NULL DEFAULT 0,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_public_rank` (`is_public`, `ranking_score`),
     PRIMARY KEY (`portfolio_id`),
     UNIQUE INDEX `uq_ip_config` (`ip_address`, `config_hash`),
     INDEX `idx_ranking_score` (`ranking_score` DESC),

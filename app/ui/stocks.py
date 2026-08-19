@@ -277,8 +277,11 @@ async def stocks_index(request: Request):
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
         top_stocks = await _top_by_trading_amount(db, market)
         portfolios = (await db.execute(text(
+            # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
+            #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
-            "FROM backtest_portfolio ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
+            "FROM backtest_portfolio WHERE is_public = 1 "
+            "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(

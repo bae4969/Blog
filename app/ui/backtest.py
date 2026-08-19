@@ -169,7 +169,7 @@ async def api_top_portfolios(request: Request):
     async with db_session() as db:
         rows = (await db.execute(text(
             f"SELECT {_PORTFOLIO_LIST_COLS} FROM backtest_portfolio "
-            "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
+            "WHERE is_public = 1 ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
     return JSONResponse(jsonable([_row_to_dict(r, "metrics_json") for r in rows]))
 
 
@@ -188,7 +188,11 @@ async def api_portfolio(request: Request):
             "SELECT portfolio_id, portfolio_name, config_json, display_score, display_grade, "
             "ranking_score, ranking_grade, metrics_json, stock_summary, strategy, "
             "period_start, period_end, initial_capital, monthly_dca, created_at, updated_at "
-            "FROM backtest_portfolio WHERE portfolio_id = :id"), {"id": pid})).first()
+            # ⚠️ 공개된 것이거나 **내 것**일 때만 준다. id 는 랭킹에 노출되므로,
+            #    소유권을 안 보면 번호만 알아도 남의 투자 조합 전체를 읽을 수 있다.
+            "FROM backtest_portfolio WHERE portfolio_id = :id AND "
+            "(is_public = 1 OR (user_index IS NOT NULL AND user_index = :me))"),
+            {"id": pid, "me": await _owner_index(request)})).first()
 
     if row is None:
         return JSONResponse({"success": False, "error": "Not found"}, status_code=404)
@@ -211,13 +215,16 @@ async def api_portfolio_rename(request: Request):
     if pid <= 0 or not name:
         return JSONResponse({"success": False, "error": "id and name are required"}, status_code=400)
 
-    ip = _client_ip(request)
+    me = await _owner_index(request)
     async with db_session() as db:
-        owner = (await db.execute(
-            text("SELECT ip_address FROM backtest_portfolio WHERE portfolio_id = :id"),
-            {"id": pid})).scalar()
-        if owner is None or owner != ip:
-            logger.warning("포트폴리오 이름 수정 거절: id=%s ip=%s", pid, ip)
+        row = (await db.execute(
+            text("SELECT user_index FROM backtest_portfolio WHERE portfolio_id = :id"),
+            {"id": pid})).first()
+        # ⚠️ 주인이 없는 포트폴리오(비로그인이 돌린 것)는 **아무도 못 고친다.**
+        #    옛 IP 기준은 모두를 같은 주인으로 만들어 남의 것도 고칠 수 있었다.
+        owner = None if row is None else row[0]
+        if owner is None or me is None or owner != me:
+            logger.warning("포트폴리오 이름 수정 거절: id=%s owner=%s me=%s", pid, owner, me)
             return JSONResponse({"success": False, "error": "수정 권한이 없습니다."}, status_code=403)
         await db.execute(
             text("UPDATE backtest_portfolio SET portfolio_name = :n WHERE portfolio_id = :id"),
@@ -544,12 +551,35 @@ async def api_backtest(request: Request):
         headers={"Cache-Control": "private, no-cache"})
 
 
+async def _owner_index(request: Request) -> int | None:
+    """이 요청의 포트폴리오 주인. 로그인 안 했으면 None."""
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return None
+    async with db_session() as db:
+        me = await blog_user.find(db, user)
+    return None if me is None else me.user_index
+
+
 async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple[int, str]:
-    """같은 IP + 같은 종목조합이면 덮어쓰고, 아니면 새로 만든다."""
+    """백테스트 결과를 포트폴리오로 남긴다.
+
+    ⚠️ **소유권은 계정이다(2026-08-19).** 예전에는 `ip_address` 로 갈랐는데, 앞단(NPM)이
+       진짜 클라이언트 IP 를 안 넘겨 **외부 요청이 전부 게이트웨이 하나로 보였다** —
+       즉 모두가 같은 주인이라 누구나 남의 포트폴리오 이름을 바꿀 수 있었다.
+
+    - 로그인 상태 → `user_index` 를 주인으로 두고 **비공개**로 시작한다. 남의 투자
+      조합이 랭킹에 그냥 뜨는 것은 저장의 부작용이지 의도가 아니었다.
+    - 비로그인 → 주인이 없으므로 **공개 고정**이다. 랭킹은 이쪽으로 채워진다.
+
+    같은 주인 + 같은 종목조합이면 덮어쓴다(주인이 없으면 IP 대신 조합만 본다).
+    """
     name = _portfolio_name(config["stocks"])
+    owner = await _owner_index(request)
     score = engine.compute_score(result["metrics"])
     params = {
         "name": name, "ip": _client_ip(request),
+        "owner": owner, "pub": 0 if owner is not None else 1,
         "hash": _config_hash(config["stocks"], config["strategy"]),
         "cfg": json.dumps(config, ensure_ascii=False),
         "ds": score["score"], "dg": score["grade"],
@@ -560,9 +590,12 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
         "cap": int(config["initialCapital"]), "dca": int(config["monthlyDCA"]),
     }
     async with db_session() as db:
+        # ⚠️ 주인이 있으면 주인 기준으로, 없으면(비로그인) 조합만 보고 합친다.
+        #    옛 `ip_address` 기준은 쓰지 않는다 — 모두가 같은 IP 라 남의 것을 덮어썼다.
         existing = (await db.execute(text(
-            "SELECT portfolio_id FROM backtest_portfolio "
-            "WHERE ip_address = :ip AND config_hash = :hash"), params)).scalar()
+            "SELECT portfolio_id FROM backtest_portfolio WHERE config_hash = :hash AND "
+            + ("user_index = :owner" if owner is not None else "user_index IS NULL")),
+            params)).scalar()
         if existing is not None:
             await db.execute(text(
                 "UPDATE backtest_portfolio SET portfolio_name = :name, config_json = :cfg, "
@@ -574,10 +607,12 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
             pid = int(existing)
         else:
             res = await db.execute(text(
-                "INSERT INTO backtest_portfolio (portfolio_name, ip_address, config_hash, "
+                "INSERT INTO backtest_portfolio (portfolio_name, user_index, is_public, "
+                "ip_address, config_hash, "
                 "config_json, display_score, display_grade, ranking_score, ranking_grade, "
                 "metrics_json, stock_summary, strategy, period_start, period_end, "
-                "initial_capital, monthly_dca) VALUES (:name, :ip, :hash, :cfg, :ds, :dg, "
+                "initial_capital, monthly_dca) VALUES (:name, :owner, :pub, :ip, :hash, "
+                ":cfg, :ds, :dg, "
                 ":rs, :rg, :metrics, :summary, :strategy, :ps, :pe, :cap, :dca)"), params)
             pid = int(res.lastrowid)
         await db.commit()
