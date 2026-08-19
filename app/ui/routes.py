@@ -25,7 +25,7 @@ from app.core.sanitize import (
     sanitize_for_save,
     validate_thumbnail,
 )
-from app.core import blog_user, csrf
+from app.core import blog_user, csrf, thumbnail
 from app.core.security import AuthUser
 from app.db.models import Category, Post, User
 from app.db.session import db_session
@@ -35,6 +35,8 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 # 부팅 시각 기준 캐시버스터. 넣지 않으면 `?v=` 가 빈 문자열로 렌더돼 캐시가 안 깨진다.
 templates.env.globals["static_v"] = str(int(time.time()))
+# 썸네일은 파일 경로일 수도 base64 일 수도 있다(이관 중). 템플릿이 그걸 몰라도 되게 필터로 준다.
+templates.env.filters["thumb_src"] = thumbnail.src
 
 #: 조회수 중복 방지의 "오늘"을 판정하는 기준 시간대. PHP 의 `date("Y-m-d")` 는 서버
 #: 로컬(KST)이라 UTC 로 재면 자정 근처에서 하루가 어긋난다.
@@ -292,7 +294,12 @@ async def post_detail(request: Request):
         if counted:
             await db.execute(
                 text(
-                    "UPDATE posting_list SET posting_read_cnt = posting_read_cnt + 1 "
+                    # ⚠️ `posting_last_edit_datetime` 을 **일부러 자기 값으로 다시 넣는다.**
+                    #    이 컬럼은 `ON UPDATE current_timestamp()` 라, 명시하지 않으면 조회수만
+                    #    올려도 수정 시각이 지금으로 밀린다 — 화면의 "수정:" 이 실제로는
+                    #    "마지막 조회" 가 되어 버린다(2026-08-19 확인, 그 전까진 그렇게 돌고 있었다).
+                    "UPDATE posting_list SET posting_read_cnt = posting_read_cnt + 1, "
+                    "  posting_last_edit_datetime = posting_last_edit_datetime "
                     "WHERE posting_index = :i"
                 ),
                 {"i": post_id},
@@ -483,7 +490,8 @@ async def writer_create(
     csrf_token: str = Form(""),
     title: str = Form(""),
     content: str = Form(""),
-    thumbnail: str = Form(""),
+    # 폼 필드 이름은 그대로 두고 변수만 바꾼다 — 모듈 `thumbnail` 과 겹치면 가려진다.
+    thumbnail_b64: str = Form("", alias="thumbnail"),
     category_index: int = Form(-1),
 ):
     """새 글 저장. PHP `PostController::create` + `Post::create` 를 합친 것."""
@@ -505,7 +513,7 @@ async def writer_create(
 
         body = sanitize_for_save(content)
         summary = make_summary(body)
-        thumb = validate_thumbnail(thumbnail)
+        thumb = thumbnail.store(validate_thumbnail(thumbnail_b64))
 
         res = await db.execute(
             text(
@@ -538,7 +546,8 @@ async def post_update(
     csrf_token: str = Form(""),
     title: str = Form(""),
     content: str = Form(""),
-    thumbnail: str = Form(""),
+    # 폼 필드 이름은 그대로 두고 변수만 바꾼다 — 모듈 `thumbnail` 과 겹치면 가려진다.
+    thumbnail_b64: str = Form("", alias="thumbnail"),
     category_index: int = Form(-1),
 ):
     """글 수정. 본인 글만. 작성 수는 건드리지 않는다(새 글이 아니다)."""
@@ -574,7 +583,8 @@ async def post_update(
                 "WHERE posting_index = :i"
             ),
             {"t": clean_t, "c": body, "s": make_summary(body),
-             "th": validate_thumbnail(thumbnail), "cat": category_index, "i": post_id},
+             "th": thumbnail.store(validate_thumbnail(thumbnail_b64)),
+             "cat": category_index, "i": post_id},
         )
         await db.commit()
 
@@ -614,7 +624,10 @@ async def _state_change(request: Request, post_id: int, csrf_token: str,
             return _reject(f"denied user={me.user_id} post={post_id}")
 
         await db.execute(
-            text("UPDATE posting_list SET posting_state = :s WHERE posting_index = :i"),
+            # 위와 같은 이유로 수정 시각을 고정한다 — 숨김·복구는 글을 고친 것이 아니다.
+            text("UPDATE posting_list SET posting_state = :s, "
+                 "  posting_last_edit_datetime = posting_last_edit_datetime "
+                 "WHERE posting_index = :i"),
             {"s": new_state, "i": post_id},
         )
         await db.commit()
