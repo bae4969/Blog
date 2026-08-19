@@ -877,7 +877,8 @@
 
                 // 포트폴리오 자동 저장 결과 처리
                 if (json.portfolioId) {
-                    updatePortfolioNameUI(json.portfolioId, json.portfolioName || '');
+                    updatePortfolioNameUI(json.portfolioId, json.portfolioName || '',
+                                          json.portfolioMine, json.portfolioPublic);
                 }
 
                 hasRunOnce = true;
@@ -904,13 +905,71 @@
     /**
      * 포트폴리오 이름 편집 UI 업데이트
      */
-    function updatePortfolioNameUI(id, name) {
+    function updatePortfolioNameUI(id, name, mine, isPublic) {
         currentPortfolioId = id;
         var section = document.getElementById('portfolioNameSection');
         var nameEl = document.getElementById('portfolioNameText');
         if (!section || !nameEl) return;
         nameEl.textContent = name || '';
         section.style.display = '';
+        // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
+        // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
+        renderPublicToggle(!!mine, !!isPublic);
+    }
+
+    /**
+     * 공개/비공개 토글 표시 갱신
+     */
+    function renderPublicToggle(mine, isPublic) {
+        var btn = document.getElementById('portfolioPublicToggle');
+        var label = document.getElementById('portfolioPublicLabel');
+        if (!btn || !label) return;
+        if (!mine) { btn.style.display = 'none'; return; }
+        btn.style.display = '';
+        btn.setAttribute('aria-pressed', isPublic ? 'true' : 'false');
+        btn.classList.toggle('is-public', isPublic);
+        label.textContent = isPublic ? '공개' : '비공개';
+        btn.title = isPublic
+            ? '주식 화면 랭킹에 보입니다. 누르면 비공개로 바꿉니다.'
+            : '나만 봅니다. 누르면 랭킹에 공개합니다.';
+    }
+
+    /**
+     * 공개 여부 서버 저장
+     */
+    function savePortfolioPublic(next) {
+        if (!currentPortfolioId) return;
+        var statusEl = document.getElementById('portfolioNameStatus');
+        fetch('/stocks/api/portfolio/public', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ id: currentPortfolioId, isPublic: next })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (json && json.success) {
+                    renderPublicToggle(true, next);
+                    if (statusEl) {
+                        statusEl.textContent = next ? '랭킹에 공개했습니다' : '비공개로 바꿨습니다';
+                        statusEl.style.opacity = '1';
+                        setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
+                    }
+                } else if (statusEl) {
+                    statusEl.textContent = (json && json.error) || '변경하지 못했습니다';
+                    statusEl.style.opacity = '1';
+                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
+                }
+            })
+            .catch(function () {
+                if (statusEl) {
+                    statusEl.textContent = '변경하지 못했습니다';
+                    statusEl.style.opacity = '1';
+                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
+                }
+            });
     }
 
     /**
@@ -960,7 +1019,8 @@
                 applyConfig(json.data.config);
 
                 // 포트폴리오 이름 표시
-                updatePortfolioNameUI(json.data.portfolio_id, json.data.portfolio_name);
+                updatePortfolioNameUI(json.data.portfolio_id, json.data.portfolio_name,
+                                      json.data.mine, json.data.is_public);
 
                 return true;
             })
@@ -1396,6 +1456,16 @@
             var eventType = (el.type === 'checkbox') ? 'change' : 'input';
             el.addEventListener(eventType, scheduleAutoRecalc);
         });
+
+        // 포트폴리오 공개/비공개 토글
+        var publicBtn = document.getElementById('portfolioPublicToggle');
+        if (publicBtn) {
+            publicBtn.addEventListener('click', function () {
+                // 지금 상태의 반대로 보낸다. 서버가 소유권을 다시 보므로 화면 상태를
+                // 믿고 보내도 남의 것은 403 으로 막힌다.
+                savePortfolioPublic(publicBtn.getAttribute('aria-pressed') !== 'true');
+            });
+        }
 
         // 포트폴리오 이름 인라인 편집
         var nameEditBtn = document.getElementById('portfolioNameEdit');

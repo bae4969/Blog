@@ -183,21 +183,31 @@ async def api_portfolio(request: Request):
     if pid <= 0:
         return JSONResponse({"success": False, "error": "Invalid id"}, status_code=400)
 
+    me = await _owner_index(request)
     async with db_session() as db:
         row = (await db.execute(text(
-            "SELECT portfolio_id, portfolio_name, config_json, display_score, display_grade, "
+            # ⚠️ `user_index`·`is_public` 도 함께 읽는다 — 화면이 **공개 토글을 보여줄지**
+            #    판단하려면 "내 것인가" 를 알아야 한다. 이게 없으면 저장 직후에는 토글이
+            #    뜨는데 `?portfolio=ID` 로 다시 열면 사라진다(실제로 그랬다).
+            "SELECT portfolio_id, portfolio_name, user_index, is_public, "
+            "config_json, display_score, display_grade, "
             "ranking_score, ranking_grade, metrics_json, stock_summary, strategy, "
             "period_start, period_end, initial_capital, monthly_dca, created_at, updated_at "
             # ⚠️ 공개된 것이거나 **내 것**일 때만 준다. id 는 랭킹에 노출되므로,
             #    소유권을 안 보면 번호만 알아도 남의 투자 조합 전체를 읽을 수 있다.
             "FROM backtest_portfolio WHERE portfolio_id = :id AND "
             "(is_public = 1 OR (user_index IS NOT NULL AND user_index = :me))"),
-            {"id": pid, "me": await _owner_index(request)})).first()
+            {"id": pid, "me": me})).first()
 
     if row is None:
         return JSONResponse({"success": False, "error": "Not found"}, status_code=404)
     # ip_address 는 애초에 SELECT 하지 않는다 — 소유자 IP 가 응답에 실리면 안 된다.
-    return JSONResponse(jsonable(_row_to_dict(row, "config_json", "metrics_json")))
+    data = _row_to_dict(row, "config_json", "metrics_json")
+    # 소유자 번호 자체는 내보내지 않는다 — 화면에 필요한 것은 "내 것인가" 뿐이다.
+    owner = data.pop("user_index", None)
+    data["mine"] = owner is not None and me is not None and owner == me
+    data["is_public"] = bool(data.get("is_public"))
+    return JSONResponse(jsonable(data))
 
 
 @router.post("/stocks/api/portfolio/name", include_in_schema=False)
@@ -233,6 +243,45 @@ async def api_portfolio_rename(request: Request):
 
     logger.info("포트폴리오 이름 수정: id=%s name=%s", pid, name)
     return JSONResponse({"success": True})
+
+
+@router.post("/stocks/api/portfolio/public", include_in_schema=False)
+async def api_portfolio_public(request: Request):
+    """공개/비공개 전환 — **화면 전용 창구**.
+
+    ⚠️ `/api/v1/backtest/portfolios/{id}` 와 같은 일을 하지만 여기가 따로 있는 이유는
+       인증 방식이 달라서다. 화면은 쿠키 세션으로 도는데 `/api/v1` 쓰기는 **Bearer 전용**
+       이다(쿠키를 받으면 CSRF 를 따로 막아야 해서). 화면 쪽은 `require_internal` 이
+       그 역할을 한다 — 두 창구가 같은 규칙을 쓰되 관문만 다르다.
+    """
+    if (deny := require_internal(request)) is not None:
+        return deny
+
+    body = await _json_body(request)
+    if body is None:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+    pid = body.get("id")
+    if not isinstance(pid, int) or not isinstance(body.get("isPublic"), bool):
+        return JSONResponse({"success": False, "error": "id and isPublic are required"},
+                            status_code=400)
+
+    me = await _owner_index(request)
+    if me is None:
+        return JSONResponse({"success": False, "error": "로그인이 필요합니다."}, status_code=401)
+
+    async with db_session() as db:
+        # 소유권 검사와 갱신을 한 문장에 — 남의 것은 rowcount 0 으로 떨어진다.
+        res = await db.execute(text(
+            "UPDATE backtest_portfolio SET is_public = :p "
+            "WHERE portfolio_id = :id AND user_index = :u"),
+            {"p": 1 if body["isPublic"] else 0, "id": pid, "u": me})
+        await db.commit()
+    if res.rowcount == 0:
+        logger.warning("포트폴리오 공개전환 거절: id=%s me=%s", pid, me)
+        return JSONResponse({"success": False, "error": "수정 권한이 없습니다."}, status_code=403)
+
+    logger.info("포트폴리오 공개전환: id=%s public=%s", pid, body["isPublic"])
+    return JSONResponse({"success": True, "isPublic": body["isPublic"]})
 
 
 # ---------------------------------------------------------------------------
@@ -540,14 +589,18 @@ async def api_backtest(request: Request):
                             status_code=404)
 
     portfolio_id = portfolio_name = None
+    portfolio_mine = portfolio_public = False
     try:
-        portfolio_id, portfolio_name = await _save_portfolio(request, config, result)
+        portfolio_id, portfolio_name, portfolio_mine, portfolio_public = \
+            await _save_portfolio(request, config, result)
     except Exception:                                   # 저장이 실패해도 결과는 돌려준다
         logger.exception("포트폴리오 저장 실패")
 
     return JSONResponse(
         {"success": True, "data": _finite(result),
-         "portfolioId": portfolio_id, "portfolioName": portfolio_name},
+         "portfolioId": portfolio_id, "portfolioName": portfolio_name,
+         # 내 것일 때만 화면이 공개 토글을 보여준다(비로그인 것은 공개 고정이라 못 바꾼다).
+         "portfolioMine": portfolio_mine, "portfolioPublic": portfolio_public},
         headers={"Cache-Control": "private, no-cache"})
 
 
@@ -561,7 +614,7 @@ async def _owner_index(request: Request) -> int | None:
     return None if me is None else me.user_index
 
 
-async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple[int, str]:
+async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple[int, str, bool, bool]:
     """백테스트 결과를 포트폴리오로 남긴다.
 
     ⚠️ **소유권은 계정이다(2026-08-19).** 예전에는 `ip_address` 로 갈랐는데, 앞단(NPM)이
@@ -616,8 +669,9 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
                 ":rs, :rg, :metrics, :summary, :strategy, :ps, :pe, :cap, :dca)"), params)
             pid = int(res.lastrowid)
         await db.commit()
-    logger.info("백테스트 저장: id=%s score=%s %s", pid, result["rankingScore"], name)
-    return pid, name
+    logger.info("백테스트 저장: id=%s score=%s owner=%s %s", pid, result["rankingScore"], owner, name)
+    # 화면이 토글을 보여줄지 판단하려면 **내 것인지**와 현재 공개 여부가 필요하다.
+    return pid, name, owner is not None, bool(params["pub"])
 
 
 def _finite(v):
