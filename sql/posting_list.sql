@@ -1,5 +1,5 @@
 -- 게시글 테이블
--- 참조: src/Models/Post.php, src/Controllers/PostController.php
+-- 참조: app/ui/routes.py · app/api/v1.py
 CREATE TABLE IF NOT EXISTS `posting_list` (
     `posting_index` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
     `user_index` INT(10) UNSIGNED NOT NULL DEFAULT '0',

@@ -1,5 +1,5 @@
 -- 백테스트 포트폴리오 랭킹 테이블
--- 참조: src/Models/BacktestPortfolio.php, src/Controllers/StockController.php
+-- 참조: app/ui/backtest.py
 CREATE TABLE IF NOT EXISTS `backtest_portfolio` (
     `portfolio_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
     `portfolio_name` VARCHAR(100) NOT NULL,
