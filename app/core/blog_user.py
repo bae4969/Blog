@@ -47,7 +47,7 @@ def level_of(user: AuthUser | None) -> int:
         return 0
     if "admin" in user.roles:
         return 1
-    if "poster" in user.roles:
+    if "manager" in user.roles:
         return 2
     if "member" in user.roles:
         return 3
