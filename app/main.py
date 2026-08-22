@@ -74,7 +74,7 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
     """
 
     #: 갱신을 시도하지 않을 경로. 정적 파일·헬스체크까지 auth 를 부르면 낭비다.
-    _SKIP = ("/healthz", "/favicon.ico", "/robots.txt")
+    _SKIP = ("/healthz", "/favicon.ico", "/robots.txt", "/site.webmanifest")
     _SKIP_PREFIX = ("/css/", "/js/", "/res/", "/vendor/", "/uploads/")
 
     async def dispatch(self, request: Request, call_next):
@@ -159,6 +159,17 @@ async def favicon() -> FileResponse:
 @app.get("/robots.txt", include_in_schema=False)
 async def robots() -> FileResponse:
     return FileResponse(_PUBLIC / "robots.txt")
+
+
+# ⚠️ manifest 는 **루트에서** 내보낸다. `/res/` 에 두면 `scope` 기본값이 그 폴더가 돼
+#    홈 화면 바로가기가 `/res/` 밖으로 못 나간다. 아이콘만 `/res/`(mount) 에 있다.
+# ⚠️ `.webmanifest` 는 파이썬 mimetypes 에 없어 그냥 두면 octet-stream 으로 나간다 —
+#    미디어 타입을 직접 준다.
+@app.get("/site.webmanifest", include_in_schema=False)
+async def webmanifest() -> FileResponse:
+    return FileResponse(
+        _PUBLIC / "site.webmanifest", media_type="application/manifest+json"
+    )
 
 
 @app.get("/healthz", include_in_schema=False)

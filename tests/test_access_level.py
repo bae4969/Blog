@@ -19,7 +19,7 @@ def _user(*roles):
 @pytest.mark.parametrize("roles,expected", [
     (("user", "root"), 0),
     (("user", "admin"), 1),
-    (("user", "poster"), 2),
+    (("user", "manager"), 2),
     (("user", "member"), 3),
     (("user",), 4),          # 역할이 없으면 방문자와 같다
     (("user", "unknown"), 4),

@@ -216,11 +216,15 @@ section.stock-page-section {
     list-style: none; 
 }
 
-li.category { 
-    margin: 4px; 
-    padding: 10px; 
-    font-size: 1.8ex; 
-    font-weight: bold; 
+/* ⚠️ 이 규칙은 블로그 카테고리와 **관리자 메뉴가 함께** 쓴다(admin.css 에 따로 없다).
+   한쪽만 보고 고치지 말 것.
+   ⚠️ 단위가 `ex`(폰트 x-높이)였다 — 기기·폰트에 따라 실제 크기가 흔들려 px 로 바꿨다.
+   여기 15px 은 옛 1.8ex 의 실측값이라 PC 화면은 그대로다. */
+li.category {
+    margin: 4px;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: bold;
     cursor: pointer; 
     transition: var(--transition); 
     border-radius: var(--border-radius); 
@@ -1228,16 +1232,20 @@ footer a:hover {
         border-radius: var(--border-radius-md);
     }
     
+    /* ⚠️ 여기서 글자를 **줄이고 있었다**(1.4ex ≈ 11.8px). 손가락으로 누르는 화면이라
+       방향이 거꾸로였다 — 키우고 높이도 44px 이상으로 잡는다(터치 타깃 권장치). */
     li.category {
-        padding: 8px 12px;
-        font-size: 1.4ex;
+        padding: 12px 14px;
+        font-size: 16px;
+        line-height: 1.4;
         margin-bottom: 4px;
         border-radius: var(--border-radius-sm);
     }
-    
+
+    /* 선택 항목은 좌측 막대 2px 만큼 안쪽 여백을 빼서 글자 시작점을 나머지와 맞춘다. */
     li.category-selected {
         border-left-width: 2px;
-        padding-left: 10px;
+        padding-left: 12px;
     }
     
     li.category-selected::before {
@@ -1453,9 +1461,9 @@ footer a:hover {
         border-radius: 10px;
     }
     
+    /* ⚠️ 여기가 제일 작았다(1.2ex ≈ 10.1px, 높이 27px). 화면이 좁을수록 손가락은 그대로라
+       크기를 더 줄일 이유가 없다 — 위 1024px 규칙의 값을 그대로 물려받게 두고 간격만 줄인다. */
     li.category {
-        padding: 6px 10px;
-        font-size: 1.2ex;
         margin-bottom: 3px;
     }
     
