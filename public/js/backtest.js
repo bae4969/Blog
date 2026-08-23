@@ -19,6 +19,14 @@
     var autoRecalcTimer = null;
     var dateRangeTimer = null;
 
+    // 오늘(YYYY-MM-DD). ⚠️ `toISOString()` 은 UTC 라 KST 오전 9시 전에는 어제가 나온다.
+    function todayStr() {
+        var d = new Date();
+        return d.getFullYear() + '-' +
+            ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+            ('0' + d.getDate()).slice(-2);
+    }
+
     /* =========================================
        `/api/v1` 호출 — 개인 데이터는 Bearer 가 필요하다
 
@@ -126,14 +134,21 @@
                 .then(function (json) {
                     // 겹치는 구간이 없으면 `min`·`max` 가 null 이다(오류가 아니다).
                     if (json && json.min && json.max) {
+                        // ⚠️ 종료일은 **오늘까지** 고를 수 있다(2026-08-23 사용자 요청).
+                        //    데이터 마지막 날로 막아 두면 휴장·수집 지연일 때 오늘이 회색이
+                        //    되어 "왜 안 되지" 가 된다. 엔진은 CAGR 등을 실제 시세가 있는
+                        //    첫날·마지막날로 계산하므로(services/backtest.py `cagr`),
+                        //    데이터 없는 날을 끝으로 잡아도 지표가 틀어지지 않는다.
+                        var today = todayStr();
+                        var endMax = today > json.max ? today : json.max;
                         startEl.setAttribute('min', json.min);
                         startEl.setAttribute('max', json.max);
                         endEl.setAttribute('min', json.min);
-                        endEl.setAttribute('max', json.max);
+                        endEl.setAttribute('max', endMax);
                         if (startEl.value && startEl.value < json.min) startEl.value = json.min;
                         if (startEl.value && startEl.value > json.max) startEl.value = json.max;
                         if (endEl.value && endEl.value < json.min) endEl.value = json.min;
-                        if (endEl.value && endEl.value > json.max) endEl.value = json.max;
+                        if (endEl.value && endEl.value > endMax) endEl.value = endMax;
                         showDateHint(json.min, json.max);
                     } else {
                         showDateHint(null, null);
@@ -451,18 +466,42 @@
 
 
     /*
-      고를 수 있는 기간을 글로 보여 준다. 달력이 오늘을 회색으로 막아도 **왜** 막혔는지는
-      안 알려 주기 때문이다(휴장일이거나 수집이 아직 안 된 경우). 종목마다 데이터 시작일이
-      달라 교집합으로 좁혀지는 것도 여기서 드러난다.
+      고를 수 있는 기간 안내. 종목마다 데이터 시작일이 달라 교집합으로 좁혀지는 것이
+      달력만 봐서는 안 드러나기 때문이다.
+      ⚠️ 늘 한 줄로 깔지 않고 **종료일 라벨 옆 ⓘ 안에** 넣는다(2026-08-23 사용자 지시).
+         종료일은 오늘까지 고를 수 있으므로, 데이터가 오늘보다 앞에서 끝나면 계산이
+         거기까지만 간다는 것도 이 툴팁이 함께 말해 준다.
     */
     function showDateHint(min, max) {
-        var el = document.getElementById('dateRangeHint');
-        if (!el) return;
-        if (!min || !max) { el.hidden = true; el.textContent = ''; return; }
-        var today = new Date().toISOString().slice(0, 10);
-        var tail = (max < today) ? ' (오늘은 데이터가 없어 선택할 수 없습니다)' : '';
-        el.textContent = '선택한 종목의 데이터: ' + min + ' ~ ' + max + tail;
-        el.hidden = false;
+        // 줄 배열을 그 칸의 ⓘ 툴팁에 채운다. 빈 문자열은 빈 줄이다.
+        function fill(id, lines) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var tip = el.querySelector('.metric-tooltip');
+            if (!tip) return;
+            if (!lines) { el.hidden = true; tip.textContent = ''; return; }
+            tip.textContent = '';
+            lines.forEach(function (line, i) {
+                if (i > 0) tip.appendChild(document.createElement('br'));
+                if (line) tip.appendChild(document.createTextNode(line));
+            });
+            el.hidden = false;
+        }
+
+        if (!min || !max) { fill('startDateHint', null); fill('endDateHint', null); return; }
+
+        fill('startDateHint', [
+            '선택한 종목의 데이터 시작',
+            min,
+            '',
+            '이보다 앞은 고를 수 없습니다'
+        ]);
+        fill('endDateHint', [
+            '선택한 종목의 데이터 끝',
+            max
+        ].concat(max < todayStr()
+            ? ['', '오늘까지 고를 수 있지만 계산은 ' + max + ' 까지입니다']
+            : []));
     }
 
     // 종목 검색 — 자동완성
@@ -1109,8 +1148,7 @@
             feeKR: document.getElementById('feeKR').value,
             feeUS: document.getElementById('feeUS').value,
             feeCOIN: document.getElementById('feeCOIN').value,
-            startDate: document.getElementById('startDate').value,
-            endDate: document.getElementById('endDate').value,
+            // ⚠️ 기간은 담지 않는다 — 프리셋과 같은 규칙이다(withoutDates 주석 참조).
             riskFreeRate: document.getElementById('riskFreeRate').value,
             savedAt: new Date().toISOString()
         };
@@ -1160,8 +1198,7 @@
             document.getElementById('feeKR').value = data.feeKR || '0.015';
             document.getElementById('feeUS').value = data.feeUS || '0.2';
             document.getElementById('feeCOIN').value = data.feeCOIN || '0.015';
-            if (data.startDate) document.getElementById('startDate').value = data.startDate;
-            if (data.endDate) document.getElementById('endDate').value = data.endDate;
+            // 기간은 복원하지 않는다 — 옛 저장본에 남아 있어도 화면 값을 그대로 둔다.
             document.getElementById('riskFreeRate').value = data.riskFreeRate || '3.0';
 
             document.getElementById('signalRules').innerHTML = '';
@@ -1197,6 +1234,21 @@
     /* =========================================
        서버 프리셋 관리 (로그인 사용자 전용)
        ========================================= */
+
+    /**
+     * 프리셋에 담지 않을 것 — **기간**(2026-08-23 사용자 지시).
+     *
+     * 프리셋은 "이 종목 조합·전략" 을 기억하는 것이지 "그때 봤던 기간" 이 아니다.
+     * 기간까지 들어 있으면 불러올 때마다 화면의 날짜가 예전 값으로 되돌아간다.
+     * ⚠️ 이미 날짜가 들어간 채 저장된 옛 프리셋이 있으므로, **불러올 때도** 걷어낸다.
+     */
+    function withoutDates(config) {
+        var copy = {};
+        Object.keys(config || {}).forEach(function (k) {
+            if (k !== 'startDate' && k !== 'endDate') copy[k] = config[k];
+        });
+        return copy;
+    }
 
     function showPresetStatus(msg) {
         var el = document.getElementById('presetStatus');
@@ -1244,9 +1296,15 @@
                         tip.className = 'preset-float-tooltip';
                         tip.textContent = item.dataset.info;
                         document.body.appendChild(tip);
+                        // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
+                        //    이름·삭제(×) 버튼을 덮어 목록을 못 읽는다(2026-08-23 사용자 제보).
                         var rect = item.getBoundingClientRect();
-                        tip.style.left = rect.left + 'px';
-                        tip.style.top = (rect.bottom + 4) + 'px';
+                        var left = rect.left - tip.offsetWidth - 8;
+                        if (left < 8) left = Math.max(8, window.innerWidth - tip.offsetWidth - 8);
+                        var top = rect.top + rect.height / 2 - tip.offsetHeight / 2;
+                        top = Math.max(8, Math.min(top, window.innerHeight - tip.offsetHeight - 8));
+                        tip.style.left = left + 'px';
+                        tip.style.top = top + 'px';
                         item._floatTip = tip;
                     });
                     item.addEventListener('mouseleave', function () {
@@ -1286,7 +1344,7 @@
         apiFetch('/api/v1/backtest/presets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, config: config })
+            body: JSON.stringify({ name: name, config: withoutDates(config) })
         })
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
@@ -1345,7 +1403,7 @@
             })
             .then(function (json) {
                 if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
-                applyConfig(json.config);
+                applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
                 showPresetStatus('"' + (json.name || '') + '" 적용됨');
             })
             .catch(function (err) { alert(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
@@ -1412,6 +1470,37 @@
 
         updateDateRange();
         updateRunButtonState();
+    }
+
+    /* =========================================
+       설정 패널 고정 (2026-08-23 사용자 요청)
+
+       결과가 2,000px 넘게 길어서, 아래를 보다 보면 오른쪽 설정 패널이 화면 밖으로
+       사라져 매번 위로 올라가야 했다. 그래서 CSS 에서 `position: sticky` 로 붙였다.
+
+       ⚠️ `top` 은 여기서 정한다. 패널이 창보다 길면 `top: 20px` 로는 붙일 수 없다 —
+          맨 아래 [백테스트 실행] 이 화면 밖으로 밀려, 붙어 있는 동안 **영영 못 누른다**.
+          그래서 그때는 음수 top 으로 **아래를 맞춰** 붙인다(위쪽은 페이지를 올리면 나온다).
+       ========================================= */
+    function updateConfigStickyTop() {
+        var panel = document.querySelector('.backtest-config');
+        if (!panel) return;
+        // 한 컬럼(≤1024px)에서는 CSS 가 static 으로 되돌린다 — 계산할 것이 없다.
+        if (getComputedStyle(panel).position !== 'sticky') { panel.style.top = ''; return; }
+        var gap = 20;
+        var over = panel.offsetHeight + gap * 2 - window.innerHeight;
+        panel.style.top = (over > 0 ? gap - over : gap) + 'px';
+    }
+
+    function initConfigSticky() {
+        var panel = document.querySelector('.backtest-config');
+        if (!panel) return;
+        updateConfigStickyTop();
+        window.addEventListener('resize', updateConfigStickyTop);
+        // 종목 추가·고급 설정 펼침·프리셋 목록 로드로 패널 높이가 계속 바뀐다.
+        if (window.ResizeObserver) {
+            new ResizeObserver(updateConfigStickyTop).observe(panel);
+        }
     }
 
     /* =========================================
@@ -1533,6 +1622,8 @@
                 }
             });
         }
+
+        initConfigSticky();
 
         // URL 파라미터 ?portfolio=ID 확인 (localStorage보다 우선)
         var urlParams = new URLSearchParams(window.location.search);
