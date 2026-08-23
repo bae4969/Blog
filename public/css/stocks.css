@@ -46,17 +46,15 @@
     display: flex;
     flex-direction: column;
 
-    /* 표는 한 쪽에 50행이라 3,000px 가까이 되는데 사이드바 내용(검색 + TOP 10 둘)은
-       1,260px 남짓이다. 그냥 두면 오른쪽 250px 컬럼이 1,600px 넘게 새까맣게 빈다.
-       그래서 스크롤을 따라오게 붙인다.
-       ⚠️ align-self 가 없으면 grid 가 이 칸을 표 높이까지 늘려(stretch) 높이가 이미
-          충분해지므로 sticky 가 아예 걸리지 않는다 — 둘은 한 쌍이다.
-       내용이 화면보다 길 수 있어 자체 스크롤을 준다(넉넉한 화면에서는 안 생긴다). */
-    position: sticky;
-    top: 20px;
+    /* 통짜 한 덩어리다 — 자체 스크롤도, 화면에 붙는 sticky 도 두지 않는다
+       (2026-08-23 사용자 지시).
+       한때는 스크롤을 따라오게 붙여 뒀었다(오른쪽 250px 컬럼이 표 높이만큼 비니까).
+       하지만 붙어 있는 동안은 페이지를 내려도 사이드바가 안 움직여서, 창이 낮으면
+       (≈940px 아래) 아래쪽 포트폴리오 TOP 10 이 잘린 채 도달할 방법이 없어진다.
+       그걸 메우려 자체 스크롤을 줬더니 이번엔 사이드바 안에 스크롤바가 섰다 —
+       둘 다 걷고 페이지와 함께 흐르게 둔다.
+       align-self 는 남긴다. 없으면 grid 가 이 칸을 표 높이까지 늘린다. */
     align-self: start;
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
 }
 .stocks-sidebar-right > *:not(:last-child) {
     margin-bottom: 10px;
@@ -218,13 +216,13 @@
 /* =============================
    TOP 10 공통 (거래대금 / 포트폴리오)
    ============================= */
+/* 스크롤을 따라가는 일은 이제 사이드바(.stocks-sidebar-right)가 통째로 한다 —
+   섹션마다 따로 sticky 를 걸면 두 섹션이 서로 겹쳐 올라탄다. */
 .top10-section {
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     padding: 10px;
     border: 1px solid var(--border-color);
-    position: sticky;
-    top: 20px;
 }
 
 .top10-section h3 {
@@ -242,12 +240,11 @@
     flex-shrink: 0;
 }
 
+/* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다. */
 .top10-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: calc(100vh - 150px);
-    overflow-y: auto;
 }
 
 .top10-empty {
@@ -1378,11 +1375,6 @@
     .stocks-sidebar-right {
         grid-column: 1;
         grid-row: 3;
-        /* 여기서는 사이드바가 표 위의 전체폭 행이 된다 — 따라다닐 이유가 없고,
-           붙여두면 표를 가린다. 위에서 준 sticky 를 되돌린다. */
-        position: static;
-        max-height: none;
-        overflow-y: visible;
     }
 
     .stocks-search-bar.sidebar-search {
@@ -1394,15 +1386,10 @@
         grid-row: 4;
     }
 
-    .top10-section {
-        position: static;
-    }
-
     .top10-list {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
-        max-height: none;
     }
 
     .stock-detail-main {
