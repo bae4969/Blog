@@ -290,6 +290,71 @@ class TestBacktestRoutes:
         assert client.post("/api/v1/backtest/run", json={}).status_code != 401
 
 
+class TestBacktestConfigPassthrough:
+    """⚠️ 화면이 보낸 설정이 **엔진까지 온전히 닿는지**.
+
+    `BacktestRequest` 에 선언되지 않은 키는 Pydantic 이 조용히 버린다(`extra="ignore"`).
+    그러면 오류가 아니라 **200 에 그럴듯한 오답**이 나온다 — 2026-08-19(v2.6.0)에 실제로
+    여덟 개가 버려져 초기자본 0 원으로 돌았고, 어떤 종목·기간을 넣어도 지표가 전부 0
+    (랭킹 42점 C)이었다. 로그도 200 이라 나흘 동안 아무도 몰랐다.
+
+    DB 를 안 탄다 — 모델과 `_norm_config` 만 본다.
+    """
+
+    # `public/js/backtest.js` 의 `collectConfig()` 가 만드는 키 전부.
+    UI_CONFIG = {
+        "stocks": [{"code": "005930", "name": "삼성전자", "market": "KR", "weight": 100}],
+        "benchmarks": [{"code": "069500", "market": "KR", "name": "KODEX 200"}],
+        "startDate": "2025-01-02",
+        "endDate": "2025-12-30",
+        "strategy": "signal",
+        "rebalancePeriod": "monthly",
+        "signalRules": [{"indicator": "goldencross", "targetCode": "005930"}],
+        "signalCombine": "and",
+        "initialCapital": 30000000,
+        "monthlyDCA": 500000,
+        "dcaDefer": {"enabled": True, "indicator": "rsi_high"},
+        "fees": {"KR": 0.5, "US": 0.7, "COIN": 0.9},
+        "riskFreeRate": 4.5,
+    }
+
+    def test_화면이_보내는_키를_모델이_다_받는다(self):
+        """버려지는 키가 하나라도 있으면 그 값은 조용히 기본값이 된다."""
+        from app.api.backtest_v1 import BacktestRequest
+
+        assert set(self.UI_CONFIG) <= set(BacktestRequest.model_fields)
+
+    def test_설정값이_엔진까지_그대로_간다(self):
+        """⚠️ 기본값과 **다른** 값을 넣는다 — 같은 값이면 버려져도 통과한다."""
+        from app.api.backtest_v1 import BacktestRequest
+        from app.ui.backtest import _norm_config
+
+        config, err = _norm_config(BacktestRequest(**self.UI_CONFIG).model_dump())
+        assert err is None
+
+        assert config["initialCapital"] == 30000000   # 0 이면 결과가 전부 0 이 된다
+        assert config["monthlyDCA"] == 500000
+        assert config["rebalancePeriod"] == "monthly"
+        assert config["signalCombine"] == "and"
+        assert config["riskFreeRate"] == 4.5
+        assert config["fees"] == {"KR": 0.5, "US": 0.7, "COIN": 0.9}
+        assert config["dcaDefer"] == {"enabled": True, "indicator": "rsi_high"}
+        assert config["signalRules"] == [{"indicator": "goldencross", "targetCode": "005930"}]
+
+    def test_안_보내면_옛_기본값_그대로(self):
+        """선택 항목이라 빠져도 422 가 되면 안 된다 — 옛 API 는 raw JSON 을 받았다."""
+        from app.api.backtest_v1 import BacktestRequest
+        from app.ui.backtest import _norm_config
+
+        minimal = {k: self.UI_CONFIG[k] for k in ("stocks", "startDate", "endDate")}
+        config, err = _norm_config(BacktestRequest(**minimal).model_dump())
+        assert err is None
+        assert config["strategy"] == "buyhold"
+        assert config["rebalancePeriod"] == "quarterly"
+        assert config["riskFreeRate"] == 3
+        assert config["fees"] == {"KR": 0.015, "US": 0.2, "COIN": 0.015}
+
+
 class TestPortfolioOwnership:
     """포트폴리오 공개/비공개 — 소유권이 계정으로 바뀐 뒤의 계약.
 

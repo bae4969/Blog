@@ -56,13 +56,36 @@ router = APIRouter(prefix="/api/v1/backtest", tags=["backtest"])
 
 
 class BacktestRequest(BaseModel):
-    """옛 API 와 같은 입력이다 — 화면 JS 가 만드는 것을 그대로 받는다."""
+    """옛 API 와 같은 입력이다 — 화면 JS 가 만드는 것을 그대로 받는다.
+
+    ⚠️ **화면이 보내는 키를 하나도 빠뜨리면 안 된다.** Pydantic 은 선언되지 않은 키를
+       기본값(`extra="ignore"`)으로 **조용히 버린다** — 400 도 422 도 아니고 200 에
+       그럴듯한 오답이 나온다.
+
+       실제로 2026-08-19(v2.6.0)부터 여기에 `stocks`·기간·`strategy`·`benchmarks` 다섯만
+       선언돼 있어 나머지 여덟 개가 통째로 버려졌다. 옛 `POST /stocks/api/backtest` 는
+       raw JSON 을 `_norm_config` 에 그대로 넘겼는데 그 사이에 이 모델이 끼면서 생긴 회귀다.
+       **초기자본이 0 원**이 되어 어떤 종목·기간을 넣어도 지표가 전부 0(랭킹 42점 C)이었고,
+       리밸런싱 주기·수수료는 화면 입력이 무시됐으며 시그널 전략은 규칙 0개로 돌았다.
+
+    검증·정규화는 `_norm_config` 가 한다(화면과 결과가 갈라지지 않게 한 곳에서). 그래서
+    여기서는 값을 **통과시키는** 것이 일이고, 타입도 그쪽이 받아 주는 만큼만 좁힌다.
+    """
 
     stocks: list[dict] = Field(description="종목별 코드·시장·비중")
     startDate: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     endDate: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     strategy: str = "buyhold"
     benchmarks: list[dict] = Field(default_factory=list)
+    initialCapital: float = Field(0, description="초기 자본(원)")
+    monthlyDCA: float = Field(0, description="매월 적립액(원)")
+    rebalancePeriod: str = Field("quarterly", description="`strategy=rebalance` 일 때의 주기")
+    signalRules: list[dict] = Field(default_factory=list,
+                                    description="`strategy=signal` 일 때의 규칙")
+    signalCombine: str = Field("or", description="시그널 규칙 결합 — `and` 또는 `or`")
+    dcaDefer: dict = Field(default_factory=dict, description="적립 유예 — `enabled`·`indicator`")
+    fees: dict = Field(default_factory=dict, description="시장별 수수료(%) — `KR`·`US`·`COIN`")
+    riskFreeRate: float = Field(3, description="무위험수익률(%) — 샤프·소르티노에 쓴다")
 
 
 class PresetSummary(BaseModel):
