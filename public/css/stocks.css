@@ -2068,15 +2068,26 @@
     max-width: 100%;
     margin: 0;
     padding: 0;
-    overflow: hidden;
+    /* ⚠️ `overflow: hidden` 이면 안 된다 — 그 순간 이 요소가 스크롤 컨테이너가 되어
+       안쪽 설정 패널의 sticky 가 죽는다(붙지 않고 그냥 흘러간다). `clip` 은 스크롤
+       컨테이너를 만들지 않아 넘침만 자르면서 sticky 를 살려 둔다. */
+    overflow-x: clip;
 }
 
-/* 설정 패널 */
+/* 설정 패널 — 결과가 길어도 따라오게 붙인다(2026-08-23 사용자 요청).
+   ⚠️ align-self 가 없으면 grid 가 이 칸을 결과 높이(2,000px 넘는다)까지 늘려
+      높이가 이미 충분해지므로 sticky 가 아예 안 걸린다.
+   ⚠️ `top` 은 backtest.js 가 정한다 — 패널이 창보다 길면 20px 로 붙일 수 없다.
+      그러면 맨 아래 [백테스트 실행] 이 잘린 채 도달할 방법이 없어진다. 그래서 창보다
+      길 때는 음수 top 으로 **아래쪽을 맞춰** 붙인다(위쪽은 페이지를 올리면 보인다). */
 .backtest-config {
     display: flex;
     flex-direction: column;
     gap: 0;
     min-width: 0;
+    position: sticky;
+    top: 20px;
+    align-self: start;
 }
 
 .config-section {
@@ -2592,10 +2603,14 @@ details[open] > .config-section-title.clickable {
     pointer-events: none;
 }
 
+/* ⚠️ 흐름 안에 둔다. 예전엔 `position: absolute; bottom: 0` 이라 목록 마지막 줄 **위에**
+   글자가 겹쳐 찍혔다(2026-08-23 사용자 제보). 자리를 미리 잡아(min-height) 메시지가
+   떴다 사라져도 아래가 밀리지 않게 한다. */
 .preset-status {
-    position: absolute;
-    right: 0;
-    bottom: 0;
+    display: block;
+    min-height: 1.1em;
+    margin-top: 4px;
+    text-align: right;
     font-size: 0.72rem;
     color: var(--success-color, #10b981);
     opacity: 0;
@@ -2974,11 +2989,34 @@ details[open] > .config-section-title.clickable {
     z-index: 1;
 }
 
+/* ⚠️ z-index 를 여기서 올려야 한다. `.metric-info` 는 위치가 잡힌 채 z-index 를 가져
+   **스택 컨텍스트**를 만드는데, 그러면 안에 있는 툴팁의 z-index: 100 은 그 안에서만
+   통한다 — 밖에서는 아이콘의 1 로 취급돼 뒤에 있는 다른 카드의 ⓘ 가 툴팁 위로 올라온다
+   (2026-08-23 사용자 제보). 아이콘 자체를 올리면 툴팁도 함께 올라간다. */
 .metric-info:hover,
 .metric-info:focus {
     background: var(--primary-color);
     color: var(--text-on-primary);
     outline: none;
+    z-index: 100;
+}
+
+/* 설정 폼 안에서 쓰는 ⓘ — 카드용 `.metric-info` 는 카드 모서리에 절대배치되므로
+   라벨 옆에 인라인으로 서게 위치만 되돌린다(툴팁은 이 아이콘 기준으로 뜬다). */
+.config-info {
+    position: relative;
+    top: auto;
+    right: auto;
+    display: inline-flex;
+    vertical-align: middle;
+    margin-left: 4px;
+    width: 14px;
+    height: 14px;
+    font-size: 0.58rem;
+}
+
+.config-info[hidden] {
+    display: none;
 }
 
 .metric-tooltip {
@@ -3187,6 +3225,9 @@ details[open] > .config-section-title.clickable {
 
     .backtest-config {
         order: 1;
+        /* 한 컬럼이 되면 설정이 결과 **위**로 온다 — 따라다닐 이유가 없고,
+           붙여두면 결과를 가린다. */
+        position: static;
     }
 
     .backtest-results {

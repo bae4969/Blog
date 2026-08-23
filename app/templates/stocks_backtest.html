@@ -218,22 +218,28 @@
                     </div>
                 </div>
             </div>
+            {#
+              데이터가 있는 기간은 **ⓘ 안에** 둔다(2026-08-23). 종목마다 시작일이 달라
+              교집합으로 좁혀지는 것은 알아둘 만하지만, 늘 한 줄로 깔아 두면 설정 화면이
+              설명문으로 지저분해진다.
+              ⚠️ 칸마다 걸리는 제약이 달라 **따로** 단다 — 시작일은 "언제부터 있나",
+                 종료일은 "언제까지 + 그 뒤로 잡아도 계산은 거기까지". 둘 다 내용은
+                 backtest.js 의 `showDateHint` 가 채우고, 종목이 없으면 숨는다.
+            #}
             <div class="config-grid" style="margin-top:8px">
                 <div class="config-field">
-                    <label class="config-label" for="startDate">시작일</label>
+                    <label class="config-label" for="startDate">시작일<span
+                        class="metric-info config-info" id="startDateHint" tabindex="0" hidden
+                        >ⓘ<span class="metric-tooltip"></span></span></label>
                     <input type="date" id="startDate" class="backtest-input" value="2024-06-01">
                 </div>
                 <div class="config-field">
-                    <label class="config-label" for="endDate">종료일</label>
+                    <label class="config-label" for="endDate">종료일<span
+                        class="metric-info config-info" id="endDateHint" tabindex="0" hidden
+                        >ⓘ<span class="metric-tooltip"></span></span></label>
                     <input type="date" id="endDate" class="backtest-input">
                 </div>
             </div>
-            {#
-              고를 수 있는 기간을 글로 알려 준다. 안 그러면 "오늘이 왜 선택이 안 되지" 하고
-              헤맨다 — 휴장일이거나 수집이 늦으면 마지막 거래일까지만 가능한데, 달력은
-              그냥 회색으로만 보여 이유를 말해주지 않는다.
-            #}
-            <div class="config-hint" id="dateRangeHint" hidden></div>
         </div>
 
         <!-- 전략 선택 -->
@@ -385,7 +391,12 @@
 
 <script>
     // 페이지 초기화 시 오늘 날짜를 종료일 기본값으로 설정
-    document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+    // ⚠️ `toISOString()` 을 쓰면 안 된다 — UTC 라 KST 오전 9시 전에는 **어제**가 찍힌다.
+    (function () {
+        var d = new Date();
+        document.getElementById('endDate').value = d.getFullYear() + '-' +
+            ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    })();
     window.__BACKTEST_USER_LOGGED_IN = {{ 'true' if user else 'false' }};
 </script>
 {% endblock %}
