@@ -65,14 +65,34 @@ async def fetch_public_key(*, force: bool = False) -> str:
 
 
 def verify_token(token: str) -> dict:
+    """auth 가 발급한 **사람의 세션 토큰**만 통과시킨다.
+
+    SECURITY: `purpose`·`aud`·`scope` 가 실린 것은 OAuth 액세스 토큰 같은 위임
+    토큰이다. auth 가 `resource` 없이 발급하면 `aud` 가 아예 안 실려 세션 토큰과
+    구별되지 않으므로, 여기서 종류를 직접 판정한다 — auth 만 고치면 안 된다.
+    각 서비스가 스스로 검증하는 것이 이 구조의 전제이기 때문이다.
+    """
     if not _verify_key:
         raise TokenError("verify key not loaded")
     try:
-        return jwt.decode(token, _verify_key, algorithms=[_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            _verify_key,
+            algorithms=[_ALGORITHM],
+            options={"verify_aud": False},
+        )
     except jwt.ExpiredSignatureError as e:
         raise TokenError("expired") from e
     except jwt.InvalidTokenError as e:
         raise TokenError("invalid") from e
+
+    if (
+        payload.get("purpose") is not None
+        or payload.get("aud") is not None
+        or payload.get("scope") is not None
+    ):
+        raise TokenError("not a session token")
+    return payload
 
 
 def auth_user_from_payload(payload: dict) -> AuthUser:
