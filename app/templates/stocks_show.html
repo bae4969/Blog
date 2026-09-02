@@ -67,11 +67,23 @@
                 <span class="market-badge market-{{ (stock.stock_market or '') | lower }}">{{ stock.stock_market }}</span>
                 <span class="type-badge type-{{ (stock.stock_type or '') | lower }}">{{ stock.stock_type }}</span>
             </div>
+            {#
+              등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — 미국 종목 캔들이
+              현지시각이라 그렇다. 목록·히트맵과 같은 헬퍼(`_latest_quotes`)를 쓴다.
+              ⚠️ 직전 거래일이 없으면 `None` 이다. 0% 로 적으면 보합으로 읽힌다.
+            #}
+            {% set chg = stock.change_pct %}
+            {% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
             <div class="stock-price-section">
-                <div class="current-price">
+                <div class="current-price {{ chg_cls }}">
                     {#- id 로 stocks.js 가 최신가를 갈아끼운다. -#}
                     <span id="currentPriceMainValue">{{ price(stock.stock_price) }}</span>
                     {%- if not is_us %}<span class="currency">원</span>{% endif -%}
+                    <span class="stock-price-change {{ chg_cls }}">
+                        {%- if chg is none -%}-
+                        {%- else -%}{{ '{:+,.2f}'.format(chg) }}%
+                        {%- endif -%}
+                    </span>
                 </div>
             </div>
         </div>

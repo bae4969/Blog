@@ -20,6 +20,9 @@ class StockOut(BaseModel):
     price: float | None = None
     market_cap: float | None = Field(default=None, description="시가총액. 코인은 가격×수량")
     quantity: float | None = Field(default=None, description="상장주식수 또는 코인 수량")
+    #: 등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — `_latest_quotes` 참조.
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
 class Candle(BaseModel):
@@ -71,6 +74,8 @@ class TopStock(BaseModel):
     market: str | None = None
     price: float | None = None
     trading_amount: float | None = Field(default=None, description="기간 거래대금 합계")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
 class HeatmapItem(BaseModel):

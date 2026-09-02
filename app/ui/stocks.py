@@ -69,10 +69,16 @@ def _candle_candidates(code: str, prefix: str) -> list[str]:
     ]))
 
 
-async def _latest_closes(db, pairs) -> dict[str, float]:
-    """`(종목코드, 접두사)` 목록 → 최신 종가 dict. 없는 종목은 키가 없다.
+async def _latest_quotes(db, pairs) -> dict[str, dict]:
+    """`(종목코드, 접두사)` 목록 → `{code: {close, prev_close, change_pct}}`.
 
-    PHP 의 N+1 을 배치 두 번으로 바꾼 곳이다(모듈 docstring 참조).
+    PHP 의 N+1 을 배치 두 번으로 바꾼 곳이다(모듈 docstring 참조). 최신 종가만 필요하면
+    `_latest_closes` 를 쓴다 — 같은 쿼리라 따로 돌릴 이유가 없다.
+
+    ⚠️ 전일 종가의 기준일은 `CURDATE()` 가 **아니라** 그 종목 캔들의 마지막 날짜다.
+       미국 종목의 `execution_datetime` 은 현지시각(ET)이라 KST 의 오늘로 자르면 장중에
+       하루가 통째로 빈다. `_heatmap_rows`·`app.ui.quotes._quote_rows` 와 같은 기준이라야
+       목록·히트맵·지수 화면이 같은 등락률을 보인다.
     """
     if not pairs:
         return {}
@@ -103,18 +109,35 @@ async def _latest_closes(db, pairs) -> dict[str, float]:
     # 테이블명이라 임의 입력이 아니지만, 그래도 식별자 문법을 한 번 더 확인한다.
     parts = [
         f"SELECT '{code}' AS code, (SELECT execution_close FROM `candle`.`{tbl}` "
-        f"ORDER BY execution_datetime DESC LIMIT 1) AS close_price"
+        f"ORDER BY execution_datetime DESC LIMIT 1) AS close_price, "
+        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
+        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
+        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_close"
         for code, tbl in picked.items()
         if tbl.replace("_", "").isalnum() and code.replace("_", "").replace(".", "").replace("/", "").isalnum()
     ]
     if not parts:
         return {}
 
-    out: dict[str, float] = {}
-    for code, close in (await db.execute(text(" UNION ALL ".join(parts)))).all():
-        if close is not None:
-            out[code] = float(close)
+    out: dict[str, dict] = {}
+    for code, close, prev_close in (await db.execute(text(" UNION ALL ".join(parts)))).all():
+        if close is None:
+            continue
+        close = float(close)
+        prev_close = None if prev_close is None else float(prev_close)
+        out[code] = {
+            "close": close,
+            "prev_close": prev_close,
+            # 직전 거래일이 없으면(상장 직후·수집 첫날) 계산하지 않는다. 0% 로 두면
+            # "보합"으로 읽혀 없는 정보가 있는 것처럼 보인다.
+            "change_pct": None if not prev_close else (close / prev_close - 1) * 100,
+        }
     return out
+
+
+async def _latest_closes(db, pairs) -> dict[str, float]:
+    """`(종목코드, 접두사)` 목록 → 최신 종가 dict. 없는 종목은 키가 없다."""
+    return {code: v["close"] for code, v in (await _latest_quotes(db, pairs)).items()}
 
 
 def _prefix_of(r) -> str:
@@ -235,9 +258,12 @@ async def _top_by_trading_amount(db, market: str, limit: int = 10) -> list[dict]
                 for r in (await db.execute(stmt, params)).all()]
 
     # stock_info 의 현재가는 갱신이 늦다 — 목록과 같은 기준으로 최신 종가를 씌운다.
-    closes = await _latest_closes(db, [(r["stock_code"], prefix) for r in out])
+    quotes = await _latest_quotes(db, [(r["stock_code"], prefix) for r in out])
     for r in out:
-        r["stock_price"] = closes.get(r["stock_code"], r["stock_price"])
+        q = quotes.get(r["stock_code"])
+        r["stock_price"] = q["close"] if q else r["stock_price"]
+        r["prev_price"] = q["prev_close"] if q else None
+        r["change_pct"] = q["change_pct"] if q else None
     return out[:limit]
 
 
@@ -667,13 +693,16 @@ async def stocks_show(request: Request):
         stock = dict(stock._mapping) if hasattr(stock, "_mapping") else dict(stock)
         is_coin = stock["stock_type"] == "COIN"
         table = await _resolve_source(db, "candle", code, "c" if is_coin else "s")
+        # stock_info 의 현재가는 갱신이 늦다 — 캔들의 최신 종가로 덮는다(PHP 와 같다).
+        # 등락률도 여기서 함께 얻는다. 목록·히트맵과 **같은 헬퍼**라야 같은 값이 나온다.
+        stock["change_pct"] = None
+        stock["prev_price"] = None
         if table:
-            # stock_info 의 현재가는 갱신이 늦다 — 캔들의 최신 종가로 덮는다(PHP 와 같다).
-            close = (await db.execute(text(
-                f"SELECT execution_close FROM `candle`.`{table}` "
-                "ORDER BY execution_datetime DESC LIMIT 1"))).scalar()
-            if close is not None:
-                stock["stock_price"] = float(close)
+            q = (await _latest_quotes(db, [(code, "c" if is_coin else "s")])).get(code)
+            if q:
+                stock["stock_price"] = q["close"]
+                stock["prev_price"] = q["prev_close"]
+                stock["change_pct"] = q["change_pct"]
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(

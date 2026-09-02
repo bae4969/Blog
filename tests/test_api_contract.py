@@ -404,8 +404,42 @@ class TestStockPriceSource:
         from app.api import stocks_v1
 
         src = inspect.getsource(stocks_v1.stocks)
-        assert "_latest_closes" in src, "최신 종가 덮어쓰기가 빠졌다 — 화면과 값이 갈라진다"
-        assert "closes.get(" in src
+        # 2026-09-02 에 `_latest_closes` → `_latest_quotes` 로 바뀌었다(등락률을 함께
+        # 얻으려고). 이름은 바뀌어도 **덮어쓰기 경로가 살아 있는지**를 보는 뜻은 같다.
+        assert "_latest_quotes" in src, "최신 종가 덮어쓰기가 빠졌다 — 화면과 값이 갈라진다"
+        assert 'quotes.get(r.code) or {}).get("close"' in src
+
+    def test_등락률이_같은_헬퍼에서_나온다(self):
+        """목록·TOP10·상세·히트맵이 **한 헬퍼**를 쓰는지.
+
+        ⚠️ 등락률의 기준일이 화면마다 다르면 같은 종목이 다른 숫자로 보인다. 특히 미국
+           종목은 캔들이 현지시각(ET)이라 `CURDATE()` 로 자르면 장중에 하루가 빈다.
+        """
+        import ast
+        import inspect
+
+        from app.api import stocks_v1
+        from app.ui import quotes, stocks
+
+        def body_src(fn):
+            """docstring·주석을 뺀 **실제 코드**. 설명문에 적힌 단어에 걸리지 않게."""
+            tree = ast.parse(inspect.getsource(fn).lstrip())
+            node = tree.body[0]
+            if (node.body and isinstance(node.body[0], ast.Expr)
+                    and isinstance(node.body[0].value, ast.Constant)):
+                node.body = node.body[1:]          # docstring 제거
+            return ast.unparse(node)
+
+        # 기준일은 마지막 캔들 날짜여야 한다 — KST 의 오늘(`CURDATE()`)이 아니라.
+        for fn in (stocks._latest_quotes, stocks._heatmap_rows, quotes._quote_rows):
+            src = body_src(fn)
+            assert "CURDATE()" not in src, fn.__name__
+            assert "DATE(MAX(execution_datetime))" in src, fn.__name__
+
+        # 화면들이 그 헬퍼를 실제로 거치는지.
+        for fn in (stocks_v1.stocks, stocks_v1.heatmap, stocks.stocks_show):
+            src = body_src(fn)
+            assert "_latest_quotes" in src or "_heatmap_rows" in src, fn.__name__
 
 
 class TestSessionTokenBridge:
