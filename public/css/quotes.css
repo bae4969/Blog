@@ -1,0 +1,297 @@
+/* ===========================================
+   지수 · 환율 (`/quotes`)
+   `stocks.css` 위에 얹는다 — 여기 있는 것은 이 화면 전용뿐이다.
+   =========================================== */
+
+.quotes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.quote-section {
+    min-width: 0;
+}
+
+.quote-section-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.quote-section-note {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.quote-empty {
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* ── 지수·환율 카드 ─────────────────────────────────────────────────── */
+
+.quote-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+.quote-card {
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg, 8px);
+    background: var(--bg-tertiary);
+}
+
+.quote-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.quote-card-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quote-card-at {
+    flex: none;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.quote-card-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.quote-card-figures {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.quote-card-price {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.quote-card-pct {
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 스파크라인은 `currentColor` 로 그린다 — 등락 클래스가 색을 정한다. */
+.quote-spark {
+    flex: none;
+    width: 104px;
+    height: 30px;
+    opacity: 0.85;
+}
+
+/* ⚠️ 등락 색(`.q-up`/`.q-down`/`.q-flat`)은 **`stocks.css` 에 있다.** 이 화면과 `/stocks`
+      가 같은 색이어야 해서 한 곳에만 둔다 — quotes.css 는 stocks.css 뒤에 실린다. */
+
+/* ── 히트맵 ─────────────────────────────────────────────────────────── */
+
+.heatmap-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.heatmap-head .quote-section-title {
+    margin: 0;
+}
+
+.heatmap-tabs {
+    display: flex;
+    gap: 6px;
+}
+
+.heatmap-tab {
+    padding: 5px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.heatmap-tab:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+}
+
+.heatmap-tab.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--bae-accent-text, #000);
+    font-weight: 600;
+}
+
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.heat-legend-label {
+    margin-right: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.heat-legend-chip {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 상자는 **4:3 고정**이다(2026-09-02 사용자 지정) — 폭을 따라 높이가 정해진다.
+   ⚠️ `quotes.js` 가 `clientWidth`·`clientHeight` 를 재서 타일을 깐다. 높이를 여기서
+      바꾸면 배치도 따라 바뀌므로, 비율을 손대면 화면을 다시 확인할 것. */
+.heatmap-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg, 8px);
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.heat-tile {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    overflow: hidden;
+    padding: 1px;
+    box-sizing: border-box;
+    text-decoration: none;
+    color: #fff;
+    outline: 1px solid rgba(0, 0, 0, 0.35);
+    outline-offset: -1px;
+}
+
+.heat-tile:hover {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+    z-index: 2;
+}
+
+.heat-tile-name {
+    max-width: 100%;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.heat-tile-pct {
+    font-size: 0.68rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.heatmap-foot {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.heatmap-tooltip {
+    position: fixed;
+    z-index: 100;
+    min-width: 168px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-hover);
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.heatmap-tooltip .tip-name {
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.heatmap-tooltip .tip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    line-height: 1.6;
+}
+
+.heatmap-tooltip .tip-row b {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 좁은 화면 ──────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .quote-card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+
+    /* 스파크라인은 카드가 좁아지면 가장 먼저 버린다 — 값과 등락률이 먼저다. */
+    .quote-spark {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .heatmap-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* ⚠️ 좁은 화면에서도 상자 높이를 따로 정하지 않는다 — 4:3 을 유지해야 타일 배치가
+      화면마다 달라지지 않는다(예전에는 560/420/340px 로 고정했었다). */

@@ -71,3 +71,37 @@ class TopStock(BaseModel):
     market: str | None = None
     price: float | None = None
     trading_amount: float | None = Field(default=None, description="기간 거래대금 합계")
+
+
+class HeatmapItem(BaseModel):
+    """히트맵 타일 하나 — 크기는 `market_cap`, 색은 `change_pct`.
+
+    ⚠️ `change_pct` 는 **각 종목 캔들의 마지막 날짜**를 기준으로 계산한다. 미국 종목은
+       `execution_datetime` 이 현지시각(ET)이라 KST 의 "오늘"로 자르면 하루씩 어긋난다.
+       종목마다 자기 마지막 거래일과 그 직전 거래일을 비교하므로 시장이 섞여도 맞는다.
+    """
+
+    code: str
+    name_kr: str | None = None
+    market: str | None = None
+    market_cap: float | None = Field(default=None, description="타일 크기. 코인은 가격×수량")
+    price: float | None = Field(default=None, description="마지막 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
+
+
+class QuoteOut(BaseModel):
+    """지수·환율 카드 하나.
+
+    ⚠️ `name` 은 `quote_info` 를 그대로 쓰지 않는다. 크로스 환산 환율은 `quote_code` 가
+       **환산 재료**(`KRWEUR` → `FXEUR` = "달러/유로")라 원본 이름이 실제 저장값과 다르다.
+    """
+
+    code: str = Field(description="`quote_last_rest_query.quote_query`. 저장 식별자이자 테이블명")
+    name: str
+    category: str = Field(description="INDEX_KR·INDEX_EX·FX")
+    price: float | None = None
+    prev_price: float | None = None
+    change_pct: float | None = Field(default=None, description="수집 이력이 하루뿐이면 null")
+    at: datetime | None = Field(default=None, description="마지막 값의 시각. 해외지수는 현지시각")
+    spark: list[float] = Field(default_factory=list, description="마지막 거래일 종가 열 — 스파크라인용")

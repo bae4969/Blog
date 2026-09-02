@@ -241,6 +241,86 @@ async def _top_by_trading_amount(db, market: str, limit: int = 10) -> list[dict]
     return out[:limit]
 
 
+async def _heatmap_rows(db, market: str) -> list[dict]:
+    """히트맵 타일 — 구독 종목의 시가총액과 등락률.
+
+    `_top_by_trading_amount` 와 같은 문제(종목마다 테이블이 따로)를 같은 방법(UNION ALL)으로
+    푼다. 다른 점은 **기간 합계가 아니라 마지막 두 거래일의 종가**만 본다는 것이다.
+
+    ⚠️ 등락률의 기준일을 `CURDATE()` 로 잡으면 안 된다. 미국 종목의 `execution_datetime` 은
+       현지시각(ET)이라 KST 의 오늘로 자르면 장중에 하루가 통째로 빈다. 대신 **그 테이블의
+       마지막 캔들 날짜**를 기준으로 삼는다 — 시장·시간대와 무관하게 맞는다.
+    """
+    is_coin = market == "COIN"
+    prefix = "c" if is_coin else "s"
+
+    tables = {
+        t for (t,) in (await db.execute(
+            text("SELECT TABLE_NAME FROM information_schema.TABLES "
+                 "WHERE TABLE_SCHEMA = 'candle' AND TABLE_NAME LIKE :p"),
+            {"p": prefix + "%"})).all()
+        if _SAFE_TABLE.fullmatch(t)
+    }
+    if not tables:
+        return []
+
+    if is_coin:
+        meta_sql = ("SELECT ci.coin_code AS code, ci.coin_name_kr AS name_kr, 'COIN' AS market, "
+                    "ci.coin_price * ci.coin_amount AS cap "
+                    "FROM Bithumb.coin_info ci INNER JOIN (SELECT DISTINCT coin_code "
+                    "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code")
+    else:
+        ms = ", ".join(repr(m) for m in (_KR_MARKETS if market == "KR" else _US_MARKETS))
+        meta_sql = ("SELECT si.stock_code AS code, si.stock_name_kr AS name_kr, "
+                    "si.stock_market AS market, si.stock_capitalization AS cap "
+                    "FROM KoreaInvest.stock_info si INNER JOIN (SELECT DISTINCT stock_code "
+                    "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code "
+                    f"WHERE si.stock_market IN ({ms})")
+    meta = {r.code: dict(r._mapping) for r in (await db.execute(text(meta_sql))).all()}
+    if not meta:
+        return []
+
+    code_to_table = {}
+    for code in meta:
+        if not code or not _SAFE_CODE.fullmatch(code):
+            continue
+        for cand in _candle_candidates(code, prefix):
+            if cand in tables:
+                code_to_table[code] = cand
+                break
+    if not code_to_table:
+        return []
+
+    union = "\nUNION ALL\n".join(
+        f"SELECT '{code}' AS code, "
+        f"(SELECT execution_close FROM `candle`.`{tbl}` "
+        f" ORDER BY execution_datetime DESC LIMIT 1) AS price, "
+        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
+        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
+        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_price "
+        f"FROM DUAL"
+        for code, tbl in code_to_table.items()
+    )
+
+    out: list[dict] = []
+    for code, price, prev_price in (await db.execute(text(union))).all():
+        row = meta.get(code)
+        if row is None or price is None:
+            continue
+        price, prev_price = float(price), (None if prev_price is None else float(prev_price))
+        out.append({
+            **row,
+            "price": price,
+            "prev_price": prev_price,
+            # 직전 거래일이 없으면(상장 직후·수집 첫날) 등락률은 계산하지 않는다 — 0% 로
+            # 두면 히트맵에서 "보합"으로 보여 없는 정보가 있는 것처럼 읽힌다.
+            "change_pct": None if not prev_price else (price / prev_price - 1) * 100,
+        })
+
+    out.sort(key=lambda r: r.get("cap") or 0, reverse=True)
+    return out
+
+
 @router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_index(request: Request):
     """종목 목록의 **껍데기**. 표·페이저·거래대금 TOP10 은 `/js/stocks_list.js` 가
