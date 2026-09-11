@@ -12,17 +12,27 @@ concurrency:
 env:
   APP_DIR: /mnt/10.project/20.blog
   DEPLOY_BRANCH: main
+  # 공개 저장소라 주소·계정은 파일에 쓰지 않고 저장소 변수로 받는다
+  # (Settings → Secrets and variables → Actions → Variables). 비어 있으면 첫 단계에서 멈춘다.
   # 러너(VM) → NAS. 여기로 SSH 하면 authorized_keys 의 `command=` 가 재시작 스크립트를
   # 강제 실행한다 — 무슨 명령을 보내든 그것만 돈다.
-  DEPLOY_SSH_TARGET: bae4969@192.168.135.30
+  DEPLOY_SSH_TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
   # 배포가 끝나고 실제로 열어 볼 주소. `/` 는 `/blog` 로 302 하므로 -L 로 따라간다.
-  HEALTH_URL: https://blog.bdda.duckdns.org/
+  HEALTH_URL: ${{ vars.HEALTH_URL }}
 
 jobs:
   # 0단계: 기본 검증 (CI)
   quality-check:
     runs-on: ubuntu-latest
     steps:
+      # 저장소 변수가 없으면 릴리스·배포 전에 멈춘다 — 소스만 바뀌고 재시작이 실패하는 반쪽 배포를 막는다.
+      - name: Check deploy variables
+        run: |
+          if [ -z "$DEPLOY_SSH_TARGET" ] || [ -z "$HEALTH_URL" ]; then
+            echo "::error::저장소 변수 DEPLOY_SSH_TARGET·HEALTH_URL 이 비어 있다 (Settings → Secrets and variables → Actions → Variables)"
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
