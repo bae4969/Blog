@@ -17,7 +17,6 @@ GitHub 호스팅 Runner와 Actions artifact 저장소는 사용하지 않는다.
 - 환경설정: `/mnt/nvme/90.service/blog_data/.env.api`
 - 업로드: `/mnt/nvme/90.service/blog_data/uploads`
 - 적용된 compose: `/mnt/nvme/90.service/blog_data/compose.yml`
-- 로컬 registry 데이터: `/mnt/nvme/90.service/blog_data/registry`
 
 최초 이미지 배포 때 강제 명령 스크립트가 기존 운영 컨테이너를 잠시 멈추고 마지막 데이터
 증분을 동기화한다. 성공 후 `.image-cutover-complete` 마커를 남기므로 이후에는 옛 코드
@@ -32,6 +31,11 @@ GitHub 호스팅 Runner와 Actions artifact 저장소는 사용하지 않는다.
 
 `truenas/bae-registry.yml`도 저장소에서는 주소 자리표시자를 유지한다. 레지스트리는 한 번만
 TrueNAS Custom App으로 만들며, 앱 베이스 이미지 `fastapi-py312:latest`도 최초 한 번 seed한다.
+
+이 레지스트리는 블로그 전용이 아니라 **NAS 공용**이다(`bae-stock-ticker`와 공용 베이스
+`fastapi-py312`도 들어 있다). 그래서 데이터는 블로그 영속 데이터와 분리해
+`/mnt/nvme/90.service/registry_data/data`에 둔다(2026-09-12 이전). 주소는 그대로라 CI와
+배포 스크립트는 이 경로를 모른다.
 
 ## 롤백
 
