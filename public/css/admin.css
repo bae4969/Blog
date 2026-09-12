@@ -1591,3 +1591,21 @@
     background: var(--ip-badge-manual-bg);
     color: var(--ip-badge-manual-color);
 }
+
+/* ===========================================
+   지수·환율 구독 관리 (`/admin/quotes`)
+   -------------------------------------------
+   마크업은 `/admin/stocks` 와 같아서 stocks.css·admin.css 가 대부분을 준다.
+   여기 있는 것은 이 화면에만 있는 두 가지뿐이다.
+   =========================================== */
+
+/* 환산식이 없는 행("—"). */
+.quote-na {
+    text-align: center;
+    color: var(--text-tertiary);
+}
+
+/* 분류 배지 — 주식 화면의 시장·유형 배지와 같은 자리를 쓴다. */
+.type-badge.type-kr_index { background: rgba(var(--bae-accent-rgb), 0.18); color: var(--bae-accent); }
+.type-badge.type-ex_index { background: rgba(147, 197, 253, 0.18); color: var(--bae-info); }
+.type-badge.type-fx { background: rgba(110, 231, 183, 0.18); color: var(--bae-mint); }

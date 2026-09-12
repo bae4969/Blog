@@ -18,12 +18,13 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import bindparam, text
 
 from app.db.session import db_session
-from app.schemas.stock import Candle, Execution, MarketStat, StockOut, TopStock
+from app.schemas.stock import Candle, Execution, HeatmapItem, MarketStat, StockOut, TopStock
 from app.schemas import Page
 from app.ui.stocks import (
+    _heatmap_rows,
     _KR_MARKETS,
     _KST,
-    _latest_closes,
+    _latest_quotes,
     _norm_market,
     _prefix_of,
     _resolve_is_coin,
@@ -73,13 +74,16 @@ async def stocks(
         #    씌워서 그리는데 API 가 그 단계를 빼먹어, 같은 종목이 화면과 API 에서 다른
         #    값으로 나갔다(2026-08-19 실측: 5/5 불일치. DB 로 판정하니 화면이 맞았다 —
         #    tick 의 최신 체결가와 종가가 같고 stock_price 만 옛값이었다).
-        closes = await _latest_closes(db, [(r.code, _prefix_of(r)) for r in rows])
+        quotes = await _latest_quotes(db, [(r.code, _prefix_of(r)) for r in rows])
 
     pages = max(1, (total + size - 1) // size)
     items = [
         StockOut(code=r.code, name_kr=r.name_kr, name_en=r.name_en, market=r.market,
-                 type=r.stock_type, price=_f(closes.get(r.code, r.price)),
-                 market_cap=_f(r.cap), quantity=_f(r.quantity))
+                 type=r.stock_type,
+                 price=_f((quotes.get(r.code) or {}).get("close", r.price)),
+                 market_cap=_f(r.cap), quantity=_f(r.quantity),
+                 prev_price=_f((quotes.get(r.code) or {}).get("prev_close")),
+                 change_pct=_f((quotes.get(r.code) or {}).get("change_pct")))
         for r in rows
     ]
     return Page[StockOut](items=items, total=total, page=page, size=size, pages=pages)
@@ -205,5 +209,27 @@ async def top(
         rows = await _top_by_trading_amount(db, m, limit)
     return [TopStock(code=r["stock_code"], name_kr=r["stock_name_kr"],
                      market=r["stock_market"], price=_f(r["stock_price"]),
-                     trading_amount=_f(r["total_amount"]))
+                     trading_amount=_f(r["total_amount"]),
+                     prev_price=_f(r.get("prev_price")),
+                     change_pct=_f(r.get("change_pct")))
+            for r in rows]
+
+
+@router.get("/heatmap", response_model=list[HeatmapItem], summary="시가총액 히트맵")
+async def heatmap(
+    # `/top` 과 같은 이유로 기본값을 둔다 — 빈 값이 "전부" 로 읽히지 않게.
+    market: str = Query("KR", description="KR·US·COIN"),
+):
+    """구독 종목 전부를 시가총액·등락률로 돌려준다. 시가총액 내림차순.
+
+    ⚠️ 시장을 섞어서 주지 않는다. 미국 종목은 캔들 시각이 현지시각(ET)이라 한국 종목과
+       같은 화면에 두면 "오늘"이 서로 다른 날이 된다 — 탭으로 갈라 각자 기준으로 본다.
+    """
+    m = _market_arg(market)
+    async with db_session() as db:
+        rows = await _heatmap_rows(db, m)
+    return [HeatmapItem(code=r["code"], name_kr=r["name_kr"], market=r["market"],
+                        category_code=r.get("category_code"), category_name=r.get("category_name"),
+                        market_cap=_f(r["cap"]), price=_f(r["price"]),
+                        prev_price=_f(r["prev_price"]), change_pct=_f(r["change_pct"]))
             for r in rows]

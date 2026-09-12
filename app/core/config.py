@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     app_name: str = "Developer Blog"
     debug: bool = False
 
-    base_domain: str = Field(default="bdda.duckdns.org", alias="BASE_DOMAIN")
+    # 환경마다 다른 값은 .env.api 에서 받는다 — 공개 저장소라 기본값은 예시만 둔다.
+    base_domain: str = Field(default="example.com", alias="BASE_DOMAIN")
 
     # ── 데이터베이스 ──────────────────────────────────────────────
     # 운영 블로그와 같은 스키마다. 읽기만 하는 동안은 계정에 SELECT 만 줘도 된다.
@@ -34,7 +35,7 @@ class Settings(BaseSettings):
     # **검증만** 한다. ⚠️ base 는 컨테이너 이름(서버 간), public 은 브라우저를 보낼 주소.
     auth_base_url: str = Field(default="http://bae-auth:8080", alias="AUTH_BASE_URL")
     auth_public_url: str = Field(
-        default="https://auth.bdda.duckdns.org", alias="AUTH_PUBLIC_URL"
+        default="https://auth.example.com", alias="AUTH_PUBLIC_URL"
     )
     cookie_name: str = "session"
     #: 기기 신뢰(자동 로그인) 쿠키. 세션이 만료됐을 때 이 값으로 조용히 새 세션을 받는다.
@@ -53,8 +54,8 @@ class Settings(BaseSettings):
     posts_per_page: int = 10
 
     # ── 화면 표시값 ───────────────────────────────────────────────
-    # PHP `config/config.php` 와 같은 값이다. 지금은 두 곳에 있으니, 바꿀 때 함께 고칠 것.
-    contact_email: str = Field(default="bae4969@naver.com", alias="CONTACT_EMAIL")
+    # 실제 값은 .env.api(CONTACT_EMAIL) — 공개 저장소라 기본값은 비워 둔다.
+    contact_email: str = Field(default="", alias="CONTACT_EMAIL")
     github_url: str = Field(default="https://github.com/bae4969", alias="GITHUB_URL")
 
     docs_enabled: bool = Field(default=False, alias="DOCS_ENABLED")

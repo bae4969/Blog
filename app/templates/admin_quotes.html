@@ -1,0 +1,289 @@
+{#
+  지수·환율 구독 관리 — **`admin_stocks.html` 과 같은 모양으로 맞췄다**(2026-09-02 지시).
+  분류 탭·서버 페이저·검색 폼·체크박스 한 벌·sessionStorage 초안까지 구조가 같다.
+
+  ⚠️ **저장하면 선택 목록이 곧 최종 상태다.** 보이는 쪽만 반영하는 게 아니라
+     `quote_last_rest_query` 를 통째로 갈아끼운다. 여기서 만든 목록을 `23.stock_ticker` 가
+     읽어 REST 폴링을 걸므로 **비우면 수집이 멈춘다.**
+
+  ⚠️ 안전망은 주식 화면과 같다 — `dynamicSelectionInputs` 에 화면 밖 구독분(`keepers`)을
+     미리 히든으로 넣고 체크박스에 `name` 을 준다. JS 가 정상이면 제출 직전에 초안으로
+     갈아끼우고, 죽으면 "현재 구독 + 이 쪽에서 체크한 것" 이 실려 가 파괴적이지 않다.
+
+  ⚠️ 화면에서 정하는 것은 **켤지 말지뿐**이다. 저장 이름과 환율 크로스 환산식은 서버가
+     기존 행에서 물려받는다(`admin.py` 의 `keep`). 그래서 저장해도 `KOSPI` 라는 이름이나
+     `KRWEUR = FXKRW × FXEUR` 같은 식이 깨지지 않는다.
+#}
+{% extends "layout.html" %}
+
+{% block title %}지수·환율 구독 관리 · Developer Blog{% endblock %}
+
+{# 관리자 화면 스타일. 주식 화면과 같은 마크업을 쓰므로 stocks.css 도 함께 싣는다. #}
+{% block extra_css %}
+<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
+{% endblock %}
+
+{% set category_labels = {'KR_INDEX': '국내지수', 'EX_INDEX': '해외지수', 'FX': '환율'} %}
+
+{% macro query_base(c=none, p=none) -%}
+    {%- set parts = ['category=' ~ (c or category)|urlencode] -%}
+    {%- if search %}{% set _ = parts.append('search=' ~ search|urlencode) %}{% endif -%}
+    {%- if p %}{% set _ = parts.append('page=' ~ p) %}{% endif -%}
+    {{- parts|join('&') -}}
+{%- endmacro %}
+
+{% block content %}
+<div class="admin-content">
+    <div class="admin-card stock-admin-management-card">
+        <h2>지수·환율 구독 관리</h2>
+        <div class="stat-row">
+            <div class="stat-item"><span class="stat-label">현재 필터 결과</span> <span class="stat-value">{{ '{:,}'.format(total) }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 분류 등록</span> <span class="stat-value" id="registeredCountLabel">{{ '{:,}'.format(counts.get(category, 0)) }}</span></div>
+            <span class="stat-sep">·</span>
+            <div class="stat-item"><span class="stat-label">현재 분류 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
+        </div>
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+        <hr>
+
+        <div class="stock-admin-toolbar">
+            <div class="stock-admin-market-tabs">
+                {% for code in categories %}
+                    <a class="stock-admin-market-tab {{ 'active' if category == code else '' }}" href="/admin/quotes?{{ query_base(c=code, p=1) }}">
+                        {{ category_labels.get(code, code) }}
+                    </a>
+                {% endfor %}
+            </div>
+
+            <form class="stock-admin-search-form" method="get" action="/admin/quotes">
+                <input type="hidden" name="category" value="{{ category }}">
+                <input type="text" name="search" placeholder="이름 또는 코드 검색" value="{{ search }}">
+                <button type="submit" class="btn btn-primary">검색</button>
+            </form>
+
+            <div class="stock-admin-actions">
+                <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">원래 상태로 되돌리기</button>
+                <button type="submit" form="quoteAdminForm" class="btn btn-primary stock-admin-action">구독 목록 저장</button>
+            </div>
+        </div>
+
+        <form class="stock-admin-table-form" method="post" action="/admin/quotes/subscriptions" id="quoteAdminForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="current_category" value="{{ category }}">
+            <input type="hidden" name="current_search" value="{{ search }}">
+            <input type="hidden" name="current_page" value="{{ page }}">
+            {# JS 가 죽었을 때의 안전망. 정상 동작 시에는 제출 직전에 초안으로 교체된다. #}
+            <div id="dynamicSelectionInputs">{% for k in keepers %}<input type="hidden" name="selected_codes" value="{{ k }}">{% endfor %}</div>
+
+            <div class="stocks-table admin-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>선택</th>
+                            <th>이름</th>
+                            <th>코드</th>
+                            <th>분류</th>
+                            <th>저장 이름</th>
+                            <th>환산</th>
+                            <th>등록 상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for q in rows %}
+                            <tr class="admin-table-row {{ 'is-selected' if q.is_registered else '' }}" data-selection-key="{{ q.code }}">
+                                <td class="admin-select-cell">
+                                    <input
+                                        type="checkbox"
+                                        class="admin-stock-checkbox"
+                                        name="selected_codes"
+                                        value="{{ q.code }}"
+                                        {{ 'checked' if q.is_registered else '' }}
+                                    >
+                                </td>
+                                <td class="stock-name-cell">
+                                    <div class="stock-name-kr">{{ q.name_kr or q.code }}</div>
+                                    {% if q.name_en %}
+                                        <div class="stock-name-en">{{ q.name_en }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="stock-code">{{ q.code }}</td>
+                                <td><span class="type-badge type-{{ q.category|lower }}">{{ category_labels.get(q.category, q.category) }}</span></td>
+                                {# 저장 이름·환산식은 서버가 기존 행에서 물려받는다 — 여기서는 보여주기만 한다. #}
+                                <td class="stock-code">{{ q.query_name or '—' }}</td>
+                                <td class="quote-na">
+                                    {%- if q.operator and q.operator != 'NONE' -%}
+                                        {{ q.base_code }} {{ '×' if q.operator == 'MUL' else '÷' }}
+                                    {%- else -%}—{%- endif -%}
+                                </td>
+                                <td>{{ '등록됨' if q.is_registered else '미등록' }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="no-data">조회된 항목이 없습니다.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+                {% set start = [1, page - 4] | max %}
+                {% set end = [total_pages, page + 4] | min %}
+                <div class="pagination">
+                    {% if page > 1 %}
+                        <a href="/admin/quotes?{{ query_base(p=page - 1) }}" class="page-link">←</a>
+                    {% endif %}
+
+                    {% if start > 1 %}
+                        <a href="/admin/quotes?{{ query_base(p=1) }}" class="page-link">1</a>
+                        {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
+                    {% endif %}
+
+                    {% for n in range(start, end + 1) %}
+                        {% if n == page %}
+                            <span class="page-link page-current">{{ n }}</span>
+                        {% else %}
+                            <a href="/admin/quotes?{{ query_base(p=n) }}" class="page-link">{{ n }}</a>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if end < total_pages %}
+                        {% if end < total_pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
+                        <a href="/admin/quotes?{{ query_base(p=total_pages) }}" class="page-link">{{ total_pages }}</a>
+                    {% endif %}
+
+                    {% if page < total_pages %}
+                        <a href="/admin/quotes?{{ query_base(p=page + 1) }}" class="page-link">→</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const quoteAdminStorageKey = 'quote-admin-selection-draft';
+const quoteAdminServerSelections = {{ registered_codes | tojson }};
+const quoteAdminCategoryMap = {{ category_map | tojson }};
+const quoteAdminCurrentCategory = {{ category | tojson }};
+const quoteAdminForceSync = {{ 'true' if force_sync else 'false' }};
+const quoteAdminLimit = {{ limit }};
+
+/*
+  선택은 sessionStorage 초안으로 관리한다 — 여러 쪽·분류를 오가며 고른 뒤 마지막에 한 번
+  저장하는 것이 이 화면의 요점이다(주식 화면과 같다).
+
+  ⚠️ 주식 화면과 달리 분류 맵은 **통째로** 싣는다. 카탈로그가 558건뿐이라 조각내
+     누적할 이유가 없다(주식은 1.8만 개라 438KB 가 됐다).
+*/
+function loadQuoteAdminDraft() {
+    if (quoteAdminForceSync || !sessionStorage.getItem(quoteAdminStorageKey)) {
+        sessionStorage.setItem(quoteAdminStorageKey, JSON.stringify(quoteAdminServerSelections));
+    }
+
+    try {
+        const parsed = JSON.parse(sessionStorage.getItem(quoteAdminStorageKey) || '[]');
+        return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+        sessionStorage.setItem(quoteAdminStorageKey, JSON.stringify(quoteAdminServerSelections));
+        return new Set(quoteAdminServerSelections);
+    }
+}
+
+function saveQuoteAdminDraft(selectionSet) {
+    sessionStorage.setItem(quoteAdminStorageKey, JSON.stringify(Array.from(selectionSet)));
+}
+
+function updateQuoteAdminSelectionCount(selectionSet) {
+    const label = document.getElementById('selectedCountLabel');
+    if (!label) return;
+    let count = 0;
+    selectionSet.forEach((code) => {
+        if ((quoteAdminCategoryMap[code] || null) === quoteAdminCurrentCategory) count += 1;
+    });
+    label.textContent = count.toLocaleString();
+}
+
+function syncQuoteAdminCheckboxes(selectionSet) {
+    document.querySelectorAll('.admin-stock-checkbox').forEach((checkbox) => {
+        const isChecked = selectionSet.has(checkbox.value);
+        checkbox.checked = isChecked;
+        const row = checkbox.closest('.admin-table-row');
+        if (row) {
+            row.classList.toggle('is-selected', isChecked);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('quoteAdminForm');
+    const resetButton = document.getElementById('resetSelectionButton');
+    const dynamicSelectionInputs = document.getElementById('dynamicSelectionInputs');
+    const selectionSet = loadQuoteAdminDraft();
+
+    syncQuoteAdminCheckboxes(selectionSet);
+    updateQuoteAdminSelectionCount(selectionSet);
+
+    document.querySelectorAll('.admin-stock-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', function () {
+            if (this.checked) {
+                selectionSet.add(this.value);
+            } else {
+                selectionSet.delete(this.value);
+            }
+
+            const row = this.closest('.admin-table-row');
+            if (row) {
+                row.classList.toggle('is-selected', this.checked);
+            }
+
+            saveQuoteAdminDraft(selectionSet);
+            updateQuoteAdminSelectionCount(selectionSet);
+        });
+    });
+
+    if (resetButton) {
+        resetButton.addEventListener('click', function () {
+            selectionSet.clear();
+            quoteAdminServerSelections.forEach((value) => selectionSet.add(value));
+            saveQuoteAdminDraft(selectionSet);
+            syncQuoteAdminCheckboxes(selectionSet);
+            updateQuoteAdminSelectionCount(selectionSet);
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            // 초안이 곧 최종 목록이다 — 안전망 히든을 버리고 초안 전체로 갈아끼운다.
+            if (selectionSet.size === 0) {
+                event.preventDefault();
+                alert('선택한 항목이 없습니다. 전부 해제하면 수집이 멈추므로 저장하지 않습니다.');
+                return;
+            }
+            if (selectionSet.size > quoteAdminLimit) {
+                event.preventDefault();
+                alert('최대 ' + quoteAdminLimit + '개까지 저장할 수 있습니다. 지금 ' + selectionSet.size + '개입니다.');
+                return;
+            }
+            if (!confirm('선택한 ' + selectionSet.size + '개로 구독 목록을 통째로 교체합니다. 진행할까요?')) {
+                event.preventDefault();
+                return;
+            }
+            dynamicSelectionInputs.innerHTML = '';
+            Array.from(selectionSet).sort().forEach((value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_codes';
+                input.value = value;
+                dynamicSelectionInputs.appendChild(input);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

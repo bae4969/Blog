@@ -1,0 +1,131 @@
+{# 지수·환율 상세 — 주식 차트 모듈을 쓰되 체결·기업 정보는 싣지 않는다. #}
+{% extends "layout.html" %}
+
+{% block title %}{{ item.name }} · Developer Blog{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/quotes.css?v={{ static_v }}">
+{% endblock %}
+
+{% macro value(v) -%}
+{%- if v is none -%}-
+{%- elif v|abs < 10 -%}{{ '{:,.4f}'.format(v) }}
+{%- else -%}{{ '{:,.2f}'.format(v) }}
+{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="stock-detail-container quote-detail-container">
+    <a class="btn btn-ghost stock-back-btn" href="/quotes">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        목록으로
+    </a>
+
+    <div class="stock-detail-header quote-detail-header">
+        <div class="stock-header-main">
+            <div class="stock-title-section"><h2>{{ item.name }}</h2></div>
+            <div class="stock-header-badges">
+                <span class="code-badge">{{ item.code }}</span>
+                <span class="market-badge">{{ item.category_label }}</span>
+            </div>
+            {% set chg = item.change_pct %}
+            {% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
+            <div class="stock-price-section">
+                <div class="current-price {{ chg_cls }}">
+                    <span id="currentPriceMainValue">{{ value(item.price) }}</span>
+                    <span class="stock-price-change {{ chg_cls }}">
+                        {%- if chg is none -%}-
+                        {%- else -%}{{ '{:+,.2f}'.format(chg) }}%
+                        {%- endif -%}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-section quote-chart-section">
+        <div class="chart-controls">
+            <div class="chart-type-buttons">
+                <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
+                <button class="chart-type-btn" onclick="setChartType('line', this)">라인</button>
+            </div>
+            <div class="chart-period-select-wrapper">
+                <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
+                    <option value="10M">10M</option>
+                    <option value="30M">30M</option>
+                    <option value="1H">1H</option>
+                    <option value="3H">3H</option>
+                    <option value="6H">6H</option>
+                    <option value="1D" selected>1D</option>
+                    <option value="1W">1W</option>
+                    <option value="1M">1M</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="chart-wrapper">
+            <div class="chart-top-buttons">
+                <div class="chart-indicator-help">
+                    <button type="button" class="chart-indicator-help-btn">i</button>
+                    <div class="chart-indicator-tooltip">
+                        <div class="chart-indicator-tooltip-section">
+                            <strong>보조지표</strong>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma5-color)"></span>SMA5</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma20-color)"></span>SMA20</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma60-color)"></span>SMA60</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-upper-color)"></span>BB 상단</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-middle-color)"></span>BB 중앙</div>
+                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-lower-color)"></span>BB 하단</div>
+                        </div>
+                        <hr class="chart-indicator-divider">
+                        <div class="chart-indicator-tooltip-section">
+                            <strong>조작법</strong>
+                            <div>Ctrl + 휠: 확대/축소</div>
+                            <div>Shift + 드래그: 구간 확대</div>
+                            <div>더블클릭: 리셋</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-settings">
+                    <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                    <div class="chart-settings-panel" id="chartSettingsPanel">
+                        <strong>차트 설정</strong>
+                        <label class="chart-settings-option">
+                            <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">
+                            <span>로그 스케일</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <canvas id="stockChart"></canvas>
+            <div id="chartLoading" class="chart-loading">
+                <div class="chart-loading-spinner"></div>
+                <p>차트 데이터를 불러오는 중...</p>
+            </div>
+            <div id="chartNoData" class="chart-no-data" style="display:none;">
+                <p>차트 데이터가 없습니다.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const stockCode = {{ item.code | tojson }};
+const isUSMarket = false;
+const isCoinMarket = false;
+const isQuoteMarket = true;
+const stockDataApiPrefix = '/api/v1/quotes';
+let candleData = [];
+const recentExecutions = [];
+</script>
+{% endblock %}
+
+{% block extra_js %}<script src="/js/stocks.js?v={{ static_v }}"></script>{% endblock %}

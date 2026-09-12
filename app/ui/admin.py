@@ -819,6 +819,190 @@ async def wol_delete(request: Request, csrf_token: str = Form(""), device_id: in
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
+# ── 지수·환율 구독 관리 ────────────────────────────────────────────
+#
+# **주식 구독 화면과 같은 모양으로 맞춘다**(2026-09-02 사용자 지시) — 분류 탭·서버 페이저·
+# 검색 폼·체크박스 한 벌, sessionStorage 초안까지 `/admin/stocks` 와 동일하다. 다른 화면인데
+# 조작법이 다르면 그게 더 헷갈린다.
+#
+# 성질도 같다 — 여기서 고른 것이 `KoreaInvest.quote_last_rest_query` 에 통째로 갈아끼워지고
+# **`23.stock_ticker` 가 그걸 읽어 REST 폴링을 돈다.** 저장은 전체 교체(DELETE→INSERT)를 한
+# 트랜잭션으로 묶고, 빈 제출은 거부한다.
+#
+# ⚠️ 체크박스 하나로 다루므로 화면에서 정하는 것은 **켤지 말지뿐**이다. 저장 이름과 환율
+#    크로스 환산식(`quote_base_code`+`quote_operator`)은 **이미 있는 행의 값을 그대로
+#    물려받고**, 새로 켜는 것은 기본값(이름=코드, 환산 없음)으로 들어간다. 그래서 기존
+#    `KOSPI`·`KRWUSD` 같은 이름과 `KRWEUR = FXKRW × FXEUR` 같은 식이 저장해도 안 깨진다.
+#    반대로 **새 크로스 환산은 이 화면에서 만들 수 없다**(DB 에서 직접 넣어야 한다).
+
+#: `quote_info.quote_category` → `quote_last_rest_query.query_type`.
+_QUOTE_TYPE_BY_CATEGORY = {"KR_INDEX": "INDEX_KR", "EX_INDEX": "INDEX_EX", "FX": "FX"}
+_QUOTE_CATEGORIES = ("KR_INDEX", "EX_INDEX", "FX")
+_QUOTE_PER_PAGE = 100
+#: 폴링은 60초마다 대상 수만큼 REST 를 부르고 **키 하나로만** 돈다(초당 ~9.5회). 200건이면
+#: 한 주기의 3분의 1을 쓴다 — 그 위로는 주기를 못 채우므로 여기서 막는다.
+_QUOTE_LIMIT = 200
+_QUOTE_CODE_RE = re.compile(r"^[A-Za-z0-9_]{1,32}$")
+
+
+def _norm_quote_category(v: str) -> str:
+    v = (v or "").strip().upper()
+    return v if v in _QUOTE_CATEGORIES else "KR_INDEX"
+
+
+@router.get("/quotes", response_class=HTMLResponse, include_in_schema=False)
+async def quote_subscriptions(request: Request):
+    """지수·환율 구독 선택 화면. 이미 수집 중인 것이 위로 온다(주식 화면과 같다)."""
+    page = max(1, _int_arg(request, "page", 1))
+    category = _norm_quote_category(request.query_params.get("category", "KR_INDEX"))
+    search = (request.query_params.get("search") or "").strip()[:50]
+    params: dict = {"limit": _QUOTE_PER_PAGE, "offset": (page - 1) * _QUOTE_PER_PAGE,
+                    "cat": category}
+
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/quotes")
+
+        src = ("KoreaInvest.quote_info qi LEFT JOIN KoreaInvest.quote_last_rest_query w "
+               "  ON qi.quote_code = w.quote_code")
+        where = ["qi.quote_category = :cat"]
+        if search:
+            # 코드 접두일치 + 이름 부분일치. 주식 화면과 같은 형태다.
+            where.append("(qi.quote_code LIKE :code_pre OR qi.quote_name_kr LIKE :name_like "
+                         "OR qi.quote_name_en LIKE :name_like)")
+            params["code_pre"] = f"{search}%"
+            params["name_like"] = f"%{search}%"
+        where_sql = "WHERE " + " AND ".join(where)
+
+        total = (await db.execute(
+            text(f"SELECT COUNT(*) FROM KoreaInvest.quote_info qi {where_sql}"), params)).scalar() or 0
+
+        order = "CASE WHEN qi.quote_code LIKE :code_pre THEN 0 ELSE 1 END, " if search else ""
+        rows = (await db.execute(text(
+            "SELECT qi.quote_code AS code, qi.quote_name_kr AS name_kr, qi.quote_name_en AS name_en, "
+            "       qi.quote_category AS category, w.quote_query AS query_name, "
+            "       w.quote_base_code AS base_code, w.quote_operator AS operator, "
+            "       CASE WHEN w.quote_code IS NULL THEN 0 ELSE 1 END AS is_registered "
+            f"FROM {src} {where_sql} "
+            f"ORDER BY {order}is_registered DESC, qi.quote_code ASC "
+            "LIMIT :limit OFFSET :offset"), params)).all()
+
+        # 지금 수집 중인 **전체** 선택키. 화면 밖 항목을 히든으로 유지하는 데 쓴다 —
+        # 저장이 전체 교체라, 이걸 안 실어 보내면 다른 쪽 구독이 전부 해제된다.
+        registered = {r[0] for r in (await db.execute(text(
+            "SELECT quote_code FROM KoreaInvest.quote_last_rest_query"))).all()}
+        counts = {c: 0 for c in _QUOTE_CATEGORIES}
+        for cat, cnt in (await db.execute(text(
+            "SELECT qi.quote_category, COUNT(*) FROM KoreaInvest.quote_last_rest_query w "
+            "JOIN KoreaInvest.quote_info qi ON qi.quote_code = w.quote_code "
+            "GROUP BY qi.quote_category"))).all():
+            counts[cat] = int(cnt)
+        # 선택키 → 분류. "현재 분류 선택 수" 를 세는 데만 쓴다. 카탈로그가 558건뿐이라
+        # 주식 화면처럼 조각내 보낼 필요 없이 통째로 보낸다(~15KB).
+        category_map = {r[0]: r[1] for r in (await db.execute(text(
+            "SELECT quote_code, quote_category FROM KoreaInvest.quote_info"))).all()}
+        ctx = await _shell_ctx(request, db, me.level)
+
+    on_page = {r.code for r in rows}
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "admin_quotes.html",
+        {
+            **ctx, "admin_menu": "quotes", "rows": rows,
+            "keepers": sorted(registered - on_page),
+            "registered_codes": sorted(registered), "category_map": category_map,
+            # 저장 직후(`?sync=1`)에만 초안을 서버 값으로 덮는다. 안 그러면 방금 저장한
+            # 내용이 남은 옛 초안에 다시 덮여 되돌아간다.
+            "force_sync": request.query_params.get("sync") == "1",
+            "category": category, "categories": _QUOTE_CATEGORIES, "search": search,
+            "page": page, "total": total,
+            "total_pages": max(1, -(-total // _QUOTE_PER_PAGE)),
+            "counts": counts, "limit": _QUOTE_LIMIT,
+            "csrf_token": token, "msg": request.query_params.get("msg"),
+        },
+    )
+    csrf.attach(response, token)
+    return response
+
+
+@router.post("/quotes/subscriptions", include_in_schema=False)
+async def quote_subscriptions_update(request: Request):
+    """지수·환율 구독 전체 교체.
+
+    ⚠️ 화면에 보이는 쪽만이 아니라 **선택 목록 전체가 곧 최종 상태**다(주식 화면과 같다).
+       DELETE 후 INSERT 라 한 트랜잭션으로 묶는다 — 중간에 끊기면 수집이 멈춘다.
+    """
+    form = await request.form()
+    csrf_token = str(form.get("csrf_token", ""))
+    category = _norm_quote_category(str(form.get("current_category", "KR_INDEX")))
+    search = str(form.get("current_search", "")).strip()[:50]
+    page = max(1, int(str(form.get("current_page", "1")) or 1))
+    back = f"/admin/quotes?category={category}&page={page}" + (f"&search={quote(search)}" if search else "")
+
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", back)
+
+    codes = {c for c in (str(raw).strip() for raw in form.getlist("selected_codes"))
+             if _QUOTE_CODE_RE.match(c)}
+
+    # ⚠️ 빈 제출은 거부한다. 저장이 DELETE 후 INSERT 라 빈 목록이 곧 **전체 수집 중지**다.
+    #    주식 화면과 같은 이유 — 화면 JS 가 죽어 아무것도 안 실려 오는 사고가 실제로 있다.
+    if not codes:
+        return _deny("empty_selection",
+                     f"{back}&msg=" + quote("선택한 항목이 없어 저장하지 않았습니다. 전부 끄려면 관리자에게 문의하세요"))
+    if len(codes) > _QUOTE_LIMIT:
+        return _deny(f"limit:{len(codes)}",
+                     f"{back}&msg=" + quote(f"최대 {_QUOTE_LIMIT}개까지 저장할 수 있습니다"))
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin quotes_update")
+
+        # 카탈로그에 있는 것만 남긴다 — 폼이 조작돼도 없는 코드가 ticker 로 넘어가지 않게.
+        known = {r[0]: r[1] for r in (await db.execute(
+            text("SELECT quote_code, quote_category FROM KoreaInvest.quote_info "
+                 "WHERE quote_code IN :codes").bindparams(bindparam("codes", expanding=True)),
+            {"codes": list(codes)})).all()}
+
+        # ⚠️ 이미 있는 행의 **저장 이름과 환산식을 물려받는다.** 화면은 켜고 끄기만 하므로,
+        #    이걸 안 하면 저장할 때마다 `KOSPI` 가 `0001` 로 바뀌고 `KRWEUR` 의 크로스
+        #    환산(FXKRW × FXEUR)이 날아간다.
+        keep = {r[0]: (r[1], r[2] or "", r[3] or "NONE") for r in (await db.execute(text(
+            "SELECT quote_code, quote_query, quote_base_code, quote_operator "
+            "FROM KoreaInvest.quote_last_rest_query"))).all()}
+
+        rows = []
+        for code in sorted(codes):
+            cat = known.get(code)
+            if cat is None:
+                continue
+            query_type = _QUOTE_TYPE_BY_CATEGORY.get(cat)
+            if query_type is None:
+                continue
+            query_name, base, op = keep.get(code, (code, "", "NONE"))
+            rows.append((query_name, code, base, op, query_type))
+
+        if not rows:
+            return _deny("no_valid_codes",
+                         f"{back}&msg=" + quote("카탈로그에 있는 항목이 하나도 없어 저장하지 않았습니다"))
+
+        await db.execute(text("DELETE FROM KoreaInvest.quote_last_rest_query"))
+        for query_name, code, base, op, query_type in rows:
+            await db.execute(
+                text("INSERT INTO KoreaInvest.quote_last_rest_query "
+                     "(quote_query, quote_code, quote_base_code, quote_operator, query_type) "
+                     "VALUES (:q, :c, :b, :o, :t)"),
+                {"q": query_name, "c": code, "b": base, "o": op, "t": query_type})
+        await db.commit()
+
+    logger.info("지수·환율 구독 교체: %s건", len(rows))
+    # `sync=1` 로 돌아간다 — 화면이 sessionStorage 초안을 방금 저장한 값으로 덮게 하려는 것이다.
+    return RedirectResponse(f"{back}&sync=1&msg=" + quote(f"{len(rows)}건으로 저장했습니다"),
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("", include_in_schema=False)
 @router.get("/", include_in_schema=False)
 async def admin_home(request: Request):

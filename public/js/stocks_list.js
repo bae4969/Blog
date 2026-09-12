@@ -83,6 +83,23 @@
 
     function isUS(market) { return US_MARKETS.indexOf(market) >= 0; }
     function price(v, market) { return isUS(market) ? '$' + n(v, 2) : n(v, 0) + '원'; }
+
+    /**
+     * 등락률 표시. ⚠️ **없는 것(null)과 보합(0%)은 다르다** — 직전 거래일 캔들이 없으면
+     * API 가 null 을 준다. 0% 로 적으면 "안 움직였다"로 읽혀 없는 정보가 생긴다.
+     */
+    function pctText(p) {
+        if (p === null || p === undefined) return '-';
+        return (p >= 0 ? '+' : '') + n(p, 2) + '%';
+    }
+
+    /** 등락 방향 → 색 클래스. ⚠️ 오르면 빨강·내리면 파랑(`/quotes` 와 같은 방향이다). */
+    function pctClass(p) {
+        if (p === null || p === undefined) return 'q-flat';
+        if (p > 0) return 'q-up';
+        if (p < 0) return 'q-down';
+        return 'q-flat';
+    }
     function cap(v, market) { return isUS(market) ? '$' + n((v || 0) / 1e9, 2) + 'B' : won(v); }
 
     function el(tag, cls, text) {
@@ -101,7 +118,8 @@
     function fullRow(cls, text) {
         var tr = document.createElement('tr');
         var td = el('td', cls, text);
-        td.colSpan = 7;
+        // ⚠️ 표의 열 수와 같아야 한다. 등락률 열이 늘면서 7 → 8 이 됐다.
+        td.colSpan = 8;
         tr.appendChild(td);
         return tr;
     }
@@ -128,7 +146,10 @@
                            s.type || ''));
         tr.appendChild(ttd);
 
-        tr.appendChild(el('td', 'stock-price', price(s.price || 0, s.market)));
+        // 현재가와 등락률에 같은 색을 준다(사용자 요청 2026-09-02).
+        var cls = pctClass(s.change_pct);
+        tr.appendChild(el('td', 'stock-price ' + cls, price(s.price || 0, s.market)));
+        tr.appendChild(el('td', 'stock-change ' + cls, pctText(s.change_pct)));
         tr.appendChild(el('td', 'stock-cap', cap(s.market_cap || 0, s.market)));
         tr.appendChild(el('td', null, qty(s.quantity || 0)));
         return tr;
@@ -188,8 +209,13 @@
             item.appendChild(info);
 
             var val = el('div', 'top10-value');
-            val.appendChild(el('div', 'top10-primary', price(s.price || 0, s.market)));
-            val.appendChild(el('div', 'top10-secondary', amt(s.trading_amount || 0)));
+            var cls = pctClass(s.change_pct);
+            val.appendChild(el('div', 'top10-primary ' + cls, price(s.price || 0, s.market)));
+            // 거래대금 자리에 등락률을 함께 둔다 — 순위 기준(거래대금)도 남겨야 한다.
+            var sub = el('div', 'top10-secondary');
+            sub.appendChild(el('span', 'top10-change ' + cls, pctText(s.change_pct)));
+            sub.appendChild(el('span', 'top10-amt', amt(s.trading_amount || 0)));
+            val.appendChild(sub);
             item.appendChild(val);
             topEl.appendChild(item);
         });
