@@ -37,4 +37,6 @@ TrueNAS Custom App으로 만들며, 앱 베이스 이미지 `fastapi-py312:lates
 
 각 배포 직전 TrueNAS 앱 설정은 `compose.previous.yml`에 보존된다. 이미지 pull, 앱 갱신,
 healthy 확인 또는 실행 이미지 검증이 실패하면 강제 명령이 직전 compose를 다시 적용한다.
+최초 전환처럼 앱이 정지된 상태에서 compose를 바꾼 경우에는 갱신·롤백 뒤 TrueNAS 앱을
+명시적으로 다시 시작한다.
 정상 배포 뒤 수동 롤백이 필요하면 보호된 스크립트에서 이전 버전 태그의 YAML을 적용한다.
