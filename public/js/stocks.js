@@ -61,12 +61,12 @@ function getCSSVar(name) {
 
 const chartColors = {
     get up()          { return getCSSVar('--chart-up-color')       || '#ef5350'; },
-    get down()        { return getCSSVar('--chart-down-color')     || '#26a69a'; },
+    get down()        { return getCSSVar('--chart-down-color')     || '#3b82f6'; },
     get unchanged()   { return getCSSVar('--chart-unchanged-color')|| '#999';    },
     get grid()        { return getCSSVar('--chart-grid-color')     || '#333';    },
     get crosshair()   { return getCSSVar('--chart-crosshair-color')|| 'rgba(255,255,255,0.4)'; },
     get volumeUp()    { return getCSSVar('--chart-volume-up')      || 'rgba(239,83,80,0.35)';  },
-    get volumeDown()  { return getCSSVar('--chart-volume-down')    || 'rgba(38,166,154,0.35)';  },
+    get volumeDown()  { return getCSSVar('--chart-volume-down')    || 'rgba(59,130,246,0.35)';  },
     get tooltipBg()   { return getCSSVar('--chart-tooltip-bg')     || 'rgba(20,20,20,0.92)'; },
     get zoomDragBg()  { return getCSSVar('--chart-zoom-drag-bg')   || 'rgba(33,150,243,0.15)'; },
     get zoomDragBorder() { return getCSSVar('--chart-zoom-drag-border') || 'rgba(33,150,243,0.6)'; },
@@ -108,9 +108,11 @@ function setShiftZoomArmedState(isArmed) {
    통화 포맷팅
    ======================================== */
 function getCurrencyPrefix() {
+    if (typeof isQuoteMarket !== 'undefined' && isQuoteMarket) return '';
     return (typeof isUSMarket !== 'undefined' && isUSMarket) ? '$' : '';
 }
 function getCurrencySuffix() {
+    if (typeof isQuoteMarket !== 'undefined' && isQuoteMarket) return '';
     return (typeof isUSMarket !== 'undefined' && isUSMarket) ? '' : '원';
 }
 
@@ -380,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
             Chart.register(crosshairPlugin, candleDrawPlugin);
         }
         loadChartData(currentPeriod);
-        loadInitialExecutions();
+        if (document.getElementById('executionList')) loadInitialExecutions();
     });
 
     var chartCanvas = document.getElementById('stockChart');
@@ -589,8 +591,12 @@ function getMarketParam() {
     return '';
 }
 
+function getDataApiPrefix() {
+    return (typeof stockDataApiPrefix !== 'undefined') ? stockDataApiPrefix : '/api/v1/stocks';
+}
+
 function loadInitialExecutions() {
-    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
+    fetch(getDataApiPrefix() + '/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
         // ⚠️ 이제 실패는 HTTP 상태코드로 온다. 옛 API 는 200 에 `success:false` 를 실었다.
         .then(response => {
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1578,7 +1584,7 @@ function loadChartData(period) {
 
     showChartLoading(true);
     
-    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
+    fetch(getDataApiPrefix() + '/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
           '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam())
         // ⚠️ 이제 실패는 HTTP 상태코드로 온다. 옛 API 는 200 에 `success:false` 를 실었다.
         .then(function(response) {
@@ -1646,7 +1652,7 @@ function loadMoreHistoricalData() {
     var startDateStr = formatDateForAPI(newStartDate);
     var endDateStr = formatDateForAPI(new Date(earliestDate.getTime() - 1000));
 
-    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
+    fetch(getDataApiPrefix() + '/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
           '&end=' + endDateStr + '&timeframe=' + currentTimeframe + '&limit=' + fetchCount + getMarketParam())
         .then(function(response) {
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1814,7 +1820,7 @@ function toggleLogScale(enabled) {
    체결 정보
    ======================================== */
 function refreshExecutions() {
-    fetch('/api/v1/stocks/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
+    fetch(getDataApiPrefix() + '/' + encodeURIComponent(stockCode) + '/executions?limit=50' + getMarketParam())
         .then(function(response) {
             if (!response.ok) throw new Error('HTTP ' + response.status);
             return response.json();

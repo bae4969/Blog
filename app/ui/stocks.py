@@ -305,7 +305,7 @@ async def _heatmap_rows(db, market: str) -> list[dict]:
                     "si.stock_capitalization AS cap "
                     "FROM KoreaInvest.stock_info si INNER JOIN (SELECT DISTINCT stock_code "
                     "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code "
-                    f"WHERE si.stock_market IN ({ms})")
+                    f"WHERE si.stock_market IN ({ms}) AND si.stock_type = 'STOCK'")
     meta = {r.code: dict(r._mapping) for r in (await db.execute(text(meta_sql))).all()}
     if not meta:
         return []

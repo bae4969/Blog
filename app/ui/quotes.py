@@ -17,12 +17,18 @@ import logging
 import re
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from app.db.session import db_session
 from app.ui.routes import _shell_ctx, templates
-from app.ui.stocks import _default_market, _level, _SAFE_TABLE
+from app.ui.stocks import (
+    _default_market,
+    _latest_quotes,
+    _level,
+    _resolve_source,
+    _SAFE_TABLE,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,6 +61,12 @@ _CURRENCY_KR = {
 
 _SAFE_QUERY = re.compile(r"[A-Za-z0-9_]+")
 
+_CATEGORY_LABEL = {
+    "INDEX_KR": "국내지수",
+    "INDEX_EX": "해외지수",
+    "FX": "환율",
+}
+
 
 def _fx_label(quote_query: str) -> str | None:
     """`KRWUSD` → `원/달러`.
@@ -68,6 +80,34 @@ def _fx_label(quote_query: str) -> str | None:
     if base not in _CURRENCY_KR or quote not in _CURRENCY_KR:
         return None
     return f"{_CURRENCY_KR[base]}/{_CURRENCY_KR[quote]}"
+
+
+def _quote_label(quote_query: str, query_type: str, name_kr: str | None) -> str:
+    label = (_fx_label(quote_query) if query_type == "FX" else _INDEX_LABEL.get(quote_query))
+    return label or name_kr or quote_query
+
+
+async def _quote_meta(db, code: str) -> dict | None:
+    """수집 중인 지수·환율 하나와 실제 캔들 테이블을 찾는다."""
+    if not code or not _SAFE_QUERY.fullmatch(code):
+        return None
+    row = (await db.execute(text(
+        "SELECT L.quote_query, L.query_type, I.quote_name_kr "
+        "FROM KoreaInvest.quote_last_rest_query L "
+        "JOIN KoreaInvest.quote_info I ON L.quote_code = I.quote_code "
+        "WHERE L.quote_query = :code LIMIT 1"), {"code": code})).first()
+    if row is None:
+        return None
+    quote_query, query_type, name_kr = row
+    prefix = "f" if query_type == "FX" else "i"
+    return {
+        "code": quote_query,
+        "name": _quote_label(quote_query, query_type, name_kr),
+        "category": query_type,
+        "category_label": _CATEGORY_LABEL.get(query_type, query_type),
+        "prefix": prefix,
+        "table": await _resolve_source(db, "candle", quote_query, prefix),
+    }
 
 
 async def _quote_rows(db) -> list[dict]:
@@ -101,10 +141,9 @@ async def _quote_rows(db) -> list[dict]:
         # 수집 대상에 막 추가돼 아직 테이블이 없을 수 있다 — 파티션은 ticker 가 만든다.
         if table not in tables:
             continue
-        label = (_fx_label(quote_query) if is_fx else _INDEX_LABEL.get(quote_query))
         picked.append({
             "code": quote_query,
-            "name": label or name_kr or quote_query,
+            "name": _quote_label(quote_query, query_type, name_kr),
             "category": query_type,
             "table": table,
         })
@@ -177,4 +216,28 @@ async def quotes_index(request: Request):
             **ctx, "is_stock_page": True, "hide_sidebar": True,
             "default_market": _default_market(),
         },
+    )
+
+
+@router.get("/quotes/view", response_class=HTMLResponse, include_in_schema=False)
+async def quotes_show(request: Request):
+    """지수·환율 상세 차트. 캔들은 화면이 뜬 뒤 공개 API에서 읽는다."""
+    code = (request.query_params.get("code") or "").strip().upper()[:32]
+    if not code:
+        return RedirectResponse("/quotes", status_code=303)
+
+    async with db_session() as db:
+        item = await _quote_meta(db, code)
+        if item is None or item["table"] is None:
+            return RedirectResponse("/quotes", status_code=303)
+        latest = (await _latest_quotes(db, [(item["code"], item["prefix"])])).get(item["code"])
+        item["price"] = (latest or {}).get("close")
+        item["prev_price"] = (latest or {}).get("prev_close")
+        item["change_pct"] = (latest or {}).get("change_pct")
+        ctx = await _shell_ctx(request, db, _level(request))
+
+    return templates.TemplateResponse(
+        request,
+        "quotes_show.html",
+        {**ctx, "is_stock_page": True, "hide_sidebar": True, "item": item},
     )

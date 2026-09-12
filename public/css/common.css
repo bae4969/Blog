@@ -117,12 +117,12 @@
 
     /* 차트 색상 — ⚠️ 도메인 색(등락 관례). 테마를 따라가지 않는다. */
     --chart-up-color: #ef5350;
-    --chart-down-color: #26a69a;
+    --chart-down-color: #3b82f6;
     --chart-unchanged-color: #999;
     --chart-grid-color: #333;
     --chart-crosshair-color: rgba(255, 255, 255, 0.4);
     --chart-volume-up: rgba(239, 83, 80, 0.35);
-    --chart-volume-down: rgba(38, 166, 154, 0.35);
+    --chart-volume-down: rgba(59, 130, 246, 0.35);
     --chart-tooltip-bg: rgba(20, 20, 20, 0.92);
     --chart-zoom-drag-bg: rgba(33, 150, 243, 0.15);
     --chart-zoom-drag-border: rgba(33, 150, 243, 0.6);

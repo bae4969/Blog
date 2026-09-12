@@ -93,7 +93,7 @@
         return (p >= 0 ? '+' : '') + n(p, 2) + '%';
     }
 
-    /** 등락 방향 → 색 클래스. ⚠️ 오르면 빨강·내리면 청록(`/quotes` 와 같은 방향이다). */
+    /** 등락 방향 → 색 클래스. ⚠️ 오르면 빨강·내리면 파랑(`/quotes` 와 같은 방향이다). */
     function pctClass(p) {
         if (p === null || p === undefined) return 'q-flat';
         if (p > 0) return 'q-up';

@@ -3361,7 +3361,7 @@ details[open] > .config-section-title.clickable {
    등락률 — 목록 · TOP10 · 상세 · `/quotes` 공용
    =========================================== */
 
-/* ⚠️ **오르면 빨강, 내리면 청록.** 사이트 차트(`--chart-up-color`)와 같은 방향이다.
+/* ⚠️ **오르면 빨강, 내리면 파랑.** 사이트 차트(`--chart-up-color`)와 같은 방향이다.
       finviz 는 반대(오르면 초록)지만, 한 사이트 안에서 색이 뒤집히는 쪽이 더 위험하다.
 
    ⚠️ 이 세 클래스는 여기 **한 곳에만** 둔다. `/quotes` 는 stocks.css 를 먼저 싣고
@@ -3381,6 +3381,12 @@ details[open] > .config-section-title.clickable {
 .stocks-table .stock-price {
     font-variant-numeric: tabular-nums;
 }
+
+/* `.stocks-table td`가 기본 글자색을 더 높은 우선순위로 지정한다. 목록 셀에서는 방향색을
+   같은 우선순위로 다시 선언해야 현재가와 등락률이 실제 화면에서도 흰색으로 덮이지 않는다. */
+.stocks-table .q-up { color: var(--chart-up-color); }
+.stocks-table .q-down { color: var(--chart-down-color); }
+.stocks-table .q-flat { color: var(--text-muted); }
 
 /* TOP10 — 등락률과 거래대금을 한 줄에 나눠 놓는다. */
 .top10-secondary {

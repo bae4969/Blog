@@ -4,8 +4,8 @@
  * 서버는 껍데기만 주고 여기서 `/api/v1/quotes`·`/api/v1/stocks/heatmap` 을 읽어 그린다
  * (`stocks_list.js` 와 같은 방식).
  *
- * ⚠️ **오르면 빨강, 내리면 청록이다.** finviz 는 반대(오르면 초록)지만 이 사이트는 이미
- *    차트가 `--chart-up-color: #ef5350` / `--chart-down-color: #26a69a` 로 한국 관행을
+ * ⚠️ **오르면 빨강, 내리면 파랑이다.** finviz 는 반대(오르면 초록)지만 이 사이트는
+ *    `--chart-up-color: #ef5350` / `--chart-down-color: #3b82f6` 로 한국 관행을
  *    쓴다. 화면마다 색이 뒤집히면 그게 더 위험하다.
  *
  * ⚠️ 등락률이 **없을 수 있다**(`change_pct === null`). 지수·환율은 수집 시작이
@@ -15,7 +15,7 @@
 (function () {
     'use strict';
 
-    var GROUPS = ['KR', 'US', 'COIN'];
+    var GROUPS = ['KR', 'US'];
 
     /** 색이 최대로 진해지는 등락률(%). finviz 와 같이 ±3% 에서 포화시킨다. */
     var COLOR_CAP = 3;
@@ -25,10 +25,10 @@
     var LABEL_MIN_H = 26;
 
     var UP = [239, 83, 80];        /* --chart-up-color   #ef5350 */
-    var DOWN = [38, 166, 154];     /* --chart-down-color #26a69a */
+    var DOWN = [59, 130, 246];     /* --chart-down-color #3b82f6 */
     var FLAT = [58, 58, 58];       /* --bae-border       #3A3A3A */
 
-    var rootEl, boxEl, tooltipEl, tabEls, footEl, legendEl;
+    var rootEl, boxEl, tooltipEl, tabEls, legendEl;
     var market = 'KR';
     var heatmapData = [];
     var renderedHeatmapItems = [];
@@ -125,7 +125,9 @@
         var x = x0, y = y0, w = w0, h = h0;
         var i = 0;
 
-        while (i < areas.length && w > 0.5 && h > 0.5) {
+        // 아주 작은 마지막 종목도 DOM 에 남긴다. 0.5px 에서 끊으면 화면 폭에 따라
+        // 최하위 종목 하나가 통째로 빠졌고, 그 사실을 별도 안내문으로 설명해야 했다.
+        while (i < areas.length && w > 0 && h > 0) {
             var len = Math.min(w, h);
             var row = [];
             var sum = 0;
@@ -164,8 +166,7 @@
     /* ── 히트맵 ────────────────────────────────────────────────────────── */
 
     function detailUrl(item) {
-        return '/stocks/view?code=' + encodeURIComponent(item.code)
-            + (item.market === 'COIN' ? '&market=COIN' : '');
+        return '/stocks/view?code=' + encodeURIComponent(item.code);
     }
 
     function tileElement(r, d) {
@@ -258,7 +259,6 @@
             }
             frag.appendChild(groupEl);
         }
-        return groupRects.length;
     }
 
     function renderHeatmap() {
@@ -267,7 +267,6 @@
         var items = heatmapData.filter(function (d) { return (d.market_cap || 0) > 0; });
         if (!items.length) {
             boxEl.innerHTML = '<div class="quote-empty">표시할 종목이 없습니다.</div>';
-            if (footEl) footEl.textContent = '';
             return;
         }
 
@@ -275,29 +274,15 @@
         var h = boxEl.clientHeight;
         if (w < 2 || h < 2) return;
 
-        // ⚠️ `squarify` 는 남은 자리가 1px 아래로 얇아지면 거기서 멈춘다 — 시가총액 편차가
-        //    극단이면(코인 탭의 BTC 가 98.5%) 뒤쪽 항목이 자리를 못 받는다. 그걸 **말없이
-        //    빠뜨리지 않고** 아래 footer 에 몇 개가 생략됐는지 적는다.
         renderedHeatmapItems = [];
         var frag = document.createDocumentFragment();
-        var categoryCount = 0;
         var haveCategories = items.some(function (d) { return !!d.category_name; });
         // API/DB 배포 순서가 엇갈려 카테고리가 하나도 없으면 기존 평면 배치를 유지한다.
-        if (market === 'COIN' || !haveCategories) renderFlat(items, w, h, frag);
-        else categoryCount = renderGrouped(items, w, h, frag);
+        if (!haveCategories) renderFlat(items, w, h, frag);
+        else renderGrouped(items, w, h, frag);
 
         boxEl.innerHTML = '';
         boxEl.appendChild(frag);
-
-        var shown = renderedHeatmapItems.length;
-        var noChg = items.filter(function (d) { return d.change_pct === null || d.change_pct === undefined; }).length;
-        if (footEl) {
-            var parts = [items.length + '종목 · 시가총액 순'];
-            if (categoryCount) parts.push(categoryCount + '개 분류');
-            if (shown < items.length) parts.push('자리가 없어 생략 ' + (items.length - shown) + '종목');
-            if (noChg) parts.push('등락률 없음 ' + noChg + '종목');
-            footEl.textContent = parts.join(' · ');
-        }
     }
 
     function renderLegend() {
@@ -374,19 +359,11 @@
             + 'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" /></svg>';
     }
 
-    /** 마지막 값의 시각. ⚠️ 해외지수는 **현지시각**이라 KST 로 적으면 거짓말이 된다. */
-    function atText(item) {
-        if (!item.at) return '';
-        var t = item.at.replace('T', ' ').slice(5, 16);
-        return t + (item.category === 'INDEX_EX' ? ' 현지' : '');
-    }
-
     function cardHtml(item) {
         var cls = pctClass(item.change_pct);
-        return '<div class="quote-card">'
+        return '<a class="quote-card" href="/quotes/view?code=' + encodeURIComponent(item.code) + '">'
             + '<div class="quote-card-head">'
             + '<span class="quote-card-name">' + escapeHtml(item.name) + '</span>'
-            + '<span class="quote-card-at">' + escapeHtml(atText(item)) + '</span>'
             + '</div>'
             + '<div class="quote-card-body">'
             + '<div class="quote-card-figures">'
@@ -395,7 +372,7 @@
             + '</div>'
             + sparkSvg(item.spark, cls)
             + '</div>'
-            + '</div>';
+            + '</a>';
     }
 
     function renderQuotes(rows) {
@@ -470,7 +447,6 @@
         if (!rootEl) return;
         boxEl = document.getElementById('heatmapBox');
         tooltipEl = document.getElementById('heatmapTooltip');
-        footEl = document.getElementById('heatmapFoot');
         legendEl = document.getElementById('heatmapLegend');
         tabEls = rootEl.querySelectorAll('.heatmap-tab');
 

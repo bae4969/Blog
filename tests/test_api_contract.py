@@ -85,6 +85,9 @@ class TestStockRoutes:
                 "/api/v1/stocks/{code}/candles",
                 "/api/v1/stocks/{code}/executions"} <= paths
 
+    def test_지수환율_캔들_경로(self):
+        assert "/api/v1/quotes/{code}/candles" in app.openapi()["paths"]
+
     @pytest.mark.parametrize("url", [
         "/api/v1/stocks?size=101",
         "/api/v1/stocks?page=0",
@@ -126,6 +129,15 @@ class TestStockRoutes:
 
         DB 를 잡기 전에 걸러야 여기(CI, DB 없음)서도 확인할 수 있다.
         """
+        assert client.get(url).status_code == 422
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/quotes/KOSPI/candles?limit=1001",
+        "/api/v1/quotes/KOSPI/candles?days=0",
+        "/api/v1/quotes/KOSPI/candles?timeframe=2h",
+        "/api/v1/quotes/KOSPI/candles?start=2026-08-02T00:00:00&end=2026-08-01T00:00:00",
+    ])
+    def test_지수환율_캔들_입력도_검증한다(self, client, url):
         assert client.get(url).status_code == 422
 
 
@@ -444,6 +456,14 @@ class TestStockPriceSource:
     def test_히트맵이_카테고리를_내보낸다(self):
         props = app.openapi()["components"]["schemas"]["HeatmapItem"]["properties"]
         assert {"category_code", "category_name"} <= set(props)
+
+    def test_히트맵은_개별주식만_고른다(self):
+        import inspect
+
+        from app.ui import stocks
+
+        src = inspect.getsource(stocks._heatmap_rows)
+        assert "si.stock_type = 'STOCK'" in src
 
 
 class TestSessionTokenBridge:

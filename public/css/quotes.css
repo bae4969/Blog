@@ -43,15 +43,24 @@
 
 .quote-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
 }
 
 .quote-card {
+    display: block;
     padding: 10px 12px;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-lg, 8px);
     background: var(--bg-tertiary);
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.quote-card:hover,
+.quote-card:focus-visible {
+    border-color: var(--border-hover);
+    background: var(--bg-hover);
 }
 
 .quote-card-head {
@@ -71,12 +80,6 @@
     text-overflow: ellipsis;
 }
 
-.quote-card-at {
-    flex: none;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-}
-
 .quote-card-body {
     display: flex;
     align-items: center;
@@ -86,6 +89,7 @@
 
 .quote-card-figures {
     display: flex;
+    flex: none;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
@@ -106,10 +110,21 @@
 
 /* 스파크라인은 `currentColor` 로 그린다 — 등락 클래스가 색을 정한다. */
 .quote-spark {
-    flex: none;
-    width: 104px;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     height: 30px;
     opacity: 0.85;
+}
+
+/* ── 지수·환율 상세 ────────────────────────────────────────────────── */
+
+.quote-detail-header .stock-header-main {
+    margin-bottom: 0;
+}
+
+.quote-chart-section {
+    min-height: 480px;
 }
 
 /* ⚠️ 등락 색(`.q-up`/`.q-down`/`.q-flat`)은 **`stocks.css` 에 있다.** 이 화면과 `/stocks`
@@ -118,10 +133,9 @@
 /* ── 히트맵 ─────────────────────────────────────────────────────────── */
 
 .heatmap-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 8px;
 }
@@ -132,6 +146,7 @@
 
 .heatmap-tabs {
     display: flex;
+    justify-self: end;
     gap: 6px;
 }
 
@@ -188,7 +203,7 @@
     width: 100%;
     aspect-ratio: 4 / 3;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg, 8px);
+    border-radius: 0;
     background: var(--bg-primary);
     overflow: hidden;
 }
@@ -258,12 +273,6 @@
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
-.heatmap-foot {
-    margin-top: 6px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
 .heatmap-tooltip {
     position: fixed;
     z-index: 100;
@@ -300,21 +309,15 @@
 
 /* ── 좁은 화면 ──────────────────────────────────────────────────────── */
 
-@media (max-width: 900px) {
+@media (max-width: 1399px) {
     .quote-card-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    }
-
-    /* 스파크라인은 카드가 좁아지면 가장 먼저 버린다 — 값과 등락률이 먼저다. */
-    .quote-spark {
-        display: none;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 600px) {
-    .heatmap-head {
-        align-items: flex-start;
-        flex-direction: column;
+    .quote-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
