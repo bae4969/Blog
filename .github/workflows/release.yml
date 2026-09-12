@@ -33,9 +33,8 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:
-      # 저장소 변수가 없으면 릴리스·배포 전에 멈춘다 — 소스만 바뀌고 재시작이 실패하는 반쪽 배포를 막는다.
+      # PR 이미지 빌드와 main 배포가 같은 사설 레지스트리를 쓴다.
       - name: Check deploy variables
-        if: github.event_name == 'push'
         run: |
           if [ -z "$DEPLOY_SSH_TARGET" ] || [ -z "$HEALTH_URL" ]; then
             echo "::error::저장소 변수 DEPLOY_SSH_TARGET·HEALTH_URL 이 비어 있다 (Settings → Secrets and variables → Actions → Variables)"
@@ -110,6 +109,26 @@ jobs:
           else
             echo "No tests directory. Skipping tests."
           fi
+
+      # 머지 전에 운영과 같은 Dockerfile·digest 고정 베이스로 실제 빌드까지 확인한다.
+      # 레지스트리에는 push하지 않고 검사 태그만 지워 레이어 캐시는 다음 빌드에 재사용한다.
+      - name: Build application image
+        run: |
+          set -euo pipefail
+          DEPLOY_HOST="${DEPLOY_SSH_TARGET##*@}"
+          REGISTRY="$DEPLOY_HOST:5000"
+          CI_IMAGE="bae-blog-ci:$GITHUB_SHA"
+
+          curl -fsS --max-time 10 "http://$REGISTRY/v2/" >/dev/null
+          docker build \
+            --build-arg "BASE_IMAGE=$REGISTRY/fastapi-py312@$BASE_IMAGE_DIGEST" \
+            --build-arg "APP_VERSION=ci" \
+            --build-arg "VCS_REF=$GITHUB_SHA" \
+            --tag "$CI_IMAGE" .
+
+      - name: Remove CI image tag
+        if: always()
+        run: docker image rm --force "bae-blog-ci:$GITHUB_SHA" >/dev/null 2>&1 || true
 
   # 1단계: 릴리스 생성 (Release)
   create-release:
