@@ -1,5 +1,6 @@
 .vscode/
 .claude/
+.agents/memory/
 CLAUDE.md
 AGENTS.md
 temp/
