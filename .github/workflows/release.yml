@@ -1,6 +1,9 @@
-name: Main Branch CI/CD Pipeline
+name: PR CI / Main CI/CD
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main # main 브랜치에 코드가 푸시(머지 포함)될 때 실행
@@ -24,11 +27,15 @@ env:
 jobs:
   # 0단계: 기본 검증 (CI)
   quality-check:
+    name: quality-check
+    # 공개 저장소의 fork 코드를 내부 VM에서 실행하지 않는다. 같은 저장소의 PR만 검사한다.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:
       # 저장소 변수가 없으면 릴리스·배포 전에 멈춘다 — 소스만 바뀌고 재시작이 실패하는 반쪽 배포를 막는다.
       - name: Check deploy variables
+        if: github.event_name == 'push'
         run: |
           if [ -z "$DEPLOY_SSH_TARGET" ] || [ -z "$HEALTH_URL" ]; then
             echo "::error::저장소 변수 DEPLOY_SSH_TARGET·HEALTH_URL 이 비어 있다 (Settings → Secrets and variables → Actions → Variables)"
@@ -107,6 +114,7 @@ jobs:
   # 1단계: 릴리스 생성 (Release)
   create-release:
     needs: quality-check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     permissions:
@@ -180,7 +188,7 @@ jobs:
   # 2단계: 서버 배포 (CD)
   deploy:
     needs: create-release
-    if: needs.create-release.outputs.RELEASE_CREATED == 'true'
+    if: github.event_name == 'push' && needs.create-release.outputs.RELEASE_CREATED == 'true'
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     steps:
