@@ -441,6 +441,10 @@ class TestStockPriceSource:
             src = body_src(fn)
             assert "_latest_quotes" in src or "_heatmap_rows" in src, fn.__name__
 
+    def test_히트맵이_카테고리를_내보낸다(self):
+        props = app.openapi()["components"]["schemas"]["HeatmapItem"]["properties"]
+        assert {"category_code", "category_name"} <= set(props)
+
 
 class TestSessionTokenBridge:
     """⚠️ `/api/v1/auth/token` 은 **쿠키를 Bearer 로 바꿔 주는 다리**다.

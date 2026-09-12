@@ -31,6 +31,7 @@
     var rootEl, boxEl, tooltipEl, tabEls, footEl, legendEl;
     var market = 'KR';
     var heatmapData = [];
+    var renderedHeatmapItems = [];
     var resizeTimer = null;
 
     /* ── 포맷 ──────────────────────────────────────────────────────────── */
@@ -167,6 +168,99 @@
             + (item.market === 'COIN' ? '&market=COIN' : '');
     }
 
+    function tileElement(r, d) {
+        var el = document.createElement('a');
+        el.className = 'heat-tile';
+        el.href = detailUrl(d);
+        el.style.left = r.x + 'px';
+        el.style.top = r.y + 'px';
+        el.style.width = Math.max(0, r.w - 1) + 'px';
+        el.style.height = Math.max(0, r.h - 1) + 'px';
+        el.style.background = tileColor(d.change_pct);
+        el.dataset.idx = String(renderedHeatmapItems.length);
+        renderedHeatmapItems.push(d);
+
+        if (r.w >= LABEL_MIN_W && r.h >= LABEL_MIN_H) {
+            var name = document.createElement('span');
+            name.className = 'heat-tile-name';
+            name.textContent = d.name_kr || d.code;
+            el.appendChild(name);
+            // 등락률은 타일이 조금 더 클 때만. 이름이 잘리는 것보다 낫다.
+            if (r.h >= LABEL_MIN_H + 14) {
+                var pct = document.createElement('span');
+                pct.className = 'heat-tile-pct';
+                pct.textContent = pctText(d.change_pct);
+                el.appendChild(pct);
+            }
+        }
+        return el;
+    }
+
+    function itemRects(items, x, y, w, h) {
+        var total = 0;
+        for (var i = 0; i < items.length; i++) total += items[i].market_cap;
+        if (!total || w < 1 || h < 1) return [];
+        return squarify(items.map(function (d) {
+            return (d.market_cap / total) * w * h;
+        }), x, y, w, h);
+    }
+
+    function groupedItems(items) {
+        var byName = Object.create(null);
+        for (var i = 0; i < items.length; i++) {
+            var d = items[i];
+            var name = d.category_name || '미분류';
+            if (!byName[name]) byName[name] = { name: name, total: 0, items: [] };
+            byName[name].items.push(d);
+            byName[name].total += d.market_cap;
+        }
+        return Object.keys(byName).map(function (name) { return byName[name]; })
+            .sort(function (a, b) { return b.total - a.total; });
+    }
+
+    function renderFlat(items, w, h, frag) {
+        var rects = itemRects(items, 0, 0, w, h);
+        for (var i = 0; i < rects.length; i++) {
+            frag.appendChild(tileElement(rects[i], items[i]));
+        }
+    }
+
+    /** 카테고리 전체를 먼저 배치하고, 각 사각형 안에서 종목을 다시 squarify한다. */
+    function renderGrouped(items, w, h, frag) {
+        var groups = groupedItems(items);
+        var groupItems = groups.map(function (g) { return { market_cap: g.total }; });
+        var groupRects = itemRects(groupItems, 0, 0, w, h);
+
+        for (var i = 0; i < groupRects.length; i++) {
+            var g = groups[i], gr = groupRects[i];
+            var groupEl = document.createElement('div');
+            groupEl.className = 'heat-group';
+            groupEl.style.left = gr.x + 'px';
+            groupEl.style.top = gr.y + 'px';
+            groupEl.style.width = Math.max(0, gr.w - 1) + 'px';
+            groupEl.style.height = Math.max(0, gr.h - 1) + 'px';
+            groupEl.title = g.name + ' · ' + g.items.length + '종목';
+
+            var haveTitle = gr.w >= 58 && gr.h >= 38;
+            var titleH = haveTitle ? 19 : 2;
+            if (haveTitle) {
+                var title = document.createElement('span');
+                title.className = 'heat-group-name';
+                title.textContent = g.name + (gr.w >= 130 ? ' ' + g.items.length : '');
+                groupEl.appendChild(title);
+            }
+
+            var innerW = Math.max(0, gr.w - 4);
+            var innerH = Math.max(0, gr.h - titleH - 3);
+            var rects = itemRects(g.items, 2, titleH + 1, innerW, innerH);
+            for (var j = 0; j < rects.length; j++) {
+                groupEl.appendChild(tileElement(rects[j], g.items[j]));
+            }
+            frag.appendChild(groupEl);
+        }
+        return groupRects.length;
+    }
+
     function renderHeatmap() {
         if (!boxEl) return;
 
@@ -181,52 +275,25 @@
         var h = boxEl.clientHeight;
         if (w < 2 || h < 2) return;
 
-        var total = 0;
-        for (var i = 0; i < items.length; i++) total += items[i].market_cap;
-
-        var areas = items.map(function (d) { return (d.market_cap / total) * w * h; });
-        var rects = squarify(areas, 0, 0, w, h);
-
         // ⚠️ `squarify` 는 남은 자리가 1px 아래로 얇아지면 거기서 멈춘다 — 시가총액 편차가
         //    극단이면(코인 탭의 BTC 가 98.5%) 뒤쪽 항목이 자리를 못 받는다. 그걸 **말없이
         //    빠뜨리지 않고** 아래 footer 에 몇 개가 생략됐는지 적는다.
-        var shown = Math.min(rects.length, items.length);
-
+        renderedHeatmapItems = [];
         var frag = document.createDocumentFragment();
-        for (var j = 0; j < shown; j++) {
-            var r = rects[j], d = items[j];
-            var el = document.createElement('a');
-            el.className = 'heat-tile';
-            el.href = detailUrl(d);
-            el.style.left = r.x + 'px';
-            el.style.top = r.y + 'px';
-            el.style.width = Math.max(0, r.w - 1) + 'px';
-            el.style.height = Math.max(0, r.h - 1) + 'px';
-            el.style.background = tileColor(d.change_pct);
-            el.dataset.idx = String(j);
-
-            if (r.w >= LABEL_MIN_W && r.h >= LABEL_MIN_H) {
-                var name = document.createElement('span');
-                name.className = 'heat-tile-name';
-                name.textContent = d.name_kr || d.code;
-                el.appendChild(name);
-                // 등락률은 타일이 조금 더 클 때만. 이름이 잘리는 것보다 낫다.
-                if (r.h >= LABEL_MIN_H + 14) {
-                    var pct = document.createElement('span');
-                    pct.className = 'heat-tile-pct';
-                    pct.textContent = pctText(d.change_pct);
-                    el.appendChild(pct);
-                }
-            }
-            frag.appendChild(el);
-        }
+        var categoryCount = 0;
+        var haveCategories = items.some(function (d) { return !!d.category_name; });
+        // API/DB 배포 순서가 엇갈려 카테고리가 하나도 없으면 기존 평면 배치를 유지한다.
+        if (market === 'COIN' || !haveCategories) renderFlat(items, w, h, frag);
+        else categoryCount = renderGrouped(items, w, h, frag);
 
         boxEl.innerHTML = '';
         boxEl.appendChild(frag);
 
+        var shown = renderedHeatmapItems.length;
         var noChg = items.filter(function (d) { return d.change_pct === null || d.change_pct === undefined; }).length;
         if (footEl) {
             var parts = [items.length + '종목 · 시가총액 순'];
+            if (categoryCount) parts.push(categoryCount + '개 분류');
             if (shown < items.length) parts.push('자리가 없어 생략 ' + (items.length - shown) + '종목');
             if (noChg) parts.push('등락률 없음 ' + noChg + '종목');
             footEl.textContent = parts.join(' · ');
@@ -248,9 +315,13 @@
 
     function showTooltip(evt, d) {
         if (!tooltipEl) return;
+        var category = d.category_name
+            ? '<div class="tip-row"><span>분류</span><b>' + escapeHtml(d.category_name) + '</b></div>'
+            : '';
         tooltipEl.innerHTML =
             '<div class="tip-name">' + escapeHtml(d.name_kr || d.code) + '</div>'
             + '<div class="tip-row"><span>코드</span><b>' + escapeHtml(d.code) + '</b></div>'
+            + category
             + '<div class="tip-row"><span>현재가</span><b>' + quoteValue(d.price) + '</b></div>'
             + '<div class="tip-row"><span>전일</span><b>' + quoteValue(d.prev_price) + '</b></div>'
             + '<div class="tip-row"><span>등락</span><b class="' + pctClass(d.change_pct) + '">'
@@ -418,7 +489,7 @@
         boxEl.addEventListener('mouseover', function (e) {
             var tile = e.target.closest ? e.target.closest('.heat-tile') : null;
             if (!tile) return;
-            var d2 = heatmapData.filter(function (x) { return (x.market_cap || 0) > 0; })[+tile.dataset.idx];
+            var d2 = renderedHeatmapItems[+tile.dataset.idx];
             if (d2) showTooltip(e, d2);
         });
         boxEl.addEventListener('mousemove', moveTooltip);

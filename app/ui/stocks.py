@@ -292,13 +292,17 @@ async def _heatmap_rows(db, market: str) -> list[dict]:
 
     if is_coin:
         meta_sql = ("SELECT ci.coin_code AS code, ci.coin_name_kr AS name_kr, 'COIN' AS market, "
+                    "NULL AS category_code, NULL AS category_name, "
                     "ci.coin_price * ci.coin_amount AS cap "
                     "FROM Bithumb.coin_info ci INNER JOIN (SELECT DISTINCT coin_code "
                     "FROM Bithumb.coin_last_ws_query) w ON ci.coin_code = w.coin_code")
     else:
         ms = ", ".join(repr(m) for m in (_KR_MARKETS if market == "KR" else _US_MARKETS))
         meta_sql = ("SELECT si.stock_code AS code, si.stock_name_kr AS name_kr, "
-                    "si.stock_market AS market, si.stock_capitalization AS cap "
+                    "si.stock_market AS market, "
+                    "NULLIF(si.stock_category_code, '') AS category_code, "
+                    "NULLIF(si.stock_category_name, '') AS category_name, "
+                    "si.stock_capitalization AS cap "
                     "FROM KoreaInvest.stock_info si INNER JOIN (SELECT DISTINCT stock_code "
                     "FROM KoreaInvest.stock_last_ws_query) w ON si.stock_code = w.stock_code "
                     f"WHERE si.stock_market IN ({ms})")
@@ -721,5 +725,4 @@ async def _coin_by_code(db, code: str):
         "coin_price AS stock_price, coin_price * coin_amount AS stock_capitalization, "
         "coin_amount AS stock_count, coin_update AS stock_update "
         "FROM Bithumb.coin_info WHERE coin_code = :c"), {"c": code})).first()
-
 

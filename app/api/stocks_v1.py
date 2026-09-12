@@ -229,6 +229,7 @@ async def heatmap(
     async with db_session() as db:
         rows = await _heatmap_rows(db, m)
     return [HeatmapItem(code=r["code"], name_kr=r["name_kr"], market=r["market"],
+                        category_code=r.get("category_code"), category_name=r.get("category_name"),
                         market_cap=_f(r["cap"]), price=_f(r["price"]),
                         prev_price=_f(r["prev_price"]), change_pct=_f(r["change_pct"]))
             for r in rows]

@@ -193,6 +193,31 @@
     overflow: hidden;
 }
 
+.heat-group {
+    position: absolute;
+    overflow: hidden;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background: var(--bg-secondary);
+}
+
+.heat-group-name {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 3px;
+    right: 3px;
+    height: 19px;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.69rem;
+    font-weight: 700;
+    line-height: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
 .heat-tile {
     position: absolute;
     display: flex;

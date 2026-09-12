@@ -89,6 +89,8 @@ class HeatmapItem(BaseModel):
     code: str
     name_kr: str | None = None
     market: str | None = None
+    category_code: str | None = Field(default=None, description="마스터 기반 대분류 코드")
+    category_name: str | None = Field(default=None, description="마스터 기반 대분류명")
     market_cap: float | None = Field(default=None, description="타일 크기. 코인은 가격×수량")
     price: float | None = Field(default=None, description="마지막 거래일 종가")
     prev_price: float | None = Field(default=None, description="직전 거래일 종가")
