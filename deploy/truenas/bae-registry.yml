@@ -1,0 +1,17 @@
+services:
+  registry:
+    image: registry:2
+    container_name: bae-registry
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "__REGISTRY_BIND_IP__:5000:5000"
+    volumes:
+      - /mnt/nvme/90.service/blog_data/registry:/var/lib/registry
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M

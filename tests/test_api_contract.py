@@ -465,6 +465,43 @@ class TestStockPriceSource:
         src = inspect.getsource(stocks._heatmap_rows)
         assert "si.stock_type = 'STOCK'" in src
 
+    def test_지수와_환율_카드_표시순서(self):
+        from app.ui.quotes import _quote_sort_key
+
+        rows = [
+            {"category": "FX", "code": "KRWCNY"},
+            {"category": "INDEX_EX", "code": "NDX"},
+            {"category": "INDEX_KR", "code": "KOSDAQ"},
+            {"category": "FX", "code": "KRWUSD"},
+            {"category": "INDEX_KR", "code": "KOSPI"},
+            {"category": "INDEX_EX", "code": "COMP"},
+            {"category": "FX", "code": "KRWJPY"},
+            {"category": "INDEX_KR", "code": "KOSPI200"},
+            {"category": "INDEX_EX", "code": "SPX"},
+            {"category": "FX", "code": "KRWINR"},
+            {"category": "FX", "code": "KRWGBP"},
+            {"category": "FX", "code": "KRWEUR"},
+        ]
+
+        assert [r["code"] for r in sorted(rows, key=_quote_sort_key)] == [
+            "KOSPI", "KOSPI200", "KOSDAQ", "SPX", "COMP", "NDX",
+            "KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR",
+        ]
+
+    def test_주식_탭은_카드와_히트맵_대시보드다(self):
+        from pathlib import Path
+
+        template = Path("app/templates/stocks_index.html").read_text()
+        layout = Path("app/templates/layout.html").read_text()
+
+        for marker in ('id="quoteIndexCards"', 'id="quoteFxCards"', 'id="heatmapBox"',
+                       'class="market-stats-horizontal"', 'data-group="{{ item.grp }}"',
+                       'id="stockSearchResults"', 'id="stockTop10"'):
+            assert marker in template
+        assert 'id="stockRows"' not in template
+        assert '<a href="/quotes">지수·환율</a>' not in layout
+        assert all(route.path != "/quotes" for route in app.routes)
+
 
 class TestSessionTokenBridge:
     """⚠️ `/api/v1/auth/token` 은 **쿠키를 Bearer 로 바꿔 주는 다리**다.
