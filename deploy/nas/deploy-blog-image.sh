@@ -13,6 +13,20 @@ PREVIOUS_COMPOSE="$DATA_DIR/compose.previous.yml"
 REGISTRY="127.0.0.1:5000"
 TIMEOUT="${DEPLOY_HEALTH_TIMEOUT:-120}"
 
+app_state() {
+    sudo -n midclt call app.query '[["id","=","bae-blog"]]' \
+        | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["state"])'
+}
+
+ensure_app_started() {
+    local state
+    state=$(app_state)
+    if [[ "$state" == "STOPPED" ]]; then
+        echo "TrueNAS 앱 시작: $APP_NAME"
+        sudo -n midclt call -j app.start "$APP_NAME" >/dev/null
+    fi
+}
+
 original_command="${SSH_ORIGINAL_COMMAND:-}"
 if [[ -z "$original_command" && "$#" -gt 0 ]]; then
     original_command="$*"
@@ -205,10 +219,10 @@ if [[ -n "${LEGACY_APP_DIR:-}" ]] && ! sudo -n test -f "$cutover_marker"; then
         exit 5
     fi
     echo "최초 전환: 기존 앱을 멈추고 영속 데이터를 최종 동기화한다"
-    docker stop "$CONTAINER_NAME" >/dev/null
+    sudo -n midclt call -j app.stop "$APP_NAME" >/dev/null
     if ! sudo -n rsync -a "$LEGACY_APP_DIR/public/uploads/" "$DATA_DIR/uploads/" \
         || ! sudo -n install -o 1000 -g 3000 -m 640 "$LEGACY_APP_DIR/.env.api" "$DATA_DIR/.env.api"; then
-        docker start "$CONTAINER_NAME" >/dev/null || true
+        ensure_app_started || true
         echo "영속 데이터 최종 동기화 실패" >&2
         exit 5
     fi
@@ -231,6 +245,10 @@ rollback() {
     previous_payload=$(compose_payload "$previous_file")
     if sudo -n midclt call -j app.update "$APP_NAME" "$previous_payload"; then
         sudo -n install -o 1000 -g 3000 -m 640 "$previous_file" "$COMPOSE_FILE"
+        if ! ensure_app_started; then
+            echo "롤백 설정은 적용했지만 앱 재시작에 실패했다" >&2
+            return 1
+        fi
         echo "롤백 적용 완료" >&2
     else
         echo "롤백도 실패했다" >&2
@@ -242,6 +260,11 @@ payload=$(compose_payload "$rendered_file")
 echo "TrueNAS 앱 갱신: $APP_NAME"
 if ! sudo -n midclt call -j app.update "$APP_NAME" "$payload"; then
     echo "앱 갱신 실패" >&2
+    rollback
+    exit 5
+fi
+if ! ensure_app_started; then
+    echo "갱신한 앱을 시작하지 못했다" >&2
     rollback
     exit 5
 fi
@@ -264,11 +287,8 @@ while (( SECONDS < deadline )); do
         echo "정상: image=$running_image health=$health"
         exit 0
     fi
-    if [[ "$status" == "exited" || "$status" == "dead" ]]; then
-        docker logs --tail 60 "$CONTAINER_NAME" >&2 2>&1 || true
-        rollback
-        exit 7
-    fi
+    # app.update/app.start 경계에서는 교체될 컨테이너가 잠시 exited로 보일 수 있다.
+    # 제한시간까지 새 컨테이너의 healthy 상태를 기다린 뒤에만 실패로 판정한다.
     sleep 3
 done
 
