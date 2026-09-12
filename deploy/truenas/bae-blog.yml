@@ -1,0 +1,38 @@
+networks:
+  db_bridge:
+    external: true
+
+services:
+  bae-blog:
+    image: 127.0.0.1:5000/bae-blog:__VERSION__@__DIGEST__
+    container_name: bae-blog
+    env_file:
+      - /mnt/nvme/90.service/blog_data/.env.api
+    user: "1000:3000"
+    volumes:
+      - /mnt/nvme/90.service/blog_data/uploads:/app/public/uploads
+    networks:
+      - db_bridge
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - traefik.enable=true
+      - 'traefik.http.routers.blog.rule=__TRAEFIK_ROUTER_RULE__'
+      - traefik.http.routers.blog.entrypoints=web
+      - traefik.http.services.blog.loadbalancer.server.port=8080
+    logging:
+      driver: syslog
+      options:
+        syslog-address: udp://127.0.0.1:5514
+        syslog-format: rfc5424micro
+        tag: "{{.Name}}"
