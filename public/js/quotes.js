@@ -1,5 +1,5 @@
 /**
- * 주식 대시보드 — `/stocks`와 기존 `/quotes`.
+ * 주식 대시보드 — `/stocks`.
  *
  * 서버는 껍데기만 주고 여기서 `/api/v1/quotes`·`/api/v1/stocks/heatmap` 을 읽어 그린다
  * 화면 껍데기만 서버가 그리고 두 공개 API의 응답으로 내용을 채운다.

@@ -500,6 +500,7 @@ class TestStockPriceSource:
             assert marker in template
         assert 'id="stockRows"' not in template
         assert '<a href="/quotes">지수·환율</a>' not in layout
+        assert all(route.path != "/quotes" for route in app.routes)
 
 
 class TestSessionTokenBridge:

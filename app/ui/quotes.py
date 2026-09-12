@@ -1,8 +1,4 @@
-"""`/quotes` — 지수·환율 화면과 그 데이터 헬퍼.
-
-주식 목록과 **다른 화면으로 뗀 이유**는 성격이 다르기 때문이다. `/stocks` 는 "개별 종목을
-찾는" 화면이고(검색·페이저·구독 목록), 여기는 "시장 전체가 지금 어떤가"를 한눈에 보는
-화면이다.
+"""주식 대시보드의 지수·환율 데이터와 `/quotes/view` 상세 화면.
 
 수집 대상은 코드가 아니라 **DB 가 정한다**(`23.stock_ticker` 와 같은 규약):
 
@@ -23,7 +19,6 @@ from sqlalchemy import text
 from app.db.session import db_session
 from app.ui.routes import _shell_ctx, templates
 from app.ui.stocks import (
-    _default_market,
     _latest_quotes,
     _level,
     _resolve_source,
@@ -67,7 +62,7 @@ _CATEGORY_LABEL = {
     "FX": "환율",
 }
 
-#: `/quotes` 카드 표시 순서. 새로 구독한 항목은 같은 분류의 지정 항목 뒤에 코드순으로 둔다.
+#: `/stocks` 지수·환율 카드 표시 순서. 미지정 항목은 같은 분류 뒤에 코드순으로 둔다.
 _QUOTE_DISPLAY_ORDER = {
     "INDEX_KR": ("KOSPI", "KOSPI200", "KOSDAQ"),
     "INDEX_EX": ("SPX", "COMP", "NDX"),
@@ -215,40 +210,17 @@ async def _quote_rows(db) -> list[dict]:
     return out
 
 
-@router.get("/quotes", response_class=HTMLResponse, include_in_schema=False)
-async def quotes_index(request: Request):
-    """지수·환율 + 종목 히트맵의 **껍데기**. 내용은 `/js/quotes.js` 가 API 로 채운다
-    (`/api/v1/quotes`·`/api/v1/stocks/heatmap`).
-
-    `/stocks` 와 같이 여기서는 데이터 쿼리를 돌리지 않는다 — 히트맵은 구독 종목 캔들
-    테이블을 UNION ALL 로 훑으므로, 화면이 아직 안 쓰는데 매번 도는 일이 없게 한다.
-    """
-    async with db_session() as db:
-        ctx = await _shell_ctx(request, db, _level(request))
-
-    return templates.TemplateResponse(
-        request,
-        "quotes_index.html",
-        {
-            # `is_stock_page` 는 장식이 아니다 — layout 이 이걸로 좌상단 라벨("주식")과
-            # body 클래스를 정한다. 지수·환율은 주식 계열 화면이라 같이 묶는다.
-            **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "default_market": _default_market(),
-        },
-    )
-
-
 @router.get("/quotes/view", response_class=HTMLResponse, include_in_schema=False)
 async def quotes_show(request: Request):
     """지수·환율 상세 차트. 캔들은 화면이 뜬 뒤 공개 API에서 읽는다."""
     code = (request.query_params.get("code") or "").strip().upper()[:32]
     if not code:
-        return RedirectResponse("/quotes", status_code=303)
+        return RedirectResponse("/stocks", status_code=303)
 
     async with db_session() as db:
         item = await _quote_meta(db, code)
         if item is None or item["table"] is None:
-            return RedirectResponse("/quotes", status_code=303)
+            return RedirectResponse("/stocks", status_code=303)
         latest = (await _latest_quotes(db, [(item["code"], item["prefix"])])).get(item["code"])
         item["price"] = (latest or {}).get("close")
         item["prev_price"] = (latest or {}).get("prev_close")
