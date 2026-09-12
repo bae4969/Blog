@@ -42,7 +42,7 @@ jobs:
           fi
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -125,6 +125,14 @@ jobs:
             --build-arg "APP_VERSION=ci" \
             --build-arg "VCS_REF=$GITHUB_SHA" \
             --tag "$CI_IMAGE" .
+          docker run --rm --entrypoint sh "$CI_IMAGE" -c '
+            test -s /app/public/vendor/chart.umd.min.js &&
+            test -s /app/public/vendor/chartjs-chart-financial.min.js &&
+            test -s /app/public/vendor/chartjs-plugin-zoom.min.js &&
+            test -s /app/public/vendor/hammer.min.js &&
+            test -s /app/public/vendor/quill/quill.min.js &&
+            test -s /app/public/vendor/quill/quill.snow.css
+          '
 
       - name: Remove CI image tag
         if: always()
@@ -143,7 +151,7 @@ jobs:
       RELEASE_CREATED: ${{ steps.release_decision.outputs.release_created }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -212,7 +220,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build and push application image
         run: |

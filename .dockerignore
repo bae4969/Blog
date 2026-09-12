@@ -14,7 +14,6 @@ tests
 sql
 cache
 config
-vendor
 __pycache__
 *.pyc
 public/uploads
