@@ -353,15 +353,12 @@ async def _heatmap_rows(db, market: str) -> list[dict]:
 
 @router.get("/stocks", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_index(request: Request):
-    """종목 목록의 **껍데기**. 표·페이저·거래대금 TOP10 은 `/js/stocks_list.js` 가
-    `/api/v1/stocks*` 를 읽어 채운다(2026-08-19, SPA 2단계).
+    """지수·환율 카드 + 주식 히트맵 대시보드.
 
-    그래서 여기서는 목록 쿼리를 돌리지 않는다 — 특히 `_top_by_trading_amount` 는 구독
-    종목별 candle 테이블을 UNION ALL 로 훑는 무거운 쿼리라, 화면이 안 쓰는데 매번 도는
-    일이 없게 한다.
+    종목 표는 2026-09-12 에 제거했다. 검색과 거래대금 TOP10은 화면이 뜬 뒤 공개 API를
+    읽으므로, 여기서는 시장 통계 카드·공개 포트폴리오와 공통 레이아웃만 조회한다.
     """
     market = _norm_market(request.query_params.get("market")) or _default_market()
-    search = (request.query_params.get("search") or "").strip()[:50]
 
     async with db_session() as db:
         stats = (await db.execute(text(
@@ -375,7 +372,7 @@ async def stocks_index(request: Request):
             "  ON si.stock_code = w.stock_code "
             "GROUP BY grp, label "
             "UNION ALL "
-            "SELECT 'COIN', '코인', COUNT(*), SUM(ci.coin_price * ci.coin_amount) "
+            "SELECT 'COIN', '코인', COUNT(*), NULL "
             "FROM Bithumb.coin_info ci "
             "INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) c "
             "  ON ci.coin_code = c.coin_code "
@@ -395,8 +392,7 @@ async def stocks_index(request: Request):
         "stocks_index.html",
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "stats": stats, "portfolios": portfolios,
-            "market": market, "search": search,
+            "stats": stats, "portfolios": portfolios, "default_market": market,
         },
     )
 
@@ -725,4 +721,3 @@ async def _coin_by_code(db, code: str):
         "coin_price AS stock_price, coin_price * coin_amount AS stock_capitalization, "
         "coin_amount AS stock_count, coin_update AS stock_update "
         "FROM Bithumb.coin_info WHERE coin_code = :c"), {"c": code})).first()
-

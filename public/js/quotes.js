@@ -1,8 +1,8 @@
 /**
- * 지수·환율 화면 — `/quotes`.
+ * 주식 대시보드 — `/stocks`와 기존 `/quotes`.
  *
  * 서버는 껍데기만 주고 여기서 `/api/v1/quotes`·`/api/v1/stocks/heatmap` 을 읽어 그린다
- * (`stocks_list.js` 와 같은 방식).
+ * 화면 껍데기만 서버가 그리고 두 공개 API의 응답으로 내용을 채운다.
  *
  * ⚠️ **오르면 빨강, 내리면 파랑이다.** finviz 는 반대(오르면 초록)지만 이 사이트는
  *    `--chart-up-color: #ef5350` / `--chart-down-color: #3b82f6` 로 한국 관행을
@@ -15,7 +15,7 @@
 (function () {
     'use strict';
 
-    var GROUPS = ['KR', 'US'];
+    var GROUPS = ['KR', 'US', 'COIN'];
 
     /** 색이 최대로 진해지는 등락률(%). finviz 와 같이 ±3% 에서 포화시킨다. */
     var COLOR_CAP = 3;
@@ -166,7 +166,8 @@
     /* ── 히트맵 ────────────────────────────────────────────────────────── */
 
     function detailUrl(item) {
-        return '/stocks/view?code=' + encodeURIComponent(item.code);
+        return '/stocks/view?code=' + encodeURIComponent(item.code)
+            + (market === 'COIN' ? '&market=COIN' : '');
     }
 
     function tileElement(r, d) {
@@ -197,12 +198,20 @@
         return el;
     }
 
+    function itemWeight(item) {
+        // Bithumb의 coin_amount는 발행량이 아니어서 가격을 곱하면 BTC가 약 98%를 차지한다.
+        // 세제곱근으로 압축해 BTC의 규모감과 작은 코인의 가독성을 절충한다.
+        return market === 'COIN'
+            ? Math.cbrt(Math.max(item.market_cap || 0, 1))
+            : item.market_cap;
+    }
+
     function itemRects(items, x, y, w, h) {
         var total = 0;
-        for (var i = 0; i < items.length; i++) total += items[i].market_cap;
+        for (var i = 0; i < items.length; i++) total += itemWeight(items[i]);
         if (!total || w < 1 || h < 1) return [];
         return squarify(items.map(function (d) {
-            return (d.market_cap / total) * w * h;
+            return (itemWeight(d) / total) * w * h;
         }), x, y, w, h);
     }
 
@@ -213,14 +222,14 @@
             var name = d.category_name || '미분류';
             if (!byName[name]) byName[name] = { name: name, total: 0, items: [] };
             byName[name].items.push(d);
-            byName[name].total += d.market_cap;
+            byName[name].total += itemWeight(d);
         }
         return Object.keys(byName).map(function (name) { return byName[name]; })
             .sort(function (a, b) { return b.total - a.total; });
     }
 
-    function renderFlat(items, w, h, frag) {
-        var rects = itemRects(items, 0, 0, w, h);
+    function renderFlat(items, x, y, w, h, frag) {
+        var rects = itemRects(items, x, y, w, h);
         for (var i = 0; i < rects.length; i++) {
             frag.appendChild(tileElement(rects[i], items[i]));
         }
@@ -230,7 +239,7 @@
     function renderGrouped(items, w, h, frag) {
         var groups = groupedItems(items);
         var groupItems = groups.map(function (g) { return { market_cap: g.total }; });
-        var groupRects = itemRects(groupItems, 0, 0, w, h);
+        var groupRects = itemRects(groupItems, 3, 3, Math.max(0, w - 6), Math.max(0, h - 6));
 
         for (var i = 0; i < groupRects.length; i++) {
             var g = groups[i], gr = groupRects[i];
@@ -264,7 +273,9 @@
     function renderHeatmap() {
         if (!boxEl) return;
 
-        var items = heatmapData.filter(function (d) { return (d.market_cap || 0) > 0; });
+        var items = heatmapData.filter(function (d) {
+            return market === 'COIN' || (d.market_cap || 0) > 0;
+        });
         if (!items.length) {
             boxEl.innerHTML = '<div class="quote-empty">표시할 종목이 없습니다.</div>';
             return;
@@ -278,7 +289,7 @@
         var frag = document.createDocumentFragment();
         var haveCategories = items.some(function (d) { return !!d.category_name; });
         // API/DB 배포 순서가 엇갈려 카테고리가 하나도 없으면 기존 평면 배치를 유지한다.
-        if (!haveCategories) renderFlat(items, w, h, frag);
+        if (!haveCategories) renderFlat(items, 3, 3, Math.max(0, w - 6), Math.max(0, h - 6), frag);
         else renderGrouped(items, w, h, frag);
 
         boxEl.innerHTML = '';
@@ -288,7 +299,10 @@
     function renderLegend() {
         if (!legendEl) return;
         var stops = [-3, -2, -1, 0, 1, 2, 3];
-        var html = '<span class="heat-legend-label">전일 대비</span>';
+        var html = market === 'COIN'
+            ? '<span class="heatmap-note">코인 타일 크기는 상대 비교용으로 세제곱근 보정했으며 실제 시가총액과 다를 수 있습니다.</span>'
+            : '';
+        html += '<span class="heat-legend-label">전일 대비</span>';
         for (var i = 0; i < stops.length; i++) {
             html += '<span class="heat-legend-chip" style="background:' + tileColor(stops[i]) + '">'
                 + (stops[i] > 0 ? '+' : '') + stops[i] + '%</span>';
@@ -303,6 +317,8 @@
         var category = d.category_name
             ? '<div class="tip-row"><span>분류</span><b>' + escapeHtml(d.category_name) + '</b></div>'
             : '';
+        var capitalization = market === 'COIN' ? ''
+            : '<div class="tip-row"><span>시가총액</span><b>' + won(d.market_cap) + '</b></div>';
         tooltipEl.innerHTML =
             '<div class="tip-name">' + escapeHtml(d.name_kr || d.code) + '</div>'
             + '<div class="tip-row"><span>코드</span><b>' + escapeHtml(d.code) + '</b></div>'
@@ -311,7 +327,7 @@
             + '<div class="tip-row"><span>전일</span><b>' + quoteValue(d.prev_price) + '</b></div>'
             + '<div class="tip-row"><span>등락</span><b class="' + pctClass(d.change_pct) + '">'
             + pctText(d.change_pct) + '</b></div>'
-            + '<div class="tip-row"><span>시가총액</span><b>' + won(d.market_cap) + '</b></div>';
+            + capitalization;
         tooltipEl.hidden = false;
         moveTooltip(evt);
     }
@@ -431,12 +447,26 @@
         if (GROUPS.indexOf(m) < 0 || m === market) return;
         market = m;
         syncTabs();
+        renderLegend();
         loadHeatmap();
+        rememberMarket();
+        document.dispatchEvent(new CustomEvent('stock-dashboard-market-change', {
+            detail: { market: market }
+        }));
+    }
+
+    function rememberMarket() {
+        try { sessionStorage.setItem('stock_market_preference', market); }
+        catch (e) { /* 사생활 보호 모드 등 — 무시한다 */ }
     }
 
     function syncTabs() {
         for (var i = 0; i < tabEls.length; i++) {
-            tabEls[i].classList.toggle('active', tabEls[i].dataset.group === market);
+            var active = tabEls[i].dataset.group === market;
+            tabEls[i].classList.toggle('active', active);
+            if (tabEls[i].hasAttribute('aria-pressed')) {
+                tabEls[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+            }
         }
     }
 
@@ -448,16 +478,23 @@
         boxEl = document.getElementById('heatmapBox');
         tooltipEl = document.getElementById('heatmapTooltip');
         legendEl = document.getElementById('heatmapLegend');
-        tabEls = rootEl.querySelectorAll('.heatmap-tab');
+        tabEls = rootEl.querySelectorAll('.market-stat-item-h[data-group], .heatmap-tab');
 
         var d = (rootEl.dataset.market || '').toUpperCase();
         market = GROUPS.indexOf(d) >= 0 ? d : 'KR';
         syncTabs();
         renderLegend();
+        rememberMarket();
 
         for (var i = 0; i < tabEls.length; i++) {
             tabEls[i].addEventListener('click', function () {
                 setMarket(this.dataset.group);
+            });
+            tabEls[i].addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setMarket(this.dataset.group);
+                }
             });
         }
 

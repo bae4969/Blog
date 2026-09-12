@@ -67,6 +67,24 @@ _CATEGORY_LABEL = {
     "FX": "환율",
 }
 
+#: `/quotes` 카드 표시 순서. 새로 구독한 항목은 같은 분류의 지정 항목 뒤에 코드순으로 둔다.
+_QUOTE_DISPLAY_ORDER = {
+    "INDEX_KR": ("KOSPI", "KOSPI200", "KOSDAQ"),
+    "INDEX_EX": ("SPX", "COMP", "NDX"),
+    "FX": ("KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR"),
+}
+
+
+def _quote_sort_key(item: dict) -> tuple[int, int, str]:
+    category = item["category"]
+    codes = _QUOTE_DISPLAY_ORDER.get(category, ())
+    try:
+        rank = codes.index(item["code"])
+    except ValueError:
+        rank = len(codes)
+    category_rank = {"INDEX_KR": 0, "INDEX_EX": 1, "FX": 2}.get(category, 3)
+    return category_rank, rank, item["code"]
+
 
 def _fx_label(quote_query: str) -> str | None:
     """`KRWUSD` → `원/달러`.
@@ -193,6 +211,7 @@ async def _quote_rows(db) -> list[dict]:
             "at": row[3],
             "spark": spark.get(p["code"], [])[-_SPARK_POINTS:],
         })
+    out.sort(key=_quote_sort_key)
     return out
 
 
