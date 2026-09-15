@@ -429,8 +429,9 @@
             .catch(function () { renderQuotes([]); });
     }
 
-    function loadHeatmap() {
-        boxEl.innerHTML = '<div class="quote-empty">불러오는 중…</div>';
+    /** `quiet` 이면 "불러오는 중" 으로 비우지 않는다 — 앱으로 돌아와 다시 받을 때 깜빡이지 않게. */
+    function loadHeatmap(quiet) {
+        if (!quiet) boxEl.innerHTML = '<div class="quote-empty">불러오는 중…</div>';
         fetch('/api/v1/stocks/heatmap?market=' + encodeURIComponent(market), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : []; })
             .then(function (rows) {
@@ -515,5 +516,22 @@
 
         loadQuotes();
         loadHeatmap();
+
+        // 설치형 앱(PWA)에는 새로고침 버튼이 없다(iOS 는 당겨서 새로고침도 없다). 화면은 열 때
+        // 한 번만 받으므로, 1분 넘게 떠나 있다 돌아오면 다시 받는다. 거래대금 TOP10 은
+        // stocks_dashboard.js 가 같은 이벤트를 듣고 다시 받는다.
+        var hiddenAt = 0;
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                hiddenAt = Date.now();
+                return;
+            }
+            if (hiddenAt && Date.now() - hiddenAt > 60000) {
+                loadQuotes();
+                loadHeatmap(true);
+                document.dispatchEvent(new CustomEvent('stock-dashboard-refresh'));
+            }
+            hiddenAt = 0;
+        });
     });
 })();
