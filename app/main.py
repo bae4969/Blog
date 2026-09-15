@@ -76,7 +76,7 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
     """
 
     #: 갱신을 시도하지 않을 경로. 정적 파일·헬스체크까지 auth 를 부르면 낭비다.
-    _SKIP = ("/healthz", "/favicon.ico", "/robots.txt", "/site.webmanifest")
+    _SKIP = ("/healthz", "/favicon.ico", "/robots.txt", "/site.webmanifest", "/sw.js")
     _SKIP_PREFIX = ("/css/", "/js/", "/res/", "/vendor/", "/uploads/")
 
     async def dispatch(self, request: Request, call_next):
@@ -173,6 +173,18 @@ async def robots() -> FileResponse:
 async def webmanifest() -> FileResponse:
     return FileResponse(
         _PUBLIC / "site.webmanifest", media_type="application/manifest+json"
+    )
+
+
+# ⚠️ 서비스워커도 **루트에서** 내보낸다. 서비스워커가 맡는 범위는 파일이 놓인 경로까지라,
+#    `/js/sw.js` 로 두면 `/js/` 밖의 화면(`/blog`·`/stocks`)을 못 맡는다.
+# ⚠️ `no-cache` 로 내보낸다. 이 파일이 캐시되면 고쳐도 브라우저가 옛 것을 계속 들고 있다.
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker() -> FileResponse:
+    return FileResponse(
+        _PUBLIC / "sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
     )
 
 
