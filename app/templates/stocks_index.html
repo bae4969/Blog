@@ -48,17 +48,35 @@
 {% block content %}
 <div class="stocks-container stocks-dashboard-container">
     <main class="stocks-main quotes-container" id="quotesRoot" data-market="{{ default_market }}">
-        <section class="quote-section">
-            <div class="quote-card-grid" id="quoteIndexCards">
-                <div class="quote-empty">불러오는 중…</div>
-            </div>
-        </section>
+        {#
+          모바일(768px 이하)에서는 두 섹션이 한 줄에 나란히 서서 카드를 한 장씩 넘긴다
+          (`/js/rotator.js`). 넓은 화면에서는 이 줄이 `display: contents` 라 없는 것과 같고,
+          제목·번호·진행바도 보이지 않는다.
+        #}
+        <div class="quote-rotator-row">
+            <section class="quote-section" data-rotator data-rotator-item=".quote-card" data-rotator-interval="4000">
+                <div class="rotator-head">
+                    <span class="rotator-title">지수</span>
+                    <span class="rotator-count"></span>
+                </div>
+                <div class="quote-card-grid" id="quoteIndexCards" data-rotator-track>
+                    <div class="quote-empty">불러오는 중…</div>
+                </div>
+                <div class="rotator-bar"><i></i></div>
+            </section>
 
-        <section class="quote-section">
-            <div class="quote-card-grid" id="quoteFxCards">
-                <div class="quote-empty">불러오는 중…</div>
-            </div>
-        </section>
+            {# 두 장이 같은 순간에 넘어가면 어디를 봐야 할지 모른다 — 2초 늦게 돈다. #}
+            <section class="quote-section" data-rotator data-rotator-item=".quote-card" data-rotator-interval="4000" data-rotator-delay="2000">
+                <div class="rotator-head">
+                    <span class="rotator-title">환율</span>
+                    <span class="rotator-count"></span>
+                </div>
+                <div class="quote-card-grid" id="quoteFxCards" data-rotator-track>
+                    <div class="quote-empty">불러오는 중…</div>
+                </div>
+                <div class="rotator-bar"><i></i></div>
+            </section>
+        </div>
 
         <div class="market-stats-horizontal" aria-label="시장 선택">
             {% for item in stats %}
@@ -117,22 +135,30 @@
             포트폴리오 백테스팅
         </a>
 
-        <section class="top10-section">
-            <h3>거래대금 TOP 10</h3>
-            <div class="top10-list" id="stockTop10">
+        {# 모바일에서는 한 종목씩 넘기고, "전체" 로 지금의 목록을 펼친다(`/js/rotator.js`). #}
+        <section class="top10-section" data-rotator data-rotator-item=".top10-item" data-rotator-interval="3500">
+            <h3>
+                거래대금 TOP 10
+                <span class="rotator-count"></span>
+                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
+            </h3>
+            <div class="top10-list" id="stockTop10" data-rotator-track>
                 <div class="top10-empty">불러오는 중…</div>
             </div>
+            <div class="rotator-bar"><i></i></div>
         </section>
 
-        <section class="top10-section">
+        <section class="top10-section" data-rotator data-rotator-item=".top10-item" data-rotator-interval="3500">
             <h3>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
                 포트폴리오 TOP 10
+                <span class="rotator-count"></span>
+                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
             </h3>
-            <div class="top10-list">
+            <div class="top10-list" data-rotator-track>
                 {% for p in portfolios %}
                 {% set sc = p.ranking_score or 0 %}
                 <a href="/stocks/backtest?portfolio={{ p.portfolio_id }}" class="top10-item">
@@ -149,6 +175,7 @@
                 <div class="top10-empty">데이터가 없습니다.</div>
                 {% endfor %}
             </div>
+            <div class="rotator-bar"><i></i></div>
         </section>
     </aside>
 </div>
@@ -157,4 +184,5 @@
 {% block extra_js %}
 <script src="/js/quotes.js?v={{ static_v }}"></script>
 <script src="/js/stocks_dashboard.js?v={{ static_v }}"></script>
+<script src="/js/rotator.js?v={{ static_v }}"></script>
 {% endblock %}
