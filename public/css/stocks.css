@@ -3430,7 +3430,8 @@ details[open] > .config-section-title.clickable {
 .rotator-head,
 .rotator-count,
 .rotator-bar,
-.rotator-expand {
+.rotator-expand,
+.execution-latest-hint {
     display: none;
 }
 
@@ -3670,4 +3671,83 @@ details[open] > .config-section-title.clickable {
         font-size: 12px;
     }
 
+    /* ── 종목 상세: 최근 체결은 최신 1건만 크게 ─────────────────────────
+       ⚠️ 회전시키지 않는다 — 체결은 시간순 흐름이라 이전 체결이 다시 나오면 그 가격이 현재가처럼
+          읽힌다. 전체 50건은 "자세히 보기" 바텀시트(`#executionOverlayList`, 이 섹션 밖)가 보여준다. */
+    .execution-section h3 {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .execution-section .execution-latest-hint {
+        display: inline;
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .execution-section .execution-list > .execution-header,
+    .execution-section .execution-fade-overlay {
+        display: none;
+    }
+
+    .execution-section .execution-body {
+        max-height: none;
+    }
+
+    .execution-section .execution-item:not(:first-child) {
+        display: none;
+    }
+
+    .execution-section .execution-item {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+            "type price"
+            "time vol";
+        column-gap: 12px;
+        row-gap: 6px;
+        padding: 14px 16px 16px;
+        border-bottom: 0;
+        text-align: left;
+    }
+
+    .execution-section .exec-type {
+        grid-area: type;
+        align-self: center;
+        justify-self: start;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .execution-section .exec-price {
+        grid-area: price;
+        justify-self: end;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .execution-section .exec-time {
+        grid-area: time;
+        font-size: 12px;
+    }
+
+    .execution-section .exec-volume {
+        grid-area: vol;
+        justify-self: end;
+        font-size: 12px;
+    }
+
+    .execution-section .exec-volume::before {
+        content: '수량 ';
+        color: var(--text-muted);
+    }
+
+    .execution-section .execution-mobile-trigger {
+        margin-top: 10px;
+    }
 }
