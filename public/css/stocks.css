@@ -151,7 +151,7 @@
 .market-stat-item-h .market-name {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
@@ -159,21 +159,22 @@
     flex-shrink: 0;
 }
 
+/* 아이콘은 원 안의 통화 기호를 선 하나(`currentColor`)로 그린다 — stocks_index.html 매크로.
+   꺼진 버튼은 흐리게, 켜진 버튼은 accent 로 칠하고 원 안을 옅게 채워 보고 있는 시장을 드러낸다. */
 .market-stat-item-h .market-name .market-symbol {
-    width: 26px;
-    height: 26px;
-    color: var(--primary-color);
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
     flex-shrink: 0;
+    transition: color 0.15s;
 }
 
-/* 아이콘의 `currentColor` 는 **테두리 획**에만 닿는다(태극·성조기의 빨강·파랑은 SVG 안의
-   고정값이다 — stocks_index.html 참고). 시장마다 테두리를 따로 칠하던 값이 라이트 테마
-   시절의 것이라, 한국은 #111827(거의 검정)이 어두운 카드 위에서 대비 1.2:1 로 사실상
-   안 보였다. 시장 구분은 국기·라벨이 이미 하므로 테두리는 accent 하나로 통일한다
-   (위 `.market-symbol` 기본 규칙의 색을 그대로 쓴다). */
-
 .market-stat-item-h.active .market-name .market-symbol {
-    filter: saturate(1.15);
+    color: var(--primary-color);
+}
+
+.market-stat-item-h.active .market-symbol-disc {
+    fill: rgba(var(--bae-accent-rgb), 0.16);
 }
 
 .market-stat-item-h .market-info {
