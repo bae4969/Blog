@@ -173,7 +173,8 @@
         </div>
 
         <div class="execution-section">
-            <h3>최근 체결</h3>
+            {# 모바일에서는 최신 1건만 크게 보인다 — 실시간이 아니라는 것을 머리에 적어 둔다. #}
+            <h3>최근 체결<span class="execution-latest-hint">30초마다 갱신</span></h3>
             <div class="execution-list">
                 <div class="execution-header">
                     <div>시간</div>

@@ -5,6 +5,7 @@
     var US_MARKETS = ['NYSE', 'NASDAQ', 'AMEX'];
     var topEl, formEl, inputEl, resultsEl, rootEl;
     var topRequestId = 0;
+    var topMarket = null;
     var searchRequestId = 0;
     var searchTimer = null;
     var searchDismissed = false;
@@ -104,10 +105,12 @@
         });
     }
 
-    function loadTop(market) {
+    /** `quiet` 이면 "불러오는 중" 으로 비우지 않는다 — 앱으로 돌아와 다시 받을 때 깜빡이지 않게. */
+    function loadTop(market, quiet) {
         if (!topEl || ['KR', 'US', 'COIN'].indexOf(market) < 0) return;
+        topMarket = market;
         var mine = ++topRequestId;
-        topEl.innerHTML = '<div class="top10-empty">불러오는 중…</div>';
+        if (!quiet) topEl.innerHTML = '<div class="top10-empty">불러오는 중…</div>';
         fetch('/api/v1/stocks/top?limit=10&market=' + market)
             .then(function (response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -214,6 +217,10 @@
 
         document.addEventListener('stock-dashboard-market-change', function (event) {
             loadTop(event.detail && event.detail.market);
+        });
+        // 앱으로 돌아왔을 때 quotes.js 가 보낸다.
+        document.addEventListener('stock-dashboard-refresh', function () {
+            loadTop(topMarket, true);
         });
         inputEl.addEventListener('input', scheduleSearch);
         inputEl.addEventListener('focus', function () {

@@ -151,7 +151,7 @@
 .market-stat-item-h .market-name {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
@@ -159,21 +159,22 @@
     flex-shrink: 0;
 }
 
+/* 아이콘은 원 안의 통화 기호를 선 하나(`currentColor`)로 그린다 — stocks_index.html 매크로.
+   꺼진 버튼은 흐리게, 켜진 버튼은 accent 로 칠하고 원 안을 옅게 채워 보고 있는 시장을 드러낸다. */
 .market-stat-item-h .market-name .market-symbol {
-    width: 26px;
-    height: 26px;
-    color: var(--primary-color);
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
     flex-shrink: 0;
+    transition: color 0.15s;
 }
 
-/* 아이콘의 `currentColor` 는 **테두리 획**에만 닿는다(태극·성조기의 빨강·파랑은 SVG 안의
-   고정값이다 — stocks_index.html 참고). 시장마다 테두리를 따로 칠하던 값이 라이트 테마
-   시절의 것이라, 한국은 #111827(거의 검정)이 어두운 카드 위에서 대비 1.2:1 로 사실상
-   안 보였다. 시장 구분은 국기·라벨이 이미 하므로 테두리는 accent 하나로 통일한다
-   (위 `.market-symbol` 기본 규칙의 색을 그대로 쓴다). */
-
 .market-stat-item-h.active .market-name .market-symbol {
-    filter: saturate(1.15);
+    color: var(--primary-color);
+}
+
+.market-stat-item-h.active .market-symbol-disc {
+    fill: rgba(var(--bae-accent-rgb), 0.16);
 }
 
 .market-stat-item-h .market-info {
@@ -3416,3 +3417,433 @@ details[open] > .config-section-title.clickable {
 
 /* ⚠️ 좁은 화면에서 어느 열을 접을지는 **위쪽 `@media (768px/480px)` 블록**이 이미
       정하고 있다. 여기서 또 정의하면 브레이크포인트가 둘로 갈린다 — 건드리지 말 것. */
+
+/* ===========================================
+   모바일 개편 (2026-09-15) — 회전 카드 · 시장 버튼 · 체결 최신 1건
+   =========================================== */
+
+/* ⚠️ 모바일 개편 규칙은 **이 블록 한 곳에** 모은다. 위쪽 768/480px 블록과 겹치는 속성은 여기서
+      선택자를 한 단계 더 구체적으로 써서 이긴다 — quotes.css 가 이 파일 **뒤에** 실리므로
+      같은 우선순위로는 지는 규칙이 있다(`.quotes-container > .market-stats-horizontal`). */
+
+/* 회전 카드의 머리·번호·진행바·펼침 버튼은 모바일에서만 보인다. */
+.rotator-head,
+.rotator-count,
+.rotator-bar,
+.rotator-expand,
+.execution-latest-hint {
+    display: none;
+}
+
+/* 넓은 화면에서는 줄이 없는 것과 같다 — 두 섹션이 `.quotes-container` 의 flex 자식으로 남는다. */
+.quote-rotator-row {
+    display: contents;
+}
+
+@media (max-width: 768px) {
+    /* ── 회전 카드 공통 (`/js/rotator.js`) ─────────────────────────── */
+    [data-rotator] {
+        position: relative;
+        overflow: hidden;
+    }
+
+    [data-rotator]:not(.rotator-expanded) [data-rotator-track] {
+        display: flex;
+        flex-direction: row;
+        gap: 0;
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+
+    [data-rotator]:not(.rotator-expanded) [data-rotator-track]::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* 한 장 = 트랙 폭 전체. 비었을 때의 안내 문구도 같은 폭으로 선다. */
+    [data-rotator]:not(.rotator-expanded) [data-rotator-track] > * {
+        flex: 0 0 100%;
+        min-width: 0;
+        scroll-snap-align: start;
+    }
+
+    .rotator-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .rotator-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .rotator-count {
+        display: inline;
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* 다음 장까지 남은 시간. JS 가 `--rotator-dur` 과 `.rotator-running` 을 준다. */
+    .rotator-bar {
+        display: block;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.05);
+        pointer-events: none;
+    }
+
+    .rotator-bar > i {
+        display: block;
+        width: 0;
+        height: 100%;
+        background: var(--primary-color);
+        opacity: 0.75;
+    }
+
+    .rotator-running .rotator-bar > i {
+        animation: rotator-fill var(--rotator-dur, 4s) linear forwards;
+    }
+
+    @keyframes rotator-fill {
+        to { width: 100%; }
+    }
+
+    .rotator-expand {
+        display: inline-block;
+        padding: 3px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.4;
+        cursor: pointer;
+    }
+
+    .rotator-single .rotator-bar,
+    .rotator-single .rotator-count,
+    .rotator-single .rotator-expand,
+    .rotator-expanded .rotator-bar,
+    .rotator-expanded .rotator-count {
+        display: none;
+    }
+
+    .rotator-expanded .rotator-expand {
+        margin-left: auto;
+    }
+
+    /* ── 지수·환율: 두 장을 나란히 ─────────────────────────────────── */
+    .quote-rotator-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    /* blog.css 의 `div::after`(float 해제용)가 grid 에서는 **두 번째 줄**이 되어 행 간격 8px 이
+       아래에 더 붙는다(실측: 섹션 113px 인데 줄이 121px). 이 줄에는 float 이 없다. */
+    .quote-rotator-row::after {
+        content: none;
+    }
+
+    .quote-rotator-row > .quote-section {
+        padding: 8px 0 6px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg, 8px);
+        background: var(--bg-tertiary);
+    }
+
+    .quote-rotator-row .rotator-head {
+        padding: 0 10px 2px;
+    }
+
+    .quote-rotator-row .quote-card {
+        padding: 2px 10px 4px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    /* 탭하면 :hover 가 남는다 — 카드 배경이 한 장만 밝아진 채로 굳지 않게. */
+    .quote-rotator-row .quote-card:hover,
+    .quote-rotator-row .quote-card:focus-visible {
+        background: transparent;
+    }
+
+    .quote-rotator-row .quote-card-head {
+        margin-bottom: 2px;
+    }
+
+    .quote-rotator-row .quote-card-name {
+        font-size: 13px;
+    }
+
+    .quote-rotator-row .quote-card-body {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .quote-rotator-row .quote-card-figures {
+        flex-direction: row;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 6px;
+    }
+
+    .quote-rotator-row .quote-card-price {
+        font-size: 17px;
+    }
+
+    .quote-rotator-row .quote-card-pct {
+        font-size: 12px;
+    }
+
+    .quote-rotator-row .quote-spark {
+        flex: none;
+        width: 100%;
+        height: 24px;
+    }
+
+    .quote-rotator-row .quote-empty {
+        padding: 20px 8px;
+    }
+
+    /* ── 시장 버튼: 한 줄짜리 세그먼트 — 개수·시총을 빼고 아이콘 + 이름만 ──────── */
+    .stocks-dashboard-container .quotes-container > .market-stats-horizontal {
+        gap: 3px;
+        margin-bottom: 0;
+        padding: 3px;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        background: var(--bg-tertiary);
+    }
+
+    /* 지수·환율 줄과 같은 문제 — `div::after` 가 grid 의 두 번째 줄이 되어 아래로 간격만큼 늘어난다. */
+    .stocks-dashboard-container .market-stats-horizontal::after {
+        content: none;
+    }
+
+    .stocks-dashboard-container .market-stat-item-h {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 0;
+        min-height: 34px;
+        padding: 0 6px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+    }
+
+    /* 탭한 뒤 :hover 가 남아 버튼이 떠 있거나 밝아진 채로 굳지 않게. */
+    .stocks-dashboard-container .market-stat-item-h:hover {
+        transform: none;
+        background: transparent;
+    }
+
+    .stocks-dashboard-container .market-stat-item-h.active,
+    .stocks-dashboard-container .market-stat-item-h.active:hover {
+        background: rgba(var(--bae-accent-rgb), 0.16);
+    }
+
+    .stocks-dashboard-container .market-stat-item-h .market-info {
+        display: none;
+    }
+
+    .stocks-dashboard-container .market-stat-item-h .market-name {
+        gap: 5px;
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .stocks-dashboard-container .market-stat-item-h.active .market-name {
+        color: var(--text-primary);
+    }
+
+    .stocks-dashboard-container .market-stat-item-h .market-name .market-symbol {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* 버튼 배경을 이미 accent 로 옅게 칠한다 — 아이콘 원까지 채우면 겹쳐 탁해진다. */
+    .stocks-dashboard-container .market-stat-item-h.active .market-symbol-disc {
+        fill: none;
+    }
+
+    /* ── 차트 좌상단 캔들/라인: 시장 버튼과 같은 세그먼트 (종목·지수 상세) ──────── */
+    .chart-controls .chart-type-buttons {
+        gap: 3px;
+        padding: 3px;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        background: var(--bg-tertiary);
+    }
+
+    .chart-controls .chart-type-btn,
+    .chart-controls .chart-type-btn:hover {
+        min-width: 52px;
+        height: 28px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .chart-controls .chart-type-btn.active,
+    .chart-controls .chart-type-btn.active:hover {
+        background: rgba(var(--bae-accent-rgb), 0.16);
+        color: var(--text-primary);
+    }
+
+    /* 옆 기간 드롭다운을 세그먼트(28px + 여백 3px×2 + 테두리 1px×2 = 36px)와 같은 높이·모서리로. */
+    .chart-controls .period-select {
+        height: 36px;
+        border-radius: 10px;
+    }
+
+    /* ── 거래대금·포트폴리오 TOP10: 한 종목씩 크게 ─────────────────────── */
+    .top10-section[data-rotator] {
+        padding: 12px 0 0;
+    }
+
+    .top10-section[data-rotator] h3 {
+        margin: 0 14px 2px;
+        font-size: 15px;
+    }
+
+    .top10-section[data-rotator] .top10-empty {
+        padding: 24px 12px;
+    }
+
+    /* 펼치면 위쪽 768/480px 블록이 정한 지금의 목록으로 돌아간다 — 여백만 준다. */
+    .top10-section.rotator-expanded .top10-list {
+        padding: 8px 10px 10px;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item,
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item:hover {
+        min-height: 70px;
+        padding: 12px 14px 16px;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-rank {
+        width: 30px;
+        height: 30px;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-name {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-code {
+        font-size: 11px;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-primary {
+        font-size: 17px;
+    }
+
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-secondary {
+        font-size: 12px;
+    }
+
+    /* ── 종목 상세: 최근 체결은 최신 1건만 크게 ─────────────────────────
+       ⚠️ 회전시키지 않는다 — 체결은 시간순 흐름이라 이전 체결이 다시 나오면 그 가격이 현재가처럼
+          읽힌다. 전체 50건은 "자세히 보기" 바텀시트(`#executionOverlayList`, 이 섹션 밖)가 보여준다. */
+    .execution-section h3 {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .execution-section .execution-latest-hint {
+        display: inline;
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .execution-section .execution-list > .execution-header,
+    .execution-section .execution-fade-overlay {
+        display: none;
+    }
+
+    .execution-section .execution-body {
+        max-height: none;
+    }
+
+    .execution-section .execution-item:not(:first-child) {
+        display: none;
+    }
+
+    .execution-section .execution-item {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+            "type price"
+            "time vol";
+        column-gap: 12px;
+        row-gap: 6px;
+        padding: 14px 16px 16px;
+        border-bottom: 0;
+        text-align: left;
+    }
+
+    .execution-section .exec-type {
+        grid-area: type;
+        align-self: center;
+        justify-self: start;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .execution-section .exec-price {
+        grid-area: price;
+        justify-self: end;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .execution-section .exec-time {
+        grid-area: time;
+        font-size: 12px;
+    }
+
+    .execution-section .exec-volume {
+        grid-area: vol;
+        justify-self: end;
+        font-size: 12px;
+    }
+
+    .execution-section .exec-volume::before {
+        content: '수량 ';
+        color: var(--text-muted);
+    }
+
+    .execution-section .execution-mobile-trigger {
+        margin-top: 10px;
+    }
+}

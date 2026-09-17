@@ -34,6 +34,22 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#1C1C1C">
     <meta name="apple-mobile-web-app-title" content="Blog">
+    {#
+      설치형 앱(PWA) — manifest 가 `display: standalone` 이라 안드로이드는 그것만 본다.
+      ⚠️ iOS 는 manifest 를 거의 안 본다. 홈 화면에서 주소창 없이 뜨게 하려면 아래 메타가
+         따로 있어야 한다. 상태바는 `default` 로 둔다(2026-09-15 사용자 결정) —
+         `black-translucent` 는 본문이 상태바 밑까지 올라가 헤더와 겹칠 수 있다.
+      ⚠️ 서비스워커는 **루트 `/sw.js`** 여야 한다(범위가 파일 경로까지다 — `main.py` 참조).
+         등록에 실패해도 화면은 그대로 동작해야 하므로 조용히 넘어간다.
+    #}
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+    }
+    </script>
     <link rel="stylesheet" href="/css/common.css?v={{ static_v }}">
     <link rel="stylesheet" href="/css/blog.css?v={{ static_v }}">
     {#

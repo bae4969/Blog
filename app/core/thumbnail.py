@@ -24,7 +24,7 @@
 미리 알 수 있고, 같은 그림을 두 글이 쓰면 파일 하나를 공유한다.
 
 ⚠️ 이 디렉토리는 `.gitignore` 대상이라 **배포로 따라가지 않는다.** 환경마다 각자 갖는다
-   (`20.blog` 와 `21.blog_test` 의 `public/uploads` 는 서로 다른 실체다).
+   (운영 `blog_data/uploads`와 테스트 `20.blog/public/uploads`는 서로 다른 실체다).
 """
 
 import hashlib
