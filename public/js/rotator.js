@@ -112,7 +112,10 @@
         this.expanded = on;
         this.root.classList.toggle('rotator-expanded', on);
         if (this.expandBtn) {
-            this.expandBtn.textContent = on ? '접기' : '전체';
+            // ⚠️ `textContent` 를 버튼에 직접 쓰면 **안에 있는 SVG 아이콘까지 지운다**
+            //    (프로젝트 규칙상 버튼에는 아이콘이 있다). 라벨 span 만 바꾼다.
+            var lab = this.expandBtn.querySelector('[data-rotator-expand-label]');
+            (lab || this.expandBtn).textContent = on ? '접기' : '전체';
             this.expandBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
         }
         if (on) {

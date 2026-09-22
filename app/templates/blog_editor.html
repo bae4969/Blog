@@ -6,6 +6,7 @@
      편이 동작 차이를 줄인다 — 원본은 `php-final` 태그에 있다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}{{ '글 수정' if is_edit else '글쓰기' }} · Developer Blog{% endblock %}
 
@@ -58,10 +59,11 @@
 
         <div class="form-actions">
             <button id="btn_submit" type="submit" form="post-form" class="btn btn-primary">
+                {{ icons.i('save') }}
                 <span class="btn-text">{{ '수정' if is_edit else '작성' }}</span>
                 <span class="btn-loading" style="display: none;">{{ '수정 중...' if is_edit else '작성 중...' }}</span>
             </button>
-            <button type="button" onclick="handleCancel()" class="btn btn-secondary">취소</button>
+            <button type="button" onclick="handleCancel()" class="btn btn-secondary">{{ icons.i('cancel') }}<span>취소</span></button>
         </div>
     </article>
 </div>
@@ -118,6 +120,15 @@ function compressAndInsertImage(file) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // 구분선은 Quill 기본 포맷이 아니라 아이콘이 없다 — 그냥 두면 **빈 버튼**이 뜬다.
+    // ⚠️ CSS `background-image` 로 그리던 것을 DOM SVG 로 옮겼다. 데이터 URI 는 색을
+    //    `#C7C7C7` 로 박아야 해서 버튼의 hover·active 색을 따라가지 못했다.
+    //    레지스트리 등록은 **툴바가 만들어지기 전**이어야 한다.
+    var quillIcons = Quill.import('ui/icons');
+    quillIcons['divider'] = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor"'
+        + ' stroke-width="1.75" stroke-linecap="round"><path d="M2 9h14"/>'
+        + '<path d="M4 4.5h10"/><path d="M4 13.5h10"/></svg>';
+
     // 다크 테마에 맞는 Quill 설정
     quill = new Quill('#quill-editor', {
         theme: 'snow',
@@ -635,24 +646,13 @@ function handleFormSubmit() {
     document.querySelector('.post-form').submit();
 }
 
-// 알림 표시
+// 알림 표시 — 공용 토스트(`/js/toast.js`)로 넘긴다.
+// ⚠️ 예전에는 여기서 직접 `.notification` 을 만들어 **오른쪽 위**에 띄웠다. 프로젝트
+//    디자인 규칙은 **화면 아래 가운데 토스트** 하나로 통일하는 것이다(2026-09-22).
+//    토스트가 아직 안 실린 드문 경우에만 콘솔로 떨어뜨린다.
 function showNotification(message, type = 'info') {
-    // 기존 알림 제거
-    const existingNotification = document.querySelector('.notification');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
-    
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    // 3초 후 자동 제거
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
+    if (window.toast) window.toast(message, type);
+    else if (window.console) console.log('[' + type + '] ' + message);
 }
 
     // 로그인·글쓰기 버튼 동작은 layout.html 에 있다(여기 중복 정의하면 그쪽을 덮어쓴다).
@@ -730,17 +730,8 @@ const quillDarkTheme = `
         margin-top: 1px;
     }
     
-    /* 구분선 버튼 아이콘 */
-    .ql-toolbar .ql-divider::before {
-        content: '';
-        display: inline-block;
-        width: 18px;
-        height: 18px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C7C7C7' stroke-width='2'%3E%3Cline x1='3' y1='12' x2='21' y2='12'%3E%3C/line%3E%3C/svg%3E");
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
+    /* 구분선 버튼 아이콘은 이제 Quill 아이콘 레지스트리가 **DOM SVG** 로 넣는다
+       (위 `quillIcons['divider']`). 여기서 배경 이미지로 그리면 두 겹이 된다. */
     
     /* --- 텍스트를 구분선으로 변환 */
     .ql-editor p {

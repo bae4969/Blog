@@ -5,6 +5,7 @@
   `/js/stocks_dashboard.js`가 공개 API를 읽어 채운다. 서버는 공개 포트폴리오만 그린다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}주식 · Developer Blog{% endblock %}
 
@@ -140,7 +141,7 @@
             <h3>
                 거래대금 TOP 10
                 <span class="rotator-count"></span>
-                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
+                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">{{ icons.i('expand') }}<span data-rotator-expand-label>전체</span></button>
             </h3>
             <div class="top10-list" id="stockTop10" data-rotator-track>
                 <div class="top10-empty">불러오는 중…</div>
@@ -156,7 +157,7 @@
                 </svg>
                 포트폴리오 TOP 10
                 <span class="rotator-count"></span>
-                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
+                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">{{ icons.i('expand') }}<span data-rotator-expand-label>전체</span></button>
             </h3>
             <div class="top10-list" data-rotator-track>
                 {% for p in portfolios %}

@@ -10,6 +10,7 @@
      보정이 엉뚱한 종목에 걸리기 때문이다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}액면분할 관리 · Developer Blog{% endblock %}
 
@@ -18,10 +19,7 @@
 
 {% block content %}
 <div class="admin-content">
-    {% if msg %}
-    <div class="alert alert-info">{{ msg }}</div>
-    {% endif %}
-
+{# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card collapsed">
         <h2>액면분할/병합 관리</h2>
         <div class="stat-row">
@@ -47,7 +45,7 @@
                         <div id="splitSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;max-height:240px;overflow-y:auto;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary)"></div>
                         <div id="splitSelectedStock" style="display:none;margin-top:0.4rem;padding:0.4rem 0.7rem;border-radius:4px;background:var(--bg-tertiary);font-size:0.9rem">
                             <span id="splitSelectedInfo"></span>
-                            <button type="button" onclick="clearSplitSelection()" style="float:right;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.85rem">✕ 초기화</button>
+                            <button type="button" onclick="clearSplitSelection()" style="float:right;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.85rem">{{ icons.i('cancel') }}<span>초기화</span></button>
                         </div>
                     </div>
                     <div class="admin-form-field">
@@ -71,7 +69,7 @@
                     </div>
                 </div>
                 <div class="admin-form-actions">
-                    <button type="submit" class="btn btn-primary">이벤트 등록</button>
+                    <button type="submit" class="btn btn-primary">{{ icons.i('add') }}<span>이벤트 등록</span></button>
                 </div>
             </form>
         </div>
@@ -122,7 +120,7 @@
                                 <form method="post" action="/admin/stock-splits/delete" style="display:inline" onsubmit="return confirm('이 이벤트를 삭제하시겠습니까?\n삭제 후 해당 종목의 캔들 캐시가 무효화됩니다.')">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="event_id" value="{{ e.id }}">
-                                    <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+                                    <button type="submit" class="btn btn-sm btn-danger">{{ icons.i('trash') }}<span>삭제</span></button>
                                 </form>
                             </td>
                         </tr>
@@ -147,6 +145,14 @@
 </div>
 
 <script>
+// 안내 메시지는 화면 아래 가운데 토스트로(프로젝트 디자인 규칙).
+// ⚠️ 예전에는 네이티브 `alert()` 였다 — 차단형이라 화면을 가렸다. 토스트는 안 막으므로
+//    호출부의 `return`/`preventDefault()` 는 그대로 둬야 한다(전부 가드절이다).
+function notifyToast(message) {
+    if (window.toast) window.toast(message, 'error');
+    else if (window.console) console.warn(message);
+}
+
 (function () {
     var searchTimer = null;
     var searchInput = document.getElementById('splitStockSearch');
@@ -244,11 +250,11 @@
     // 사람이 넣는 "배수" 하나를 ratio_from:ratio_to 로 펴서 보낸다.
     document.getElementById('splitEventForm').addEventListener('submit', function (e) {
         var code = document.getElementById('splitStockCode').value;
-        if (!code) { e.preventDefault(); alert('종목을 검색하여 선택해주세요.'); return; }
+        if (!code) { e.preventDefault(); notifyToast('종목을 검색하여 선택해주세요.'); return; }
 
         var type = document.getElementById('splitType').value;
         var ratio = parseInt(document.getElementById('splitRatio').value, 10);
-        if (!ratio || ratio < 2) { e.preventDefault(); alert('배수를 2 이상 입력해주세요.'); return; }
+        if (!ratio || ratio < 2) { e.preventDefault(); notifyToast('배수를 2 이상 입력해주세요.'); return; }
 
         if (type === 'split') {
             document.getElementById('splitRatioFrom').value = '1';

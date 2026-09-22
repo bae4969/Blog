@@ -15,6 +15,7 @@
      `KRWEUR = FXKRW × FXEUR` 같은 식이 깨지지 않는다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}지수·환율 구독 관리 · Developer Blog{% endblock %}
 
@@ -44,9 +45,7 @@
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">현재 분류 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
         </div>
-        {% if msg %}
-        <div class="alert alert-info">{{ msg }}</div>
-        {% endif %}
+{# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
         <hr>
 
         <div class="stock-admin-toolbar">
@@ -61,12 +60,12 @@
             <form class="stock-admin-search-form" method="get" action="/admin/quotes">
                 <input type="hidden" name="category" value="{{ category }}">
                 <input type="text" name="search" placeholder="이름 또는 코드 검색" value="{{ search }}">
-                <button type="submit" class="btn btn-primary">검색</button>
+                <button type="submit" class="btn btn-primary">{{ icons.i('search') }}<span>검색</span></button>
             </form>
 
             <div class="stock-admin-actions">
-                <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">원래 상태로 되돌리기</button>
-                <button type="submit" form="quoteAdminForm" class="btn btn-primary stock-admin-action">구독 목록 저장</button>
+                <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">{{ icons.i('reset') }}<span>원래 상태로 되돌리기</span></button>
+                <button type="submit" form="quoteAdminForm" class="btn btn-primary stock-admin-action">{{ icons.i('save') }}<span>구독 목록 저장</span></button>
             </div>
         </div>
 
@@ -167,6 +166,14 @@
 
 {% block extra_js %}
 <script>
+// 안내 메시지는 화면 아래 가운데 토스트로(프로젝트 디자인 규칙).
+// ⚠️ 예전에는 네이티브 `alert()` 였다 — 차단형이라 화면을 가렸다. 토스트는 안 막으므로
+//    호출부의 `return`/`preventDefault()` 는 그대로 둬야 한다(전부 가드절이다).
+function notifyToast(message) {
+    if (window.toast) window.toast(message, 'error');
+    else if (window.console) console.warn(message);
+}
+
 const quoteAdminStorageKey = 'quote-admin-selection-draft';
 const quoteAdminServerSelections = {{ registered_codes | tojson }};
 const quoteAdminCategoryMap = {{ category_map | tojson }};
@@ -262,12 +269,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // 초안이 곧 최종 목록이다 — 안전망 히든을 버리고 초안 전체로 갈아끼운다.
             if (selectionSet.size === 0) {
                 event.preventDefault();
-                alert('선택한 항목이 없습니다. 전부 해제하면 수집이 멈추므로 저장하지 않습니다.');
+                notifyToast('선택한 항목이 없습니다. 전부 해제하면 수집이 멈추므로 저장하지 않습니다.');
                 return;
             }
             if (selectionSet.size > quoteAdminLimit) {
                 event.preventDefault();
-                alert('최대 ' + quoteAdminLimit + '개까지 저장할 수 있습니다. 지금 ' + selectionSet.size + '개입니다.');
+                notifyToast('최대 ' + quoteAdminLimit + '개까지 저장할 수 있습니다. 지금 ' + selectionSet.size + '개입니다.');
                 return;
             }
             if (!confirm('선택한 ' + selectionSet.size + '개로 구독 목록을 통째로 교체합니다. 진행할까요?')) {

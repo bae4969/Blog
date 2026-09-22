@@ -10,6 +10,7 @@
      `extra_js` 가 stocks.js 를 붙인다. 순서가 뒤집히면 차트가 뜨지 않는다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}{{ stock.stock_name_kr }} · Developer Blog{% endblock %}
 
@@ -103,8 +104,8 @@
         <div class="chart-section">
             <div class="chart-controls">
                 <div class="chart-type-buttons">
-                    <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
-                    <button class="chart-type-btn" onclick="setChartType('line', this)">라인</button>
+                    <button class="chart-type-btn active" onclick="setChartType('candle', this)">{{ icons.i('candle') }}<span>캔들</span></button>
+                    <button class="chart-type-btn" onclick="setChartType('line', this)">{{ icons.i('line') }}<span>라인</span></button>
                 </div>
                 <div class="chart-period-select-wrapper">
                     <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
@@ -123,7 +124,7 @@
             <div class="chart-wrapper">
                 <div class="chart-top-buttons">
                     <div class="chart-indicator-help">
-                        <button type="button" class="chart-indicator-help-btn">i</button>
+                        <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명">{{ icons.i('help') }}</button>
                         <div class="chart-indicator-tooltip">
                             <div class="chart-indicator-tooltip-section">
                                 <strong>보조지표</strong>
