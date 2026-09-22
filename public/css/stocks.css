@@ -208,6 +208,119 @@
     user-select: none;
 }
 
+/* ── 시장 탭 — 히트맵 패널 윗변에 얹는다 (2026-09-22 사용자 요청) ────────────
+   전에는 둥근 버튼 3개가 히트맵 **위에 떠 있어서**, 그게 무엇을 고르는 버튼인지와
+   무엇이 바뀌는지가 눈으로 이어지지 않았다. 패널 윗변에 붙여 탭으로 만들면
+   "이 판의 내용을 고르는 것" 이 한눈에 보인다.
+
+   ⚠️ **768px 이하는 건드리지 않는다.** 거기서는 이미 알약형 세그먼트다(아래 3600행대).
+      좁은 화면에서 탭 3개를 패널에 붙이면 글자가 눌린다.
+   ⚠️ 선택된 탭은 패널과 **배경이 같아야**(`--bg-primary`) 이어져 보인다. 그 아래
+      경계선 1px 은 `::after` 로 그 구간만 덮는다 — 선이 남으면 탭이 판 위에 올라앉은
+      별개 조각으로 보인다. */
+/* 바깥 테두리는 칸막이보다 밝게.
+   ⚠️ 팔레트의 `--bae-border`(#3A3A3A)·`--bae-border-hover`(#4A4A4A)는 이 배경(#1C1C1C)에서
+      거의 묻힌다 — 네 단계(#4A4A4A / 흰색 28·40·55%)를 실제로 렌더해 비교하고 40% 를
+      골랐다(2026-09-22 사용자 요청 "외곽 라인이 좀 보였으면"). 배경색이 바뀌어도 따라오도록
+      고정 hex 가 아니라 흰색 알파로 둔다.
+   ⚠️ 프레임만 올리고 **탭 사이 칸막이는 그대로** 둬야 세 칸이 아니라 "한 판" 으로 읽힌다. */
+.stocks-dashboard-container .market-stats-horizontal,
+.stocks-dashboard-container .heatmap-box {
+    --tab-frame: rgba(255, 255, 255, 0.4);
+    --tab-divider: var(--bae-border);
+}
+
+/* 히트맵 판의 바깥선은 폭과 상관없이 같은 밝기다(모바일도 판은 판이다).
+   ⚠️ `quotes.css` 가 나중에 실려 `.heatmap-box` 를 같은 특이도로 잡는다 — 컨테이너를 앞에 붙인다. */
+.stocks-dashboard-container .heatmap-box {
+    border-color: var(--tab-frame);
+}
+
+@media (min-width: 769px) {
+    /* ⚠️ 바깥 프레임은 **탭이 아니라 띠(컨테이너)** 가 갖는다.
+     *    탭마다 바깥 테두리를 주면 그리드가 폭을 3등분하면서 소수점이 남고(실측:
+     *    마지막 탭 오른쪽 1317.98 vs 띠 1318.00), 화면 폭에 따라 그 0.02px 이
+     *    **1px 어긋난 선**으로 래스터화된다 — 실제로 띠 테두리 x=219 / 판 테두리
+     *    x=220 으로 한 칸 밀려 보였다(사용자 화면 픽셀 실측, 2026-09-22).
+     *    띠와 판은 같은 부모의 형제라 박스 폭이 **정확히 같다** — 테두리를 양쪽 다
+     *    컨테이너에 두면 같은 픽셀에 떨어진다.
+     * ⚠️ `quotes.css` 가 나중에 실리고 `.quotes-container > .market-stats-horizontal`
+     *    로 잡고 있어서(같은 특이도로는 진다) 여기서도 같은 깊이로 쓴다. */
+    .stocks-dashboard-container .quotes-container > .market-stats-horizontal {
+        position: relative;
+        z-index: 1;                 /* 선택 탭이 판의 윗 테두리를 덮을 수 있게 */
+        gap: 0;
+        /* 부모(`.quotes-container`)의 flex gap 10px 을 정확히 상쇄해 판에 붙인다. */
+        margin-bottom: -10px;
+        border: 1px solid var(--tab-frame);
+        border-bottom: 0;           /* 아래 경계는 판의 윗 테두리가 대신한다 */
+        border-start-start-radius: 6px;
+        border-start-end-radius: 6px;
+        /* ⚠️ 반투명 테두리는 **그 요소의 배경 위에** 합성된다. 띠 배경이 판과 다르면
+           같은 색을 줘도 테두리 밝기가 어긋난다(실측 121 vs 118). 판과 같은 바탕을
+           깔아 둔다 — 탭들이 그 위를 덮으므로 보이는 곳은 테두리 자리뿐이다. */
+        background: var(--bg-primary);
+    }
+
+    /* 전역 clearfix(`div::after`)가 그리드에 유령 칸을 만든다 — 아래 세그먼트 쪽과 같은 문제.
+       ⚠️ `overflow: hidden` 으로 모서리를 자르지 않는다 — 선택 탭의 `::after` 가
+          박스 **밖 1px**(판의 윗 테두리 자리)을 덮어야 하는데 함께 잘린다. */
+    .stocks-dashboard-container .market-stats-horizontal::after,
+    .stocks-dashboard-container .market-stat-item-h::after {
+        content: none;
+    }
+
+    .market-stat-item-h {
+        position: relative;
+        border: 0;
+        border-inline-start: 1px solid var(--tab-divider);   /* 탭 사이 칸막이뿐 */
+        border-radius: 0;
+        background: var(--bg-secondary);
+    }
+
+    /* 첫 탭은 왼쪽에 칸막이가 필요 없고, 배경이 프레임의 둥근 모서리를 덮지 않게
+       1px 작은 반경을 준다(프레임 6px − 테두리 1px). */
+    .market-stat-item-h:first-child {
+        border-inline-start: 0;
+        border-start-start-radius: 5px;
+    }
+
+    .market-stat-item-h:last-child {
+        border-start-end-radius: 5px;
+    }
+
+    /* 탭은 떠오르지 않는다 — `translateY` 가 남아 있으면 판에서 떨어져 보인다. */
+    .market-stat-item-h:hover {
+        transform: none;
+        background: var(--bg-hover);
+        border-color: var(--tab-divider);
+    }
+
+    .market-stat-item-h.active,
+    .market-stat-item-h.active:hover {
+        background: var(--bg-primary);                    /* 히트맵 판과 같은 배경 */
+        border-color: var(--tab-divider);
+        box-shadow: inset 0 2px 0 var(--primary-color);   /* 선택 표시는 윗줄로 */
+    }
+
+    /* 판과의 경계선을 이 탭 구간만 지운다 → 한 덩어리로 읽힌다. */
+    .market-stat-item-h.active::after {
+        content: "";
+        position: absolute;
+        inset-inline: 0;
+        bottom: -1px;
+        height: 1px;
+        background: var(--bg-primary);
+    }
+
+    /* 윗 모서리는 띠가 가지므로 판은 아래만 둥글다.
+       ⚠️ `quotes.css` 의 `.heatmap-box` 가 나중에 실려 같은 특이도로는 진다. */
+    .stocks-dashboard-container .heatmap-box {
+        border-start-start-radius: 0;
+        border-start-end-radius: 0;
+    }
+}
+
 /* 사이드바 검색 */
 .sidebar-search {
     margin-bottom: 12px;
@@ -2109,7 +2222,11 @@
     gap: 0;
     min-width: 0;
     position: sticky;
-    top: 20px;
+    /* ⚠️ 상단바(2026-09-22 리디자인)가 sticky 56px 라 `top: 20px` 이면 그 뒤로 들어가
+       패널 위쪽이 가린다. `--topbar-h` 는 ui.css 의 `:root` 토큰이고, 없으면 0 으로
+       떨어져 옛 값과 같아진다. 실제 값은 backtest.js 가 다시 정한다(패널이 창보다
+       길 때 음수 top 으로 아래를 맞춰야 하기 때문). */
+    top: calc(var(--topbar-h, 0px) + 20px);
     align-self: start;
 }
 
@@ -3625,7 +3742,8 @@ details[open] > .config-section-title.clickable {
         gap: 3px;
         margin-bottom: 0;
         padding: 3px;
-        border: 1px solid var(--border-color);
+        /* 판과 같은 밝기의 바깥선 — 아래 히트맵과 짝이 맞아야 따로 놀지 않는다. */
+        border: 1px solid var(--tab-frame, var(--border-color));
         border-radius: 10px;
         background: var(--bg-tertiary);
     }
