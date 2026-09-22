@@ -7,6 +7,7 @@
      `| safe` 를 쓰면 그 순간 XSS 가 된다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
 {% block title %}{{ post.posting_title }} · Developer Blog{% endblock %}
 
@@ -31,15 +32,12 @@
     </article>
 
     {#
-      ⚠️ `.post-actions` 는 `text-align: right` 만 준다 — 안의 요소가 인라인이어야 가로로
-         늘어선다. PHP 는 버튼을 직접 넣었지만 여기서는 CSRF 때문에 `<form>` 으로 감싸는데,
-         form 은 블록이라 그대로 두면 **세로로 쌓인다**(실제로 그랬다).
-         `inline-form` 은 admin.css 에만 있고 blog.css 에는 없어 여기서 직접 준다.
+      ⚠️ 버튼이 가로로 늘어서는 것은 `ui.css` 의 `#post-detail .post-actions` 가
+         flex + `form { display: contents }` 로 처리한다(2026-09-22). 예전에는 여기
+         인라인 `<style>` 로 `form { display: inline }` 을 줬는데, 인라인 스타일은
+         **레이어 밖**이라 항상 이겨서 ui.css 가 손댈 수 없었다. 규칙을 한 곳으로 모은다.
+         (CSRF 때문에 버튼마다 `<form>` 이 필요하고, form 은 블록이라 그냥 두면 세로로 쌓인다.)
     #}
-    <style>
-      .post-actions form { display: inline; margin: 0; }
-      .post-actions .btn { margin-left: .4rem; }
-    </style>
     <div class="post-actions">
         {#
           상태 변경은 POST 다(GET 으로 두면 링크를 여는 것만으로 글이 지워진다).
@@ -49,29 +47,29 @@
         #}
         {% if post.posting_state == 0 %}
             {% if is_owner %}
-            <a href="/post/edit/{{ post.posting_index }}" class="btn btn-edit">수정</a>
+            <a href="/post/edit/{{ post.posting_index }}" class="btn btn-edit">{{ icons.i('edit') }}<span>수정</span></a>
             {% endif %}
             {% if can_moderate %}
             <form method="post" action="/post/disable/{{ post.posting_index }}" class="inline-form"
                   onsubmit="return confirm('이 글을 숨길까요? 나중에 복구할 수 있습니다.')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-disable">삭제</button>
+                <button type="submit" class="btn btn-disable">{{ icons.i('hide') }}<span>삭제</span></button>
             </form>
             {% endif %}
         {% elif level <= 1 %}
             <form method="post" action="/post/enable/{{ post.posting_index }}" class="inline-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-enable">복구</button>
+                <button type="submit" class="btn btn-enable">{{ icons.i('restore') }}<span>복구</span></button>
             </form>
             <form method="post" action="/post/hard-delete/{{ post.posting_index }}" class="inline-form"
                   onsubmit="return confirm('영구 삭제하면 되돌릴 수 없습니다. 계속할까요?')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-danger">영구 삭제</button>
+                <button type="submit" class="btn btn-danger">{{ icons.i('trash') }}<span>영구 삭제</span></button>
             </form>
         {% endif %}
         {# `.btn` 만으로는 배경이 없어 보라색 링크로 보인다 — 색까지 주는 modifier 가 필요하다. #}
         <a href="/blog{% if category_id %}?category_index={{ category_id }}{% endif %}"
-           class="btn btn-secondary">목록</a>
+           class="btn btn-secondary">{{ icons.i('list') }}<span>목록</span></a>
     </div>
 </div>
 {% endblock %}
