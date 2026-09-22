@@ -23,10 +23,9 @@
      *
      * ⚠️ --bae-accent-rgb 는 --bae-accent 와 반드시 같은 색의 R,G,B 채널값.
      * ⚠️ CSS 밖은 이 토큰이 닿지 않아 함께 갱신해야 한다:
-     *    ① public/res/title.png — 로고. 색이 이미지에 구워져 있다.
-     *       `temp/scripts/make_logo.js` 의 hex 를 바꿔 browserless 로 다시 구우면 된다
-     *       (temp 는 gitignore 라 없어질 수 있다 — 그때는 브라우저로 조판해 다시 만든다).
-     *    ② public/favicon.ico
+     *    ① public/favicon.ico — 파비콘. 색이 이미지에 구워져 있다.
+     *    (2026-09-22) `public/res/title.png` 는 목록에서 빠졌다 — 상단바 워드마크가
+     *    텍스트라 accent 를 CSS 토큰에서 그대로 받는다. 그 파일은 이제 안 쓰인다.
      */
     --bae-accent:        #C4B5FD;
     --bae-accent-rgb:    196, 181, 253;

@@ -42,6 +42,10 @@ templates.env.filters["thumb_src"] = thumbnail.src
 #: 로컬(KST)이라 UTC 로 재면 자정 근처에서 하루가 어긋난다.
 _KST = timezone(timedelta(hours=9))
 
+#: 푸터 저작권 연도. ⚠️ `static_v` 처럼 상수로 박으면 컨테이너가 해를 넘겨 떠 있을 때
+#: 옛 연도가 굳는다 — 부를 때마다 계산하도록 **함수**로 넘긴다(`{{ current_year() }}`).
+templates.env.globals["current_year"] = lambda: datetime.now(_KST).year
+
 
 #: 등급 매핑은 `app/core/blog_user.py` 로 옮겼다 — API 도 같은 값을 봐야 한다.
 _user_level = blog_user.level_of
@@ -95,23 +99,6 @@ async def blog_index(request: Request):
             )
         ).scalars().all()
 
-        # 방문자 수 — PHP `User::getVisitorCount()` 와 같은 값을 읽는다. **주 단위**
-        # 집계이고 키는 `YYYY` + 2자리 주차다(`date("Y") . str_pad(date("W"),2,'0')`).
-        # ⚠️ MariaDB 의 WEEK 모드를 맞춰야 한다. PHP 의 `date("W")` 는 ISO-8601 주차라
-        #    `WEEK(NOW(), 3)` 에 대응한다 — 모드를 빼면 연말·연초에 한 주가 어긋난다.
-        #
-        # ⚠️ **읽기만** 한다. PHP 는 여기서 `updateVisitorCount()` 로 카운트를 올리는데
-        #    이 서비스 계정에는 SELECT 밖에 없다(운영 데이터를 공유하는 상태라 쓰기를
-        #    함부로 열지 않았다). 집계가 덜 오르는 것과 운영 테이블에 잘못 쓰는 것 중에는
-        #    전자가 낫다 — 쓰기 경로를 포팅할 때 함께 처리한다.
-        visitor_count = (
-            await db.execute(
-                text(
-                    "SELECT visit_count FROM weekly_visitors "
-                    "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-                )
-            )
-        ).scalar() or 0
 
     return templates.TemplateResponse(
         request,
@@ -122,7 +109,6 @@ async def blog_index(request: Request):
             "categories": categories,
             "category_id": category_id,
             "search": search,
-            "visitor_count": visitor_count,
             "auth_public_url": settings.auth_public_url,
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
@@ -202,14 +188,6 @@ async def post_detail(request: Request):
             )
         ).scalars().all()
 
-        visitor_count = (
-            await db.execute(
-                text(
-                    "SELECT visit_count FROM weekly_visitors "
-                    "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-                )
-            )
-        ).scalar() or 0
 
         # 어떤 버튼을 보일지 — 서버가 판단한다. 화면에서 숨기는 것만으로는 부족해서
         # 각 POST 라우트가 같은 조건을 한 번 더 검사한다.
@@ -263,7 +241,6 @@ async def post_detail(request: Request):
             "categories": categories,
             "category_id": row.category_index,
             "search": "",
-            "visitor_count": visitor_count,
             "is_owner": is_owner,
             "can_moderate": can_moderate,
             "csrf_token": csrf_token,
@@ -295,21 +272,12 @@ async def _shell_ctx(request: Request, db, level: int, category_id: int | None =
             .order_by(Category.category_order)
         )
     ).scalars().all()
-    visitor_count = (
-        await db.execute(
-            text(
-                "SELECT visit_count FROM weekly_visitors "
-                "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-            )
-        )
-    ).scalar() or 0
     return {
         "user": getattr(request.state, "user", None),
         "level": level,
         "categories": categories,
         "category_id": category_id,
         "search": "",
-        "visitor_count": visitor_count,
         "auth_public_url": settings.auth_public_url,
         "contact_email": settings.contact_email,
         "github_url": settings.github_url,
