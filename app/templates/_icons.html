@@ -1,0 +1,85 @@
+{#
+  ── 아이콘 모음 ────────────────────────────────────────────────────────────
+  프로젝트 디자인 규칙: **버튼에는 글자만 넣지 않고 SVG 아이콘을 함께 단다**
+  (2026-09-22 사용자 지시). 같은 그림을 템플릿마다 베껴 두면 금방 갈라지므로 여기 모은다.
+
+  쓰는 법:
+      {% import "_icons.html" as icons %}
+      <a class="c-btn">{{ icons.i('write') }}<span>글쓰기</span></a>
+
+  ⚠️ `aria-hidden="true"` 를 반드시 붙인다 — 옆에 글자가 있으므로 보조기기가 두 번
+     읽을 이유가 없다. 아이콘만 있는 버튼이라면 버튼 쪽에 `aria-label` 을 준다.
+  ⚠️ 선 두께·모서리는 `stocks_index.html` 의 시장 아이콘과 맞춘다(stroke 1.75, round).
+     `currentColor` 라 버튼 글자색을 그대로 따라간다.
+  ⚠️ jinja2 는 `import` 를 **컴파일 때 해석하지 않는다** — 파일명을 틀려도 CI 를 통과하고
+     렌더에서야 500 이 난다. 이 파일 이름을 바꾸면 쓰는 쪽을 함께 고칠 것.
+#}
+
+{%- macro i(name) -%}
+<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'write' -%}
+    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+{%- elif name == 'login' -%}
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="m10 17 5-5-5-5" /><path d="M15 12H3" />
+{%- elif name == 'logout' -%}
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
+{%- elif name == 'edit' -%}
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" />
+{%- elif name == 'hide' -%}
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19" />
+    <path d="M6.61 6.61A18.15 18.15 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.39-1.61" />
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="m2 2 20 20" />
+{%- elif name == 'restore' -%}
+    <path d="M3 2v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L3 8" />
+{%- elif name == 'trash' -%}
+    <path d="M3 6h18" /><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+    <path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+{%- elif name == 'list' -%}
+    <path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" />
+    <path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" />
+{%- elif name == 'search' -%}
+    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+{%- elif name == 'mail' -%}
+    <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" /><path d="m3.5 6.5 8.5 6 8.5-6" />
+{%- elif name == 'add' -%}
+    <path d="M12 5v14" /><path d="M5 12h14" />
+{%- elif name == 'save' -%}
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+    <path d="M17 21v-8H7v8" /><path d="M7 3v5h8" />
+{%- elif name == 'cancel' -%}
+    <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+{%- elif name == 'up' -%}
+    <path d="m6 15 6-6 6 6" />
+{%- elif name == 'down' -%}
+    <path d="m6 9 6 6 6-6" />
+{%- elif name == 'power' -%}
+    <path d="M12 3v9" /><path d="M6.5 6.5a8 8 0 1 0 11 0" />
+{%- elif name == 'reset' -%}
+    <path d="M3 2v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L3 8" />
+{%- elif name == 'help' -%}
+    <circle cx="12" cy="12" r="9" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4" />
+    <path d="M12 17h.01" />
+{%- elif name == 'candle' -%}
+    <path d="M7 4v16" /><rect x="4.5" y="8" width="5" height="8" rx="1" />
+    <path d="M17 4v16" /><rect x="14.5" y="6" width="5" height="6" rx="1" />
+{%- elif name == 'line' -%}
+    <path d="m3 16 5-6 4 3 6-8" /><path d="M18 5h3v3" />
+{%- elif name == 'balance' -%}
+    <path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" />
+{%- elif name == 'play' -%}
+    <path d="M7 4.5v15l13-7.5-13-7.5Z" />
+{%- elif name == 'hold' -%}
+    <path d="m3 17 6-6 4 4 8-8" /><path d="M14 7h7v7" />
+{%- elif name == 'cycle' -%}
+    <path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+    <path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" />
+{%- elif name == 'signal' -%}
+    <path d="M3 12h3l3 8 6-16 3 8h3" />
+{%- elif name == 'expand' -%}
+    <path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" />
+    <path d="M8 21H5a2 2 0 0 1-2-2v-3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+{%- endif -%}
+</svg>
+{%- endmacro -%}
