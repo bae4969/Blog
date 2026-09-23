@@ -521,7 +521,7 @@
 }
 
 .top10-ch.q-up { color: var(--chart-up-color); }
-.top10-ch.q-down { color: var(--chart-down-color); }
+.top10-ch.q-down { color: var(--chart-down-text); }
 .top10-ch.q-flat { color: var(--bae-text-dim); }
 
 /* 포트폴리오 등급 — 중립 칩. 예전에는 점수와 함께 "상승 빨강" 이었다. */
@@ -3545,7 +3545,7 @@ details[open] > .config-section-title.clickable {
       quotes.css 를 뒤에 실으므로 두 화면이 같은 정의를 쓴다 — 양쪽에 복사하면
       한쪽만 고쳐져 색이 갈라진다. */
 .q-up { color: var(--chart-up-color); }
-.q-down { color: var(--chart-down-color); }
+.q-down { color: var(--chart-down-text); }
 .q-flat { color: var(--text-muted); }
 
 /* 목록 표의 등락률 칸. 현재가와 같은 색을 쓰되 폭이 흔들리지 않게 고정폭 숫자로. */
@@ -3562,7 +3562,7 @@ details[open] > .config-section-title.clickable {
 /* `.stocks-table td`가 기본 글자색을 더 높은 우선순위로 지정한다. 목록 셀에서는 방향색을
    같은 우선순위로 다시 선언해야 현재가와 등락률이 실제 화면에서도 흰색으로 덮이지 않는다. */
 .stocks-table .q-up { color: var(--chart-up-color); }
-.stocks-table .q-down { color: var(--chart-down-color); }
+.stocks-table .q-down { color: var(--chart-down-text); }
 .stocks-table .q-flat { color: var(--text-muted); }
 
 /* 상세 화면 — 현재가 옆 등락률 */
