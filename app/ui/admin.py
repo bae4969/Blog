@@ -83,13 +83,19 @@ async def categories(request: Request):
     return response
 
 
+# ⚠️ 폼 필드 이름은 **템플릿(원본 PHP 마크업)의 `category_*`** 를 따른다 — `alias` 로 받는다.
+#    2026-08-16 에 템플릿을 원본으로 되돌리며 이름이 `category_name` 이 됐는데 핸들러는 `name`
+#    으로 받고 있어서, 이름이 늘 빈 값이 되어 **추가·수정이 한 달 넘게 전부 거절**되고 있었다
+#    (2026-09-23 발견). `tests/test_admin_forms.py` 가 두 쪽 이름을 맞춰 본다.
+
+
 @router.post("/categories/create", include_in_schema=False)
 async def category_create(
     request: Request,
     csrf_token: str = Form(""),
-    name: str = Form(""),
-    read_level: int = Form(0),
-    write_level: int = Form(0),
+    name: str = Form("", alias="category_name"),
+    read_level: int = Form(0, alias="category_read_level"),
+    write_level: int = Form(0, alias="category_write_level"),
 ):
     """카테고리 추가. 순서는 맨 뒤에 붙인다."""
     if not csrf.valid(request, csrf_token):
@@ -124,9 +130,9 @@ async def category_update(
     request: Request,
     csrf_token: str = Form(""),
     category_index: int = Form(-1),
-    name: str = Form(""),
-    read_level: int = Form(0),
-    write_level: int = Form(0),
+    name: str = Form("", alias="category_name"),
+    read_level: int = Form(0, alias="category_read_level"),
+    write_level: int = Form(0, alias="category_write_level"),
 ):
     """이름·권한 수정. 순서는 여기서 건드리지 않는다(교환 전용 경로가 따로 있다)."""
     if not csrf.valid(request, csrf_token):
