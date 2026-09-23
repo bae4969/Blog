@@ -95,6 +95,13 @@
                 {% if not is_coin %}<span>{{ TYPE_LABEL.get(stock.stock_type, stock.stock_type) }}</span>{% endif %}
             </p>
         </div>
+        {#
+          관심 종목 담기/빼기 — `watchlist.js` 가 목록을 받은 뒤 `aria-pressed` 를 맞춘다.
+          로그인 안 했으면 누를 때 로그인 안내 토스트를 띄운다.
+        #}
+        <button type="button" class="c-btn sd-watch" data-watch-code="{{ stock.stock_code }}"
+                data-watch-market="{{ 'COIN' if is_coin else ('US' if is_us else 'KR') }}"
+                data-watch-name="{{ stock.stock_name_kr }}" aria-pressed="false">{{ icons.i('star') }}<span>관심</span></button>
 
         {#
           현재가 — `stocks.js` 가 차트를 받은 뒤 마지막 봉의 종가로 `#currentPriceMainValue` 를

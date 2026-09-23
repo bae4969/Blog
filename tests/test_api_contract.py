@@ -230,6 +230,10 @@ class TestWriteIsBearerOnly:
         ("patch", "/api/v1/posts/1"),
         ("delete", "/api/v1/posts/1"),
         ("post", "/api/v1/posts/1/restore"),
+        # 관심 종목(2026-09-23) — 개인 데이터라 **읽기도** Bearer 다.
+        ("get", "/api/v1/watchlist"),
+        ("put", "/api/v1/watchlist/005930"),
+        ("delete", "/api/v1/watchlist/005930"),
     ]
 
     @staticmethod
@@ -577,4 +581,18 @@ class TestBacktestRoutesMoved:
         """`is_public` 도 `name` 도 없으면 422 — 조용히 아무것도 안 하는 성공보다 낫다."""
         r = client.patch("/api/v1/backtest/portfolios/1", json={},
                          headers={"Authorization": "Bearer x"})
+        assert r.status_code == 422
+
+
+class TestWatchlistInput:
+    """관심 종목 — 입력은 DB 에 닿기 전에 거른다(코드는 SQL 에 들어가는 값이다)."""
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/watchlist/a%20b",                  # 공백
+        "/api/v1/watchlist/" + "x" * 33,            # 너무 길다
+        "/api/v1/watchlist/005930?market=KOSPI",    # 시장은 묶음(KR·US·COIN)으로만
+    ])
+    @pytest.mark.parametrize("method", ["put", "delete"])
+    def test_잘못된_입력은_422(self, client, method, url):
+        r = client.request(method.upper(), url, headers={"Authorization": "Bearer dummy-token"})
         assert r.status_code == 422

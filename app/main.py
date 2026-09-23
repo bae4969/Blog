@@ -32,6 +32,7 @@ from app.api.backtest_v1 import router as api_backtest_router
 from app.api.quotes_v1 import router as api_quotes_router
 from app.api.stocks_v1 import router as api_stocks_router
 from app.api.v1 import router as api_v1_router
+from app.api.watchlist_v1 import router as api_watchlist_router
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
 from app.ui.quotes import router as quotes_router
@@ -124,6 +125,7 @@ app.include_router(api_stocks_router)   # /api/v1/stocks/* — 종목·캔들·�
 app.include_router(api_quotes_router)   # /api/v1/quotes — 지수·환율
 app.include_router(api_backtest_router) # /api/v1/backtest/* — 시뮬레이션·프리셋
 app.include_router(api_auth_router)     # /api/v1/auth/token — 화면이 Bearer 를 얻는 창구
+app.include_router(api_watchlist_router) # /api/v1/watchlist — 관심 종목(계정별, Bearer 전용)
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트

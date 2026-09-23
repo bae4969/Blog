@@ -50,10 +50,10 @@
 /* ── 머리: 이름 · 현재가 ──────────────────────────────────────── */
 .sd-head {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-        "back id"
-        "quote quote";
+        "back id watch"
+        "quote quote quote";
     align-items: center;
     column-gap: var(--space-3, 0.75rem);
     row-gap: var(--space-3, 0.75rem);
@@ -61,6 +61,7 @@
 }
 
 .sd-back { grid-area: back; }
+.sd-watch { grid-area: watch; gap: var(--space-2, 0.5rem); }
 .sd-id { grid-area: id; min-inline-size: 0; }
 .sd-quote { grid-area: quote; }
 
