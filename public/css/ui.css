@@ -280,11 +280,14 @@
         padding-inline: clamp(var(--space-2), 1.2vw, var(--space-4));
         border: 1px solid var(--bae-border);
         border-radius: var(--r-ctl);
+        /* `<button>` 에 붙으면 옛 blog.css 의 회색 버튼 바탕이 비친다 — 끊는다. */
+        background: none;
         color: var(--bae-text-muted);
         font-size: var(--fs--1);
         font-weight: 600;
         white-space: nowrap;
         text-decoration: none;
+        cursor: pointer;
         transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
     }
 
