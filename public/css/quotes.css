@@ -127,14 +127,6 @@
 
 /* ── 지수·환율 상세 ────────────────────────────────────────────────── */
 
-.quote-detail-header .stock-header-main {
-    margin-bottom: 0;
-}
-
-.quote-chart-section {
-    min-height: 480px;
-}
-
 /* ⚠️ 등락 색(`.q-up`/`.q-down`/`.q-flat`)은 **`stocks.css` 에 있다.** 이 화면과 `/stocks`
       가 같은 색이어야 해서 한 곳에만 둔다 — quotes.css 는 stocks.css 뒤에 실린다. */
 

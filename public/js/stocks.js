@@ -574,8 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setShiftZoomArmedState(false);
         }
     });
-    
-    setupPeriodWheelControl();
+
 });
 
 function waitForChartReady() {
@@ -1540,11 +1539,7 @@ function loadChartData(period) {
     isLoadingMoreData = false;
     allDataLoaded = false;
     
-    var periodSelect = document.getElementById('periodSelect');
-    if (periodSelect && periodSelect.value !== period) {
-        periodSelect.value = period;
-    }
-    // 종목 상세는 select 대신 버튼 묶음이다(2026-09-23). 지수 상세는 아직 select 를 쓴다.
+    // 봉 단위는 버튼 묶음이다(2026-09-23, 전에는 select + 휠 조작이었다).
     document.querySelectorAll('[data-period]').forEach(function (btn) {
         btn.setAttribute('aria-pressed', btn.dataset.period === period ? 'true' : 'false');
     });
@@ -1969,34 +1964,3 @@ setInterval(function() {
         refreshExecutions();
     }
 }, 30000);
-
-/* ========================================
-   기간 선택 휠 컨트롤
-   ======================================== */
-function setupPeriodWheelControl() {
-    var periodSelect = document.getElementById('periodSelect');
-    if (!periodSelect) return;
-    
-    var periodOptions = ['10M', '30M', '1H', '3H', '6H', '1D', '1W', '1M'];
-    
-    periodSelect.addEventListener('wheel', function(e) {
-        e.preventDefault();
-        
-        var currentValue = periodSelect.value;
-        var currentIndex = periodOptions.indexOf(currentValue);
-        if (currentIndex === -1) return;
-        
-        var newIndex;
-        if (e.deltaY < 0) {
-            newIndex = Math.min(currentIndex + 1, periodOptions.length - 1);
-        } else {
-            newIndex = Math.max(currentIndex - 1, 0);
-        }
-        
-        var newValue = periodOptions[newIndex];
-        if (newValue !== currentValue) {
-            periodSelect.value = newValue;
-            loadChartData(newValue);
-        }
-    });
-}
