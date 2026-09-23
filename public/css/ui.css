@@ -76,6 +76,12 @@
         --r-card: 0.75rem;
         --ease:   cubic-bezier(0.2, 0.7, 0.3, 1);
     }
+
+    /* 넓은 화면은 상단바를 64px 로 — 검색창이 올라오면서 56px 은 답답했다(토스증권 PC 도
+       60px 대다). `--topbar-h` 를 보는 sticky 오프셋(백테스트 설정 칸 등)이 함께 따라온다. */
+    @media (min-width: 64rem) {
+        :root { --topbar-h: 4rem; }
+    }
 }
 
 @layer shell {
@@ -215,9 +221,17 @@
     .c-brand__lead { color: var(--bae-text-primary); }
     .c-brand__tail { color: var(--bae-accent); }
 
-    /* 아주 좁은 폰(≤22.5rem=360px)에서는 앞 단어를 접는다 — 내비와 로그인이 먼저다. */
-    @media (max-width: 22.5rem) {
+    /* 좁은 화면에서는 워드마크를 줄인다 — 메뉴(홈·백테스트·블로그)가 **다 보이는 것**이 먼저다.
+       메뉴는 넘치면 가로로 밀리게 해 두었지만, 그러면 지금 있는 곳("블로그")이 화면 밖으로
+       밀려 안 보였다(2026-09-23 390px 실측). 워드마크가 가는 곳은 "홈" 과 같아 잃는 길이 없다.
+         < 48rem : "NOTES" 만
+         < 24rem : 워드마크를 접는다(320px 에서 메뉴 셋 + 검색 + 로그인이 들어가는 폭) */
+    @media (max-width: 47.99rem) {
         .c-brand__lead { display: none; }
+    }
+
+    @media (max-width: 23.99rem) {
+        .c-brand { display: none; }
     }
 
     .c-nav {
@@ -232,11 +246,11 @@
 
     .c-nav::-webkit-scrollbar { display: none; }
 
+    /* 2026-09-23 토스증권 PC 처럼 밑줄을 걷고 **밝기·굵기**로만 현재 위치를 말한다.
+       ⚠️ 흐린 쪽도 `--bae-text-dim`(#9A9A9A)이라 상단바 바탕에서 6.5:1 — 읽히는 흐림이다. */
     .c-nav a {
-        --_line: transparent;
-        padding-block: var(--space-2);
-        border-block-end: 2px solid var(--_line);
-        color: var(--bae-text-muted);
+        padding: var(--space-2) var(--space-1);
+        color: var(--bae-text-dim);
         font-size: var(--fs-0);
         font-weight: 600;
         white-space: nowrap;
@@ -247,8 +261,8 @@
     .c-nav a:hover { color: var(--bae-text-primary); }
 
     .c-nav a[aria-current="page"] {
-        --_line: var(--bae-accent);
         color: var(--bae-text-primary);
+        font-weight: 800;
     }
 
     .c-topbar__end {
@@ -289,6 +303,26 @@
     .c-btn--accent:hover {
         background: var(--bae-accent-hover);
         color: var(--bae-accent-text);
+    }
+
+    /* 아이콘만 있는 정사각 버튼 — ⚠️ 쓰는 쪽이 `aria-label` 을 준다. */
+    .c-btn--icon {
+        justify-content: center;
+        inline-size: 2.25rem;
+        padding: 0;
+        background: none;
+        cursor: pointer;
+    }
+
+    /* 좁은 화면(< 30rem)에서 글자를 접고 아이콘만 남기는 버튼 — 검색 버튼이 들어오면서
+       320px 폰에서 로그인 버튼이 메뉴를 밀어냈다. ⚠️ 쓰는 쪽이 `aria-label` 을 준다. */
+    @media (max-width: 29.99rem) {
+        .c-btn--collapse {
+            justify-content: center;
+            inline-size: 2.25rem;
+            padding: 0;
+        }
+        .c-btn--collapse > span { display: none; }
     }
 
     /* ── `#blog` 좌우 패딩을 토큰으로 노출 ────────────────────────────
@@ -397,6 +431,174 @@
 }
 
 @layer comp {
+    /* ── 상단바 종목 검색 ─────────────────────────────────────────────
+     * 2026-09-23 주식이 메인이 되며 `/stocks` 오른쪽 열에서 상단바로 올라왔다
+     * (`/js/stock_search.js`). 토스증권 PC 처럼 테두리 없는 둥근 칸 하나.
+     *
+     * 넓은 화면(≥ 48rem): 입력칸이 늘 보이고 결과는 칸 아래로 떠 있다.
+     * 좁은 화면: 입력칸을 접고 돋보기 버튼(`.c-stocksearch__open`)만 둔다. 누르면 상단바가
+     *   `is-searching` 이 되어 로고·메뉴·다른 버튼을 숨기고 입력칸 + "취소" 가 한 줄을 쓴다.
+     *   결과는 상단바 바로 아래에 화면 폭 그대로 깔린다.
+     */
+    .c-stocksearch {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        inline-size: clamp(12rem, 18vw, 18rem);
+    }
+
+    .c-stocksearch__ico {
+        position: absolute;
+        inset-inline-start: var(--space-3);
+        display: flex;
+        color: var(--bae-text-dim);
+        pointer-events: none;
+    }
+
+    .c-stocksearch input[type="search"] {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+        min-block-size: 2.5rem;
+        padding-inline: 2.5rem var(--space-3);
+        border: 1px solid transparent;
+        border-radius: var(--r-card);
+        background: var(--bae-surface);
+        color: var(--bae-text-primary);
+        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
+        font-size: 1rem;
+        transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+    }
+
+    .c-stocksearch input[type="search"]::placeholder { color: var(--bae-text-dim); }
+    .c-stocksearch input[type="search"]:hover { background: var(--bae-surface-alt); }
+
+    .c-stocksearch input[type="search"]:focus {
+        outline: none;
+        border-color: var(--bae-accent);
+        background: var(--bae-surface-alt);
+    }
+
+    .c-stocksearch__cancel,
+    .c-stocksearch__open { display: none; }
+
+    .c-stocksearch__results {
+        position: absolute;
+        inset-block-start: calc(100% + var(--space-2));
+        inset-inline-end: 0;
+        z-index: 60;
+        inline-size: max(100%, 24rem);
+        max-block-size: min(70vh, 36rem);
+        overflow-y: auto;
+        padding: var(--space-2);
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-card);
+        background: var(--bae-bg-alt);
+        box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
+    }
+
+    .c-stocksearch__results[hidden] { display: none; }
+
+    .c-stocksearch__msg {
+        padding: var(--space-4);
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        text-align: center;
+    }
+
+    .c-stocksearch__item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        border-radius: var(--r-ctl);
+        color: var(--bae-text-primary);
+        text-decoration: none;
+    }
+
+    .c-stocksearch__item:hover,
+    .c-stocksearch__item:focus-visible { background: var(--bae-surface); }
+
+    .c-stocksearch__info {
+        display: grid;
+        gap: 0.125rem;
+        flex: 1 1 auto;
+        min-inline-size: 0;
+    }
+
+    .c-stocksearch__name {
+        overflow: hidden;
+        font-size: var(--fs-0);
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .c-stocksearch__sub {
+        display: flex;
+        gap: var(--space-2);
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+    }
+
+    .c-stocksearch__quote {
+        display: grid;
+        justify-items: end;
+        gap: 0.125rem;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .c-stocksearch__px {
+        font-size: var(--fs-0);
+        font-weight: 700;
+    }
+
+    .c-stocksearch__ch { font-size: var(--fs--1); font-weight: 600; }
+
+    /* 등락 글자색 — 주식 화면 밖(블로그)에는 `stocks.css` 가 없어 여기서 준다.
+       값은 대비를 맞춘 글자 전용 토큰이다(common.css `--chart-*-text`). */
+    .c-stocksearch .q-up   { color: var(--chart-up-text); }
+    .c-stocksearch .q-down { color: var(--chart-down-text); }
+    .c-stocksearch .q-flat { color: var(--bae-text-dim); }
+
+    @media (max-width: 47.99rem) {
+        .c-stocksearch { display: none; }
+        .c-stocksearch__open { display: inline-flex; }
+
+        .c-topbar.is-searching > :not(.c-topbar__end),
+        .c-topbar.is-searching .c-topbar__end > :not(.c-stocksearch) { display: none; }
+        .c-topbar.is-searching .c-topbar__end {
+            flex: 1 1 auto;
+            margin-inline-start: 0;
+        }
+        .c-topbar.is-searching .c-stocksearch {
+            display: flex;
+            inline-size: 100%;
+        }
+        /* 닫기(✕) — 아이콘만이라 `aria-label` 을 준다. 입력칸의 기본 지우기(✕)와 겹쳐
+           ✕ 가 둘이 되므로 펼친 동안에는 기본 것을 숨긴다(닫으면 입력도 비운다). */
+        .c-topbar.is-searching .c-stocksearch__cancel {
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 auto;
+            inline-size: 2.5rem;
+            block-size: 2.5rem;
+            border: 0;
+            border-radius: var(--r-ctl);
+            background: none;
+            color: var(--bae-text-muted);
+            cursor: pointer;
+        }
+        .c-topbar.is-searching .c-stocksearch__cancel:hover { color: var(--bae-text-primary); }
+        .c-topbar.is-searching .c-stocksearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
+        /* 결과는 입력칸 폭 그대로 아래에 — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
+        .c-topbar.is-searching .c-stocksearch__results {
+            inset-inline: 0;
+            inline-size: auto;
+            max-block-size: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - var(--space-4));
+        }
+    }
     /* ── 카테고리 칩 + 검색 서브바 ────────────────────────────────────
      * 옛 우측 사이드바(220px 세로 기둥)를 가로 한 줄로 눕힌 것. 칩이 많아지면
      * 가로로 밀리고(`scroll-snap`), 검색은 좁은 화면에서 아래 줄로 내려간다.

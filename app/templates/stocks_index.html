@@ -1,8 +1,8 @@
 {#
   주식 대시보드 — 지수·환율 카드와 시가총액 히트맵을 왼쪽에, 검색·TOP10을 오른쪽에 둔다.
 
-  카드와 히트맵은 `/js/quotes.js`, 검색과 거래대금 TOP10은
-  `/js/stocks_dashboard.js`가 공개 API를 읽어 채운다. 서버는 공개 포트폴리오만 그린다.
+  카드와 히트맵은 `/js/quotes.js`, 거래대금 TOP10은 `/js/stocks_dashboard.js`가 공개 API를
+  읽어 채운다. 서버는 공개 포트폴리오만 그린다. 종목 검색은 상단바에 있다(`/js/stock_search.js`).
 #}
 {% extends "layout.html" %}
 {% import "_icons.html" as icons %}
@@ -113,20 +113,7 @@
     </main>
 
     <aside class="stocks-sidebar-right">
-        <form class="stocks-search-bar sidebar-search stock-floating-search" id="stockSearchForm"
-              role="search" autocomplete="off">
-            <input type="search" id="stockSearchInput" maxlength="50"
-                   placeholder="종목명 또는 코드 검색..." aria-label="종목 검색"
-                   aria-controls="stockSearchResults" aria-expanded="false">
-            <button type="submit" class="search-btn" aria-label="검색 결과 열기">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-            </button>
-            <div class="stock-search-floating-results" id="stockSearchResults" role="listbox" hidden></div>
-        </form>
+        {# 종목 검색은 2026-09-23 상단바로 올라갔다(`layout.html` · `/js/stock_search.js`). #}
 
         <a href="/stocks/backtest" class="backtest-link-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

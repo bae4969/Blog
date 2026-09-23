@@ -1,14 +1,11 @@
-/** `/stocks` 오른쪽 열 — 통합 종목 검색과 거래대금 TOP10. */
+/** `/stocks` 오른쪽 열 — 거래대금 TOP10. (종목 검색은 2026-09-23 상단바로 옮겼다 — `stock_search.js`) */
 (function () {
     'use strict';
 
     var US_MARKETS = ['NYSE', 'NASDAQ', 'AMEX'];
-    var topEl, formEl, inputEl, resultsEl, rootEl;
+    var topEl, rootEl;
     var topRequestId = 0;
     var topMarket = null;
-    var searchRequestId = 0;
-    var searchTimer = null;
-    var searchDismissed = false;
 
     function n(v, digits) {
         return Number(v || 0).toLocaleString('en-US', {
@@ -66,16 +63,6 @@
         var query = 'code=' + encodeURIComponent(item.code);
         if (marketGroup(item) === 'COIN') query += '&market=COIN';
         return '/stocks/view?' + query;
-    }
-
-    function rememberMarket(group) {
-        try {
-            if (group === 'KR' || group === 'US' || group === 'COIN') {
-                sessionStorage.setItem('stock_market_preference', group);
-            } else {
-                sessionStorage.removeItem('stock_market_preference');
-            }
-        } catch (e) { /* 사생활 보호 모드 등 — 무시한다 */ }
     }
 
     /**
@@ -187,91 +174,10 @@
             });
     }
 
-    function setSearchOpen(open) {
-        resultsEl.hidden = !open;
-        inputEl.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-
-    function searchMessage(message) {
-        resultsEl.innerHTML = '';
-        resultsEl.appendChild(el('div', 'stock-floating-search-message', message));
-        setSearchOpen(true);
-    }
-
-    function renderSearch(rows) {
-        resultsEl.innerHTML = '';
-        if (!rows.length) {
-            searchMessage('검색 결과가 없습니다.');
-            if (searchDismissed) setSearchOpen(false);
-            return;
-        }
-
-        rows.slice(0, 12).forEach(function (item) {
-            var group = marketGroup(item);
-            var link = el('a', 'stock-floating-result');
-            link.href = detailUrl(item);
-            link.setAttribute('role', 'option');
-            link.addEventListener('click', function () { rememberMarket(group); });
-
-            var info = el('span', 'stock-floating-result-info');
-            info.appendChild(el('span', 'stock-floating-result-name', item.name_kr || item.code));
-            info.appendChild(el('span', 'stock-floating-result-code', item.code));
-            link.appendChild(info);
-            link.appendChild(el('span', 'stock-floating-result-market badge-' + group.toLowerCase(), group));
-            link.appendChild(el('span', 'stock-floating-result-price ' + pctClass(item.change_pct),
-                                price(item.price, item.market)));
-            resultsEl.appendChild(link);
-        });
-        setSearchOpen(!searchDismissed);
-    }
-
-    function fetchJson(url) {
-        return fetch(url, { headers: { 'Accept': 'application/json' } })
-            .then(function (response) {
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                return response.json();
-            });
-    }
-
-    function search(query) {
-        var mine = ++searchRequestId;
-        var encoded = encodeURIComponent(query);
-        searchMessage('검색 중…');
-        Promise.all([
-            fetchJson('/api/v1/stocks?size=8&page=1&q=' + encoded),
-            fetchJson('/api/v1/stocks?size=4&page=1&market=COIN&q=' + encoded)
-        ]).then(function (responses) {
-            if (mine !== searchRequestId) return;
-            renderSearch((responses[0].items || []).concat(responses[1].items || []));
-        }).catch(function (error) {
-            if (mine !== searchRequestId) return;
-            searchMessage('검색 결과를 불러오지 못했습니다.');
-            if (searchDismissed) setSearchOpen(false);
-            if (window.console) console.error('종목 검색 실패', error);
-        });
-    }
-
-    function scheduleSearch() {
-        clearTimeout(searchTimer);
-        var query = inputEl.value.trim().slice(0, 50);
-        if (!query) {
-            searchRequestId += 1;
-            setSearchOpen(false);
-            resultsEl.innerHTML = '';
-            return;
-        }
-        searchDismissed = false;
-        searchMessage('검색 중…');
-        searchTimer = setTimeout(function () { search(query); }, 250);
-    }
-
     function init() {
         rootEl = document.getElementById('quotesRoot');
         topEl = document.getElementById('stockTop10');
-        formEl = document.getElementById('stockSearchForm');
-        inputEl = document.getElementById('stockSearchInput');
-        resultsEl = document.getElementById('stockSearchResults');
-        if (!rootEl || !topEl || !formEl || !inputEl || !resultsEl) return;
+        if (!rootEl || !topEl) return;
 
         var market = (rootEl.dataset.market || '').toUpperCase();
         loadTop(['KR', 'US', 'COIN'].indexOf(market) >= 0 ? market : 'KR');
@@ -282,32 +188,6 @@
         // 앱으로 돌아왔을 때 quotes.js 가 보낸다.
         document.addEventListener('stock-dashboard-refresh', function () {
             loadTop(topMarket, true);
-        });
-        inputEl.addEventListener('input', scheduleSearch);
-        inputEl.addEventListener('focus', function () {
-            searchDismissed = false;
-            if (inputEl.value.trim() && resultsEl.childElementCount) setSearchOpen(true);
-        });
-        inputEl.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                clearTimeout(searchTimer);
-                searchRequestId += 1;
-                searchDismissed = true;
-                setSearchOpen(false);
-                inputEl.blur();
-            }
-        });
-        formEl.addEventListener('submit', function (event) {
-            event.preventDefault();
-            var first = resultsEl.querySelector('a.stock-floating-result');
-            if (first && !resultsEl.hidden) first.click();
-            else scheduleSearch();
-        });
-        document.addEventListener('mousedown', function (event) {
-            if (!formEl.contains(event.target)) {
-                searchDismissed = true;
-                setSearchOpen(false);
-            }
         });
     }
 

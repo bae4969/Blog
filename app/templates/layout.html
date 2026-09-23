@@ -137,28 +137,55 @@
       ⚠️ 페이지에 `h1` 이 하나도 없었다(실측 0개). 워드마크를 홈에서만 `h1` 으로
          올리고 나머지 화면에서는 링크로 둔다 — 글 상세의 `h1` 은 글 제목이어야 한다.
     #}
+    {#
+      상단 메뉴가 켜질 자리. 주식 쪽은 한 섹션(`stocks`)이지만 메뉴는 "홈"과 "백테스트"로
+      나뉜다 — 경로로 가른다.
+    #}
+    {% set nav = 'backtest' if request.url.path.startswith('/stocks/backtest') else section %}
     <header class="c-topbar">
         <a class="c-brand" href="/stocks" aria-label="Developer Notes 홈">
             <span class="c-brand__lead">DEVELOPER</span><span class="c-brand__tail">NOTES</span>
         </a>
 
+        {#
+          2026-09-23 토스증권 PC 처럼 — 로고 · 메뉴 · 검색창 · 로그인. 주식이 메인이라
+          "홈" 은 `/stocks` 다(워드마크와 같은 곳).
+        #}
         <nav class="c-nav" aria-label="섹션 이동">
-            <a href="/stocks"{% if section == 'stocks' %} aria-current="page"{% endif %}>주식</a>
-            <a href="/blog"{% if section == 'blog' %} aria-current="page"{% endif %}>블로그</a>
-            {% if level <= 1 %}<a href="/admin"{% if section == 'admin' %} aria-current="page"{% endif %}>관리자</a>{% endif %}
+            <a href="/stocks"{% if nav == 'stocks' %} aria-current="page"{% endif %}>홈</a>
+            <a href="/stocks/backtest"{% if nav == 'backtest' %} aria-current="page"{% endif %}>백테스트</a>
+            <a href="/blog"{% if nav == 'blog' %} aria-current="page"{% endif %}>블로그</a>
+            {% if level <= 1 %}<a href="/admin"{% if nav == 'admin' %} aria-current="page"{% endif %}>관리자</a>{% endif %}
         </nav>
 
         <div class="c-topbar__end">
+            {#
+              종목 검색 — 어느 화면에서든 쓴다(`/js/stock_search.js`).
+              ⚠️ 좁은 화면(< 48rem)에서는 입력칸이 접히고 돋보기 버튼이 연다. 열리면 상단바가
+                 `is-searching` 이 되어 로고·메뉴를 숨기고 입력칸이 한 줄을 쓴다.
+              ⚠️ `action` 은 JS 가 꺼졌을 때를 위한 것이다 — 결과 목록은 JS 가 그린다.
+            #}
+            <form class="c-stocksearch" id="stockSearchForm" role="search" autocomplete="off" action="/stocks">
+                <span class="c-stocksearch__ico">{{ icons.i('search') }}</span>
+                <input type="search" id="stockSearchInput" maxlength="50" placeholder="종목 검색"
+                       aria-label="종목 검색" aria-controls="stockSearchResults" aria-expanded="false"
+                       aria-autocomplete="list" enterkeyhint="search">
+                <button type="button" class="c-stocksearch__cancel" data-search-close aria-label="검색 닫기">{{ icons.i('cancel') }}</button>
+                <div class="c-stocksearch__results" id="stockSearchResults" role="listbox" aria-label="종목 검색 결과" hidden></div>
+            </form>
+            <button type="button" class="c-btn c-btn--icon c-stocksearch__open" data-search-open aria-label="종목 검색">{{ icons.i('search') }}</button>
+
             {# 글쓰기는 블로그 화면에서만 — 주식 메인에 블로그 버튼이 떠 있으면 어색하다. #}
             {% if user and level <= 2 and section == 'blog' %}
-            <a class="c-btn c-btn--accent" data-button-role="blog-write" href="/writer.php">{{ icons.i('write') }}<span>글쓰기</span></a>
+            <a class="c-btn c-btn--accent c-btn--collapse" data-button-role="blog-write" href="/writer.php" aria-label="글쓰기">{{ icons.i('write') }}<span>글쓰기</span></a>
             {% endif %}
             {#
               로그인·로그아웃은 **중앙 auth** 로 보낸다(PHP 의 /login.php 가 아니다).
               이 페이지가 포팅본이라도 세션은 auth 가 발급한 것을 쓰기 때문이다.
               next 로 돌아올 곳을 실어 로그인 뒤 보던 화면으로 되돌아오게 한다.
+              ⚠️ 좁은 화면에서는 글자를 접고 아이콘만 남는다 — 그래서 `aria-label` 을 준다.
             #}
-            <a class="c-btn" href="{{ auth_public_url }}/{{ 'logout' if user else 'login' }}?next={{ request.url | string | urlencode }}">{{ icons.i('logout' if user else 'login') }}<span>{{ '로그아웃' if user else '로그인' }}</span></a>
+            <a class="c-btn c-btn--collapse" href="{{ auth_public_url }}/{{ 'logout' if user else 'login' }}?next={{ request.url | string | urlencode }}" aria-label="{{ '로그아웃' if user else '로그인' }}">{{ icons.i('logout' if user else 'login') }}<span>{{ '로그아웃' if user else '로그인' }}</span></a>
         </div>
     </header>
 
@@ -350,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function () {
   ⚠️ `extra_js` 보다 **먼저** 싣는다 — 화면 스크립트가 `window.toast` 를 부른다.
 #}
 <script src="/js/toast.js?v={{ static_v }}" defer></script>
+<script src="/js/stock_search.js?v={{ static_v }}" defer></script>
 {#
   서버가 리다이렉트로 넘긴 안내(`?msg=...`)를 토스트로 띄운다.
   ⚠️ 전에는 관리자 4화면이 각자 `<div class="alert alert-info">{{ msg }}</div>` 를

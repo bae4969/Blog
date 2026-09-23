@@ -496,8 +496,11 @@ class TestStockPriceSource:
 
         for marker in ('id="quoteIndexCards"', 'id="quoteFxCards"', 'id="heatmapBox"',
                        'class="market-stats-horizontal"', 'data-group="{{ item.grp }}"',
-                       'id="stockSearchResults"', 'id="stockTop10"'):
+                       'id="stockTop10"'):
             assert marker in template
+        # 종목 검색은 2026-09-23 대시보드 오른쪽 열에서 **상단바**로 올라갔다(모든 화면).
+        assert 'id="stockSearchResults"' in layout
+        assert 'id="stockSearchResults"' not in template
         assert 'id="stockRows"' not in template
         assert '<a href="/quotes">지수·환율</a>' not in layout
         assert all(getattr(route, "path", None) != "/quotes" for route in app.routes)
