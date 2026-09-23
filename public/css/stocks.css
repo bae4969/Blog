@@ -329,36 +329,59 @@
 
 /* =============================
    TOP 10 공통 (거래대금 / 포트폴리오)
+
+   2026-09-23 재설계. 근거 전문은 temp/output/26092201_레이아웃-리디자인/0014.
+   형태는 **라벨 위·막대 아래의 가로 막대그래프**(이름이 긴데 칸이 좁을 때의 기본 배치)
+   + 보조 정보 한 줄. 행 = 1행 "이름 · 순위 기준값" / 막대 / 2행 "보조".
+
+   정보 순서는 "행끼리 비교할 수 있는가" 로 정했다:
+     이름 > 순위 기준값(거래대금·점수) > 등락률 > 가격(행끼리 비교할 의미 없음) > 코드.
+   예전에는 이게 거꾸로였다 — 비교할 수 없는 가격이 가장 크고 빨갛고, 순위 기준인
+   거래대금이 11px 회색으로 가장 흐렸다.
    ============================= */
-/* 스크롤을 따라가는 일은 이제 사이드바(.stocks-sidebar-right)가 통째로 한다 —
-   섹션마다 따로 sticky 를 걸면 두 섹션이 서로 겹쳐 올라탄다. */
 .top10-section {
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
-    padding: 10px;
+    padding: 14px 12px 6px;
     border: 1px solid var(--border-color);
 }
 
 .top10-section h3 {
-    margin: 10px 10px 15px 10px;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    margin: 2px 4px 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
-.top10-section h3 svg {
-    color: var(--primary-color);
-    flex-shrink: 0;
+/* 제목 아이콘은 흐리게 — accent 는 상호작용 색이라 장식에 쓰지 않는다. */
+.top10-section h3 > .c-ico {
+    font-size: 16px;
+    color: var(--bae-text-dim);
 }
 
-/* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다. */
+/* 범위 칩 — 시장 탭은 히트맵 위(옆 칸)에 있어 이 목록을 감싸지 않는다. 목록이 어느
+   시장을 따르는지 여기서 말해 준다. */
+.top10-scope {
+    padding: 1px 8px;
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 999px;
+    color: var(--bae-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다.
+   ⚠️ `<ol>` 이다(순위는 순서가 뜻). 기본 들여쓰기·번호를 지운다 — 번호는 `.top10-n` 이 그린다. */
 .top10-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .top10-empty {
@@ -368,127 +391,160 @@
     font-size: 14px;
 }
 
-.top10-empty p {
-    margin: 0 0 8px 0;
+/* 시장을 바꿔 다시 받는 동안 이전 목록을 흐리게 둔다 — 비우면 사이드바가 접혔다 펴지며 튄다. */
+.top10-list.is-stale {
+    opacity: 0.45;
+    transition: opacity 0.15s;
 }
 
-.top10-cta-link {
-    color: var(--primary-color);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-}
-
-.top10-cta-link:hover {
-    text-decoration: underline;
-}
-
-.top10-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-    text-decoration: none;
+/* ⚠️ 행마다 카드 배경을 깔지 않는다. 카드 안에 카드 10장이 250px 에서 여백을 먹어
+   이름 칸이 89px 이었고 10개 중 3개 이름이 잘렸다. */
+.top10-link {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 9px 4px 8px;
     color: inherit;
-}
-
-.top10-item:hover {
-    background: var(--bg-hover);
     text-decoration: none;
-    color: inherit;
 }
 
-.top10-rank {
-    width: 22px;
-    height: 22px;
-    border-radius: var(--border-radius-circle);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-size: 11px;
+.top10-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 순위 — 맨 숫자. 강조는 **색이 아니라 밝기**로(1~3위만 본문 흰색).
+   ⚠️ 예전 빨강·주황·노랑 동그라미는 빨강이 "상승" 과 겹쳐 읽혔다. 빨강·파랑은 등락 전용이다. */
+.top10-n {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+    text-align: right;
+    color: var(--bae-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.top10-item:nth-child(-n+3) .top10-n {
+    color: var(--bae-text-primary);
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 10px;
-    flex-shrink: 0;
 }
 
-/* 1~3위만 색을 준다. 4위부터는 위의 중립 동그라미 그대로 — 예전엔 4위부터 primary 색이
-   이어졌는데 accent 가 밝아지면서 순위표 절반이 연보라가 됐다.
-   ⚠️ 글자색도 함께 지정한다. 위 기본값(중립 회색)은 어두운 회색 배경에 맞춘 것이라
-   빨강·주황 위에서는 대비가 모자란다. */
-.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); color: #fff; }
-.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); color: #fff; }
-.top10-item:nth-child(3) .top10-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
-
-.top10-info {
-    flex: 1;
+.top10-body {
+    display: grid;
     min-width: 0;
 }
 
-.top10-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 2px;
+.top10-l1,
+.top10-l2 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.top10-nm {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--bae-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.top10-code {
-    font-size: 9px;
-    color: var(--text-muted);
-}
-
-.top10-value {
-    text-align: right;
-}
-
-.top10-primary {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.top10-secondary {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-/* 포트폴리오 점수 색상 및 크기 */
-.top10-value.score-high .top10-primary,
-.top10-value.score-mid .top10-primary,
-.top10-value.score-low .top10-primary {
-    font-size: 16px;
+/* 순위 기준값. 세로로 줄 서는 숫자라 자릿수를 맞춘다. 단위(`조`·`/100`)는 작게 흐리게. */
+.top10-val {
+    flex: 0 0 auto;
+    font-size: 14px;
     font-weight: 700;
+    color: var(--bae-text-primary);
+    font-variant-numeric: tabular-nums;
 }
 
-.top10-value.score-high .top10-secondary,
-.top10-value.score-mid .top10-secondary,
-.top10-value.score-low .top10-secondary {
+.top10-val small {
+    margin-left: 1px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bae-text-dim);
+}
+
+/* 막대 — **재는 값(1행)에 붙인다**(위 3px · 아래 7px). 두 줄 사이 정중간이면 어느
+   값의 막대인지 애매하다.
+   ⚠️ 한 색(accent 60%, 표시 요소 대비 3.23:1). 종목은 순서 없는 범주라 값에 따라
+      색을 바꾸지 않는다. 기준선(왼쪽)은 네모, 끝은 둥글게. */
+.top10-bar {
+    display: block;
+    height: 4px;
+    margin: 3px 0 7px;
+}
+
+.top10-bar > i {
+    display: block;
+    width: calc(var(--pct, 0) * 1%);
+    min-width: 2px;
+    height: 100%;
+    border-radius: 0 2px 2px 0;
+    background: rgba(var(--bae-accent-rgb), 0.6);
+    transition: background 0.15s;
+}
+
+/* 점수는 0~100 이라 **미터** — 같은 색 옅은 트랙이 "얼마나 찼나" 를 보인다.
+   거래대금에는 트랙이 없다(상한이 없는 값이라 "1위 대비" 가 기준이다). */
+.top10-bar.is-meter {
+    border-radius: 0 2px 2px 0;
+    background: rgba(var(--bae-accent-rgb), 0.16);
+}
+
+.top10-l2 {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.top10-cd {
+    font-size: 11px;
+    color: var(--bae-text-dim);
+}
+
+/* 가격은 중립 색 — 행끼리 비교할 의미가 없는 값이다. 방향은 등락률 한 곳에서만 말한다. */
+.top10-px {
+    margin-left: auto;
+    color: var(--bae-text-muted);
+}
+
+/* 등락 칸 폭을 고정해 행끼리 소수점이 맞는다. */
+.top10-ch {
+    min-width: 4.4em;
+    text-align: right;
+    font-weight: 600;
+}
+
+.top10-ch.q-up { color: var(--chart-up-color); }
+.top10-ch.q-down { color: var(--chart-down-color); }
+.top10-ch.q-flat { color: var(--bae-text-dim); }
+
+/* 포트폴리오 등급 — 중립 칩. 예전에는 점수와 함께 "상승 빨강" 이었다. */
+.top10-gr {
+    padding: 0 7px;
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 999px;
+    color: var(--bae-text-muted);
     font-size: 11px;
     font-weight: 600;
 }
 
-.top10-value.score-high .top10-primary,
-.top10-value.score-high .top10-secondary {
-    color: var(--stock-rise-color, #ef4444);
+/* 호버 — **배경을 깔지 않는다.** 예전 호버 배경(#3A3A3A) 위에서 하락 파랑이 3.09:1 까지
+   떨어졌다. 대신 막대가 진해지고(들림) 이름에 밑줄 — 키보드 포커스도 같게. */
+.top10-link:hover .top10-nm,
+.top10-link:focus-visible .top10-nm {
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
-.top10-value.score-mid .top10-primary,
-.top10-value.score-mid .top10-secondary {
-    color: var(--success-color);
-}
-
-.top10-value.score-low .top10-primary,
-.top10-value.score-low .top10-secondary {
-    color: var(--text-muted);
+.top10-link:hover .top10-bar > i,
+.top10-link:focus-visible .top10-bar > i {
+    background: var(--bae-accent);
 }
 
 .stocks-search-bar {
@@ -1510,10 +1566,19 @@
         grid-row: 4;
     }
 
+    /* 사이드바가 본문 아래로 내려오는 폭 — 2열. ⚠️ 3열이면 10개가 3+3+3+1 로 끝에 하나 남는다.
+       ⚠️ **세로 우선**(왼쪽 1~5 · 오른쪽 6~10)으로 흘린다. 그리드로 두면 1·2 / 3·4 … 로
+          지그재그라 순위표로 안 읽히고, 칸마다 막대가 계단처럼 줄어드는 것도 안 보인다.
+          다단(`columns`)은 항목 수에 맞춰 알아서 반씩 나눈다(포트폴리오 2개면 1 · 1).
+          회전 카드가 켜지면 트랙이 flex 가 되어 다단은 저절로 꺼진다. */
     .top10-list {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 10px;
+        display: block;
+        columns: 2;
+        column-gap: 28px;
+    }
+
+    .top10-list > li {
+        break-inside: avoid;
     }
 
     .stock-detail-main {
@@ -1572,10 +1637,9 @@
         height: 22px;
     }
 
-    /* TOP 10: 2열로 축소 */
+    /* TOP 10: 2열 유지(펼쳤을 때) — 위와 같은 세로 우선 */
     .top10-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        column-gap: 20px;
     }
 
     /* 테이블: 시장/유형/상장주식수 컬럼 숨기기 (상장주식수는 등락률이 들어오며 7→8) */
@@ -1780,12 +1844,7 @@
     }
 
     .top10-list {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 6px;
-    }
-
-    .top10-item {
-        padding: 8px;
+        columns: 1;
     }
 
     /* 테이블: 시가총액도 숨기고 최소 컬럼만 (시가총액은 등락률이 들어오며 6→7)
@@ -3506,23 +3565,6 @@ details[open] > .config-section-title.clickable {
 .stocks-table .q-down { color: var(--chart-down-color); }
 .stocks-table .q-flat { color: var(--text-muted); }
 
-/* TOP10 — 등락률과 거래대금을 한 줄에 나눠 놓는다. */
-.top10-secondary {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
-.top10-change {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.top10-amt {
-    color: var(--text-muted);
-}
-
 /* 상세 화면 — 현재가 옆 등락률 */
 .stock-price-change {
     margin-left: 8px;
@@ -3853,36 +3895,22 @@ details[open] > .config-section-title.clickable {
         padding: 8px 10px 10px;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item,
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item:hover {
+    /* 한 장일 때는 같은 행을 크게 — 넘어갈 때마다 막대가 그 종목의 1위 대비 크기를 보인다. */
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-link {
         min-height: 70px;
         padding: 12px 14px 16px;
-        border-radius: 0;
-        background: transparent;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-rank {
-        width: 30px;
-        height: 30px;
-        margin-right: 12px;
-        font-size: 13px;
-    }
-
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-name {
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-nm {
         font-size: 16px;
-        font-weight: 600;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-code {
-        font-size: 11px;
-    }
-
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-primary {
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-val {
         font-size: 17px;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-secondary {
-        font-size: 12px;
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-bar {
+        height: 6px;
     }
 
     /* ── 종목 상세: 최근 체결은 최신 1건만 크게 ─────────────────────────
