@@ -1,0 +1,32 @@
+{#
+  관심 종목 레일(2026-09-23) — 토스증권 PC 의 오른쪽 패널. `/js/watchlist.js` 가 채운다.
+
+  · 넓은 화면(≥ 90rem): 오른쪽에 늘 붙어 있고 본문이 그만큼 비켜선다. 상단바 ☆ 로 접고 펴며,
+    고른 상태를 기억한다(localStorage `watchRail`).
+  · 열림은 `<html class="rail-open">` 하나로 정한다 — `layout.html` <head> 가 첫 그림 전에 붙인다.
+  · 그보다 좁으면: 같은 버튼이 여는 서랍이다(본문을 덮고, 바깥을 누르거나 Esc 로 닫힌다).
+  · 목록은 계정마다 서버에 저장된다(`/api/v1/watchlist`, Bearer 전용). 로그인 안 했으면 로그인 안내만.
+
+  ⚠️ **모든 화면**에 실린다(2026-09-23) — 상단바의 ☆ 버튼이 화면마다 붙고 빠지면 옆 버튼이
+     오락가락해서다. 처음에는 주식 화면에만 있었다.
+#}
+{% import "_icons.html" as icons %}
+<aside class="c-rail" id="watchRail" aria-labelledby="watchRailTitle"
+       data-logged-in="{{ 'true' if user else 'false' }}"
+       data-login-url="{{ auth_public_url }}/login?next={{ request.url | string | urlencode }}">
+    <div class="c-rail__head">
+        <h2 class="c-rail__title" id="watchRailTitle">{{ icons.i('star') }}관심 종목<span class="c-rail__count" id="watchCount"></span></h2>
+        <button type="button" class="c-btn c-btn--icon" data-rail-close aria-label="관심 종목 닫기">{{ icons.i('cancel') }}</button>
+    </div>
+    <div class="c-rail__body" id="watchList" aria-live="polite">
+        {% if user %}
+        <p class="c-rail__msg">불러오는 중…</p>
+        {% else %}
+        <div class="c-rail__guest">
+            <p>로그인하면 관심 종목을<br>기기와 상관없이 모아 볼 수 있어요.</p>
+            <a class="c-btn c-btn--accent" href="{{ auth_public_url }}/login?next={{ request.url | string | urlencode }}">{{ icons.i('login') }}<span>로그인</span></a>
+        </div>
+        {% endif %}
+    </div>
+</aside>
+<div class="c-rail__backdrop" data-rail-close></div>

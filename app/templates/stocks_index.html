@@ -1,16 +1,28 @@
 {#
-  주식 대시보드 — 지수·환율 카드와 시가총액 히트맵을 왼쪽에, 검색·TOP10을 오른쪽에 둔다.
+  주식 홈 — 2026-09-23 토스증권 PC 처럼 다시 짰다(계획: temp/output/26092301_주식메인-MTS/0004).
 
-  카드와 히트맵은 `/js/quotes.js`, 검색과 거래대금 TOP10은
-  `/js/stocks_dashboard.js`가 공개 API를 읽어 채운다. 서버는 공개 포트폴리오만 그린다.
+    위: 지수·환율 줄(화면 폭 전체)
+    왼쪽: 순위 표(거래대금·상승률·하락률 × 한국·미국·코인) → 시장 지도(히트맵)
+    오른쪽: 포트폴리오 TOP 10 · 최신 인사이트(금융 글)
+
+  지수 카드와 히트맵은 `/js/quotes.js`, 순위 표는 `/js/stocks_dashboard.js` 가 공개 API 를 읽어
+  채운다. 서버는 시장 통계(탭)와 공개 포트폴리오만 그린다. 종목 검색은 상단바에 있다.
+
+  ⚠️ **시장은 화면 하나의 상태다.** 순위 표의 시장 버튼(`[data-market-tab]`)과 히트맵 탭
+     (`.market-stat-item-h`)은 둘 다 `quotes.js` 가 잡고 함께 켜고 끈다 — 어느 쪽을 눌러도
+     히트맵·순위가 같이 바뀐다. 두 곳 모두 `#quotesRoot` **안에** 있어야 한다.
+  ⚠️ 히트맵 탭의 테두리 맞춤(`stocks.css` — 1px 어긋남을 잡은 자리)은 탭이
+     `.quotes-container` 의 **직계 자식**이라는 데 기대고 있다. 탭을 감싸지 말 것.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}주식 · Developer Blog{% endblock %}
+{% block title %}주식 · Developer Notes{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
 <link rel="stylesheet" href="/css/quotes.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/stock_home.css?v={{ static_v }}">
 {% endblock %}
 
 {% macro won(v) -%}
@@ -46,13 +58,16 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="stocks-container stocks-dashboard-container">
-    <main class="stocks-main quotes-container" id="quotesRoot" data-market="{{ default_market }}">
-        {#
-          모바일(768px 이하)에서는 두 섹션이 한 줄에 나란히 서서 카드를 한 장씩 넘긴다
-          (`/js/rotator.js`). 넓은 화면에서는 이 줄이 `display: contents` 라 없는 것과 같고,
-          제목·번호·진행바도 보이지 않는다.
-        #}
+<div class="sh">
+    <h1 class="u-sr-only">주식 홈</h1>
+
+    {#
+      지수·환율 — 화면 폭 전체를 쓴다(옆 칸에 넣으면 여섯 장이 140px 로 눌려 스파크라인이 뭉개진다).
+      모바일(768px 이하)에서는 두 섹션이 한 줄에 나란히 서서 카드를 한 장씩 넘긴다
+      (`/js/rotator.js`). 넓은 화면에서는 `.quote-rotator-row` 가 `display: contents` 라 없는 것과
+      같고, 제목·번호·진행바도 보이지 않는다.
+    #}
+    <div class="sh-quotes">
         <div class="quote-rotator-row">
             <section class="quote-section" data-rotator data-rotator-item=".quote-card" data-rotator-interval="4000">
                 <div class="rotator-head">
@@ -77,107 +92,150 @@
                 <div class="rotator-bar"><i></i></div>
             </section>
         </div>
+    </div>
 
-        <div class="market-stats-horizontal" aria-label="시장 선택">
-            {% for item in stats %}
-            {% if item.grp in ('KR', 'US', 'COIN') %}
-            <div class="market-stat-item-h market-{{ item.grp | lower }} {% if default_market == item.grp %}active{% endif %}"
-                 data-group="{{ item.grp }}" role="button" tabindex="0"
-                 aria-pressed="{{ 'true' if default_market == item.grp else 'false' }}">
-                <div class="market-name">{{ market_symbol(item.grp) }}<span>{{ item.label }}</span></div>
-                <div class="market-info">
-                    <span class="market-count">{{ '{:,}'.format(item.cnt) }}종목</span>
-                    {% if item.grp != 'COIN' %}
-                    <span class="market-sep">·</span>
-                    <span class="market-cap">
-                        {%- if item.grp == 'US' -%}${{ '{:,.2f}'.format((item.cap or 0) / 1e9) }}B
-                        {%- else -%}{{ won(item.cap or 0) }}
-                        {%- endif -%}
-                    </span>
-                    {% endif %}
+    <div class="stocks-container stocks-dashboard-container sh-grid">
+        <main class="stocks-main quotes-container" id="quotesRoot" data-market="{{ default_market }}">
+            {#
+              ── 순위 표 ─────────────────────────────────────────────────
+              토스증권 홈의 "실시간 차트" 자리. 행 = 순위 · 종목(이름·코드) · 현재가 · 등락률 · 기준값.
+              · 거래대금: `/api/v1/stocks/top` — ⚠️ **최근 30일 합계**다(오늘이 아니다). 머리 아래에 적는다.
+              · 상승률·하락률: 히트맵이 받아 온 구독 종목 전체(`quotes.js` 가 보내는
+                `stock-dashboard-heatmap` 이벤트)를 등락률로 정렬한다 — API 를 한 번 더 부르지 않는다.
+                ⚠️ **구독 종목 안에서의 순위**다(시장 전체가 아니다).
+              ⚠️ 빨강·파랑은 등락 전용이다 — 순위 번호·기준값은 중립색이다.
+              ⚠️ 기준 버튼·시장 버튼은 **서로 다른 것**을 고르므로 아이콘을 단다(디자인 규칙).
+            #}
+            <section class="sh-card sh-rank" aria-labelledby="shRankTitle">
+                <div class="sh-rank__head">
+                    <h2 class="sh-card__title" id="shRankTitle">{{ icons.i('ranking') }}순위</h2>
+                    <div class="sh-seg" role="group" aria-label="순위 기준">
+                        <button type="button" data-rank-kind="amount" aria-pressed="true">{{ icons.i('amount') }}<span>거래대금</span></button>
+                        <button type="button" data-rank-kind="up" aria-pressed="false">{{ icons.i('trend-up') }}<span>상승률</span></button>
+                        <button type="button" data-rank-kind="down" aria-pressed="false">{{ icons.i('trend-down') }}<span>하락률</span></button>
+                    </div>
+                    <div class="sh-seg sh-seg--market" role="group" aria-label="시장">
+                        {% for g, label in [('KR', '한국'), ('US', '미국'), ('COIN', '코인')] %}
+                        <button type="button" data-market-tab data-group="{{ g }}"
+                                aria-pressed="{{ 'true' if default_market == g else 'false' }}">{{ market_symbol(g) }}<span>{{ label }}</span></button>
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
+                <p class="sh-rank__note" id="rankNote">최근 30일 거래대금 합계</p>
+                <div class="sh-rank__cols" aria-hidden="true">
+                    <span>종목</span><span>현재가</span><span>등락률</span><span id="rankMetricLabel">거래대금</span>
+                </div>
+                {# `is-loading` — 첫 목록이 올 때까지 10행 높이를 잡아 둔다(아래 히트맵이 밀려 내려가지 않게). #}
+                <ol class="sh-rank__list is-loading" id="rankList">
+                    <li class="sh-rank__empty">불러오는 중…</li>
+                </ol>
+            </section>
 
-        <section class="quote-section heatmap-section">
-            <div class="heatmap-box" id="heatmapBox">
-                <div class="quote-empty">불러오는 중…</div>
-            </div>
-            <div class="heatmap-legend" id="heatmapLegend"></div>
-        </section>
-
-        <div class="heatmap-tooltip" id="heatmapTooltip" hidden></div>
-    </main>
-
-    <aside class="stocks-sidebar-right">
-        <form class="stocks-search-bar sidebar-search stock-floating-search" id="stockSearchForm"
-              role="search" autocomplete="off">
-            <input type="search" id="stockSearchInput" maxlength="50"
-                   placeholder="종목명 또는 코드 검색..." aria-label="종목 검색"
-                   aria-controls="stockSearchResults" aria-expanded="false">
-            <button type="submit" class="search-btn" aria-label="검색 결과 열기">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-            </button>
-            <div class="stock-search-floating-results" id="stockSearchResults" role="listbox" hidden></div>
-        </form>
-
-        <a href="/stocks/backtest" class="backtest-link-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-            포트폴리오 백테스팅
-        </a>
-
-        {# 모바일에서는 한 종목씩 넘기고, "전체" 로 지금의 목록을 펼친다(`/js/rotator.js`). #}
-        <section class="top10-section" data-rotator data-rotator-item=".top10-item" data-rotator-interval="3500">
-            <h3>
-                거래대금 TOP 10
-                <span class="rotator-count"></span>
-                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
-            </h3>
-            <div class="top10-list" id="stockTop10" data-rotator-track>
-                <div class="top10-empty">불러오는 중…</div>
-            </div>
-            <div class="rotator-bar"><i></i></div>
-        </section>
-
-        <section class="top10-section" data-rotator data-rotator-item=".top10-item" data-rotator-interval="3500">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                </svg>
-                포트폴리오 TOP 10
-                <span class="rotator-count"></span>
-                <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">전체</button>
-            </h3>
-            <div class="top10-list" data-rotator-track>
-                {% for p in portfolios %}
-                {% set sc = p.ranking_score or 0 %}
-                <a href="/stocks/backtest?portfolio={{ p.portfolio_id }}" class="top10-item">
-                    <div class="top10-rank">{{ loop.index }}</div>
-                    <div class="top10-info">
-                        <div class="top10-name">{{ p.portfolio_name }}</div>
+            {#
+              ── 시장 지도 ────────────────────────────────────────────────
+              ⚠️ 아래 탭 띠와 히트맵 판은 `.quotes-container` 의 직계 자식으로 남겨 둔다(머리말 참조).
+            #}
+            <h2 class="sh-section-title">{{ icons.i('map') }}시장 지도</h2>
+            <div class="market-stats-horizontal" aria-label="시장 선택">
+                {% for item in stats %}
+                {% if item.grp in ('KR', 'US', 'COIN') %}
+                <div class="market-stat-item-h market-{{ item.grp | lower }} {% if default_market == item.grp %}active{% endif %}"
+                     data-group="{{ item.grp }}" role="button" tabindex="0"
+                     aria-pressed="{{ 'true' if default_market == item.grp else 'false' }}">
+                    <div class="market-name">{{ market_symbol(item.grp) }}<span>{{ item.label }}</span></div>
+                    <div class="market-info">
+                        <span class="market-count">{{ '{:,}'.format(item.cnt) }}종목</span>
+                        {% if item.grp != 'COIN' %}
+                        <span class="market-sep">·</span>
+                        <span class="market-cap">
+                            {%- if item.grp == 'US' -%}${{ '{:,.2f}'.format((item.cap or 0) / 1e9) }}B
+                            {%- else -%}{{ won(item.cap or 0) }}
+                            {%- endif -%}
+                        </span>
+                        {% endif %}
                     </div>
-                    <div class="top10-value {% if sc >= 70 %}score-high{% elif sc >= 40 %}score-mid{% else %}score-low{% endif %}">
-                        <div class="top10-primary">{{ sc | int }}</div>
-                        <div class="top10-secondary">{{ p.ranking_grade or '' }}</div>
-                    </div>
-                </a>
-                {% else %}
-                <div class="top10-empty">데이터가 없습니다.</div>
+                </div>
+                {% endif %}
                 {% endfor %}
             </div>
-            <div class="rotator-bar"><i></i></div>
-        </section>
-    </aside>
+
+            <section class="quote-section heatmap-section">
+                <div class="heatmap-box" id="heatmapBox">
+                    <div class="quote-empty">불러오는 중…</div>
+                </div>
+                <div class="heatmap-legend" id="heatmapLegend"></div>
+            </section>
+
+            <div class="heatmap-tooltip" id="heatmapTooltip" hidden></div>
+        </main>
+
+        <aside class="stocks-sidebar-right">
+            {#
+              ── 포트폴리오 TOP 10 ─────────────────────────────────────────
+              점수가 0~100 이라 **미터**(같은 색 트랙 + 채움)로 그린다.
+              ⚠️ 빨강·파랑은 등락 전용이다 — 점수·등급에 쓰지 않는다.
+              ⚠️ 순위는 순서가 뜻이라 `<ol>`. 회전 카드(`/js/rotator.js`)는 트랙의 **직계 자식**을
+                 슬라이드로 쓰므로 `li` 가 곧 한 장이다. 모바일에서는 한 개씩 넘기고 "전체" 로 펼친다.
+              백테스트로 가는 버튼은 상단 메뉴("백테스트")로 옮겼다 — 여기서는 머리의 링크 하나만 둔다.
+            #}
+            <section class="top10-section" data-rotator data-rotator-item=".top10-item" data-rotator-interval="3500">
+                <h3>
+                    {{ icons.i('trophy') }}
+                    포트폴리오 TOP 10
+                    <span class="rotator-count"></span>
+                    <button type="button" class="rotator-expand" data-rotator-expand aria-expanded="false">{{ icons.i('expand') }}<span data-rotator-expand-label>전체</span></button>
+                </h3>
+                <ol class="top10-list" data-rotator-track>
+                    {% for p in portfolios %}
+                    {% set sc = [[p.ranking_score or 0, 0] | max, 100] | min %}
+                    <li class="top10-item" style="--pct: {{ sc }}">
+                        <a class="top10-link" href="/stocks/backtest?portfolio={{ p.portfolio_id }}">
+                            <span class="top10-n">{{ loop.index }}</span>
+                            <span class="top10-body">
+                                <span class="top10-l1">
+                                    <span class="top10-nm" title="{{ p.portfolio_name }}">{{ p.portfolio_name }}</span>
+                                    <span class="top10-val">{{ sc | int }}<small>/100</small></span>
+                                </span>
+                                <span class="top10-bar is-meter" aria-hidden="true"><i></i></span>
+                                {% if p.ranking_grade %}
+                                <span class="top10-l2"><span class="top10-gr">{{ p.ranking_grade }}</span></span>
+                                {% endif %}
+                            </span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="top10-empty">데이터가 없습니다.</li>
+                    {% endfor %}
+                </ol>
+                <div class="rotator-bar"><i></i></div>
+                <a class="c-btn sh-portfolio-cta" href="/stocks/backtest">{{ icons.i('play') }}<span>백테스트 해 보기</span></a>
+            </section>
+
+            {#
+              ── 최신 인사이트 ─────────────────────────────────────────────
+              금융 글 5개(서버가 읽는다 — 목록과 같은 접근 규칙). 토스증권 홈의 "뉴스" 자리다.
+              날짜는 DB 의 KST 그대로 쓴다(변환하지 않는다).
+            #}
+            {% if insights %}
+            <section class="sh-card sh-insights" aria-labelledby="shInsightsTitle">
+                <div class="sh-insights__head">
+                    <h2 class="sh-card__title" id="shInsightsTitle">{{ icons.i('list') }}인사이트</h2>
+                    <a class="sh-insights__more" href="/insights">전체 보기</a>
+                </div>
+                <ol class="sh-insights__list">
+                    {% for p in insights %}
+                    <li>
+                        <a href="/reader.php?posting_index={{ p.posting_index }}">
+                            <span class="sh-insights__title">{{ p.posting_title }}</span>
+                            <time datetime="{{ p.posting_first_post_datetime.strftime('%Y-%m-%d') }}">{{ p.posting_first_post_datetime.strftime('%m.%d') }}</time>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </section>
+            {% endif %}
+        </aside>
+    </div>
 </div>
 {% endblock %}
 

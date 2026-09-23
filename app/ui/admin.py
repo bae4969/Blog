@@ -46,7 +46,8 @@ async def _require_admin(request: Request, db):
     return me
 
 
-def _deny(reason: str, to: str = "/blog") -> RedirectResponse:
+def _deny(reason: str, to: str = "/stocks") -> RedirectResponse:
+    # 사이트 메인(주식)으로 돌려보낸다 — 2026-09-23 전에는 /blog 였다.
     logger.warning("관리자 거부: %s", reason)
     return RedirectResponse(to, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -63,7 +64,7 @@ async def categories(request: Request):
             await db.execute(
                 text(
                     "SELECT c.category_index, c.category_name, c.category_order, "
-                    "       c.category_read_level, c.category_write_level, "
+                    "       c.category_read_level, c.category_write_level, c.category_group, "
                     "       (SELECT COUNT(*) FROM posting_list p "
                     "          WHERE p.category_index = c.category_index) AS post_count "
                     "FROM category_list c ORDER BY c.category_order"
@@ -82,13 +83,23 @@ async def categories(request: Request):
     return response
 
 
+#: 글 묶음 — 금융(인사이트 `/insights`) · 일반(블로그 `/blog`). 2026-09-23 블로그를 둘로 나눴다.
+_CATEGORY_GROUPS = ("general", "finance")
+
+# ⚠️ 폼 필드 이름은 **템플릿(원본 PHP 마크업)의 `category_*`** 를 따른다 — `alias` 로 받는다.
+#    2026-08-16 에 템플릿을 원본으로 되돌리며 이름이 `category_name` 이 됐는데 핸들러는 `name`
+#    으로 받고 있어서, 이름이 늘 빈 값이 되어 **추가·수정이 한 달 넘게 전부 거절**되고 있었다
+#    (2026-09-23 발견). `tests/test_admin_forms.py` 가 두 쪽 이름을 맞춰 본다.
+
+
 @router.post("/categories/create", include_in_schema=False)
 async def category_create(
     request: Request,
     csrf_token: str = Form(""),
-    name: str = Form(""),
-    read_level: int = Form(0),
-    write_level: int = Form(0),
+    name: str = Form("", alias="category_name"),
+    read_level: int = Form(0, alias="category_read_level"),
+    write_level: int = Form(0, alias="category_write_level"),
+    group: str = Form("general", alias="category_group"),
 ):
     """카테고리 추가. 순서는 맨 뒤에 붙인다."""
     if not csrf.valid(request, csrf_token):
@@ -97,6 +108,8 @@ async def category_create(
     name = name.strip()
     if not name:
         return _deny("empty_name", "/admin/categories?msg=이름을+입력하세요")
+    if group not in _CATEGORY_GROUPS:
+        return _deny("invalid_group", "/admin/categories?msg=묶음을+확인하세요")
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
@@ -106,10 +119,10 @@ async def category_create(
         await db.execute(
             text(
                 "INSERT INTO category_list "
-                "(category_name, category_order, category_read_level, category_write_level) "
-                "VALUES (:n, :o, :r, :w)"
+                "(category_name, category_order, category_read_level, category_write_level, category_group) "
+                "VALUES (:n, :o, :r, :w, :g)"
             ),
-            {"n": name, "o": nxt, "r": read_level, "w": write_level},
+            {"n": name, "o": nxt, "r": read_level, "w": write_level, "g": group},
         )
         await db.commit()
 
@@ -123,16 +136,17 @@ async def category_update(
     request: Request,
     csrf_token: str = Form(""),
     category_index: int = Form(-1),
-    name: str = Form(""),
-    read_level: int = Form(0),
-    write_level: int = Form(0),
+    name: str = Form("", alias="category_name"),
+    read_level: int = Form(0, alias="category_read_level"),
+    write_level: int = Form(0, alias="category_write_level"),
+    group: str = Form("general", alias="category_group"),
 ):
-    """이름·권한 수정. 순서는 여기서 건드리지 않는다(교환 전용 경로가 따로 있다)."""
+    """이름·권한·묶음 수정. 순서는 여기서 건드리지 않는다(교환 전용 경로가 따로 있다)."""
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/categories")
 
     name = name.strip()
-    if category_index <= 0 or not name:
+    if category_index <= 0 or not name or group not in _CATEGORY_GROUPS:
         return _deny("invalid_input", "/admin/categories?msg=값을+확인하세요")
 
     async with db_session() as db:
@@ -141,14 +155,14 @@ async def category_update(
         await db.execute(
             text(
                 "UPDATE category_list SET category_name = :n, "
-                "  category_read_level = :r, category_write_level = :w "
+                "  category_read_level = :r, category_write_level = :w, category_group = :g "
                 "WHERE category_index = :i"
             ),
-            {"n": name, "r": read_level, "w": write_level, "i": category_index},
+            {"n": name, "r": read_level, "w": write_level, "g": group, "i": category_index},
         )
         await db.commit()
 
-    logger.info("카테고리 수정: id=%s name=%s", category_index, name)
+    logger.info("카테고리 수정: id=%s name=%s group=%s", category_index, name, group)
     return RedirectResponse("/admin/categories?msg=수정했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 

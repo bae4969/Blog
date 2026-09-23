@@ -5,6 +5,16 @@
  */
 (function () {
     'use strict';
+    /** 안내 메시지 — 프로젝트 디자인 규칙대로 **화면 아래 가운데 토스트**로 띄운다.
+     *  ⚠️ 예전에는 네이티브 `alert()` 였다(이 파일에만 17곳). 차단형 대화상자라 화면을
+     *     가리고, 백테스트처럼 값을 보며 고치는 작업에서는 매번 끊겼다.
+     *     `toast` 는 안 막으므로 **호출부의 `return` 은 그대로 둬야 한다**(전부 가드절이다).
+     */
+    function notify(message, type) {
+        if (window.toast) window.toast(message, type || 'error');
+        else if (window.console) console.warn(message);
+    }
+
 
     /* =========================================
        상수 & 상태
@@ -911,18 +921,18 @@
     // 설정 수집 + 유효성 검사 (사용자 알림 포함)
     function collectConfigWithAlert() {
         if (portfolio.length === 0) {
-            alert('종목을 1개 이상 추가하세요.');
+            notify('종목을 1개 이상 추가하세요.');
             return null;
         }
         var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
         if (Math.abs(totalWeight - 100) > 0.5) {
-            alert('종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
+            notify('종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
             return null;
         }
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
         if (!startDate || !endDate || startDate >= endDate) {
-            alert('유효한 기간을 설정하세요.');
+            notify('유효한 기간을 설정하세요.');
             return null;
         }
         var activeTab = document.querySelector('.strategy-tab.active');
@@ -930,7 +940,7 @@
         if (strategy === 'signal') {
             var rules = document.querySelectorAll('.signal-rule');
             if (rules.length === 0) {
-                alert('시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
+                notify('시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
                 return null;
             }
         }
@@ -994,7 +1004,7 @@
             })
             .catch(function (err) {
                 console.error('백테스트 에러:', err);
-                if (!silent) alert(err.message || '시뮬레이션 중 오류가 발생했습니다.');
+                if (!silent) notify(err.message || '시뮬레이션 중 오류가 발생했습니다.');
                 btn.disabled = false;
                 updateRunButtonState();
                 progressDiv.style.display = 'none';
@@ -1157,14 +1167,14 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             showSaveStatus('저장 완료');
         } catch (e) {
-            alert('설정 저장에 실패했습니다.');
+            notify('설정 저장에 실패했습니다.');
         }
     }
 
     function loadConfigFromStorage() {
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) { alert('저장된 설정이 없습니다.'); return; }
+            if (!raw) { notify('저장된 설정이 없습니다.'); return; }
             var data = JSON.parse(raw);
 
             portfolio = (data.portfolio || []).map(function (s) {
@@ -1214,7 +1224,7 @@
             showSaveStatus('설정 복원됨');
             updateDateRange();
         } catch (e) {
-            alert('설정 불러오기에 실패했습니다.');
+            notify('설정 불러오기에 실패했습니다.');
         }
     }
 
@@ -1332,13 +1342,13 @@
         var nameInput = document.getElementById('presetNameInput');
         if (!nameInput) return;
         var name = nameInput.value.trim();
-        if (!name) { alert('프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+        if (!name) { notify('프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
 
         var config = collectConfig();
         if (!config) {
             // 설정이 유효하지 않아도 현재 폼 상태를 저장 가능하도록 raw 수집
             config = collectConfigRaw();
-            if (!config) { alert('종목을 1개 이상 추가하세요.'); return; }
+            if (!config) { notify('종목을 1개 이상 추가하세요.'); return; }
         }
 
         apiFetch('/api/v1/backtest/presets', {
@@ -1352,7 +1362,7 @@
                 nameInput.value = '';
                 loadPresetList();
             })
-            .catch(function (err) { alert(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
+            .catch(function (err) { notify(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
     }
 
     /**
@@ -1406,7 +1416,7 @@
                 applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
                 showPresetStatus('"' + (json.name || '') + '" 적용됨');
             })
-            .catch(function (err) { alert(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
+            .catch(function (err) { notify(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
     }
 
     function deletePreset(id) {
@@ -1417,7 +1427,7 @@
                 showPresetStatus('삭제됨');
                 loadPresetList();
             })
-            .catch(function (err) { alert(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
+            .catch(function (err) { notify(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
     }
 
     /**
@@ -1487,8 +1497,13 @@
         if (!panel) return;
         // 한 컬럼(≤1024px)에서는 CSS 가 static 으로 되돌린다 — 계산할 것이 없다.
         if (getComputedStyle(panel).position !== 'sticky') { panel.style.top = ''; return; }
-        var gap = 20;
-        var over = panel.offsetHeight + gap * 2 - window.innerHeight;
+        // ⚠️ 상단바가 sticky 56px 라 그 높이를 더해야 패널이 그 뒤로 안 들어간다.
+        //    CSS 토큰을 읽지 않고 **실제 높이를 재는** 이유는 안전영역(노치) 패딩이
+        //    더해져 기기마다 값이 다르기 때문이다. 상단바가 없으면 0 이라 옛 동작 그대로다.
+        var bar = document.querySelector('.c-topbar');
+        var barH = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+        var gap = barH + 20;
+        var over = panel.offsetHeight + gap + 20 - window.innerHeight;
         panel.style.top = (over > 0 ? gap - over : gap) + 'px';
     }
 
@@ -1509,8 +1524,8 @@
     function init() {
         initStockSearch('stockSearchInput', 'stockSearchResults',
             function (stock) {
-                if (portfolio.length >= MAX_STOCKS) { alert('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
-                if (portfolio.some(function (s) { return s.code === stock.code; })) { alert('이미 추가된 종목입니다.'); return; }
+                if (portfolio.length >= MAX_STOCKS) { notify('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
+                if (portfolio.some(function (s) { return s.code === stock.code; })) { notify('이미 추가된 종목입니다.'); return; }
                 var n = portfolio.length + 1;
                 var base = Math.floor(10000 / n);
                 var remainder = 10000 - base * n;
@@ -1525,8 +1540,8 @@
                 updateDateRange();
             },
             function (stock) {
-                if (benchmarks.length >= MAX_BENCHMARKS) { alert('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
-                if (benchmarks.some(function (b) { return b.code === stock.code; })) { alert('이미 추가된 벤치마크입니다.'); return; }
+                if (benchmarks.length >= MAX_BENCHMARKS) { notify('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
+                if (benchmarks.some(function (b) { return b.code === stock.code; })) { notify('이미 추가된 벤치마크입니다.'); return; }
                 benchmarks.push(stock);
                 renderBenchmark();
                 updateRunButtonState();

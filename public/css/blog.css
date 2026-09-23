@@ -1137,16 +1137,16 @@ footer a:hover {
 
     /* 헤더 좌/우 버튼 마진을 픽셀로 조정 */
     #topNav, #topRight, #topWrite {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
+        margin-left: 0;
+        margin-right: 0;
     }
     
     #topNav {
-        margin-left: 5px !important;
+        margin-left: 5px;
     }
     
     #topRight {
-        margin-right: 3px !important;
+        margin-right: 3px;
     }
     #blog {
         padding: 20px 5px;
@@ -1263,7 +1263,7 @@ footer a:hover {
     .post-content {
         font-size: 1.8ex;
         line-height: 1.7;
-        padding: 20px 10px 15px 10px !important;
+        padding: 20px 10px 15px 10px;
     }
     
     /* 포스트 상세 페이지 여백 줄이기 */
@@ -1367,7 +1367,7 @@ footer a:hover {
     }
     
     .post-content {
-        padding: 0px 10px 20px 10px !important;
+        padding: 0px 10px 20px 10px;
     }
     
     /* 폼 최적화 */
@@ -1425,20 +1425,20 @@ footer a:hover {
 @media (max-width: 480px) {
     /* 헤더 버튼 마진 조정 */
     #topLeft, #topStocks, #topRight, #topWrite {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
+        margin-left: 0;
+        margin-right: 0;
     }
     
     #topLeft {
-        margin-left: 3px !important;
+        margin-left: 3px;
     }
     
     #topStocks {
-        margin-left: 5px !important;
+        margin-left: 5px;
     }
     
     #topRight {
-        margin-right: 2px !important;
+        margin-right: 2px;
     }
     
     #blog {
@@ -1495,7 +1495,7 @@ footer a:hover {
     }
     
     .post-content {
-        padding: 15px 5px 12px 5px !important;
+        padding: 15px 5px 12px 5px;
         font-size: 1.6ex;
         line-height: 1.65;
     }
@@ -1567,7 +1567,7 @@ footer a:hover {
 /* 데스크톱에서는 토글 버튼 숨김 */
 @media (min-width: 1025px) {
     .sidebar-toggle {
-        display: none !important;
+        display: none;
     }
 }
 

@@ -1,0 +1,1664 @@
+/* ===========================================
+   ui.css — 리디자인 레이어
+
+   `blog.css`(7천 줄, PHP 시절 상속본)를 **고치지 않고** 그 위에 새 디자인을 얹는다.
+   `layout.html` 이 blog.css 를 `@layer legacy` 로 싣고 이 파일을 그 뒤에 싣는다.
+
+       @layer legacy, tokens, shell, comp, page;
+
+   ⚠️ **레이어 밖 선언은 모든 레이어를 이긴다.** 그래서
+      · `common.css`(`<link>`) — `:root` 와 `.pagination`/`.page-*` 7규칙. 페이저 간격을
+        여기서 덮으려 하면 id 선택자를 써도 안 먹는다. 간격은 앞 형제 쪽에서 준다.
+      · `{% block extra_css %}` 의 `stocks.css`·`admin.css`·`quotes.css` — 항상 이긴다.
+        주식·관리자 화면이 이 파일 때문에 깨지지 않는 것은 그 덕이다.
+
+   ⚠️ 이 파일은 **옛 이름 별칭을 쓰지 않는다**(`--primary-color`·`--bg-tertiary` 등).
+      정본 `--bae-*` 만 직접 참조한다 — 두 이름 체계가 한 파일에서 섞이면 어느 쪽이
+      정본인지 코드만 봐서는 안 보인다.
+
+   레이어 뜻:
+     legacy  blog.css (건드리지 않는다)
+     tokens  디자인 토큰 — 간격·타이포·반경
+     shell   문서 뼈대 — 헤더·본문 폭·전역 리셋
+     comp    되풀이되는 조각 — 카드·칩·검색
+     page    한 화면에서만 쓰는 것
+   =========================================== */
+
+@layer tokens {
+    :root {
+        /* ── 간격 ─────────────────────────────────────────────────────
+         * 4px 배수 한 벌. 지금은 같은 사이드바 카드 간격이 데스크톱·1024·480 에
+         * 세 벌 중복돼 있다(blog.css 202/1229/1458) — 토큰 하나로 끝낼 자리다.
+         */
+        --space-1: 0.25rem;   /*  4px */
+        --space-2: 0.5rem;    /*  8px */
+        --space-3: 0.75rem;   /* 12px */
+        --space-4: 1rem;      /* 16px */
+        --space-5: 1.5rem;    /* 24px */
+        --space-6: 2rem;      /* 32px */
+        --space-7: 3rem;      /* 48px */
+        --space-8: 4rem;      /* 64px */
+
+        /* ── 셸 치수 ──────────────────────────────────────────────────
+         * `--shell-pad` 는 화면 좌우 여백이다. 지금 `#blog` 는 폭에 따라 10/5/3px
+         * 세 값을 쓰는데(blog.css 45·1151·1444), 2단계 톱바가 풀블리드를 하려면
+         * **톱바와 컨테이너가 같은 값을 봐야 한다** — 고정 음수 마진을 쓰면 세
+         * 구간 모두 어긋나 모바일에서 우측 버튼이 잘린다.
+         * 안전영역(노치)을 함께 먹여 가로 모드에서 글자가 노치에 물리지 않게 한다.
+         */
+        --shell-pad: clamp(0.75rem, 2.5vw, 1.5rem);
+        --pad-left:  max(var(--shell-pad), env(safe-area-inset-left));
+        --pad-right: max(var(--shell-pad), env(safe-area-inset-right));
+        --shell-max: 78rem;   /* 1248px — 본문 컨테이너 최대 폭 */
+        --topbar-h: 3.5rem;   /* 56px — 터치 타깃 하한(44px)을 넘긴다 */
+        --rail-w: 20rem;      /* 320px — 관심 종목 레일(`_watchlist.html`) */
+        --card-min: 21rem;    /* 336px — 카드 그리드 최소 트랙(768px 에서 2열이 되는 값) */
+        --measure: 42rem;     /* 672px — 본문 읽기 폭(한글 ~37자) */
+
+        /* ── 타이포 스케일 ────────────────────────────────────────────
+         * `clamp()` 유동 스케일. 지금은 `font-size: *ex` 가 20곳이라 값이 폰트
+         * x-높이에 끌려다니고(렌더값 25.36/16.91/11.83px…), 브레이크포인트마다
+         * 같은 규칙을 다시 쓴다. 한 축으로 모은다.
+         * ⚠️ 모바일 하한을 15px 아래로 내리지 않는다 — 지금 430px 본문이 13.53px 다.
+         */
+        --fs--1: clamp(0.75rem,   0.72rem + 0.15vw, 0.8125rem);  /* 12 → 13 */
+        --fs-0:  clamp(0.9375rem, 0.90rem + 0.20vw, 1rem);       /* 15 → 16 */
+        --fs-1:  clamp(1.0625rem, 1.00rem + 0.30vw, 1.1875rem);  /* 17 → 19 */
+        --fs-2:  clamp(1.25rem,   1.15rem + 0.50vw, 1.5rem);     /* 20 → 24 */
+        --fs-3:  clamp(1.5rem,    1.30rem + 1.00vw, 2rem);       /* 24 → 32 */
+
+        --lh-tight: 1.2;
+        --lh-snug:  1.45;
+        --lh-prose: 1.75;
+
+        /* ── 모서리·움직임 ────────────────────────────────────────── */
+        --r-chip: 999px;
+        --r-ctl:  0.5rem;
+        --r-card: 0.75rem;
+        --ease:   cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+
+    /* 넓은 화면은 상단바를 64px 로 — 검색창이 올라오면서 56px 은 답답했다(토스증권 PC 도
+       60px 대다). `--topbar-h` 를 보는 sticky 오프셋(백테스트 설정 칸 등)이 함께 따라온다. */
+    @media (min-width: 64rem) {
+        :root { --topbar-h: 4rem; }
+    }
+
+    /* 좁은 화면은 상단바가 두 줄이다(워드마크·버튼 / 메뉴) — 아래 `.c-topbar` 참조.
+       이 값을 보는 곳(관심 레일의 위치, 스크롤 여백)이 함께 따라온다. */
+    @media (max-width: 47.99rem) {
+        :root { --topbar-h: 6rem; }
+    }
+}
+
+@layer shell {
+    /* ── 색 구성표 ────────────────────────────────────────────────────
+     * 지금 선언이 0건이라 스크롤바·select 팝업·자동완성이 **라이트 크롬**으로 뜬다.
+     * 팔레트가 다크 전용이므로(라이트 모드는 이번 범위 밖 — 5개 서비스 공용 팔레트라
+     * 블로그만 바꾸면 로그인 왕복마다 테마가 번쩍인다) 한 줄로 못을 박는다.
+     */
+    :root {
+        color-scheme: dark;
+    }
+
+    /* ── 글꼴 ─────────────────────────────────────────────────────────
+     * 지금 `font-family: "arial", sans-serif` 인데 arial 에는 **한글이 없다** — 결국
+     * OS 기본 폴백으로 떨어져 기기마다 다르게 뜬다. 파일은 넣지 않고(0바이트) 스택만
+     * 바로잡아도 macOS·iOS 는 Apple SD Gothic Neo, Windows 는 맑은 고딕으로 결정된다.
+     * `Pretendard` 는 설치돼 있으면 쓰고 없으면 조용히 넘어간다.
+     */
+    body {
+        font-family: Pretendard, -apple-system, BlinkMacSystemFont,
+                     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
+                     system-ui, "Segoe UI", Roboto, sans-serif;
+        min-inline-size: 0;              /* blog.css:29 의 min-width:400px 대체 */
+    }
+
+    /* 가로 모드에서 iOS 가 글자를 멋대로 키우는 것을 막는다.
+       ⚠️ 스크롤바 자리는 늘 비워 둔다(`scrollbar-gutter`) — 화면마다 스크롤이 생겼다 없어졌다
+          하면(글 목록이 불러오는 동안 짧다) 스크롤바 폭만큼 화면 전체가 옆으로 움찔한다.
+          오버레이 스크롤바(맥·모바일)에서는 아무 일도 하지 않는다. */
+    html {
+        -webkit-text-size-adjust: 100%;
+        scrollbar-gutter: stable;
+    }
+
+    /* 본문 글자는 블로그 표면에서만 새 스케일로 — 주식·관리자 표는 건드리지 않는다. */
+    body.blog-page {
+        font-size: var(--fs-0);
+        line-height: var(--lh-snug);
+    }
+
+    /* ── 폼 컨트롤 ────────────────────────────────────────────────────
+     * ⚠️ iOS 는 16px 미만 input 에 포커스가 가면 **화면을 자동 확대**한다. 확대된
+     *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다. 검색창이 블로그·
+     *    주식 양쪽에 있으므로 전역으로 하한을 건다(키우기만 하고 줄이지 않는다).
+     */
+    input, select, textarea {
+        font-size: max(1rem, 1em);
+    }
+
+    /* ── 포커스 표시 ──────────────────────────────────────────────────
+     * 지금 `:focus-visible` 이 0건이고 `outline: none` 이 16곳이라 키보드로 어디에
+     * 있는지 알 수 없다. 마우스 클릭에는 안 뜨고 키보드에만 뜬다.
+     */
+    :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+        outline: 2px solid var(--bae-accent);
+        outline-offset: 2px;
+        border-radius: var(--r-ctl);
+    }
+
+    /* 움직임을 줄이도록 설정한 사용자를 존중한다(지금 선언 0건인데 transition 은 전역). */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /* ── sticky 를 살리는 전제 ────────────────────────────────────────
+     * ⚠️ blog.css:1127 이 1024px 이하에서 `html, body { overflow-x: hidden }` 을 준다.
+     *    body 에 overflow 를 주면 **body 가 스크롤 컨테이너가 되어** 그 후손의
+     *    `position: sticky` 가 뷰포트를 못 따라온다. 상단바가 모바일·태블릿에서만
+     *    조용히 안 붙는 형태로 드러난다.
+     *    같은 함정을 이 저장소가 이미 겪어 blog.css:20 머리말에 경고를 남겨 뒀고,
+     *    stocks.css 는 `clip` 으로 피해 갔다 — `clip` 은 잘라내되 스크롤 컨테이너를
+     *    만들지 않으므로 sticky 가 산다. 같은 수법을 쓴다.
+     */
+    body {
+        overflow-x: clip;
+    }
+
+    /* ── 상단바 ───────────────────────────────────────────────────────
+     * 걷어낸 배너(262px)를 대신한다. 56px 고정 — 터치 타깃 하한 44px 을 넘기면서
+     * 가로로 눕힌 폰(844×390)에서도 화면의 14%만 쓴다(배너는 56%였다).
+     */
+    .c-topbar {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: clamp(var(--space-2), 2vw, var(--space-5));
+        min-block-size: var(--topbar-h);
+        /* `#blog` 의 좌우 패딩(10/5/3px)을 흘려보내 화면 끝까지 닿게 한다.
+           ⚠️ 고정 음수 마진을 쓰면 세 구간 모두 어긋나 모바일에서 우측 버튼이
+              잘린다 — 컨테이너와 **같은 토큰**을 본다. */
+        margin-inline: calc(var(--blog-pad, 10px) * -1);
+        /* 위쪽 패딩도 흘려보낸다 — 안 그러면 상단바가 10px 내려앉았다가 스크롤할 때
+           0 으로 튀고, 그 위에 페이지 배경 띠가 한 줄 남는다. */
+        margin-block-start: calc(var(--blog-pad-top, 10px) * -1);
+        padding-inline: var(--pad-left) var(--pad-right);
+        /* 노치 기기에서 상단바가 상태바 밑으로 들어가지 않게 한다. */
+        padding-block-start: env(safe-area-inset-top);
+        border-block-end: 1px solid var(--bae-border);
+        background: color-mix(in srgb, var(--bae-bg-alt) 82%, transparent);
+        backdrop-filter: blur(12px) saturate(140%);
+    }
+
+    /* 흐림 효과가 없는 브라우저에서는 불투명하게 — 반투명만 남으면 글이 비쳐 읽힌다. */
+    @supports not (backdrop-filter: blur(1px)) {
+        .c-topbar {
+            background: var(--bae-bg-alt);
+        }
+    }
+
+    /* `color-mix` 를 모르는 브라우저(2023 이전)도 같은 이유로 불투명하게. */
+    @supports not (background: color-mix(in srgb, red 50%, transparent)) {
+        .c-topbar {
+            background: var(--bae-bg-alt);
+        }
+    }
+
+    /* 상단바 안에는 float 이 없다 — 전역 clearfix 유령이 flex 칸을 먹지 않게 끈다.
+       ⚠️ 이 해제만은 `body.blog-page` 스코프가 아니다. 상단바는 주식·관리자도 쓴다. */
+    :where(.c-topbar, .c-topbar *)::after {
+        content: none;
+    }
+
+    .c-brand {
+        display: inline-flex;
+        gap: 0.4em;
+        flex: 0 0 auto;
+        font-size: clamp(0.8125rem, 0.6rem + 0.7vw, 1.125rem);
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .c-brand__lead { color: var(--bae-text-primary); }
+    .c-brand__tail { color: var(--bae-accent); }
+
+    /* 좁은 화면(< 48rem)은 **두 줄** — 1줄: 워드마크 · 검색·관심·로그인 / 2줄: 메뉴.
+       ⚠️ 한 줄에 다 넣으려고 워드마크를 줄이고 접어 봤지만(2026-09-23 1단계), 메뉴가 넷
+          (홈·인사이트·백테스트·블로그)이 되고 주식 화면에 ☆ 버튼이 붙자 390px 에서도 "블로그" 가
+          잘렸다. 지금 있는 곳이 화면 밖으로 밀리는 메뉴는 메뉴가 아니다 — 줄을 나눈다.
+          두 번째 줄은 넘치면 가로로 민다(관리자까지 다섯이면 320px 에서). */
+    @media (max-width: 47.99rem) {
+        .c-topbar {
+            flex-wrap: wrap;
+            align-content: flex-start;
+            row-gap: 0;
+        }
+
+        .c-brand {
+            min-block-size: 3.5rem;
+            align-items: center;
+        }
+
+        .c-nav {
+            order: 3;
+            flex: 1 0 100%;
+            gap: var(--space-5);
+            min-block-size: 2.5rem;
+        }
+    }
+
+    /* 320px 급에서는 1줄에 워드마크 전체 + 버튼 셋(검색·관심·로그인)이 안 들어간다 — 앞 단어만 접는다. */
+    @media (max-width: 23.99rem) {
+        .c-brand__lead { display: none; }
+    }
+
+    .c-nav {
+        display: flex;
+        align-items: center;
+        gap: clamp(var(--space-2), 1.5vw, var(--space-4));
+        min-inline-size: 0;
+        /* 목적지가 늘어도 상단바가 무너지지 않게 — 넘치면 가로로 민다. */
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .c-nav::-webkit-scrollbar { display: none; }
+
+    /* 2026-09-23 토스증권 PC 처럼 밑줄을 걷고 **밝기·굵기**로만 현재 위치를 말한다.
+       ⚠️ 흐린 쪽도 `--bae-text-dim`(#9A9A9A)이라 상단바 바탕에서 6.5:1 — 읽히는 흐림이다. */
+    .c-nav a {
+        padding: var(--space-2) var(--space-1);
+        color: var(--bae-text-dim);
+        font-size: var(--fs-0);
+        font-weight: 600;
+        white-space: nowrap;
+        text-decoration: none;
+        transition: color 0.15s var(--ease);
+    }
+
+    .c-nav a:hover { color: var(--bae-text-primary); }
+
+    .c-nav a[aria-current="page"] {
+        color: var(--bae-text-primary);
+        font-weight: 800;
+    }
+
+    .c-topbar__end {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-inline-start: auto;   /* 오른쪽으로 민다 */
+        flex: 0 0 auto;
+    }
+
+    .c-btn {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 2.25rem;     /* 36px — 터치 타깃 */
+        padding-inline: clamp(var(--space-2), 1.2vw, var(--space-4));
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-ctl);
+        /* `<button>` 에 붙으면 옛 blog.css 의 회색 버튼 바탕이 비친다 — 끊는다. */
+        background: none;
+        color: var(--bae-text-muted);
+        font-size: var(--fs--1);
+        font-weight: 600;
+        white-space: nowrap;
+        text-decoration: none;
+        cursor: pointer;
+        transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
+    }
+
+    .c-btn:hover {
+        border-color: var(--bae-border-hover);
+        color: var(--bae-text-primary);
+    }
+
+    .c-btn--accent {
+        border-color: transparent;
+        background: var(--bae-accent);
+        /* ⚠️ accent 가 연보라(밝은 색)라 그 위 글씨는 검정이어야 읽힌다. */
+        color: var(--bae-accent-text);
+    }
+
+    .c-btn--accent:hover {
+        background: var(--bae-accent-hover);
+        color: var(--bae-accent-text);
+    }
+
+    /* 아이콘만 있는 정사각 버튼 — ⚠️ 쓰는 쪽이 `aria-label` 을 준다. */
+    .c-btn--icon {
+        justify-content: center;
+        inline-size: 2.25rem;
+        padding: 0;
+        background: none;
+        cursor: pointer;
+    }
+
+    /* 좁은 화면(< 30rem)에서 글자를 접고 아이콘만 남기는 버튼 — 검색 버튼이 들어오면서
+       320px 폰에서 로그인 버튼이 메뉴를 밀어냈다. ⚠️ 쓰는 쪽이 `aria-label` 을 준다. */
+    @media (max-width: 29.99rem) {
+        .c-btn--collapse {
+            justify-content: center;
+            inline-size: 2.25rem;
+            padding: 0;
+        }
+        .c-btn--collapse > span { display: none; }
+    }
+
+    /* ── `#blog` 좌우 패딩을 토큰으로 노출 ────────────────────────────
+     * 값 자체는 legacy 가 정한 것을 그대로 쓴다(10/5/3px). 상단바가 풀블리드를
+     * 하려면 그 값을 알아야 해서 토큰으로만 꺼내 둔다 — 패딩을 바꾸지는 않는다.
+     */
+    #blog { --blog-pad: 10px; --blog-pad-top: 10px; }
+
+    @media (max-width: 1024px) {
+        #blog { --blog-pad: 5px; --blog-pad-top: 10px; }
+    }
+
+    @media (max-width: 480px) {
+        #blog { --blog-pad: 3px; --blog-pad-top: 8px; }
+    }
+
+    /* ── 본문 컨테이너 ────────────────────────────────────────────────
+     * ⚠️ **`body.blog-page` 스코프가 생명이다.** 레이어 서열상 shell 은 legacy 를
+     *    항상 이기므로, 맨 `section`·`#content` 선택자로 쓰면 관리자 5화면의 2단
+     *    float(`aside` float:right + `#content` float:left)이 무너지고 주식 본문이
+     *    1580→1248px 로 깎인다. 그 둘은 이번 리디자인 대상이 아니다.
+     *
+     * `section` 의 회색 판(`background: --bg-secondary` + radius 20px)을 걷어낸다 —
+     * 카드가 이미 판이라 판 위에 판이 겹쳐 있었다. 카드는 페이지 배경 위에 바로 앉는다.
+     */
+    body.blog-page #blog > section {
+        /* ⚠️ `display: block` 을 반드시 되돌려 놓는다. blog.css:1156 이 1024px 이하에서
+         *    `section { display:flex; flex-direction:column }` 으로 바꾸는데(사이드바를
+         *    본문 위 아코디언으로 올리려던 것), 그러면 `#content` 가 **플렉스 아이템**이
+         *    되고 플렉스 아이템의 `min-width` 기본값은 `auto` 라 **내용물 고유 너비
+         *    밑으로 줄지 않는다.** 실측: 320px 화면에서 `#content` 가 975px, 카드가
+         *    945px 로 터졌다(`overflow-x: clip` 이 가려서 넘침 수치로는 안 보였다).
+         *    사이드바가 없어진 지금 flex 로 둘 이유도 없다.
+         */
+        display: block;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    /* 사이드바가 사라졌으니 `width: calc(100% - 220px)` 이 남기던 220px 구멍도 없앤다. */
+    body.blog-page #content {
+        float: none;
+        inline-size: auto;
+        /* 어떤 플렉스/그리드 조상 밑에 놓이더라도 줄어들 수 있게 못을 박는다. */
+        min-inline-size: 0;
+        max-inline-size: var(--shell-max);
+        margin-inline: auto;
+        padding-inline: var(--pad-left) var(--pad-right);
+    }
+
+    /* ── 기존 sticky 요소 보정 ────────────────────────────────────────
+     * ⚠️ 백테스트 설정 패널이 `top: 20px` 으로 붙어 있어(stocks.css) 새 상단바
+     *    뒤로 들어가 상단이 가린다. 앵커로 뛸 때 제목이 상단바에 가리는 것도 같이 푼다.
+     */
+    html {
+        scroll-padding-block-start: calc(var(--topbar-h) + var(--space-4));
+    }
+
+    /* 화면에는 안 보이고 스크린리더·검색엔진만 읽는 글. 제목 계층을 채우는 데 쓴다.
+       ⚠️ `display: none` 으로 숨기면 보조기기도 못 읽는다 — 1px 로 접어 둔다. */
+    .u-sr-only {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    /* ── 전역 clearfix 유령 해제 ─────────────────────────────────────
+     * blog.css:12 가 `header::after, nav::after, aside::after, div::after,
+     * section::after, li::after, select::after` 에 `content:""; display:table`
+     * 을 준다. 2010년대 float 레이아웃용 clearfix 인데, 문서의 **모든 div** 에
+     * 가짜 자식을 만든다 — 실측으로 /blog 1600px 에서 flex 컨테이너 24개가 이걸
+     * flex 아이템으로 받고 있었고, 이 규칙만 꺼서 다시 재니 카드 발췌 폭이
+     * 391→411px(+20px, gap 한 칸), 문서 높이가 −150px 이었다.
+     *
+     * 앞으로 만드는 grid/flex 컨테이너가 같은 함정에 빠지지 않도록 **여기 한 곳에서**
+     * 끄고, float 로 짜인 legacy 컨테이너만 되살린다. 단계마다 흩뿌리면 빠뜨린다.
+     *
+     * ⚠️ 되살릴 곳은 추측하지 않고 실측으로 열거했다 — 브라우저에서
+     *    "float 자식을 가진 요소"를 훑으면 /blog·/reader.php·/stocks·/stocks/backtest
+     *    를 통틀어 아래 셋뿐이다(`#content` 자신은 float 이지만 float 자식이 없다).
+     *
+     * ⚠️ **`body.blog-page` 로 스코프한다.** 스코프 없이 껐더니 `/stocks` 의 기하가
+     *    화면마다 492~720줄 바뀌었다(유령이 grid/flex 칸을 먹고 있어 본문 높이가
+     *    1321→1265px 로 줄었다). 개선이긴 하지만 주식·관리자는 이번 리디자인 대상이
+     *    아니고, "그 화면들은 0줄 차이" 가 단계별 되돌리기를 안전하게 해 주는 전제다.
+     *    주식 쪽 유령 정리는 따로 재서 별도로 낸다.
+     */
+    body.blog-page :where(#blog, #blog *)::after {
+        content: none;
+    }
+
+    /* ⚠️ `#blog > header` 는 되살리지 않는다 — 상단바(`.c-topbar`)는 flex 라 유령이 빈 칸 하나 +
+          gap 24px 를 먹어 **블로그 화면에서만** 오른쪽 버튼이 24px 안쪽으로 밀렸다(2026-09-23 실측:
+          로그인 버튼 오른끝 주식 1556 · 블로그 1532). 화면을 옮길 때마다 버튼이 오락가락했다. */
+    body.blog-page #blog > section::after,
+    body.blog-page #postings > div::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+}
+
+@layer comp {
+    /* ── 상단바 종목 검색 ─────────────────────────────────────────────
+     * 2026-09-23 주식이 메인이 되며 `/stocks` 오른쪽 열에서 상단바로 올라왔다
+     * (`/js/stock_search.js`). 토스증권 PC 처럼 테두리 없는 둥근 칸 하나.
+     *
+     * 넓은 화면(≥ 64rem): 입력칸이 늘 보이고 결과는 칸 아래로 떠 있다.
+     * 그보다 좁으면: 입력칸을 접고 돋보기 버튼(`.c-stocksearch__open`)만 둔다. 누르면 상단바가
+     *   `is-searching` 이 되어 워드마크·다른 버튼을 숨기고 입력칸 + 닫기(✕)가 그 자리를 쓴다.
+     */
+    .c-stocksearch {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        inline-size: clamp(12rem, 18vw, 18rem);
+    }
+
+    .c-stocksearch__ico {
+        position: absolute;
+        inset-inline-start: var(--space-3);
+        display: flex;
+        color: var(--bae-text-dim);
+        pointer-events: none;
+    }
+
+    .c-stocksearch input[type="search"] {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+        min-block-size: 2.5rem;
+        padding-inline: 2.5rem var(--space-3);
+        border: 1px solid transparent;
+        border-radius: var(--r-card);
+        background: var(--bae-surface);
+        color: var(--bae-text-primary);
+        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
+        font-size: 1rem;
+        transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+    }
+
+    .c-stocksearch input[type="search"]::placeholder { color: var(--bae-text-dim); }
+    .c-stocksearch input[type="search"]:hover { background: var(--bae-surface-alt); }
+
+    .c-stocksearch input[type="search"]:focus {
+        outline: none;
+        border-color: var(--bae-accent);
+        background: var(--bae-surface-alt);
+    }
+
+    .c-stocksearch__cancel,
+    .c-stocksearch__open { display: none; }
+
+    .c-stocksearch__results {
+        position: absolute;
+        inset-block-start: calc(100% + var(--space-2));
+        inset-inline-end: 0;
+        z-index: 60;
+        inline-size: max(100%, 24rem);
+        max-block-size: min(70vh, 36rem);
+        overflow-y: auto;
+        padding: var(--space-2);
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-card);
+        background: var(--bae-bg-alt);
+        box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
+    }
+
+    .c-stocksearch__results[hidden] { display: none; }
+
+    .c-stocksearch__msg {
+        padding: var(--space-4);
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        text-align: center;
+    }
+
+    .c-stocksearch__item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        border-radius: var(--r-ctl);
+        color: var(--bae-text-primary);
+        text-decoration: none;
+    }
+
+    .c-stocksearch__item:hover,
+    .c-stocksearch__item:focus-visible { background: var(--bae-surface); }
+
+    .c-stocksearch__info {
+        display: grid;
+        gap: 0.125rem;
+        flex: 1 1 auto;
+        min-inline-size: 0;
+    }
+
+    .c-stocksearch__name {
+        overflow: hidden;
+        font-size: var(--fs-0);
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .c-stocksearch__sub {
+        display: flex;
+        gap: var(--space-2);
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+    }
+
+    .c-stocksearch__quote {
+        display: grid;
+        justify-items: end;
+        gap: 0.125rem;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .c-stocksearch__px {
+        font-size: var(--fs-0);
+        font-weight: 700;
+    }
+
+    .c-stocksearch__ch { font-size: var(--fs--1); font-weight: 600; }
+
+    /* 등락 글자색 — 주식 화면 밖(블로그)에는 `stocks.css` 가 없어 여기서 준다.
+       값은 대비를 맞춘 글자 전용 토큰이다(common.css `--chart-*-text`). */
+    .c-stocksearch .q-up   { color: var(--chart-up-text); }
+    .c-stocksearch .q-down { color: var(--chart-down-text); }
+    .c-stocksearch .q-flat { color: var(--bae-text-dim); }
+
+    /* ⚠️ 경계가 64rem 인 이유: 태블릿 세로(768px)에서 입력칸을 펼쳐 두면 메뉴 넷이 한 줄에
+          안 들어간다(실측 2026-09-23). 상단바가 두 줄이 되는 경계(48rem)와 다르다. */
+    @media (max-width: 63.99rem) {
+        .c-stocksearch { display: none; }
+        .c-stocksearch__open { display: inline-flex; }
+
+        /* 펼치면 1줄(워드마크 자리까지)을 검색이 쓴다. 2줄 메뉴는 그대로 둔다. */
+        .c-topbar.is-searching > .c-brand,
+        .c-topbar.is-searching .c-topbar__end > :not(.c-stocksearch) { display: none; }
+        .c-topbar.is-searching .c-topbar__end {
+            flex: 1 1 auto;
+            margin-inline-start: 0;
+        }
+        .c-topbar.is-searching .c-stocksearch {
+            display: flex;
+            inline-size: 100%;
+        }
+        /* 닫기(✕) — 아이콘만이라 `aria-label` 을 준다. 입력칸의 기본 지우기(✕)와 겹쳐
+           ✕ 가 둘이 되므로 펼친 동안에는 기본 것을 숨긴다(닫으면 입력도 비운다). */
+        .c-topbar.is-searching .c-stocksearch__cancel {
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 auto;
+            inline-size: 2.5rem;
+            block-size: 2.5rem;
+            border: 0;
+            border-radius: var(--r-ctl);
+            background: none;
+            color: var(--bae-text-muted);
+            cursor: pointer;
+        }
+        .c-topbar.is-searching .c-stocksearch__cancel:hover { color: var(--bae-text-primary); }
+        .c-topbar.is-searching .c-stocksearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
+        /* 결과는 입력칸 폭 그대로 아래에 — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
+        .c-topbar.is-searching .c-stocksearch__results {
+            inset-inline: 0;
+            inline-size: auto;
+            max-block-size: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - var(--space-4));
+        }
+    }
+    /* ── 카테고리 칩 + 검색 서브바 ────────────────────────────────────
+     * 옛 우측 사이드바(220px 세로 기둥)를 가로 한 줄로 눕힌 것. 칩이 많아지면
+     * 가로로 밀리고(`scroll-snap`), 검색은 좁은 화면에서 아래 줄로 내려간다.
+     */
+    .c-subbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-3) var(--space-4);
+        max-inline-size: var(--shell-max);
+        margin: var(--space-5) auto var(--space-4);
+        padding-inline: var(--pad-left) var(--pad-right);
+    }
+
+    .c-cats {
+        display: flex;
+        gap: var(--space-2);
+        flex: 1 1 18rem;
+        min-inline-size: 0;
+        /* 칩이 넘치면 줄바꿈 대신 가로로 민다 — 서브바 높이가 들쭉날쭉해지면
+           그 아래 카드 그리드의 시작 위치가 화면마다 달라진다. */
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        padding-block-end: var(--space-1);
+    }
+
+    .c-cats::-webkit-scrollbar { display: none; }
+
+    /* 글쓰기(글 목록에서만) — 상단바에서 내려왔다. 검색창 오른쪽에 붙는다. */
+    .c-subbar__write {
+        flex: 0 0 auto;
+        gap: var(--space-2);
+        min-block-size: 2.375rem;
+    }
+
+    .c-subbar__title {
+        display: flex;
+        flex: 1 1 18rem;
+        align-items: baseline;
+        gap: var(--space-3);
+        min-inline-size: 0;
+        margin: 0;
+    }
+
+    .c-subbar__title strong {
+        color: var(--bae-text-primary);
+        font-size: var(--fs-2);
+        font-weight: 800;
+    }
+
+    .c-subbar__title span {
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+    }
+
+    .c-chip {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 2.25rem;      /* 36px — 터치 타깃 */
+        padding-inline: var(--space-4);
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-chip);
+        background: var(--bae-surface);
+        color: var(--bae-text-muted);
+        font-size: var(--fs--1);
+        font-weight: 600;
+        white-space: nowrap;
+        text-decoration: none;
+        scroll-snap-align: start;
+        transition: border-color 0.15s var(--ease), color 0.15s var(--ease),
+                    background-color 0.15s var(--ease);
+    }
+
+    .c-chip:hover {
+        border-color: var(--bae-border-hover);
+        color: var(--bae-text-primary);
+    }
+
+    .c-chip[aria-current] {
+        border-color: transparent;
+        background: var(--bae-accent);
+        /* ⚠️ accent 는 밝은 연보라 — 그 위 글씨는 검정이어야 읽힌다. */
+        color: var(--bae-accent-text);
+    }
+
+    .c-search {
+        display: flex;
+        align-items: center;
+        flex: 0 1 16rem;
+        min-inline-size: 0;
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-ctl);
+        background: var(--bae-surface);
+    }
+
+    .c-search:focus-within {
+        border-color: var(--bae-accent);
+    }
+
+    .c-search input[type="search"] {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+        min-block-size: 2.25rem;
+        padding-inline: var(--space-3);
+        border: 0;
+        background: none;
+        color: var(--bae-text-primary);
+        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
+        font-size: max(1rem, var(--fs-0));
+    }
+
+    .c-search input[type="search"]:focus {
+        outline: none;   /* 테두리는 `:focus-within` 이 그린다 */
+    }
+
+    .c-search button {
+        display: grid;
+        place-items: center;
+        inline-size: 2.25rem;
+        block-size: 2.25rem;
+        border: 0;
+        border-radius: var(--r-ctl);
+        background: none;
+        color: var(--bae-text-muted);
+        cursor: pointer;
+    }
+
+    .c-search button:hover { color: var(--bae-accent); }
+
+    /* ── 관심 종목 레일 ────────────────────────────────────────────────
+     * 2026-09-23 토스증권 PC 의 오른쪽 패널(`_watchlist.html` · `/js/watchlist.js`).
+     * 상단바 아래에서 화면 끝까지 붙는 고정 칸이다.
+     *   ≥ 90rem : 열리면 본문이 그만큼 비켜선다(`html.rail-open`) — 덮지 않는다.
+     *   < 90rem : 본문을 덮는 서랍 + 어두운 바깥(`.c-rail__backdrop`).
+     * ⚠️ 열림은 `<html>` 의 클래스 하나로만 정한다. `layout.html` 의 <head> 인라인 스크립트가
+     *    **첫 그림 전에** 붙인다 — 스크립트(defer)가 나중에 열면 본문이 온 폭으로 한 번 그려진
+     *    뒤 레일 폭만큼 옆으로 뛴다(2026-09-23 실측: 화면을 옮길 때마다 본문이 140~160px 움찔).
+     * ⚠️ 상단바 높이는 노치 안전영역만큼 더 크다 — 같은 값을 더해야 둘이 겹치지 않는다.
+     */
+    .c-rail {
+        position: fixed;
+        inset-block: calc(var(--topbar-h) + env(safe-area-inset-top)) 0;
+        inset-inline-end: 0;
+        z-index: 46;
+        display: none;
+        flex-direction: column;
+        inline-size: min(var(--rail-w), 100vw);
+        padding-block-end: env(safe-area-inset-bottom);
+        border-inline-start: 1px solid var(--bae-border);
+        background: var(--bae-bg-alt);
+    }
+
+    html.rail-open .c-rail { display: flex; }
+
+    .c-rail__backdrop {
+        position: fixed;
+        inset: calc(var(--topbar-h) + env(safe-area-inset-top)) 0 0;
+        z-index: 45;
+        display: none;
+        background: rgb(0 0 0 / 0.5);
+    }
+
+    @media (max-width: 89.99rem) {
+        .c-rail { box-shadow: -1rem 0 2.5rem rgb(0 0 0 / 0.45); }
+        html.rail-open .c-rail__backdrop { display: block; }
+    }
+
+    /* 넓은 화면에서 열려 있으면 본문·바닥글이 레일 폭만큼 비켜선다(상단바는 그대로 끝까지). */
+    @media (min-width: 90rem) {
+        html.rail-open #blog > :not(.c-topbar) { margin-inline-end: var(--rail-w); }
+    }
+
+    .c-rail__head {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-4) var(--space-3) var(--space-2) var(--space-4);
+    }
+
+    .c-rail__title {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin: 0 auto 0 0;
+        color: var(--bae-text-primary);
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .c-rail__title .c-ico {
+        inline-size: 1.125rem;
+        block-size: 1.125rem;
+        color: var(--bae-text-dim);
+    }
+
+    .c-rail__count {
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        font-weight: 700;
+    }
+
+    .c-rail__body {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-y: auto;
+        padding: 0 var(--space-2) var(--space-4);
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: var(--bae-border) transparent;
+    }
+
+    .c-rail__msg {
+        margin: 0;
+        padding: var(--space-6) var(--space-4);
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        text-align: center;
+    }
+
+    .c-rail__guest {
+        display: grid;
+        justify-items: center;
+        gap: var(--space-4);
+        padding: var(--space-6) var(--space-4);
+        color: var(--bae-text-muted);
+        font-size: var(--fs--1);
+        line-height: var(--lh-snug);
+        text-align: center;
+    }
+
+    .c-rail__guest p { margin: 0; }
+    .c-rail__guest .c-btn { gap: var(--space-2); }
+
+    .c-watch {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .c-watch__item { position: relative; }
+
+    /* 행: 이름 · 현재가 / 코드 · 등락률. 오른쪽 2.25rem 은 빼기(✕) 버튼 자리다. */
+    .c-watch__row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: 0.125rem var(--space-3);
+        padding: var(--space-3) 2.5rem var(--space-3) var(--space-3);
+        border-radius: var(--r-ctl);
+        color: var(--bae-text-primary);
+        font-variant-numeric: tabular-nums;
+        text-decoration: none;
+    }
+
+    .c-watch__row:hover,
+    .c-watch__row:focus-visible { background: var(--bae-surface); }
+
+    .c-watch__nm {
+        overflow: hidden;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .c-watch__px { font-size: 0.9375rem; font-weight: 700; text-align: end; }
+    .c-watch__cd { color: var(--bae-text-dim); font-size: 0.75rem; }
+    .c-watch__ch { font-size: 0.8125rem; font-weight: 700; text-align: end; }
+
+    /* 등락 글자색 — 레일은 블로그 화면에도 뜰 수 있어 `stocks.css` 에 기대지 않는다. */
+    .c-watch .q-up   { color: var(--chart-up-text); }
+    .c-watch .q-down { color: var(--chart-down-text); }
+    .c-watch .q-flat { color: var(--bae-text-dim); }
+
+    .c-watch__rm {
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-end: var(--space-1);
+        display: grid;
+        place-items: center;
+        inline-size: 2rem;
+        block-size: 2rem;
+        border: 0;
+        border-radius: var(--r-ctl);
+        background: none;
+        color: var(--bae-text-dim);
+        cursor: pointer;
+        transform: translateY(-50%);
+    }
+
+    .c-watch__rm:hover,
+    .c-watch__rm:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
+    .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
+
+    /* ☆ — 켜지면(레일이 열림 · 관심에 담김) 별을 채운다. 노랑은 "즐겨찾기" 관례이고 등락 색과 겹치지 않는다. */
+    /* ⚠️ 레일 버튼은 `aria-expanded`(스크립트가 나중에 맞춘다)가 아니라 `html.rail-open` 을 본다 —
+          그래야 별 색도 첫 그림부터 맞다. */
+    html.rail-open .c-rail-toggle,
+    .sd-watch[aria-pressed="true"] {
+        border-color: color-mix(in srgb, var(--bae-warn) 45%, transparent);
+        color: var(--bae-warn);
+    }
+
+    html.rail-open .c-rail-toggle .c-ico,
+    .sd-watch[aria-pressed="true"] .c-ico { fill: currentColor; }
+
+    /* ── 글 카드 그리드 ───────────────────────────────────────────────
+     * 옛 방식은 JS 가 `offsetHeight` 를 재서 `#left`/`#right` 에 번갈아 붙이고
+     * 창 크기마다 다시 배치하는 80줄이었다. 여기서는 한 줄이 같은 일을 한다.
+     *
+     * `auto-fill` + `minmax(min(100%, --card-min), 1fr)` 이라 **미디어쿼리가 0개**다 —
+     * 트랙이 몇 개 들어갈지는 브라우저가 실제 폭을 보고 정한다. `min(100%, …)` 이
+     * 좁은 화면에서 트랙이 컨테이너보다 커지는 것을 막는다(그게 없으면 320px 폰에서
+     * 카드가 352px 로 삐져나온다).
+     *
+     * `--card-min: 21rem`(336px) 으로 잡은 이유는 **태블릿 세로에서 2열**을 만들기
+     * 위해서다 — 768px 에서 본문이 710px 이라 336×2+24 = 696 이 들어간다. 22rem 이면
+     * 728 이 되어 1열로 떨어지고, 그러면 태블릿 세로에서 카드 하나가 710px 짜리가 된다.
+     * 실측 결과: 320~767 1열 · 768~1103 2열 · 1104 이상 3열(1248px 에서 카드 400px).
+     */
+    /* ── 인사이트 목록 — 뉴스처럼 한 줄씩 ─────────────────────────────
+     * 2026-09-23 블로그를 금융(인사이트)·일반(블로그)으로 나눴다. 금융 글은 매일 올라오는
+     * 긴 분석 글이라 카드 대신 **제목·요약·날짜를 훑는** 목록으로 둔다(토스증권 뉴스 배치).
+     * 썸네일은 오른쪽에 작게 — 글을 고르는 건 제목이다.
+     * ⚠️ `#left` 에는 legacy 의 `width:50%; float:left` 가 걸려 있다 — 그리드와 같이 푼다.
+     * ⚠️ 말줄임은 **안쪽 span** 에 건다(그리드 아이템에 걸면 줄을 안 자른다 — 카드에서 겪었다).
+     */
+    body.blog-page .post-feed {
+        float: none;
+        inline-size: auto;
+        max-inline-size: 52rem;
+        margin-inline: auto;
+    }
+
+    .feed-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: var(--space-4);
+        padding: var(--space-5) var(--space-3);
+        border-block-end: 1px solid color-mix(in srgb, var(--bae-border) 70%, transparent);
+        border-radius: var(--r-ctl);
+        color: var(--bae-text-primary);
+        text-decoration: none;
+        transition: background-color 0.15s var(--ease);
+    }
+
+    .feed-item:hover,
+    .feed-item:focus-visible { background: color-mix(in srgb, var(--bae-surface) 55%, transparent); }
+
+    .feed-item.posting-disabled { opacity: 0.55; }
+
+    .feed-item__body { min-inline-size: 0; }
+
+    .feed-item__title {
+        margin: 0 0 var(--space-2);
+        font-size: var(--fs-1);
+        font-weight: 700;
+        line-height: var(--lh-snug);
+    }
+
+    .feed-item__summary {
+        margin: 0 0 var(--space-2);
+        color: var(--bae-text-muted);
+        font-size: 0.9375rem;
+        line-height: 1.6;
+    }
+
+    .feed-item__title > span,
+    .feed-item__summary > span {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+    }
+
+    .feed-item__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 var(--space-3);
+        margin: 0;
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .feed-item__thumb {
+        inline-size: clamp(5.5rem, 4rem + 8vw, 9rem);
+        aspect-ratio: 4 / 3;
+        border-radius: var(--r-ctl);
+        background: var(--bae-surface);
+        object-fit: cover;
+    }
+
+    /* 첫 쪽이 올 때까지 **목록 칸**을 화면 높이만큼 잡는다 — 바닥글·"더 보기" 칸이 화면 위쪽에
+       떴다가 글이 오면 밀려 내려가지 않게(감싸는 `#postings` 에 잡으면 "더 보기" 칸이 여전히 위에 뜬다). */
+    body.blog-page #postings.is-loading > #left {
+        min-block-size: calc(100dvh - var(--topbar-h));
+    }
+
+    body.blog-page .post-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min)), 1fr));
+        gap: var(--space-6) var(--space-5);
+        /* `align-items` 는 기본값(stretch) 그대로 둔다 — 한 줄 안의 카드가 같은 높이가
+           되고 요약 칸(1fr)이 남는 공간을 먹어 메타가 바닥에 나란히 선다. */
+        /* legacy 의 `#left { width:50%; float:left }` 를 되돌린다. */
+        float: none;
+        inline-size: auto;
+        /* 끝 칸과의 간격. (숫자 페이저를 쓰던 시절에는 `.pagination { margin-top: 20px }`
+           이 **레이어 밖**(common.css)이라 여기서 덮을 수 없어 이쪽에서 줬다. 지금은
+           `.post-more` 가 레이어 안이라 양쪽 다 쓸 수 있지만 자리를 옮기지 않는다.) */
+        margin-block-end: 0;
+    }
+
+    /* ── 목록 끝 칸(무한 스크롤) ──────────────────────────────────────
+     * 숫자 페이저 자리를 대신한다. 버튼이 있든 문구가 있든 **높이를 미리 잡아** 두어야
+     * 마지막 카드 밑에서 화면이 덜컥거리지 않는다. */
+    body.blog-page .post-more {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-block-size: 4rem;
+        margin-block: var(--space-6) var(--space-8);
+    }
+
+    body.blog-page .post-more__msg {
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+    }
+
+    body.blog-page .post-more__btn {
+        min-block-size: 2.75rem;          /* 44px — 터치 타깃 하한 */
+        padding-inline: var(--space-6);
+        background: var(--bae-surface);
+        cursor: pointer;
+    }
+
+    body.blog-page #blogStatus:not(:empty) {
+        padding-block: var(--space-6);
+        color: var(--bae-text-dim);
+        text-align: center;
+    }
+
+    /* 첫 쪽을 기다리는 동안의 "불러오는 중…" 은 **자리를 차지하지 않고** 잡아 둔 목록 칸 위에
+       뜬다 — 흐름에 넣으면 목록이 한 번 내려갔다가 글이 오며 올라왔다(2026-09-23 "움찔").
+       다 불러온 뒤의 안내("게시글이 없습니다" 등)는 목록이 비어 있으니 흐름에 두어도 된다. */
+    body.blog-page #postings.is-loading { position: relative; }
+
+    body.blog-page #postings.is-loading > #blogStatus {
+        position: absolute;
+        inset-inline: 0;
+        inset-block-start: 0;
+    }
+
+    /* ── 글 카드 ──────────────────────────────────────────────────────
+     * 핵심 수법: `.posting_content_wrapper { display: contents }` 로 그 자식들을
+     * `.posting` 그리드의 **직접 아이템**으로 올리고 `order` 로 다시 세운다.
+     * 그래서 `blog_list.js` 가 그리는 중첩
+     *   `.posting > .posting_content_wrapper > .posting_thumbnail_container > img`
+     * 을 **한 글자도 안 바꾸고** 썸네일을 카드 맨 위 전폭으로 올릴 수 있다
+     * (그 중첩은 blog.css 가 의존하고, 래퍼를 뺐다가 카드가 통째로 깨진 전례가 있다).
+     */
+    body.blog-page .posting {
+        /* ⚠️ grid + `grid-template-rows: auto auto 1fr auto` 였는데, **썸네일이 없는 글**은
+         *    아이템이 3개뿐이라 메타가 `1fr` 행으로 밀려 276px 로 늘어났다(카드 안에 선
+         *    하나 긋고 큰 빈칸이 생겼다 — 실측). 행 개수를 고정하는 방식은 아이템 수가
+         *    달라지는 순간 깨진다. 세로 플렉스로 두면 개수와 무관하게
+         *    "요약이 남는 공간을 먹고 메타는 바닥" 이 성립한다. */
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        overflow: clip;                       /* 썸네일 모서리를 카드에 맞춰 자른다 */
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-card);
+        background: var(--bae-surface);
+        /* 카드 전체가 `<a>` 다 — 링크 기본 스타일을 지운다. */
+        color: inherit;
+        text-decoration: none;
+        transition: border-color 0.18s var(--ease), transform 0.18s var(--ease);
+    }
+
+    /* ⚠️ 전역 clearfix 유령을 반드시 끈다 — 안 끄면 `::after` 가 그리드 칸을 하나 먹는다. */
+    body.blog-page :where(.posting, .posting *)::after {
+        content: none;
+    }
+
+    body.blog-page .posting:hover {
+        border-color: var(--bae-border-hover);
+        transform: translateY(-2px);
+    }
+
+    body.blog-page .posting_content_wrapper {
+        display: contents;
+    }
+
+    /* 제목·요약 사이를 가르던 구분선. 썸네일이 위로 올라오면 할 일이 없다. */
+    body.blog-page .posting > hr {
+        display: none;
+    }
+
+    body.blog-page .posting_thumbnail_container {
+        order: 1;
+        flex: 0 0 auto;
+        margin: 0;
+        padding: 0;
+        inline-size: 100%;
+        max-inline-size: none;
+        background: var(--bae-surface-alt);
+    }
+
+    body.blog-page .posting_thumbnail {
+        display: block;
+        inline-size: 100%;
+        /* 썸네일 원본 비율이 제각각이다(926×691 · 1071×597 · 800×800 · 1083×591).
+           16:10 은 정사각 원본에서 잘려 나가는 양과 가로 원본의 여백 사이 타협점이고,
+           비율을 CSS 가 정하므로 이미지가 늦게 떠도 **칸이 미리 잡혀 CLS 가 없다**. */
+        aspect-ratio: 16 / 10;
+        block-size: auto;
+        max-block-size: none;
+        object-fit: cover;
+        object-position: center;
+        border-radius: 0;
+    }
+
+    body.blog-page .posting_title {
+        order: 2;
+        margin: 0;                       /* h2 로 올렸으므로 UA 마진을 지운다 */
+        padding: var(--space-4) var(--space-4) var(--space-2);
+        color: var(--bae-text-primary);
+        font-size: var(--fs-1);
+        font-weight: 700;
+        line-height: var(--lh-snug);
+        white-space: normal;
+        /* 두 줄 자리를 미리 잡아 카드 높이를 고르게 만든다 — 높이가 같아지면
+           "높이를 재서 배치" 할 이유 자체가 사라진다. */
+        min-block-size: calc(2em * var(--lh-snug));
+    }
+
+    /* 한 줄 말줄임(`nowrap` + `ellipsis`)이었다 — 긴 제목이 거의 다 잘렸다.
+       두 줄까지 보여 주고, 줄바꿈은 한글 어절을 지킨다(`keep-all`).
+       ⚠️ 클램프는 **안쪽 요소**에 건다 — `.posting_title` 은 그리드 아이템이라
+          `display: -webkit-box` 가 `flow-root` 로 블록화되고, 그러면 말줄임표만
+          그려지고 넘치는 줄이 안 잘린다(실측으로 3번째 줄이 요약과 겹쳤다). */
+    body.blog-page .posting_title_text {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
+
+    body.blog-page .posting_summary {
+        order: 3;
+        /* 남는 세로 공간은 요약이 먹는다 — 그래야 메타가 카드 바닥에 선다.
+           `min-block-size: 0` 은 플렉스 아이템이 내용보다 작아질 수 있게 하는 못이다. */
+        flex: 1 1 auto;
+        min-block-size: 0;
+        margin: 0;
+        padding: 0 var(--space-4) var(--space-4);
+        inline-size: auto;
+        max-inline-size: none;
+        color: var(--bae-text-muted);
+        font-size: var(--fs-0);
+        line-height: var(--lh-prose);
+    }
+
+    /* 제목과 같은 이유로 클램프는 안쪽 요소에 건다. */
+    body.blog-page .posting_summary_text {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
+
+    /* 썸네일이 없는 글은 그 자리만큼 빈칸이 생긴다 — 요약을 더 보여 줘 채운다.
+       (`no-thumbnail` 은 `blog_list.js` 가 썸네일 없을 때 붙이는 기존 클래스다.)
+       요약은 서버가 200자로 자르므로 8줄이면 대개 전부 들어간다. */
+    body.blog-page .no-thumbnail .posting_summary_text {
+        -webkit-line-clamp: 8;
+        line-clamp: 8;
+    }
+
+    /* ⚠️ `.post-meta` 와 `.post-updated` 는 **글 상세와 공유하는 클래스**다.
+     *    카드 스코프(`.posting .post-meta`)를 반드시 붙인다 — 안 붙이면 글 상세의
+     *    "(수정: …)" 표기가 함께 사라진다.
+     */
+    body.blog-page .posting .post-meta {
+        order: 4;
+        flex: 0 0 auto;              /* 바닥에 그대로 — 늘어나지 않는다 */
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2);
+        margin: 0;
+        padding: var(--space-3) var(--space-4);
+        border-block-start: 1px solid var(--bae-border);
+        font-size: var(--fs--1);
+    }
+
+    /* 카드에서는 수정 시각을 접는다 — 좁은 칸에 정보가 다섯 줄이면 아무것도 안 읽힌다.
+       글 상세에는 그대로 남는다. */
+    body.blog-page .posting .post-updated {
+        display: none;
+    }
+
+    body.blog-page .posting .post-read-count {
+        margin-inline-start: auto;   /* 조회수만 오른쪽 끝으로 */
+    }
+
+    /* ── 버튼 안의 아이콘 ─────────────────────────────────────────────
+     * 프로젝트 디자인 규칙: **버튼에는 글자만 넣지 않고 SVG 아이콘을 함께 단다**
+     * (2026-09-22 사용자 지시). 템플릿은 `_icons.html` 의 `icons.i('...')`,
+     * JS 는 `toast.js` 안의 `icon()` 이 같은 그림을 낸다.
+     * ⚠️ `flex-shrink: 0` 이 없으면 좁은 화면에서 아이콘이 먼저 찌그러진다.
+     */
+    .c-ico {
+        inline-size: 1em;
+        block-size: 1em;
+        flex: 0 0 auto;
+    }
+
+    /* 한글 글자는 라틴보다 속이 꽉 차서 1em 아이콘이 옆에 서면 작아 보인다 — 한 단 키운다. */
+    :where(.c-btn, .btn, .c-toast) .c-ico {
+        font-size: 1.2em;
+    }
+
+    /* 아이콘을 넣으면 글자와 세로 가운데가 맞아야 한다 — 기존 `.btn`(legacy)까지 함께. */
+    :where(.c-btn, .btn, .c-toast__action) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45em;
+    }
+
+    /* ── 토스트 ───────────────────────────────────────────────────────
+     * 프로젝트 디자인 규칙: **안내 메시지는 화면 아래 가운데 토스트**로 띄운다
+     * (2026-09-22 사용자 지시). 전에는 화면마다 제각각이었다 — 목록은 본문 위에
+     * `.alert` 를 끼워 넣어 레이아웃을 밀어내고, 에디터는 오른쪽 위 `.notification`,
+     * 관리자는 서버가 그린 `.alert` 가 표 위에 남았다.
+     * ⚠️ 로딩·빈 상태는 토스트가 아니다(그 자리를 설명하는 문구라 제자리에 둔다).
+     */
+    .c-toast-host {
+        position: fixed;
+        z-index: 200;                   /* 상단바(50)보다 위 */
+        inset-block-end: max(var(--space-6), env(safe-area-inset-bottom));
+        inset-inline: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        padding-inline: var(--space-4);
+        /* 호스트는 클릭을 가로채지 않는다 — 토스트 자체만 받는다. */
+        pointer-events: none;
+    }
+
+    .c-toast {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        max-inline-size: min(100%, 34rem);
+        padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+        border: 1px solid var(--bae-border-hover);
+        border-radius: var(--r-ctl);
+        background: var(--bae-surface);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        color: var(--bae-text-primary);
+        font-size: var(--fs-0);
+        line-height: var(--lh-snug);
+        /* 들어올 때 아래에서 살짝 올라온다. `is-in` 은 붙인 다음 프레임에 준다. */
+        opacity: 0;
+        transform: translateY(0.75rem);
+        transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    }
+
+    .c-toast.is-in { opacity: 1; transform: none; }
+    .c-toast.is-leaving { opacity: 0; transform: translateY(0.5rem); }
+
+    .c-toast .c-ico { font-size: 1.15em; }
+
+    .c-toast--info .c-ico    { color: var(--bae-info); }
+    .c-toast--success .c-ico { color: var(--bae-success); }
+    .c-toast--error .c-ico   { color: var(--bae-danger); }
+
+    .c-toast--error { border-color: rgba(var(--bae-danger-rgb), 0.45); }
+
+    .c-toast__msg {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+    }
+
+    .c-toast__action {
+        flex: 0 0 auto;
+        min-block-size: 2rem;
+        padding-inline: var(--space-3);
+        border: 1px solid var(--bae-border-hover);
+        border-radius: var(--r-ctl);
+        background: none;
+        color: var(--bae-accent);
+        font-size: var(--fs--1);
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .c-toast__action:hover { background: var(--bae-surface-hover); }
+
+    .c-toast__close {
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        inline-size: 2rem;
+        block-size: 2rem;
+        border: 0;
+        border-radius: var(--r-ctl);
+        background: none;
+        color: var(--bae-text-dim);
+        font-size: var(--fs-0);
+        cursor: pointer;
+    }
+
+    .c-toast__close:hover { color: var(--bae-text-primary); }
+
+    /* 움직임을 줄이도록 설정했으면 제자리에서 흐려지기만 한다. */
+    @media (prefers-reduced-motion: reduce) {
+        .c-toast { transform: none; }
+        .c-toast.is-leaving { transform: none; }
+    }
+
+    /* ── 바닥글 ───────────────────────────────────────────────────────
+     * 전에는 `Contact: …` / `Github: …` 두 줄이 `margin: 40px` 로 왼쪽에 덩그러니
+     * 놓여 있었다 — 본문이 끝났다는 신호도, 정돈된 마무리도 없었다.
+     *
+     * ⚠️ 이 바닥글은 블로그·주식·관리자가 **함께 쓴다**(공용 셸). 그래서 가로
+     *    정렬 기준이 화면마다 다르다 — 블로그 본문은 `--shell-max`(1248px) 로
+     *    가운데 정렬인데 주식 본문은 폭을 다 쓴다. 구분선은 컨테이너 폭을 다 쓰고
+     *    **안쪽만** 화면 종류에 맞춘다(아래 `body.blog-page` 규칙).
+     */
+    .c-footer {
+        /* ⚠️ legacy 는 `footer { margin: 40px }` 이라 좌우로도 40px 밀려 있었다 —
+           그 상태로 구분선을 그으면 본문보다 좁게 떠서 어긋나 보인다. 좌우는 0 으로. */
+        margin: var(--space-8) 0 0;
+        /* 홈 인디케이터가 있는 기기에서 마지막 줄이 가려지지 않게. */
+        padding-block-end: calc(var(--space-7) + env(safe-area-inset-bottom));
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+    }
+
+    /* 전역 clearfix 유령이 아래 flex 칸을 먹지 않게. */
+    :where(.c-footer, .c-footer *)::after {
+        content: none;
+    }
+
+    /* 주식·관리자는 컨테이너(`#blog`) 안쪽 여백과 **같은 값**을 쓴다 — 그래야 구분선이
+       본문 가장자리(주식은 히트맵 왼쪽 20px · 사이드바 오른쪽)와 정확히 맞는다. */
+    .c-footer__inner {
+        padding-inline: var(--blog-pad, 10px);
+    }
+
+    /* 블로그에서는 본문 컬럼(카드 그리드)과 같은 폭·같은 가장자리에 맞춘다. */
+    body.blog-page .c-footer__inner {
+        max-inline-size: var(--shell-max);
+        margin-inline: auto;
+        padding-inline: var(--pad-left) var(--pad-right);
+    }
+
+    /* ⚠️ 구분선은 `<footer>` 가 아니라 **여기**에 긋는다. `<footer>` 에 그으면 컨테이너
+       폭을 다 써서 본문보다 양쪽 150px 씩 넓게 나온다(실측: 선 50..1550 vs 본문 200..1400). */
+    /* ⚠️ 처음엔 `justify-content: space-between` 으로 워드마크를 왼쪽 끝, 연락처를
+     *    오른쪽 끝에 붙였다. 1920px 에서 그 사이가 **800px 비고** ⓒ 만 아래 줄에 남아
+     *    L 자로 보였다(주식 화면은 본문이 더 넓어 1163px). 가운데로 모으면 남는 폭이
+     *    "빈 곳" 이 아니라 좌우 대칭 여백으로 읽히고, 글 상세의 가운데 읽기 컬럼
+     *    아래에서도 어긋나 보이지 않는다.
+     */
+    .c-footer__main {
+        padding-block-start: var(--space-6);
+        border-block-start: 1px solid var(--bae-border);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    /* 상단바 워드마크의 작은 판. 색은 한 단 죽여 본문을 이긴다는 인상을 주지 않는다. */
+    .c-footer__brand {
+        display: inline-flex;
+        gap: 0.4em;
+        font-size: var(--fs--1);
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        white-space: nowrap;
+        text-decoration: none;
+        opacity: 0.75;
+        transition: opacity 0.15s var(--ease);
+    }
+
+    .c-footer__brand:hover { opacity: 1; }
+
+    .c-footer__contact {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2) var(--space-5);
+    }
+
+    .c-footer__contact a {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        /* 손가락으로 누를 수 있는 높이 — 바닥글 링크는 잘 빗나간다. */
+        min-block-size: 2.25rem;
+        color: var(--bae-text-muted);
+        text-decoration: none;
+        transition: color 0.15s var(--ease);
+    }
+
+    .c-footer__contact a:hover { color: var(--bae-accent); }
+
+    .c-footer__contact svg {
+        inline-size: 1rem;
+        block-size: 1rem;
+        flex: 0 0 auto;
+    }
+
+    /* 이메일 주소는 좁은 화면에서 넘칠 수 있다 — 줄바꿈 대신 줄여서 흘린다. */
+    .c-footer__contact span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .c-footer__base {
+        margin: var(--space-4) 0 0;
+        color: var(--bae-text-dim);
+        font-size: var(--fs--1);
+        text-align: center;
+    }
+}
+
+@layer page {
+    /* ===========================================================
+       글 상세 — 읽기 컬럼
+
+       ⚠️ 모든 규칙을 **`#post-detail` 하위로** 한정한다. 이 id 는 `blog_show.html`
+          한 곳에만 있고 에디터는 `#post-writer` 라, `.post-wrapper`·`.post-content`
+          를 폼 껍데기로 재사용하는 **글쓰기 화면이 한 픽셀도 안 바뀐다.**
+
+       고치는 것(실측):
+       · 본문 줄폭 1230px @16.91px → 한 줄에 한글 ~72자였다(권장 35~45자).
+       · 430px 에서는 반대로 본문이 13.53px 까지 줄었다.
+       · `.post-content` 하위 스타일이 `img` 하나뿐이라 h2 25.36px·h3 19.78px 가
+         전부 **UA 기본값**이었다 — 제목 계층이 본문에서 안 읽혔다.
+       =========================================================== */
+
+    /* ⚠️ 전역 clearfix 유령을 끈다 — 본문 안 flex/grid 가 칸을 잃지 않게. */
+    body.blog-page :where(#post-detail, #post-detail *)::after {
+        content: none;
+    }
+
+    #post-detail.post-wrapper {
+        margin-inline: 0;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    /* 제목·메타·본문·액션이 모두 같은 읽기 폭에 정렬된다. */
+    #post-detail .post-header,
+    #post-detail .post-content,
+    #post-detail .post-actions {
+        max-inline-size: var(--measure);
+        margin-inline: auto;
+    }
+
+    #post-detail .post-header {
+        margin-block: var(--space-7) var(--space-6);
+        padding: 0 0 var(--space-5);
+        border-block-end: 1px solid var(--bae-border);
+    }
+
+    #post-detail .post-title {
+        margin: 0 0 var(--space-4);
+        padding: 0;
+        /* ⚠️ blog.css:505 가 `.posting_title, .post-title` 을 묶어 한 줄 말줄임으로
+           만든다 — 목록 카드용 규칙인데 **글 상세 제목까지 잘라 먹고 있었다**(기존
+           결함: 스크린샷의 제목이 "…글로벌…" 에서 끊겨 있었다). 상세에서는 푼다. */
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        font-size: var(--fs-3);
+        font-weight: 800;
+        line-height: var(--lh-tight);
+        /* 한글 제목이 어절 중간에서 끊기지 않게. */
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
+
+    #post-detail .post-meta {
+        justify-content: flex-start;    /* legacy 는 오른쪽 정렬이었다 */
+        gap: var(--space-2) var(--space-3);
+        margin: 0;
+        font-size: var(--fs--1);
+    }
+
+    /* ── 본문 ─────────────────────────────────────────────────────────
+     * ⚠️ 3트랙 bleed 그리드를 쓰지 않는다. `display: grid` + `> * { grid-column: text }`
+     *    는 **요소만** 매칭하므로 최상위 맨텍스트가 익명 그리드 아이템이 되어 좌측
+     *    여백 칸으로 떨어지고, 최상위 `<br>` 이 한 행씩 차지해 문단 간격이 통째로
+     *    달라진다 — 실제 글 본문에 둘 다 들어 있다. 대신 컨테이너에 폭을 주고
+     *    넓게 쓸 것만 밖으로 빼낸다(익명 텍스트는 부모 폭을 그대로 따른다).
+     */
+    #post-detail .post-content {
+        padding: 0;
+        margin-block-end: var(--space-8);
+        overflow-x: visible;
+        color: var(--bae-text-muted);
+        font-size: var(--fs-1);
+        line-height: var(--lh-prose);
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
+
+    /* 읽기 폭보다 넓게 쓰는 것들 — 코드·그림은 갇히면 오히려 못 읽는다. */
+    #post-detail .post-content :is(pre, figure, table) {
+        max-inline-size: none;
+        inline-size: 100%;
+    }
+
+    #post-detail .post-content > :first-child { margin-block-start: 0; }
+    #post-detail .post-content > :last-child  { margin-block-end: 0; }
+
+    #post-detail .post-content :is(h1, h2, h3, h4) {
+        margin-block: var(--space-7) var(--space-3);
+        color: var(--bae-text-primary);
+        font-weight: 700;
+        line-height: var(--lh-snug);
+        word-break: keep-all;
+        /* 앵커로 뛰었을 때 제목이 상단바에 가리지 않게. */
+        scroll-margin-block-start: calc(var(--topbar-h) + var(--space-4));
+    }
+
+    #post-detail .post-content h1,
+    #post-detail .post-content h2 {
+        padding-block-end: var(--space-2);
+        border-block-end: 1px solid var(--bae-border);
+        font-size: var(--fs-2);
+    }
+
+    #post-detail .post-content h3 { font-size: var(--fs-1); }
+    #post-detail .post-content h4 { font-size: var(--fs-0); }
+
+    #post-detail .post-content p {
+        margin-block: 0 var(--space-5);
+    }
+
+    #post-detail .post-content :is(ul, ol) {
+        margin-block: 0 var(--space-5);
+        padding-inline-start: var(--space-6);
+    }
+
+    #post-detail .post-content li + li { margin-block-start: var(--space-2); }
+
+    #post-detail .post-content blockquote {
+        margin: var(--space-5) 0;
+        padding: var(--space-3) var(--space-5);
+        border-inline-start: 3px solid var(--bae-accent);
+        border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+        background: rgba(var(--bae-accent-rgb), 0.06);
+        color: var(--bae-text-muted);
+    }
+
+    #post-detail .post-content pre {
+        margin-block: var(--space-5);
+        padding: var(--space-4);
+        border: 1px solid var(--bae-border);
+        border-radius: var(--r-ctl);
+        background: var(--bae-bg-alt);
+        /* ⚠️ 긴 코드 줄은 **가로로 스크롤**한다 — 줄바꿈하면 코드가 안 읽힌다. */
+        overflow-x: auto;
+        font-size: var(--fs-0);
+        line-height: 1.6;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #post-detail .post-content :not(pre) > code {
+        padding: 0.15em 0.4em;
+        border-radius: var(--r-ctl);
+        background: var(--bae-surface-alt);
+        color: var(--bae-text-primary);
+        font-size: 0.92em;
+    }
+
+    #post-detail .post-content a {
+        color: var(--bae-accent);
+        text-underline-offset: 0.2em;
+    }
+
+    /* ⚠️ legacy 는 `max-width: 45%` + `max-height: 60vh` 로 이미지를 반쪽으로 줄였다.
+     *    읽기 컬럼이 672px 로 좁아졌으니 그 제한을 푼다 — 스크린샷에서 쪼그라들어
+     *    보이던 인포그래픽이 제 크기로 뜬다. 비율은 이미지가 정한다. */
+    #post-detail .post-content img {
+        inline-size: auto;
+        max-inline-size: 100%;
+        block-size: auto;
+        max-block-size: none;
+        margin-block: var(--space-5);
+        border-radius: var(--r-ctl);
+    }
+
+    #post-detail .post-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: var(--space-2);
+        margin-block: var(--space-7) var(--space-8);
+        padding-block-start: var(--space-5);
+        border-block-start: 1px solid var(--bae-border);
+    }
+
+    #post-detail .post-actions form { display: contents; }
+}

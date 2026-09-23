@@ -181,6 +181,22 @@ function updateCurrentPriceFromCandles(data) {
 
     const infoPriceEl = document.getElementById('currentPriceInfoValue');
     if (infoPriceEl) infoPriceEl.textContent = formatPriceValueOnly(latestClose);
+
+    // 종목 상세의 "전일 대비" 줄도 같이 고친다 — 가격만 바뀌면 둘이 어긋난다(2026-09-23).
+    const changeEl = document.getElementById('currentPriceChange');
+    const prev = changeEl ? parseFloat(changeEl.dataset.prev) : NaN;
+    const valueEl = changeEl && changeEl.querySelector('[data-change]');
+    if (!valueEl || !(prev > 0)) return;
+    const diff = latestClose - prev;
+    const pct = diff / prev * 100;
+    const cls = diff > 0 ? 'q-up' : (diff < 0 ? 'q-down' : 'q-flat');
+    valueEl.textContent = (diff > 0 ? '+' : (diff < 0 ? '-' : '')) + formatPrice(Math.abs(diff)) +
+                          ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+    [valueEl, mainPriceEl && mainPriceEl.closest('.sd-price')].forEach(function (el) {
+        if (!el) return;
+        el.classList.remove('q-up', 'q-down', 'q-flat');
+        el.classList.add(cls);
+    });
 }
 
 /* ========================================
@@ -540,9 +556,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chartCanvas.addEventListener('mouseleave', endAxisDrag);
     }
 
-    syncExecutionHeaderSpacing();
-    window.addEventListener('resize', syncExecutionHeaderSpacing);
-
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Shift') setShiftZoomArmedState(true);
         if (e.key === 'Escape') closeExecutionOverlay();
@@ -561,8 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setShiftZoomArmedState(false);
         }
     });
-    
-    setupPeriodWheelControl();
+
 });
 
 function waitForChartReady() {
@@ -604,12 +616,11 @@ function loadInitialExecutions() {
         })
         .then(rows => {
             updateExecutionList(rows);
-            syncExecutionHeaderSpacing();
         })
         .catch(error => {
             console.error('체결 정보 로드 실패:', error);
             const el = document.getElementById('executionList');
-            if (el) el.innerHTML = '<div class="execution-no-data">체결 데이터를 불러올 수 없습니다.</div>';
+            if (el) el.innerHTML = '<div class="sd-exec__empty">체결 데이터를 불러올 수 없습니다.</div>';
         });
 }
 
@@ -1528,10 +1539,10 @@ function loadChartData(period) {
     isLoadingMoreData = false;
     allDataLoaded = false;
     
-    var periodSelect = document.getElementById('periodSelect');
-    if (periodSelect && periodSelect.value !== period) {
-        periodSelect.value = period;
-    }
+    // 봉 단위는 버튼 묶음이다(2026-09-23, 전에는 select + 휠 조작이었다).
+    document.querySelectorAll('[data-period]').forEach(function (btn) {
+        btn.setAttribute('aria-pressed', btn.dataset.period === period ? 'true' : 'false');
+    });
     
     var endDate = new Date();
     var startDate = new Date();
@@ -1580,12 +1591,16 @@ function loadChartData(period) {
     currentVisibleCandleCount = candleCount;
     
     var startDateStr = formatDateForAPI(startDate);
-    var endDateStr = formatDateForAPI(endDate);
 
     showChartLoading(true);
     
+    // ⚠️ `end` 를 보내지 않는다 — 서버가 KST 의 지금으로 잡는다. 브라우저 시각을 보내면 서버는
+    //    그걸 KST 로 읽으므로, 한국 밖(UTC 등)의 브라우저에서는 끝이 9시간 앞당겨져 **오늘 봉이
+    //    빠졌다**. 그러면 `updateCurrentPriceFromCandles` 가 헤더 현재가를 전일 종가로 덮어
+    //    등락률(오늘 기준)과 가격이 어긋났다(2026-09-23 삼성전자 275,000 ↔ 285,500).
+    //    시작은 몇 시간 어긋나도 봉 몇 개 차이라 그대로 둔다.
     fetch(getDataApiPrefix() + '/' + encodeURIComponent(stockCode) + '/candles?start=' + startDateStr +
-          '&end=' + endDateStr + '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam())
+          '&timeframe=' + timeframe + '&limit=' + historyCount + getMarketParam())
         // ⚠️ 이제 실패는 HTTP 상태코드로 온다. 옛 API 는 200 에 `success:false` 를 실었다.
         .then(function(response) {
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1759,9 +1774,15 @@ function prependChartData(prependedCount) {
 function setChartType(chartType, triggerEl) {
     currentChartType = chartType;
     
-    document.querySelectorAll('.chart-type-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.querySelectorAll('.chart-type-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+    });
     var targetEl = triggerEl || (typeof event !== 'undefined' ? event.target : null);
-    if (targetEl && targetEl.classList) targetEl.classList.add('active');
+    if (targetEl && targetEl.classList) {
+        targetEl.classList.add('active');
+        targetEl.setAttribute('aria-pressed', 'true');
+    }
     
     initChart();
 }
@@ -1827,37 +1848,24 @@ function refreshExecutions() {
         })
         .then(function(rows) {
             updateExecutionList(rows);
-            syncExecutionHeaderSpacing();
         })
         .catch(function(error) { console.error('체결 정보 로드 실패:', error); });
 }
 
-function syncExecutionHeaderSpacing() {
-    var executionBodyEl = document.getElementById('executionList');
-    if (executionBodyEl) {
-        var headerEl = executionBodyEl.parentElement ? executionBodyEl.parentElement.querySelector('.execution-header') : null;
-        if (headerEl) {
-            var scrollbarWidth = executionBodyEl.offsetWidth - executionBodyEl.clientWidth;
-            headerEl.style.paddingRight = (15 + Math.max(0, scrollbarWidth)) + 'px';
-        }
-    }
-    var overlayBodyEl = document.getElementById('executionOverlayList');
-    if (overlayBodyEl) {
-        var overlayHeaderEl = overlayBodyEl.parentElement ? overlayBodyEl.parentElement.querySelector('.execution-header') : null;
-        if (overlayHeaderEl) {
-            var sw = overlayBodyEl.offsetWidth - overlayBodyEl.clientWidth;
-            overlayHeaderEl.style.paddingRight = (15 + Math.max(0, sw)) + 'px';
-        }
-    }
-}
-
+/**
+ * 체결 목록. 행 = 시간 · 체결가 · 체결량 · 구분.
+ * ⚠️ 매수는 빨강, 매도는 파랑이다(한국 관례 — 상승·하락 색과 같은 짝). 2026-09-23 전에는
+ *    매수 = 보라(accent) · 매도 = 빨강이라 "빨강 = 매도" 로 읽혔다. 색만으로 말하지 않도록
+ *    구분 칸에 글자(매수·매도)를 함께 둔다.
+ * ⚠️ `bid_volume` 이 매수다 — 종목 상세의 체결강도(`_day_stats`)와 같은 해석이다.
+ */
 function updateExecutionList(executions) {
     var executionListEl = document.getElementById('executionList');
     var overlayListEl = document.getElementById('executionOverlayList');
     if (!executionListEl) return;
     
     if (executions.length === 0) {
-        var emptyHtml = '<div class="execution-no-data">체결 데이터가 없습니다.</div>';
+        var emptyHtml = '<div class="sd-exec__empty">체결 데이터가 없습니다.</div>';
         executionListEl.innerHTML = emptyHtml;
         if (overlayListEl) overlayListEl.innerHTML = emptyHtml;
         return;
@@ -1873,11 +1881,11 @@ function updateExecutionList(executions) {
             parseFloat(exec.ask_volume || 0)
         );
         
-        html += '<div class="execution-item ' + (isBuy ? 'buy' : 'sell') + '">' +
-                    '<div class="exec-time">' + formatTime(exec.at) + '</div>' +
-                    '<div class="exec-price">' + formatPrice(exec.price) + '</div>' +
-                    '<div class="exec-volume">' + formatNumber(volume) + '</div>' +
-                    '<div class="exec-type">' + (isBuy ? '매수' : '매도') + '</div>' +
+        html += '<div class="sd-exec__row ' + (isBuy ? 'is-buy' : 'is-sell') + '">' +
+                    '<span class="sd-exec__t">' + formatTime(exec.at) + '</span>' +
+                    '<span class="sd-exec__p">' + formatPrice(exec.price) + '</span>' +
+                    '<span class="sd-exec__v">' + formatNumber(volume) + '</span>' +
+                    '<span class="sd-exec__k">' + (isBuy ? '매수' : '매도') + '</span>' +
                 '</div>';
     }
     
@@ -1918,7 +1926,6 @@ function openExecutionOverlay() {
     backdrop.classList.add('active');
     overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
-    syncExecutionHeaderSpacing();
 }
 
 function closeExecutionOverlay() {
@@ -1957,34 +1964,3 @@ setInterval(function() {
         refreshExecutions();
     }
 }, 30000);
-
-/* ========================================
-   기간 선택 휠 컨트롤
-   ======================================== */
-function setupPeriodWheelControl() {
-    var periodSelect = document.getElementById('periodSelect');
-    if (!periodSelect) return;
-    
-    var periodOptions = ['10M', '30M', '1H', '3H', '6H', '1D', '1W', '1M'];
-    
-    periodSelect.addEventListener('wheel', function(e) {
-        e.preventDefault();
-        
-        var currentValue = periodSelect.value;
-        var currentIndex = periodOptions.indexOf(currentValue);
-        if (currentIndex === -1) return;
-        
-        var newIndex;
-        if (e.deltaY < 0) {
-            newIndex = Math.min(currentIndex + 1, periodOptions.length - 1);
-        } else {
-            newIndex = Math.max(currentIndex - 1, 0);
-        }
-        
-        var newValue = periodOptions[newIndex];
-        if (newValue !== currentValue) {
-            periodSelect.value = newValue;
-            loadChartData(newValue);
-        }
-    });
-}

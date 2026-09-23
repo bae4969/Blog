@@ -230,6 +230,10 @@ class TestWriteIsBearerOnly:
         ("patch", "/api/v1/posts/1"),
         ("delete", "/api/v1/posts/1"),
         ("post", "/api/v1/posts/1/restore"),
+        # 관심 종목(2026-09-23) — 개인 데이터라 **읽기도** Bearer 다.
+        ("get", "/api/v1/watchlist"),
+        ("put", "/api/v1/watchlist/005930"),
+        ("delete", "/api/v1/watchlist/005930"),
     ]
 
     @staticmethod
@@ -496,8 +500,11 @@ class TestStockPriceSource:
 
         for marker in ('id="quoteIndexCards"', 'id="quoteFxCards"', 'id="heatmapBox"',
                        'class="market-stats-horizontal"', 'data-group="{{ item.grp }}"',
-                       'id="stockSearchResults"', 'id="stockTop10"'):
+                       'id="rankList"', 'data-market-tab'):
             assert marker in template
+        # 종목 검색은 2026-09-23 대시보드 오른쪽 열에서 **상단바**로 올라갔다(모든 화면).
+        assert 'id="stockSearchResults"' in layout
+        assert 'id="stockSearchResults"' not in template
         assert 'id="stockRows"' not in template
         assert '<a href="/quotes">지수·환율</a>' not in layout
         assert all(getattr(route, "path", None) != "/quotes" for route in app.routes)
@@ -575,3 +582,25 @@ class TestBacktestRoutesMoved:
         r = client.patch("/api/v1/backtest/portfolios/1", json={},
                          headers={"Authorization": "Bearer x"})
         assert r.status_code == 422
+
+
+class TestWatchlistInput:
+    """관심 종목 — 입력은 DB 에 닿기 전에 거른다(코드는 SQL 에 들어가는 값이다)."""
+
+    @pytest.mark.parametrize("url", [
+        "/api/v1/watchlist/a%20b",                  # 공백
+        "/api/v1/watchlist/" + "x" * 33,            # 너무 길다
+        "/api/v1/watchlist/005930?market=KOSPI",    # 시장은 묶음(KR·US·COIN)으로만
+    ])
+    @pytest.mark.parametrize("method", ["put", "delete"])
+    def test_잘못된_입력은_422(self, client, method, url):
+        r = client.request(method.upper(), url, headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
+
+
+class TestPostGroup:
+    """글 묶음(2026-09-23) — finance(인사이트)·general(블로그) 말고는 DB 에 닿기 전에 거른다."""
+
+    @pytest.mark.parametrize("url", ["/api/v1/posts?group=news", "/api/v1/categories?group=FINANCE"])
+    def test_모르는_묶음은_422(self, client, url):
+        assert client.get(url).status_code == 422

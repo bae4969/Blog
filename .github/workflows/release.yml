@@ -131,7 +131,8 @@ jobs:
             test -s /app/public/vendor/chartjs-plugin-zoom.min.js &&
             test -s /app/public/vendor/hammer.min.js &&
             test -s /app/public/vendor/quill/quill.min.js &&
-            test -s /app/public/vendor/quill/quill.snow.css
+            test -s /app/public/vendor/quill/quill.snow.css &&
+            ls /app/app/migrations/*.sql >/dev/null
           '
 
       - name: Remove CI image tag

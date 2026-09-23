@@ -2,13 +2,14 @@
    주식 페이지 스타일시트
    =========================================== */
 
-/* 주식 페이지 전용 컨텐츠 영역 */
+/* 주식 페이지 전용 컨텐츠 영역
+   ⚠️ 바탕판(#202020 · 둥근 모서리)을 걷었다(2026-09-23 사용자 요청 "배경 어색하다").
+      카드들이 저마다 바탕을 가지므로 판이 한 겹 더 있으면 가장자리만 어색하게 남았다 —
+      블로그 화면처럼 페이지 바탕 위에 카드가 바로 놓인다. */
 .stock-page-content {
     width: 100% !important;
     margin: 0 !important;
     padding: 10px !important;
-    border-radius: var(--border-radius-lg);
-    background: var(--bg-secondary);
 }
 
 /* 주식 목록 페이지 */
@@ -25,13 +26,6 @@
 .market-stats-horizontal {
     grid-column: 1;
     grid-row: 1;
-}
-
-.sidebar-search-bar {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    max-height: 38px;
 }
 
 .stocks-main {
@@ -58,59 +52,6 @@
 }
 .stocks-sidebar-right > *:not(:last-child) {
     margin-bottom: 10px;
-}
-
-.sidebar-search-bar .stocks-search-bar {
-    max-width: 100%;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar input {
-    min-width: 0;
-    padding: 6px 10px;
-    margin-right: 5px;
-    height: 34px;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar .search-btn {
-    min-height: unset;
-    height: 34px;
-    width: 34px;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar .search-btn svg {
-    width: 16px;
-    height: 16px;
-}
-
-.backtest-link-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px 20px;
-    height: 100%;
-    box-sizing: border-box;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--border-radius);
-    text-decoration: none;
-    cursor: pointer;
-    transition: var(--transition);
-    min-height: 50px;
-}
-
-.backtest-link-btn:hover {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-    transform: translateY(-2px);
 }
 
 /* 시장 통계 가로 배치 */
@@ -208,44 +149,166 @@
     user-select: none;
 }
 
-/* 사이드바 검색 */
-.sidebar-search {
-    margin-bottom: 12px;
-    max-height: 34px;
+/* ── 시장 탭 — 히트맵 패널 윗변에 얹는다 (2026-09-22 사용자 요청) ────────────
+   전에는 둥근 버튼 3개가 히트맵 **위에 떠 있어서**, 그게 무엇을 고르는 버튼인지와
+   무엇이 바뀌는지가 눈으로 이어지지 않았다. 패널 윗변에 붙여 탭으로 만들면
+   "이 판의 내용을 고르는 것" 이 한눈에 보인다.
+
+   ⚠️ **768px 이하는 건드리지 않는다.** 거기서는 이미 알약형 세그먼트다(아래 3600행대).
+      좁은 화면에서 탭 3개를 패널에 붙이면 글자가 눌린다.
+   ⚠️ 선택된 탭은 패널과 **배경이 같아야**(`--bg-primary`) 이어져 보인다. 그 아래
+      경계선 1px 은 `::after` 로 그 구간만 덮는다 — 선이 남으면 탭이 판 위에 올라앉은
+      별개 조각으로 보인다. */
+/* 바깥 테두리는 칸막이보다 밝게.
+   ⚠️ 팔레트의 `--bae-border`(#3A3A3A)·`--bae-border-hover`(#4A4A4A)는 이 배경(#1C1C1C)에서
+      거의 묻힌다 — 네 단계(#4A4A4A / 흰색 28·40·55%)를 실제로 렌더해 비교하고 40% 를
+      골랐다(2026-09-22 사용자 요청 "외곽 라인이 좀 보였으면"). 배경색이 바뀌어도 따라오도록
+      고정 hex 가 아니라 흰색 알파로 둔다.
+   ⚠️ 프레임만 올리고 **탭 사이 칸막이는 그대로** 둬야 세 칸이 아니라 "한 판" 으로 읽힌다. */
+.stocks-dashboard-container .market-stats-horizontal,
+.stocks-dashboard-container .heatmap-box {
+    --tab-frame: rgba(255, 255, 255, 0.4);
+    --tab-divider: var(--bae-border);
+}
+
+/* 히트맵 판의 바깥선은 폭과 상관없이 같은 밝기다(모바일도 판은 판이다).
+   ⚠️ `quotes.css` 가 나중에 실려 `.heatmap-box` 를 같은 특이도로 잡는다 — 컨테이너를 앞에 붙인다. */
+.stocks-dashboard-container .heatmap-box {
+    border-color: var(--tab-frame);
+}
+
+@media (min-width: 769px) {
+    /* ⚠️ 바깥 프레임은 **탭이 아니라 띠(컨테이너)** 가 갖는다.
+     *    탭마다 바깥 테두리를 주면 그리드가 폭을 3등분하면서 소수점이 남고(실측:
+     *    마지막 탭 오른쪽 1317.98 vs 띠 1318.00), 화면 폭에 따라 그 0.02px 이
+     *    **1px 어긋난 선**으로 래스터화된다 — 실제로 띠 테두리 x=219 / 판 테두리
+     *    x=220 으로 한 칸 밀려 보였다(사용자 화면 픽셀 실측, 2026-09-22).
+     *    띠와 판은 같은 부모의 형제라 박스 폭이 **정확히 같다** — 테두리를 양쪽 다
+     *    컨테이너에 두면 같은 픽셀에 떨어진다.
+     * ⚠️ `quotes.css` 가 나중에 실리고 `.quotes-container > .market-stats-horizontal`
+     *    로 잡고 있어서(같은 특이도로는 진다) 여기서도 같은 깊이로 쓴다. */
+    .stocks-dashboard-container .quotes-container > .market-stats-horizontal {
+        position: relative;
+        z-index: 1;                 /* 선택 탭이 판의 윗 테두리를 덮을 수 있게 */
+        gap: 0;
+        /* 부모(`.quotes-container`)의 flex gap 10px 을 정확히 상쇄해 판에 붙인다. */
+        margin-bottom: -10px;
+        border: 1px solid var(--tab-frame);
+        border-bottom: 0;           /* 아래 경계는 판의 윗 테두리가 대신한다 */
+        border-start-start-radius: 6px;
+        border-start-end-radius: 6px;
+        /* ⚠️ 반투명 테두리는 **그 요소의 배경 위에** 합성된다. 띠 배경이 판과 다르면
+           같은 색을 줘도 테두리 밝기가 어긋난다(실측 121 vs 118). 판과 같은 바탕을
+           깔아 둔다 — 탭들이 그 위를 덮으므로 보이는 곳은 테두리 자리뿐이다. */
+        background: var(--bg-primary);
+    }
+
+    /* 전역 clearfix(`div::after`)가 그리드에 유령 칸을 만든다 — 아래 세그먼트 쪽과 같은 문제.
+       ⚠️ `overflow: hidden` 으로 모서리를 자르지 않는다 — 선택 탭의 `::after` 가
+          박스 **밖 1px**(판의 윗 테두리 자리)을 덮어야 하는데 함께 잘린다. */
+    .stocks-dashboard-container .market-stats-horizontal::after,
+    .stocks-dashboard-container .market-stat-item-h::after {
+        content: none;
+    }
+
+    .market-stat-item-h {
+        position: relative;
+        border: 0;
+        border-inline-start: 1px solid var(--tab-divider);   /* 탭 사이 칸막이뿐 */
+        border-radius: 0;
+        background: var(--bg-secondary);
+    }
+
+    /* 첫 탭은 왼쪽에 칸막이가 필요 없고, 배경이 프레임의 둥근 모서리를 덮지 않게
+       1px 작은 반경을 준다(프레임 6px − 테두리 1px). */
+    .market-stat-item-h:first-child {
+        border-inline-start: 0;
+        border-start-start-radius: 5px;
+    }
+
+    .market-stat-item-h:last-child {
+        border-start-end-radius: 5px;
+    }
+
+    /* 탭은 떠오르지 않는다 — `translateY` 가 남아 있으면 판에서 떨어져 보인다. */
+    .market-stat-item-h:hover {
+        transform: none;
+        background: var(--bg-hover);
+        border-color: var(--tab-divider);
+    }
+
+    .market-stat-item-h.active,
+    .market-stat-item-h.active:hover {
+        background: var(--bg-primary);                    /* 히트맵 판과 같은 배경 */
+        border-color: var(--tab-divider);
+        box-shadow: inset 0 2px 0 var(--primary-color);   /* 선택 표시는 윗줄로 */
+    }
+
+    /* 판과의 경계선을 이 탭 구간만 지운다 → 한 덩어리로 읽힌다. */
+    .market-stat-item-h.active::after {
+        content: "";
+        position: absolute;
+        inset-inline: 0;
+        bottom: -1px;
+        height: 1px;
+        background: var(--bg-primary);
+    }
+
+    /* 윗 모서리는 띠가 가지므로 판은 아래만 둥글다.
+       ⚠️ `quotes.css` 의 `.heatmap-box` 가 나중에 실려 같은 특이도로는 진다. */
+    .stocks-dashboard-container .heatmap-box {
+        border-start-start-radius: 0;
+        border-start-end-radius: 0;
+    }
 }
 
 /* =============================
-   TOP 10 공통 (거래대금 / 포트폴리오)
+   포트폴리오 TOP 10
+
+   ⚠️ 거래대금 순위는 2026-09-23 홈의 **순위 표**(`stock_home.css` 의 `sh-rank`)로 옮겼다 —
+      이 블록의 "거래대금" 설명은 그 전의 기록이다.
+
+   2026-09-23 재설계. 근거 전문은 temp/output/26092201_레이아웃-리디자인/0014.
+   형태는 **라벨 위·막대 아래의 가로 막대그래프**(이름이 긴데 칸이 좁을 때의 기본 배치)
+   + 보조 정보 한 줄. 행 = 1행 "이름 · 순위 기준값" / 막대 / 2행 "보조".
+
+   정보 순서는 "행끼리 비교할 수 있는가" 로 정했다:
+     이름 > 순위 기준값(거래대금·점수) > 등락률 > 가격(행끼리 비교할 의미 없음) > 코드.
+   예전에는 이게 거꾸로였다 — 비교할 수 없는 가격이 가장 크고 빨갛고, 순위 기준인
+   거래대금이 11px 회색으로 가장 흐렸다.
    ============================= */
-/* 스크롤을 따라가는 일은 이제 사이드바(.stocks-sidebar-right)가 통째로 한다 —
-   섹션마다 따로 sticky 를 걸면 두 섹션이 서로 겹쳐 올라탄다. */
 .top10-section {
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
-    padding: 10px;
+    padding: 14px 12px 6px;
     border: 1px solid var(--border-color);
 }
 
 .top10-section h3 {
-    margin: 10px 10px 15px 10px;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    margin: 2px 4px 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
-.top10-section h3 svg {
-    color: var(--primary-color);
-    flex-shrink: 0;
+/* 제목 아이콘은 흐리게 — accent 는 상호작용 색이라 장식에 쓰지 않는다. */
+.top10-section h3 > .c-ico {
+    font-size: 16px;
+    color: var(--bae-text-dim);
 }
 
-/* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다. */
+/* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다.
+   ⚠️ `<ol>` 이다(순위는 순서가 뜻). 기본 들여쓰기·번호를 지운다 — 번호는 `.top10-n` 이 그린다. */
 .top10-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .top10-empty {
@@ -255,152 +318,140 @@
     font-size: 14px;
 }
 
-.top10-empty p {
-    margin: 0 0 8px 0;
+/* 시장을 바꿔 다시 받는 동안 이전 목록을 흐리게 둔다 — 비우면 사이드바가 접혔다 펴지며 튄다. */
+.top10-list.is-stale {
+    opacity: 0.45;
+    transition: opacity 0.15s;
 }
 
-.top10-cta-link {
-    color: var(--primary-color);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-}
-
-.top10-cta-link:hover {
-    text-decoration: underline;
-}
-
-.top10-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-    text-decoration: none;
+/* ⚠️ 행마다 카드 배경을 깔지 않는다. 카드 안에 카드 10장이 250px 에서 여백을 먹어
+   이름 칸이 89px 이었고 10개 중 3개 이름이 잘렸다. */
+.top10-link {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 9px 4px 8px;
     color: inherit;
-}
-
-.top10-item:hover {
-    background: var(--bg-hover);
     text-decoration: none;
-    color: inherit;
 }
 
-.top10-rank {
-    width: 22px;
-    height: 22px;
-    border-radius: var(--border-radius-circle);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-size: 11px;
+.top10-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 순위 — 맨 숫자. 강조는 **색이 아니라 밝기**로(1~3위만 본문 흰색).
+   ⚠️ 예전 빨강·주황·노랑 동그라미는 빨강이 "상승" 과 겹쳐 읽혔다. 빨강·파랑은 등락 전용이다. */
+.top10-n {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+    text-align: right;
+    color: var(--bae-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.top10-item:nth-child(-n+3) .top10-n {
+    color: var(--bae-text-primary);
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 10px;
-    flex-shrink: 0;
 }
 
-/* 1~3위만 색을 준다. 4위부터는 위의 중립 동그라미 그대로 — 예전엔 4위부터 primary 색이
-   이어졌는데 accent 가 밝아지면서 순위표 절반이 연보라가 됐다.
-   ⚠️ 글자색도 함께 지정한다. 위 기본값(중립 회색)은 어두운 회색 배경에 맞춘 것이라
-   빨강·주황 위에서는 대비가 모자란다. */
-.top10-item:nth-child(1) .top10-rank { background: var(--rank-1st); color: #fff; }
-.top10-item:nth-child(2) .top10-rank { background: var(--rank-2nd); color: #fff; }
-.top10-item:nth-child(3) .top10-rank { background: var(--rank-3rd); color: var(--text-rank-dark); }
-
-.top10-info {
-    flex: 1;
+.top10-body {
+    display: grid;
     min-width: 0;
 }
 
-.top10-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 2px;
+.top10-l1,
+.top10-l2 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.top10-nm {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--bae-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.top10-code {
-    font-size: 9px;
-    color: var(--text-muted);
-}
-
-.top10-value {
-    text-align: right;
-}
-
-.top10-primary {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.top10-secondary {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-/* 포트폴리오 점수 색상 및 크기 */
-.top10-value.score-high .top10-primary,
-.top10-value.score-mid .top10-primary,
-.top10-value.score-low .top10-primary {
-    font-size: 16px;
-    font-weight: 700;
-}
-
-.top10-value.score-high .top10-secondary,
-.top10-value.score-mid .top10-secondary,
-.top10-value.score-low .top10-secondary {
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.top10-value.score-high .top10-primary,
-.top10-value.score-high .top10-secondary {
-    color: var(--stock-rise-color, #ef4444);
-}
-
-.top10-value.score-mid .top10-primary,
-.top10-value.score-mid .top10-secondary {
-    color: var(--success-color);
-}
-
-.top10-value.score-low .top10-primary,
-.top10-value.score-low .top10-secondary {
-    color: var(--text-muted);
-}
-
-.stocks-search-bar {
-    display: flex;
-    flex: 1;
-    max-width: 400px;
-    max-height: 38px;
-}
-
-.stocks-search-bar input {
-    flex: 1;
-    padding: 10px 15px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+/* 순위 기준값. 세로로 줄 서는 숫자라 자릿수를 맞춘다. 단위(`조`·`/100`)는 작게 흐리게. */
+.top10-val {
+    flex: 0 0 auto;
     font-size: 14px;
+    font-weight: 700;
+    color: var(--bae-text-primary);
+    font-variant-numeric: tabular-nums;
 }
 
-.stocks-search-bar input:focus {
-    outline: none;
-    border-color: var(--primary-color);
+.top10-val small {
+    margin-left: 1px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bae-text-dim);
 }
 
-.stocks-search-bar .search-btn,
+/* 막대 — **재는 값(1행)에 붙인다**(위 3px · 아래 7px). 두 줄 사이 정중간이면 어느
+   값의 막대인지 애매하다.
+   ⚠️ 한 색(accent 60%, 표시 요소 대비 3.23:1). 종목은 순서 없는 범주라 값에 따라
+      색을 바꾸지 않는다. 기준선(왼쪽)은 네모, 끝은 둥글게. */
+.top10-bar {
+    display: block;
+    height: 4px;
+    margin: 3px 0 7px;
+}
+
+.top10-bar > i {
+    display: block;
+    width: calc(var(--pct, 0) * 1%);
+    min-width: 2px;
+    height: 100%;
+    border-radius: 0 2px 2px 0;
+    background: rgba(var(--bae-accent-rgb), 0.6);
+    transition: background 0.15s;
+}
+
+/* 점수는 0~100 이라 **미터** — 같은 색 옅은 트랙이 "얼마나 찼나" 를 보인다.
+   거래대금에는 트랙이 없다(상한이 없는 값이라 "1위 대비" 가 기준이다). */
+.top10-bar.is-meter {
+    border-radius: 0 2px 2px 0;
+    background: rgba(var(--bae-accent-rgb), 0.16);
+}
+
+.top10-l2 {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 포트폴리오 등급 — 중립 칩. 예전에는 점수와 함께 "상승 빨강" 이었다. */
+.top10-gr {
+    padding: 0 7px;
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 999px;
+    color: var(--bae-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* 호버 — **배경을 깔지 않는다.** 예전 호버 배경(#3A3A3A) 위에서 하락 파랑이 3.09:1 까지
+   떨어졌다. 대신 막대가 진해지고(들림) 이름에 밑줄 — 키보드 포커스도 같게. */
+.top10-link:hover .top10-nm,
+.top10-link:focus-visible .top10-nm {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.top10-link:hover .top10-bar > i,
+.top10-link:focus-visible .top10-bar > i {
+    background: var(--bae-accent);
+}
+
 .clear-filter-btn {
     padding: 8px 20px;
     min-height: 42px;
@@ -415,42 +466,8 @@
     justify-content: center;
 }
 
-.stocks-search-bar .search-btn svg {
-    display: block;
-    width: 20px;
-    height: 20px;
-    stroke: var(--text-on-primary);
-    color: var(--text-on-primary);
-}
-
-.stocks-search-bar .search-btn:hover,
 .clear-filter-btn:hover {
     background: var(--primary-hover);
-}
-
-/* 사이드바 검색 버튼 오버라이드 */
-.stocks-search-bar.sidebar-search input {
-    height: 34px;
-    padding: 6px 10px;
-    box-sizing: border-box;
-    font-size: 13px;
-}
-
-.stocks-search-bar.sidebar-search .search-btn {
-    min-height: 34px;
-    min-width: 34px;
-    max-height: 34px;
-    max-width: 34px;
-    height: 34px;
-    width: 34px;
-    flex-shrink: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.stocks-search-bar.sidebar-search .search-btn svg {
-    width: 16px;
-    height: 16px;
 }
 
 .clear-filter-btn {
@@ -673,84 +690,6 @@
    주식 상세 페이지
    =========================================== */
 
-.stock-detail-container {
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-}
-
-/* 뒤로가기 버튼 */
-.stock-back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    margin-bottom: 6px;
-    padding: 0px 14px;
-    font-size: 11px;
-    color: var(--text-muted);
-    background: transparent;
-    border: none;
-    transition: var(--transition);
-}
-
-.stock-back-btn:hover {
-    color: var(--primary-color);
-}
-
-/* 헤더 */
-.stock-detail-header {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin-bottom: 10px;
-    padding: 16px 20px;
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
-}
-
-.stock-header-main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
-}
-
-.stock-header-badges {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-}
-
-.code-badge {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: var(--border-radius-xs);
-    font-size: 11px;
-    font-weight: 600;
-    font-family: monospace;
-    background: var(--bg-quaternary);
-    color: var(--text-secondary);
-    letter-spacing: 0.5px;
-}
-
-.stock-title-section {
-    flex: 1;
-    min-width: 0;
-}
-
-.stock-title-section h2 {
-    margin: 0;
-    margin-left: 8px;
-    font-size: 28px;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 .stock-subtitle {
     display: flex;
     gap: 10px;
@@ -762,64 +701,12 @@
     font-family: monospace;
 }
 
-.stock-price-section {
-    text-align: right;
-    flex-shrink: 0;
-}
-
-.current-price {
-    font-size: 30px;
-    font-weight: 700;
-    color: var(--primary-color);
-}
-
-.current-price .currency {
-    font-size: 16px;
-    font-weight: 400;
-    margin-left: 2px;
-}
-
-.stock-header-stats {
-    display: flex;
-    gap: 10px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
-}
-
-.stock-stat-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-sm);
-    font-size: 13px;
-}
-
-.stock-stat-label {
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-.stock-stat-value {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
 .stock-meta {
     display: flex;
     flex-direction: column;
     gap: 4px;
     font-size: 13px;
     color: var(--text-secondary);
-}
-
-/* 메인 컨텐츠 */
-.stock-detail-main {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 10px;
-    align-items: stretch;
 }
 
 /* 차트 섹션 */
@@ -833,71 +720,6 @@
     height: 100%;
     min-height: 0;
     align-self: stretch;
-}
-
-.chart-controls {
-    display: flex;
-    align-items: center;
-    margin: 10px;
-    gap: 0;
-}
-
-/* 기간 드롭다운 */
-.chart-period-select-wrapper {
-    display: flex;
-    align-items: center;
-}
-
-.period-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-
-.period-select {
-    padding: 8px 12px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
-    font-size: 13px;
-    line-height: 1.2;
-    box-sizing: border-box;
-    cursor: pointer;
-    transition: var(--transition);
-    height: 36px;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: left 8px center;
-    min-width: 70px;
-    text-align: center;
-    text-align-last: center;
-}
-
-.period-select:hover {
-    border-color: var(--primary-color);
-}
-
-.period-select:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px var(--primary-bg);
-}
-
-.period-select option,
-.period-select optgroup {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-.chart-type-buttons {
-    display: flex;
-    gap: 8px;
-    margin-right: auto;
 }
 
 .chart-top-buttons {
@@ -1171,197 +993,6 @@
     to { transform: rotate(360deg); }
 }
 
-.execution-loading {
-    text-align: center;
-    padding: 24px;
-    color: var(--text-muted);
-    font-size: 14px;
-}
-
-/* 체결 정보 섹션 */
-.execution-section {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    border: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-}
-
-.execution-section h3 {
-    margin: 0 0 15px 0;
-    font-size: 18px;
-    color: var(--text-primary);
-}
-
-.execution-list {
-    flex: 1 1 auto;
-    min-height: 0;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    overflow-x: hidden;
-    margin-bottom: 0;
-}
-
-.execution-header {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
-    gap: 10px;
-    padding: 12px 15px;
-    margin-right: 14px;
-    background: var(--bg-quaternary);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 2px solid var(--border-color);
-    text-align: center;
-    align-items: center;
-}
-
-.execution-body {
-    max-height: 490px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-gutter: stable;
-}
-
-/* 체결 리스트 스크롤바 (Webkit + Firefox) */
-.execution-body,
-.execution-overlay-content .execution-body {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-color) transparent;
-}
-
-.execution-body::-webkit-scrollbar,
-.execution-overlay-content .execution-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-.execution-body::-webkit-scrollbar-track,
-.execution-overlay-content .execution-body::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 3px;
-}
-
-.execution-body::-webkit-scrollbar-thumb,
-.execution-overlay-content .execution-body::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 3px;
-    transition: background 0.2s;
-}
-
-.execution-body::-webkit-scrollbar-thumb:hover,
-.execution-overlay-content .execution-body::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
-}
-
-.execution-item {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
-    gap: 10px;
-    padding: 10px 15px;
-    font-size: 13px;
-    border-bottom: 1px solid var(--border-color);
-    transition: var(--transition);
-    text-align: center;
-    align-items: center;
-}
-
-.execution-header>div,
-.execution-item>div {
-    min-width: 0;
-}
-
-.execution-item:hover {
-    background: var(--bg-hover);
-}
-
-.execution-item.buy {
-    background: var(--primary-bg-subtle);
-}
-
-.execution-item.sell {
-    background: var(--danger-bg-subtle);
-}
-
-.exec-time {
-    color: var(--text-muted);
-    font-family: monospace;
-}
-
-.exec-price {
-    font-weight: 600;
-    color: var(--text-primary);
-    text-align: center;
-}
-
-.exec-volume {
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.exec-type {
-    font-weight: 600;
-    text-align: center;
-}
-
-.execution-item.buy .exec-type {
-    color: var(--primary-color);
-}
-
-.execution-item.sell .exec-type {
-    color: var(--danger-color);
-}
-
-.execution-no-data {
-    padding: 40px;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-/* 종목 정보 섹션 */
-.stock-info-section {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    border: 1px solid var(--border-color);
-}
-
-.stock-info-section h3 {
-    margin: 0 0 20px 0;
-    font-size: 20px;
-    color: var(--text-primary);
-}
-
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-}
-
-.info-item {
-    padding: 15px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
-}
-
-.info-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-}
-
-.info-value {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
 /* 반응형 디자인 */
 @media (max-width: 1200px) {
     .stocks-container {
@@ -1377,19 +1008,9 @@
         margin-bottom: -8px;
     }
 
-    .sidebar-search-bar {
-        grid-column: 1;
-        grid-row: 2;
-        margin-bottom: 10px;
-    }
-
     .stocks-sidebar-right {
         grid-column: 1;
         grid-row: 3;
-    }
-
-    .stocks-search-bar.sidebar-search {
-        max-width: 100%;
     }
 
     .stocks-main {
@@ -1397,28 +1018,21 @@
         grid-row: 4;
     }
 
+    /* 사이드바가 본문 아래로 내려오는 폭 — 2열. ⚠️ 3열이면 10개가 3+3+3+1 로 끝에 하나 남는다.
+       ⚠️ **세로 우선**(왼쪽 1~5 · 오른쪽 6~10)으로 흘린다. 그리드로 두면 1·2 / 3·4 … 로
+          지그재그라 순위표로 안 읽히고, 칸마다 막대가 계단처럼 줄어드는 것도 안 보인다.
+          다단(`columns`)은 항목 수에 맞춰 알아서 반씩 나눈다(포트폴리오 2개면 1 · 1).
+          회전 카드가 켜지면 트랙이 flex 가 되어 다단은 저절로 꺼진다. */
     .top10-list {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 10px;
+        display: block;
+        columns: 2;
+        column-gap: 28px;
     }
 
-    .stock-detail-main {
-        grid-template-columns: 1fr;
+    .top10-list > li {
+        break-inside: avoid;
     }
 
-    /* 상세 헤더 줄바꿈 */
-    .stock-detail-header {
-        padding: 14px 16px;
-    }
-
-    .stock-title-section h2 {
-        font-size: 24px;
-    }
-
-    .current-price {
-        font-size: 26px;
-    }
 }
 
 /* ====== 태블릿 세로 / 좁은 브라우저 (768px 이하) ====== */
@@ -1459,10 +1073,9 @@
         height: 22px;
     }
 
-    /* TOP 10: 2열로 축소 */
+    /* TOP 10: 2열 유지(펼쳤을 때) — 위와 같은 세로 우선 */
     .top10-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        column-gap: 20px;
     }
 
     /* 테이블: 시장/유형/상장주식수 컬럼 숨기기 (상장주식수는 등락률이 들어오며 7→8) */
@@ -1512,67 +1125,10 @@
         font-size: 13px;
     }
 
-    /* 상세 페이지 헤더: 세로 배치 */
-    .stock-detail-header {
-        padding: 12px 14px;
-    }
-
-    .stock-back-btn {
-        font-size: 12px;
-        margin-bottom: 6px;
-    }
-
-    .stock-header-main {
-        margin-bottom: 10px;
-        gap: 12px;
-    }
-
-    .stock-price-section {
-        text-align: right;
-        width: auto;
-    }
-
-    .stock-title-section h2 {
-        font-size: 22px;
-    }
-
-    .current-price {
-        font-size: 24px;
-    }
-
-    .stock-header-stats {
-        gap: 8px;
-        padding-top: 10px;
-    }
-
-    .stock-stat-chip {
-        flex: 1;
-        justify-content: center;
-        padding: 5px 10px;
-        font-size: 12px;
-        gap: 6px;
-    }
-
     .stock-meta {
         flex-direction: row;
         flex-wrap: wrap;
         gap: 8px;
-    }
-
-    /* 차트 컨트롤 */
-    .chart-controls {
-        gap: 0;
-    }
-
-    .period-select {
-        font-size: 12px;
-        height: 32px;
-        min-width: 110px;
-        padding: 6px 28px 6px 10px;
-    }
-
-    .period-label {
-        font-size: 12px;
     }
 
     .chart-type-btn {
@@ -1588,47 +1144,6 @@
         padding: 10px;
     }
 
-    /* 체결 정보 */
-    .execution-header,
-    .execution-item {
-        grid-template-columns: 60px minmax(0, 1fr) 48px 36px;
-        gap: 6px;
-        padding: 8px 10px;
-        font-size: 12px;
-    }
-
-    .execution-header {
-        margin-right: 14px;
-        font-size: 11px;
-    }
-
-    /* 종목 정보 그리드 */
-    .info-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-    }
-
-    .info-item {
-        padding: 10px;
-    }
-
-    .info-label {
-        font-size: 10px;
-        margin-bottom: 4px;
-    }
-
-    .info-value {
-        font-size: 13px;
-    }
-
-    .stock-info-section h3 {
-        font-size: 17px;
-        margin-bottom: 14px;
-    }
-
-    .stock-info-section {
-        padding: 14px;
-    }
 }
 
 /* ====== 좁은 화면에서 시장 탭 시총 숨김 (840px 이하) ====== */
@@ -1667,12 +1182,7 @@
     }
 
     .top10-list {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 6px;
-    }
-
-    .top10-item {
-        padding: 8px;
+        columns: 1;
     }
 
     /* 테이블: 시가총액도 숨기고 최소 컬럼만 (시가총액은 등락률이 들어오며 6→7)
@@ -1721,11 +1231,6 @@
         font-size: 10px;
     }
 
-    .stocks-search-bar input {
-        padding: 8px 10px;
-        font-size: 13px;
-    }
-
     /* 페이지네이션 */
     .pagination {
         gap: 4px;
@@ -1736,83 +1241,14 @@
         font-size: 13px;
     }
 
-    /* 상세 헤더 */
-    .stock-detail-header {
-        padding: 10px 12px;
-    }
-
-    .stock-back-btn {
-        font-size: 11px;
-        margin-bottom: 4px;
-        padding: 2px 4px;
-    }
-
-    .stock-header-badges {
-        gap: 4px;
-    }
-
-    .stock-header-badges .market-badge,
-    .stock-header-badges .type-badge,
-    .stock-header-badges .code-badge {
-        font-size: 10px;
-        padding: 3px 6px;
-    }
-
-    .stock-header-main {
-        flex-direction: column;
-        gap: 4px;
-        margin-bottom: 8px;
-    }
-
-    .stock-price-section {
-        text-align: left;
-    }
-
-    .stock-title-section h2 {
-        font-size: 20px;
-        margin-bottom: 0;
-    }
-
     .stock-subtitle {
         gap: 6px;
         flex-wrap: wrap;
     }
 
-    .current-price {
-        font-size: 22px;
-    }
-
-    .current-price .currency {
-        font-size: 14px;
-    }
-
-    .stock-header-stats {
-        gap: 6px;
-        padding-top: 8px;
-    }
-
-    .stock-stat-chip {
-        flex: 1;
-        justify-content: center;
-        padding: 4px 8px;
-        font-size: 11px;
-        gap: 4px;
-    }
-
     /* 차트 */
     .chart-section {
         padding: 7px;
-    }
-
-    .period-select {
-        font-size: 11px;
-        height: 28px;
-        min-width: 100px;
-        padding: 4px 24px 4px 8px;
-    }
-
-    .period-label {
-        font-size: 11px;
     }
 
     .chart-type-btn {
@@ -1828,55 +1264,6 @@
         padding: 8px;
     }
 
-    /* 체결 정보 */
-    .execution-section {
-        padding: 12px;
-    }
-
-    .execution-header,
-    .execution-item {
-        grid-template-columns: 54px minmax(0, 1fr) 42px 32px;
-        gap: 4px;
-        padding: 6px 8px;
-        font-size: 11px;
-    }
-
-    .execution-header {
-        font-size: 10px;
-        margin-right: 10px;
-    }
-
-    .execution-list {
-        min-height: 300px;
-    }
-
-    /* 종목 정보 */
-    .stock-info-section {
-        padding: 10px;
-    }
-
-    .stock-info-section h3 {
-        font-size: 14px;
-        margin-bottom: 8px;
-    }
-
-    .info-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-    }
-
-    .info-item {
-        padding: 6px 8px;
-    }
-
-    .info-label {
-        font-size: 9px;
-        margin-bottom: 2px;
-    }
-
-    .info-value {
-        font-size: 11px;
-    }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -1888,15 +1275,6 @@
 /* ===========================================
    모바일 체결내역 오버레이 (바텀시트)
    =========================================== */
-
-/* 기본: 모바일 전용 요소 숨김 */
-.execution-mobile-trigger {
-    display: none;
-}
-
-.execution-fade-overlay {
-    display: none;
-}
 
 .execution-overlay-backdrop {
     display: none;
@@ -1952,68 +1330,8 @@
     min-height: 0;
 }
 
-.execution-overlay-content .execution-header {
-    margin-right: 0;
-}
-
-.execution-overlay-content .execution-body {
-    flex: 1;
-    max-height: none;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
 /* ====== 768px 이하: 모바일 체결 축약 + 오버레이 활성화 ====== */
 @media (max-width: 768px) {
-    /* 인라인 체결 리스트 축약 미리보기 */
-    .execution-section .execution-list {
-        position: relative;
-        min-height: auto;
-    }
-
-    .execution-section .execution-body {
-        max-height: 200px;
-        overflow: hidden;
-    }
-
-    .execution-fade-overlay {
-        display: block;
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 60px;
-        background: linear-gradient(to bottom, transparent, var(--bg-tertiary));
-        pointer-events: none;
-        border-radius: 0 0 var(--border-radius) var(--border-radius);
-        z-index: 1;
-    }
-
-    /* 인라인 새로고침 버튼 숨김 (오버레이에 있음) */
-    .execution-section > .btn-primary {
-        display: none;
-    }
-
-    /* 모바일 자세히 보기 버튼 표시 */
-    .execution-mobile-trigger {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        width: 100%;
-        padding: 10px;
-        font-size: 13px;
-        color: var(--primary-color);
-        border: 1px dashed var(--primary-color);
-        border-radius: var(--border-radius);
-        background: transparent;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .execution-mobile-trigger:hover {
-        background: var(--primary-bg-subtle);
-    }
 
     /* 오버레이: 비활성 상태 (visibility로 숨김 → 트랜지션 가능) */
     .execution-overlay-backdrop {
@@ -2065,25 +1383,6 @@
    백테스팅 시뮬레이터
    =========================================== */
 
-.stock-page-title {
-    font-size: 1.3rem;
-    margin: 0 0 8px 0;
-    padding: 12px 16px 0;
-    color: var(--text-primary);
-}
-
-.stock-detail-title {
-    margin: 0 0 12px;
-    padding: 14px 20px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
-    border-left: 4px solid var(--primary-color);
-}
-
 .backtest-container {
     display: grid;
     grid-template-columns: 1fr 400px;
@@ -2109,7 +1408,11 @@
     gap: 0;
     min-width: 0;
     position: sticky;
-    top: 20px;
+    /* ⚠️ 상단바(2026-09-22 리디자인)가 sticky 56px 라 `top: 20px` 이면 그 뒤로 들어가
+       패널 위쪽이 가린다. `--topbar-h` 는 ui.css 의 `:root` 토큰이고, 없으면 0 으로
+       떨어져 옛 값과 같아진다. 실제 값은 backtest.js 가 다시 정한다(패널이 창보다
+       길 때 음수 top 으로 아래를 맞춰야 하기 때문). */
+    top: calc(var(--topbar-h, 0px) + 20px);
     align-self: start;
 }
 
@@ -3368,8 +2671,8 @@ details[open] > .config-section-title.clickable {
    ⚠️ 이 세 클래스는 여기 **한 곳에만** 둔다. `/quotes` 는 stocks.css 를 먼저 싣고
       quotes.css 를 뒤에 실으므로 두 화면이 같은 정의를 쓴다 — 양쪽에 복사하면
       한쪽만 고쳐져 색이 갈라진다. */
-.q-up { color: var(--chart-up-color); }
-.q-down { color: var(--chart-down-color); }
+.q-up { color: var(--chart-up-text); }
+.q-down { color: var(--chart-down-text); }
 .q-flat { color: var(--text-muted); }
 
 /* 목록 표의 등락률 칸. 현재가와 같은 색을 쓰되 폭이 흔들리지 않게 고정폭 숫자로. */
@@ -3385,35 +2688,9 @@ details[open] > .config-section-title.clickable {
 
 /* `.stocks-table td`가 기본 글자색을 더 높은 우선순위로 지정한다. 목록 셀에서는 방향색을
    같은 우선순위로 다시 선언해야 현재가와 등락률이 실제 화면에서도 흰색으로 덮이지 않는다. */
-.stocks-table .q-up { color: var(--chart-up-color); }
-.stocks-table .q-down { color: var(--chart-down-color); }
+.stocks-table .q-up { color: var(--chart-up-text); }
+.stocks-table .q-down { color: var(--chart-down-text); }
 .stocks-table .q-flat { color: var(--text-muted); }
-
-/* TOP10 — 등락률과 거래대금을 한 줄에 나눠 놓는다. */
-.top10-secondary {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
-.top10-change {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.top10-amt {
-    color: var(--text-muted);
-}
-
-/* 상세 화면 — 현재가 옆 등락률 */
-.stock-price-change {
-    margin-left: 8px;
-    font-size: 0.55em;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
 
 /* ⚠️ 좁은 화면에서 어느 열을 접을지는 **위쪽 `@media (768px/480px)` 블록**이 이미
       정하고 있다. 여기서 또 정의하면 브레이크포인트가 둘로 갈린다 — 건드리지 말 것. */
@@ -3430,8 +2707,7 @@ details[open] > .config-section-title.clickable {
 .rotator-head,
 .rotator-count,
 .rotator-bar,
-.rotator-expand,
-.execution-latest-hint {
+.rotator-expand {
     display: none;
 }
 
@@ -3625,7 +2901,8 @@ details[open] > .config-section-title.clickable {
         gap: 3px;
         margin-bottom: 0;
         padding: 3px;
-        border: 1px solid var(--border-color);
+        /* 판과 같은 밝기의 바깥선 — 아래 히트맵과 짝이 맞아야 따로 놀지 않는다. */
+        border: 1px solid var(--tab-frame, var(--border-color));
         border-radius: 10px;
         background: var(--bg-tertiary);
     }
@@ -3682,41 +2959,7 @@ details[open] > .config-section-title.clickable {
         fill: none;
     }
 
-    /* ── 차트 좌상단 캔들/라인: 시장 버튼과 같은 세그먼트 (종목·지수 상세) ──────── */
-    .chart-controls .chart-type-buttons {
-        gap: 3px;
-        padding: 3px;
-        border: 1px solid var(--border-color);
-        border-radius: 10px;
-        background: var(--bg-tertiary);
-    }
-
-    .chart-controls .chart-type-btn,
-    .chart-controls .chart-type-btn:hover {
-        min-width: 52px;
-        height: 28px;
-        padding: 0 12px;
-        border: 0;
-        border-radius: 7px;
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: 13px;
-        font-weight: 600;
-    }
-
-    .chart-controls .chart-type-btn.active,
-    .chart-controls .chart-type-btn.active:hover {
-        background: rgba(var(--bae-accent-rgb), 0.16);
-        color: var(--text-primary);
-    }
-
-    /* 옆 기간 드롭다운을 세그먼트(28px + 여백 3px×2 + 테두리 1px×2 = 36px)와 같은 높이·모서리로. */
-    .chart-controls .period-select {
-        height: 36px;
-        border-radius: 10px;
-    }
-
-    /* ── 거래대금·포트폴리오 TOP10: 한 종목씩 크게 ─────────────────────── */
+    /* ── 포트폴리오 TOP10: 한 종목씩 크게 ─────────────────────────────── */
     .top10-section[data-rotator] {
         padding: 12px 0 0;
     }
@@ -3735,115 +2978,22 @@ details[open] > .config-section-title.clickable {
         padding: 8px 10px 10px;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item,
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-item:hover {
+    /* 한 장일 때는 같은 행을 크게 — 넘어갈 때마다 막대가 그 종목의 1위 대비 크기를 보인다. */
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-link {
         min-height: 70px;
         padding: 12px 14px 16px;
-        border-radius: 0;
-        background: transparent;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-rank {
-        width: 30px;
-        height: 30px;
-        margin-right: 12px;
-        font-size: 13px;
-    }
-
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-name {
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-nm {
         font-size: 16px;
-        font-weight: 600;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-code {
-        font-size: 11px;
-    }
-
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-primary {
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-val {
         font-size: 17px;
     }
 
-    .top10-section[data-rotator]:not(.rotator-expanded) .top10-secondary {
-        font-size: 12px;
+    .top10-section[data-rotator]:not(.rotator-expanded) .top10-bar {
+        height: 6px;
     }
 
-    /* ── 종목 상세: 최근 체결은 최신 1건만 크게 ─────────────────────────
-       ⚠️ 회전시키지 않는다 — 체결은 시간순 흐름이라 이전 체결이 다시 나오면 그 가격이 현재가처럼
-          읽힌다. 전체 50건은 "자세히 보기" 바텀시트(`#executionOverlayList`, 이 섹션 밖)가 보여준다. */
-    .execution-section h3 {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-    }
-
-    .execution-section .execution-latest-hint {
-        display: inline;
-        margin-left: auto;
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text-muted);
-    }
-
-    .execution-section .execution-list > .execution-header,
-    .execution-section .execution-fade-overlay {
-        display: none;
-    }
-
-    .execution-section .execution-body {
-        max-height: none;
-    }
-
-    .execution-section .execution-item:not(:first-child) {
-        display: none;
-    }
-
-    .execution-section .execution-item {
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-            "type price"
-            "time vol";
-        column-gap: 12px;
-        row-gap: 6px;
-        padding: 14px 16px 16px;
-        border-bottom: 0;
-        text-align: left;
-    }
-
-    .execution-section .exec-type {
-        grid-area: type;
-        align-self: center;
-        justify-self: start;
-        padding: 3px 10px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .execution-section .exec-price {
-        grid-area: price;
-        justify-self: end;
-        font-size: 20px;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .execution-section .exec-time {
-        grid-area: time;
-        font-size: 12px;
-    }
-
-    .execution-section .exec-volume {
-        grid-area: vol;
-        justify-self: end;
-        font-size: 12px;
-    }
-
-    .execution-section .exec-volume::before {
-        content: '수량 ';
-        color: var(--text-muted);
-    }
-
-    .execution-section .execution-mobile-trigger {
-        margin-top: 10px;
-    }
 }

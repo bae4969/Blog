@@ -1,23 +1,41 @@
 {#
-  종목 상세 — PHP `views/stock/show.php` 를 옮긴 것이다.
+  종목 상세 — 2026-09-23 토스증권 PC 처럼 다시 짰다(계획: temp/output/26092301_주식메인-MTS/0004).
 
-  ⚠️ **클래스·id 를 바꾸지 말 것.** 스타일은 `/css/stocks.css` 가, 동작은 `/js/stocks.js`
-     가 그대로 쓴다. `stocks.js` 는 `stockChart`·`executionList`·`periodSelect` 같은 id 로
-     DOM 을 찾고, `setChartType`·`loadChartData` 같은 전역 함수를 onclick 으로 받는다.
+    머리: 이름 · 코드 · 시장 → 큰 현재가 → "전일 대비 +10,500원 (+3.82%)"
+    본문: 왼쪽 큰 차트 + 종목 정보 | 오른쪽 "시세"(시·고·저·거래량·거래대금·체결강도·52주 범위) + 체결
+
+  토스의 오른쪽 칸은 호가·주문이지만 여기엔 호가 데이터가 없다(수집기가 모으지 않는다) —
+  그 자리에 **그날 시세와 체결**을 둔다. 좁은 화면에서는 위에서 아래로 한 줄씩 쌓인다.
+
+  ⚠️ `stocks.js` 가 찾는 id·전역 함수는 그대로다:
+     id  — currentPriceMainValue · stockChart · chartLoading · chartNoData · chartSettingsPanel ·
+           logScaleToggle · executionList · executionOverlay(List·Backdrop)
+     함수 — setChartType · loadChartData · toggleChartSettings · toggleLogScale ·
+           refreshExecutions · openExecutionOverlay · closeExecutionOverlay
+     버튼 묶음 `[data-period]` 의 `aria-pressed` 는 `loadChartData` 가 맞춘다.
   ⚠️ 캔들·체결은 서버에서 싣지 않는다. 화면이 먼저 뜨고 `/api/v1/stocks/{code}/{candles,executions}`
-     로 채운다(PHP 와 같다 — 렌더가 DB 를 기다리지 않게).
+     로 채운다. "시세" 칸만 서버가 계산한다(`app/ui/stocks.py` 의 `_day_stats`).
   ⚠️ 맨 아래 인라인 스크립트가 `stockCode` 등 전역을 정의하고, 그 **뒤에** layout 의
      `extra_js` 가 stocks.js 를 붙인다. 순서가 뒤집히면 차트가 뜨지 않는다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}{{ stock.stock_name_kr }} · Developer Blog{% endblock %}
+{% block title %}{{ stock.stock_name_kr }} · Developer Notes{% endblock %}
 
-{% block extra_css %}<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/stock_view.css?v={{ static_v }}">
+{% endblock %}
 
 {% macro cap(v) -%}
-{#- 시가총액. 목록과 달리 상세는 '원' 을 붙인다(PHP 와 같다). -#}
-{%- if is_us -%}${{ '{:,.2f}'.format((v or 0) / 1e9) }}B
+{#- 시가총액·거래대금. 원화는 '원' 을 붙인다. -#}
+{%- if is_us -%}
+{%- if not v -%}$0
+{%- elif v >= 1e9 -%}${{ '{:,.2f}'.format(v / 1e9) }}B
+{%- elif v >= 1e6 -%}${{ '{:,.2f}'.format(v / 1e6) }}M
+{%- else -%}${{ '{:,.0f}'.format(v) }}
+{%- endif -%}
 {%- elif not v -%}0원
 {%- elif v >= 1e20 -%}{{ '{:,.2f}'.format(v / 1e20) }}해원
 {%- elif v >= 1e16 -%}{{ '{:,.2f}'.format(v / 1e16) }}경원
@@ -29,7 +47,7 @@
 {%- endmacro %}
 
 {% macro qty(v) -%}
-{#- 상장주식수·발행량. 억·만은 소수 1자리, 코인은 '주' 를 안 붙인다. -#}
+{#- 상장주식수·발행량·거래량. 억·만은 소수 1자리, 코인은 '주' 를 안 붙인다. -#}
 {%- if not v or v <= 0 -%}-
 {%- else -%}
 {%- set suffix = '' if is_coin else '주' -%}
@@ -37,93 +55,107 @@
 {%- elif v >= 1e12 -%}{{ '{:,.2f}'.format(v / 1e12) }}조{{ suffix }}
 {%- elif v >= 1e8 -%}{{ '{:,.1f}'.format(v / 1e8) }}억{{ suffix }}
 {%- elif v >= 1e4 -%}{{ '{:,.1f}'.format(v / 1e4) }}만{{ suffix }}
+{%- elif is_coin -%}{{ '{:,.2f}'.format(v) }}
 {%- else -%}{{ '{:,.0f}'.format(v) }}{{ suffix }}
 {%- endif -%}
 {%- endif -%}
 {%- endmacro %}
 
 {% macro price(v) -%}
-{%- if is_us -%}${{ '{:,.2f}'.format(v or 0) }}
-{%- else -%}{{ '{:,.0f}'.format(v or 0) }}
+{%- if v is none -%}-
+{%- elif is_us -%}${{ '{:,.2f}'.format(v) }}
+{%- else -%}{{ '{:,.0f}'.format(v) }}원
 {%- endif -%}
 {%- endmacro %}
 
+{# 전일 종가와 견준 방향 — 고가·저가·시가에도 같은 규칙을 쓴다(한국 시세표 관례). #}
+{% macro dir(v) -%}
+{%- if v is none or stock.prev_price is none -%}q-flat
+{%- elif v > stock.prev_price -%}q-up
+{%- elif v < stock.prev_price -%}q-down
+{%- else -%}q-flat
+{%- endif -%}
+{%- endmacro %}
+
+{% set MARKET_LABEL = {'KOSPI': '코스피', 'KOSDAQ': '코스닥', 'KONEX': '코넥스', 'NYSE': '뉴욕',
+                       'NASDAQ': '나스닥', 'AMEX': '아멕스', 'COIN': '빗썸'} %}
+{% set TYPE_LABEL = {'STOCK': '주식', 'ETF': 'ETF', 'ETN': 'ETN', 'COIN': '코인'} %}
+
 {% block content %}
-<div class="stock-detail-container">
-    <button class="btn btn-ghost stock-back-btn" onclick="goBackToStockList()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        목록으로
-    </button>
-
-    <div class="stock-detail-header">
-        <div class="stock-header-main">
-            <div class="stock-title-section">
-                <h2>{{ stock.stock_name_kr }}</h2>
-            </div>
-            <div class="stock-header-badges">
-                <span class="code-badge">{{ stock.stock_code }}</span>
-                <span class="market-badge market-{{ (stock.stock_market or '') | lower }}">{{ stock.stock_market }}</span>
-                <span class="type-badge type-{{ (stock.stock_type or '') | lower }}">{{ stock.stock_type }}</span>
-            </div>
-            {#
-              등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — 미국 종목 캔들이
-              현지시각이라 그렇다. 목록·히트맵과 같은 헬퍼(`_latest_quotes`)를 쓴다.
-              ⚠️ 직전 거래일이 없으면 `None` 이다. 0% 로 적으면 보합으로 읽힌다.
-            #}
-            {% set chg = stock.change_pct %}
-            {% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
-            <div class="stock-price-section">
-                <div class="current-price {{ chg_cls }}">
-                    {#- id 로 stocks.js 가 최신가를 갈아끼운다. -#}
-                    <span id="currentPriceMainValue">{{ price(stock.stock_price) }}</span>
-                    {%- if not is_us %}<span class="currency">원</span>{% endif -%}
-                    <span class="stock-price-change {{ chg_cls }}">
-                        {%- if chg is none -%}-
-                        {%- else -%}{{ '{:+,.2f}'.format(chg) }}%
-                        {%- endif -%}
-                    </span>
-                </div>
-            </div>
+{% set chg = stock.change_pct %}
+{% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
+<div class="sd">
+    <header class="sd-head">
+        <button type="button" class="c-btn c-btn--icon sd-back" onclick="goBackToStockList()" aria-label="목록으로">{{ icons.i('back') }}</button>
+        <div class="sd-id">
+            <h1 class="sd-name">{{ stock.stock_name_kr }}</h1>
+            <p class="sd-meta">
+                <span>{{ stock.stock_code }}</span>
+                <span>{{ MARKET_LABEL.get(stock.stock_market, stock.stock_market) }}</span>
+                {% if not is_coin %}<span>{{ TYPE_LABEL.get(stock.stock_type, stock.stock_type) }}</span>{% endif %}
+            </p>
         </div>
-        <div class="stock-header-stats">
-            <div class="stock-stat-chip">
-                <span class="stock-stat-label">시가총액</span>
-                <span class="stock-stat-value">{{ cap(stock.stock_capitalization) }}</span>
-            </div>
-            <div class="stock-stat-chip">
-                <span class="stock-stat-label">{{ '총 발행량' if is_coin else '상장주식수' }}</span>
-                <span class="stock-stat-value">{{ qty(stock.stock_count) }}</span>
-            </div>
-        </div>
-    </div>
+        {#
+          관심 종목 담기/빼기 — `watchlist.js` 가 목록을 받은 뒤 `aria-pressed` 를 맞춘다.
+          로그인 안 했으면 누를 때 로그인 안내 토스트를 띄운다.
+        #}
+        <button type="button" class="c-btn sd-watch" data-watch-code="{{ stock.stock_code }}"
+                data-watch-market="{{ 'COIN' if is_coin else ('US' if is_us else 'KR') }}"
+                data-watch-name="{{ stock.stock_name_kr }}" aria-pressed="false">{{ icons.i('star') }}<span>관심</span></button>
 
-    <div class="stock-detail-main">
-        <div class="chart-section">
-            <div class="chart-controls">
-                <div class="chart-type-buttons">
-                    <button class="chart-type-btn active" onclick="setChartType('candle', this)">캔들</button>
-                    <button class="chart-type-btn" onclick="setChartType('line', this)">라인</button>
+        {#
+          현재가 — `stocks.js` 가 차트를 받은 뒤 마지막 봉의 종가로 `#currentPriceMainValue` 를
+          갈아끼운다(서버 값과 같은 기준이라 보통은 그대로다).
+          등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — 목록·히트맵과 같은
+          헬퍼(`_latest_quotes`)를 쓴다. ⚠️ 직전 거래일이 없으면 `None` 이다. 0% 로 적으면
+          보합으로 읽힌다.
+        #}
+        <div class="sd-quote">
+            <p class="sd-price {{ chg_cls }}">
+                <span id="currentPriceMainValue">{{ price(stock.stock_price) | replace('원', '') }}</span>
+                {%- if not is_us %}<small>원</small>{% endif -%}
+            </p>
+            {# `data-prev` 로 전일 종가를 넘긴다 — `stocks.js` 가 현재가를 갈아끼울 때 이 줄도 다시 계산한다. #}
+            <p class="sd-change" id="currentPriceChange" data-prev="{{ stock.prev_price if stock.prev_price is not none else '' }}">
+                <span class="sd-change__label">전일 대비</span>
+                {% if chg is none or stock.prev_price is none -%}
+                <span class="q-flat" data-change>-</span>
+                {%- else -%}
+                {% set diff = stock.stock_price - stock.prev_price %}
+                <span class="{{ chg_cls }}" data-change>
+                    {{- '+' if diff > 0 else ('-' if diff < 0 else '') -}}
+                    {{- price(diff | abs) }} ({{ '{:+,.2f}'.format(chg) }}%)
+                </span>
+                {%- endif %}
+            </p>
+        </div>
+    </header>
+
+    <div class="sd-body">
+        <section class="sd-card sd-chart" aria-label="차트">
+            <div class="sd-chart__bar">
+                {#
+                  봉 단위 — 토스증권처럼 한 줄 버튼 묶음(전에는 select 였다).
+                  ⚠️ **아이콘을 달지 않는다**(디자인 규칙의 예외). 글자 자체가 값(10분·일·주)이라
+                     그림으로 구별할 수 없고, 여덟 개에 같은 아이콘을 붙이면 소음이다. 시장 탭·차트
+                     모양처럼 **서로 다른 것**을 고르는 버튼은 아이콘을 단다.
+                  ⚠️ 이 목록은 리스트 리터럴이다 — 안에 Jinja 주석을 넣으면 템플릿이 깨진다.
+                #}
+                <div class="sd-periods" role="group" aria-label="봉 단위">
+                    {% for v, label in [('10M', '10분'), ('30M', '30분'), ('1H', '1시간'), ('3H', '3시간'), ('6H', '6시간'), ('1D', '일'), ('1W', '주'), ('1M', '월')] %}
+                    <button type="button" data-period="{{ v }}" aria-pressed="{{ 'true' if v == '1D' else 'false' }}" onclick="loadChartData('{{ v }}')">{{ label }}</button>
+                    {% endfor %}
                 </div>
-                <div class="chart-period-select-wrapper">
-                    <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
-                        <option value="10M">10M</option>
-                        <option value="30M">30M</option>
-                        <option value="1H">1H</option>
-                        <option value="3H">3H</option>
-                        <option value="6H">6H</option>
-                        <option value="1D" selected>1D</option>
-                        <option value="1W">1W</option>
-                        <option value="1M">1M</option>
-                    </select>
+                <div class="sd-charttype" role="group" aria-label="차트 모양">
+                    <button type="button" class="chart-type-btn active" aria-pressed="true" onclick="setChartType('candle', this)">{{ icons.i('candle') }}<span>캔들</span></button>
+                    <button type="button" class="chart-type-btn" aria-pressed="false" onclick="setChartType('line', this)">{{ icons.i('line') }}<span>라인</span></button>
                 </div>
             </div>
 
             <div class="chart-wrapper">
                 <div class="chart-top-buttons">
                     <div class="chart-indicator-help">
-                        <button type="button" class="chart-indicator-help-btn">i</button>
+                        <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명">{{ icons.i('help') }}</button>
                         <div class="chart-indicator-tooltip">
                             <div class="chart-indicator-tooltip-section">
                                 <strong>보조지표</strong>
@@ -145,12 +177,7 @@
                         </div>
                     </div>
                     <div class="chart-settings">
-                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="3"/>
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                            </svg>
-                        </button>
+                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)" aria-label="차트 설정">{{ icons.i('settings') }}</button>
                         <div class="chart-settings-panel" id="chartSettingsPanel">
                             <strong>차트 설정</strong>
                             <label class="chart-settings-option">
@@ -170,111 +197,112 @@
                     <p class="chart-no-data-sub">해당 종목의 거래 데이터가 수집되지 않았습니다.</p>
                 </div>
             </div>
+        </section>
+
+        <div class="sd-side">
+            {% if stats %}
+            {#
+              그날 시세 — 서버가 계산한다(`_day_stats`). 마지막 거래일이라 **날짜를 함께 적는다**
+              (주말·휴장이면 오늘이 아니다). 고가·저가·시가는 전일 종가와 견준 색을 쓴다.
+            #}
+            <section class="sd-card sd-stats" aria-labelledby="sdStatsTitle">
+                <div class="sd-card__head">
+                    <h2 class="sd-card__title" id="sdStatsTitle">시세</h2>
+                    <span class="sd-card__sub">{{ stats.date.month }}월 {{ stats.date.day }}일</span>
+                </div>
+                <dl class="sd-kv">
+                    <div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ price(stats.open) }}</dd></div>
+                    <div><dt>고가</dt><dd class="{{ dir(stats.high) }}">{{ price(stats.high) }}</dd></div>
+                    <div><dt>저가</dt><dd class="{{ dir(stats.low) }}">{{ price(stats.low) }}</dd></div>
+                    <div><dt>전일 종가</dt><dd>{{ price(stock.prev_price) }}</dd></div>
+                    <div><dt>거래량</dt><dd>{{ qty(stats.volume) }}</dd></div>
+                    <div><dt>거래대금</dt><dd>{{ cap(stats.amount) }}</dd></div>
+                </dl>
+
+                {#
+                  체결강도 = 매수 체결량 ÷ 매도 체결량 × 100. 100 이 균형이다.
+                  ⚠️ 색만으로 말하지 않는다 — "매수 우세/매도 우세" 를 글자로 함께 적는다.
+                #}
+                {% if stats.strength is not none %}
+                {% set st = stats.strength %}
+                <div class="sd-strength">
+                    <span class="sd-strength__label">체결강도</span>
+                    <span class="sd-strength__val {{ 'q-up' if st > 100 else ('q-down' if st < 100 else 'q-flat') }}">
+                        {{ '{:,.1f}'.format(st) }}%
+                        <small>{{ '매수 우세' if st > 100 else ('매도 우세' if st < 100 else '균형') }}</small>
+                    </span>
+                </div>
+                {% endif %}
+
+                {#
+                  52주 범위 — 최저~최고 사이에서 지금 가격이 어디인지. 범위가 정해진 값이라 **트랙이
+                  있는 막대**에 표시점 하나를 둔다(순위 목록의 1위 대비 막대와 다른 모양).
+                #}
+                {% if stats.w52_low and stats.w52_high and stats.w52_high > stats.w52_low %}
+                {% set pos = ((stock.stock_price - stats.w52_low) / (stats.w52_high - stats.w52_low) * 100) %}
+                {% set pos = [[pos, 0] | max, 100] | min %}
+                <div class="sd-range" style="--pos: {{ '%.1f' | format(pos) }}">
+                    <div class="sd-range__head"><span>52주 최저</span><span>52주 최고</span></div>
+                    <div class="sd-range__track" role="img"
+                         aria-label="52주 범위의 {{ '%.0f' | format(pos) }}% 위치"><i></i></div>
+                    <div class="sd-range__vals"><span>{{ price(stats.w52_low) }}</span><span>{{ price(stats.w52_high) }}</span></div>
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <section class="sd-card sd-exec" aria-labelledby="sdExecTitle">
+                <div class="sd-card__head">
+                    <h2 class="sd-card__title" id="sdExecTitle">체결</h2>
+                    <span class="sd-card__sub">30초마다 갱신</span>
+                    <button type="button" class="c-btn c-btn--icon sd-card__action" onclick="refreshExecutions()" aria-label="체결 새로고침">{{ icons.i('refresh') }}</button>
+                </div>
+                <div class="sd-exec__head" aria-hidden="true">
+                    <span>시간</span><span>체결가</span><span>체결량</span><span>구분</span>
+                </div>
+                <div class="sd-exec__body" id="executionList">
+                    <div class="sd-exec__empty">체결 데이터를 불러오는 중...</div>
+                </div>
+                {# 좁은 화면에서는 몇 건만 보이고 나머지는 아래서 올라오는 시트로 본다. #}
+                <button type="button" class="c-btn sd-exec__more" onclick="openExecutionOverlay()">{{ icons.i('expand') }}<span>체결 전체 보기</span></button>
+            </section>
         </div>
 
-        <div class="execution-section">
-            {# 모바일에서는 최신 1건만 크게 보인다 — 실시간이 아니라는 것을 머리에 적어 둔다. #}
-            <h3>최근 체결<span class="execution-latest-hint">30초마다 갱신</span></h3>
-            <div class="execution-list">
-                <div class="execution-header">
-                    <div>시간</div>
-                    <div>가격</div>
-                    <div>수량</div>
-                    <div>구분</div>
-                </div>
-                <div class="execution-body" id="executionList">
-                    <div class="execution-loading">체결 데이터를 불러오는 중...</div>
-                </div>
-                <div class="execution-fade-overlay"></div>
+        {# PC 에서는 차트 아래(왼쪽 칸)에 놓인다 — `stock_view.css` 의 grid-template-areas. #}
+        <section class="sd-card sd-info" aria-labelledby="sdInfoTitle">
+            <div class="sd-card__head">
+                <h2 class="sd-card__title" id="sdInfoTitle">종목 정보</h2>
             </div>
-
-            <button class="btn btn-primary" onclick="refreshExecutions()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                </svg>
-                새로고침
-            </button>
-
-            <button class="btn btn-ghost execution-mobile-trigger" onclick="openExecutionOverlay()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                </svg>
-                자세히 보기
-            </button>
-        </div>
-    </div>
-
-    <div class="stock-info-section">
-        <h3>종목 정보</h3>
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">종목명 (한글)</div>
-                <div class="info-value">{{ stock.stock_name_kr }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">종목명 (영문)</div>
-                <div class="info-value">{{ stock.stock_name_en }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">종목 코드</div>
-                <div class="info-value">{{ stock.stock_code }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">시장</div>
-                <div class="info-value">{{ stock.stock_market }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">종목 유형</div>
-                <div class="info-value">{{ stock.stock_type }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">현재가</div>
-                <div class="info-value"><span id="currentPriceInfoValue">{{ price(stock.stock_price) }}</span>{% if not is_us %}원{% endif %}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">시가총액</div>
-                <div class="info-value">{{ cap(stock.stock_capitalization) }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">{{ '총 발행량' if is_coin else '상장주식수' }}</div>
-                <div class="info-value">{{ qty(stock.stock_count) }}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">최종 업데이트</div>
+            <dl class="sd-kv sd-kv--wide">
+                <div><dt>시가총액</dt><dd>{{ cap(stock.stock_capitalization) }}</dd></div>
+                <div><dt>{{ '총 발행량' if is_coin else '상장주식수' }}</dt><dd>{{ qty(stock.stock_count) }}</dd></div>
+                <div><dt>시장</dt><dd>{{ MARKET_LABEL.get(stock.stock_market, stock.stock_market) }}</dd></div>
+                <div><dt>종목 유형</dt><dd>{{ TYPE_LABEL.get(stock.stock_type, stock.stock_type) }}</dd></div>
+                <div><dt>영문명</dt><dd>{{ stock.stock_name_en or '-' }}</dd></div>
+                <div><dt>종목 코드</dt><dd>{{ stock.stock_code }}</dd></div>
                 {# DB 에 KST 로 들어 있는 값이다 — 변환하지 않는다. #}
-                <div class="info-value">{{ stock.stock_update.strftime('%Y-%m-%d %H:%M:%S') if stock.stock_update else '' }}</div>
-            </div>
-        </div>
+                <div><dt>정보 갱신</dt><dd>{{ stock.stock_update.strftime('%Y-%m-%d %H:%M') if stock.stock_update else '-' }}</dd></div>
+            </dl>
+        </section>
     </div>
 </div>
 
 <div class="execution-overlay-backdrop" id="executionOverlayBackdrop" onclick="closeExecutionOverlay()"></div>
-<div class="execution-overlay" id="executionOverlay">
+<div class="execution-overlay" id="executionOverlay" role="dialog" aria-labelledby="sdExecSheetTitle">
     <div class="execution-overlay-handle"></div>
     <div class="execution-overlay-header">
-        <h3>최근 체결</h3>
+        <h3 id="sdExecSheetTitle">체결</h3>
         <div class="execution-overlay-actions">
-            <button class="btn btn-ghost btn-sm" onclick="refreshExecutions()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                </svg>
-            </button>
-            <button class="btn btn-ghost btn-sm" onclick="closeExecutionOverlay()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-            </button>
+            <button type="button" class="c-btn c-btn--icon" onclick="refreshExecutions()" aria-label="체결 새로고침">{{ icons.i('refresh') }}</button>
+            <button type="button" class="c-btn c-btn--icon" onclick="closeExecutionOverlay()" aria-label="닫기">{{ icons.i('cancel') }}</button>
         </div>
     </div>
     <div class="execution-overlay-content">
-        <div class="execution-header">
-            <div>시간</div>
-            <div>가격</div>
-            <div>수량</div>
-            <div>구분</div>
+        <div class="sd-exec__head" aria-hidden="true">
+            <span>시간</span><span>체결가</span><span>체결량</span><span>구분</span>
         </div>
-        <div class="execution-body" id="executionOverlayList">
-            <div class="execution-loading">체결 데이터를 불러오는 중...</div>
+        <div class="sd-exec__body" id="executionOverlayList">
+            <div class="sd-exec__empty">체결 데이터를 불러오는 중...</div>
         </div>
     </div>
 </div>

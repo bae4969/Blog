@@ -12,6 +12,7 @@ class CategoryOut(BaseModel):
     id: int = Field(description="카테고리 번호")
     name: str
     order: int = Field(description="화면 정렬 순서")
+    group: str = Field(default="general", description="finance(인사이트) · general(블로그)")
 
 
 class PostSummary(BaseModel):

@@ -379,13 +379,23 @@ async def stocks_index(request: Request):
             "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
             .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
+        # 최신 인사이트(금융 글) — 토스증권 홈의 "뉴스" 자리. 접근 규칙은 글 목록과 **같다**
+        # (`category_read_level >= 내 등급`, 관리자(0·1)가 아니면 공개 글만) — 여기서만 다르면
+        # 목록에서는 안 보이는 글이 홈에 새어 나온다.
+        level = _level(request)
+        insights = (await db.execute(text(
+            "SELECT p.posting_index, p.posting_title, p.posting_first_post_datetime "
+            "FROM posting_list p JOIN category_list c ON c.category_index = p.category_index "
+            "WHERE c.category_group = 'finance' AND c.category_read_level >= :lv "
+            "  AND (:lv <= 1 OR p.posting_state = 0) "
+            "ORDER BY p.posting_index DESC LIMIT 5"), {"lv": level})).all()
         portfolios = (await db.execute(text(
             # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
             #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
             "FROM backtest_portfolio WHERE is_public = 1 "
             "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
-        ctx = await _shell_ctx(request, db, _level(request))
+        ctx = await _shell_ctx(request, db, level)
 
     return templates.TemplateResponse(
         request,
@@ -393,6 +403,7 @@ async def stocks_index(request: Request):
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
             "stats": stats, "portfolios": portfolios, "default_market": market,
+            "insights": insights,
         },
     )
 
@@ -668,6 +679,60 @@ async def candle_rows(db, code: str, market: str, start: datetime, end: datetime
     return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
 
 
+async def _day_stats(db, table: str, events: list) -> dict | None:
+    """종목 상세 오른쪽 "시세" 칸 — 마지막 거래일의 시·고·저·거래량·거래대금·체결강도와 52주 최고·최저.
+
+    ⚠️ 원본이 10분봉이라 1년치를 `candle_rows(..., "1d")` 로 받으면 파이썬이 코인 기준 5만 행을
+       집계한다. 날짜별 합계는 SQL 에서 내고(≤ 366행) 액면분할 보정만 파이썬에서 한다 —
+       `_apply_split_adjustment` 는 **날짜**로 계수를 정하므로 일 단위 행에도 그대로 맞는다.
+    ⚠️ 차트의 일봉과 **같은 기준**이다(정규장만 거르지 않는다). 그래서 시가는 그날 첫 10분봉의
+       시가이고, 거래량·거래대금은 장 전후를 포함한다.
+    ⚠️ "마지막 거래일" 이지 KST 의 오늘이 아니다 — 주말·휴장이면 직전 거래일이 나온다. 화면은
+       그 날짜를 함께 적는다.
+    """
+    since = datetime.now(_KST).replace(tzinfo=None) - timedelta(days=365)
+    days = (await db.execute(text(
+        "SELECT DATE(execution_datetime) AS d, MIN(execution_datetime) AS first_at, "
+        "MIN(execution_min) AS lo, MAX(execution_max) AS hi, "
+        "SUM(execution_ask_volume) AS av, SUM(execution_bid_volume) AS bv, "
+        "SUM(execution_non_volume) AS nv, "
+        "SUM(execution_ask_amount + execution_bid_amount + execution_non_amount) AS amt "
+        f"FROM `candle`.`{table}` WHERE execution_datetime >= :s GROUP BY d ORDER BY d"),
+        {"s": since})).all()
+    if not days:
+        return None
+
+    rows = [{
+        "execution_datetime": datetime.combine(r.d, datetime.min.time()),
+        "execution_open": 0.0, "execution_close": 0.0,
+        "execution_min": float(r.lo or 0), "execution_max": float(r.hi or 0),
+        "execution_ask_volume": float(r.av or 0), "execution_bid_volume": float(r.bv or 0),
+        "execution_non_volume": float(r.nv or 0),
+    } for r in days]
+    rows = _apply_split_adjustment(rows, events)
+    last, last_raw = rows[-1], days[-1]
+
+    open_ = (await db.execute(text(
+        f"SELECT execution_open FROM `candle`.`{table}` WHERE execution_datetime = :t"),
+        {"t": last_raw.first_at})).scalar()
+    ask, bid = last["execution_ask_volume"], last["execution_bid_volume"]
+    return {
+        "date": last_raw.d,
+        "open": None if open_ is None else float(open_),
+        "high": last["execution_max"],
+        "low": last["execution_min"],
+        "volume": ask + bid + last["execution_non_volume"],
+        # 거래대금은 분할 보정을 하지 않는다 — 그날 실제로 오간 돈이다(`_apply_split_adjustment`).
+        "amount": float(last_raw.amt or 0),
+        # 체결강도 = 매수 체결량 ÷ 매도 체결량 × 100. 100 보다 크면 매수가 우세하다.
+        # ⚠️ `bid` 가 매수다 — 체결 목록(`stocks.js` 의 `isBuy`)과 같은 해석이다.
+        "strength": bid / ask * 100 if ask else None,
+        "w52_high": max(r["execution_max"] for r in rows),
+        "w52_low": min(r["execution_min"] for r in rows if r["execution_min"] > 0) if any(
+            r["execution_min"] > 0 for r in rows) else None,
+    }
+
+
 @router.get("/stocks/view", response_class=HTMLResponse, include_in_schema=False)
 async def stocks_show(request: Request):
     """종목 상세. 캔들·체결은 싣지 않고 화면이 뜬 뒤 API 로 채운다(PHP 와 같다)."""
@@ -697,19 +762,22 @@ async def stocks_show(request: Request):
         # 등락률도 여기서 함께 얻는다. 목록·히트맵과 **같은 헬퍼**라야 같은 값이 나온다.
         stock["change_pct"] = None
         stock["prev_price"] = None
+        is_us = stock["stock_market"] in _US_MARKETS
+        stats = None
         if table:
             q = (await _latest_quotes(db, [(code, "c" if is_coin else "s")])).get(code)
             if q:
                 stock["stock_price"] = q["close"]
                 stock["prev_price"] = q["prev_close"]
                 stock["change_pct"] = q["change_pct"]
+            events = await _split_events(db, code, "COIN" if is_coin else ("US" if is_us else "KR"))
+            stats = await _day_stats(db, table, events)
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(
         request, "stocks_show.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True,
-         "stock": stock, "is_coin": is_coin,
-         "is_us": stock["stock_market"] in _US_MARKETS},
+         "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats},
     )
 
 

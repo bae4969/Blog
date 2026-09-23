@@ -42,6 +42,10 @@ templates.env.filters["thumb_src"] = thumbnail.src
 #: 로컬(KST)이라 UTC 로 재면 자정 근처에서 하루가 어긋난다.
 _KST = timezone(timedelta(hours=9))
 
+#: 푸터 저작권 연도. ⚠️ `static_v` 처럼 상수로 박으면 컨테이너가 해를 넘겨 떠 있을 때
+#: 옛 연도가 굳는다 — 부를 때마다 계산하도록 **함수**로 넘긴다(`{{ current_year() }}`).
+templates.env.globals["current_year"] = lambda: datetime.now(_KST).year
+
 
 #: 등급 매핑은 `app/core/blog_user.py` 로 옮겼다 — API 도 같은 값을 봐야 한다.
 _user_level = blog_user.level_of
@@ -50,43 +54,46 @@ _user_level = blog_user.level_of
 @router.get("/", include_in_schema=False)
 @router.get("/index.php", include_in_schema=False)
 async def root_by_subdomain(request: Request) -> RedirectResponse:
-    """사이트 루트 — 서브도메인을 보고 블로그/주식으로 보낸다.
+    """사이트 루트 — 서브도메인을 보고 주식/블로그로 보낸다.
 
     세 도메인(`blog`·`stock`·…)이 한 서버를 가리키므로 진입점에서 갈라야 한다.
-    PHP `HomeController::redirectBySubdomain` 을 그대로 옮겼다 — 쿼리스트링을 붙여 넘기고
+    PHP `HomeController::redirectBySubdomain` 을 옮긴 것이다 — 쿼리스트링을 붙여 넘기고
     상태코드도 302 로 맞춘다(PHP `View::redirect` 와 같다).
 
+    ⚠️ 2026-09-23 **주식이 메인**이 됐다 — 기본값이 `/blog` 에서 `/stocks` 로 뒤집혔다.
+       `blog.` 로 들어온 사람만 블로그로 보낸다(그 주소를 친 사람은 블로그를 보러 왔고,
+       옛 즐겨찾기도 그대로 산다). `blogtest` 는 `blog` 가 아니라 주식으로 간다.
     """
     host = request.headers.get("host", "localhost").split(":")[0]
     subdomain = host.split(".")[0]
-    target = "/stocks" if subdomain == "stock" else "/blog"
+    target = "/blog" if subdomain == "blog" else "/stocks"
     if request.url.query:
         target += f"?{request.url.query}"
     return RedirectResponse(target, status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/blog", response_class=HTMLResponse, include_in_schema=False)
-async def blog_index(request: Request):
-    """글 목록. 로그인하지 않아도 볼 수 있다(공개 카테고리만).
+#: 글 묶음별 목록 주소 — 2026-09-23 블로그를 금융(인사이트)·일반(블로그)으로 나눴다.
+#: 묶음은 카테고리가 정한다(`category_list.category_group`, 관리자 화면에서 바꾼다).
+_LIST_PATH = {"general": "/blog", "finance": "/insights"}
+
+
+async def _post_list(request: Request, group: str):
+    """글 목록 껍데기. 로그인하지 않아도 볼 수 있다(공개 카테고리만).
 
     권한 규칙은 PHP `Post::getMetaAllFromDb` 를 그대로 옮겼다:
       · `category_read_level >= 내 등급` 인 카테고리만
       · 등급이 2 이상(일반)이면 `posting_state = 0`(공개)만
+    ⚠️ 글 목록은 여기서 읽지 않는다(2026-08-19). `/js/blog_list.js` 가 `/api/v1/posts?group=` 로
+       가져간다 — 남은 것은 **껍데기에 필요한 것**뿐이다: 카테고리 칩과 검색어.
     """
     user: AuthUser | None = getattr(request.state, "user", None)
     level = _user_level(user)
 
-    # 목록 자체는 JS 가 가져가지만, 이 값들은 **껍데기**에 여전히 필요하다 —
-    # 사이드바가 선택된 카테고리를 표시하고 검색창에 입력값을 되살린다.
     category_id = _int_arg(request, "category_index", -1)
     category_id = category_id if category_id > 0 else None
     search = (request.query_params.get("search_string") or "").strip()
 
     async with db_session() as db:
-        # ⚠️ 글 목록은 여기서 읽지 않는다(2026-08-19). `/js/blog_list.js` 가
-        #    `/api/v1/posts` 로 가져간다 — 서버가 또 조회하면 같은 쿼리를 두 번 도는 셈이다.
-        #    남은 것은 **껍데기에 필요한 것**뿐이다: 사이드바 카테고리와 방문자 수.
-
         categories = (
             await db.execute(
                 select(Category)
@@ -95,23 +102,12 @@ async def blog_index(request: Request):
             )
         ).scalars().all()
 
-        # 방문자 수 — PHP `User::getVisitorCount()` 와 같은 값을 읽는다. **주 단위**
-        # 집계이고 키는 `YYYY` + 2자리 주차다(`date("Y") . str_pad(date("W"),2,'0')`).
-        # ⚠️ MariaDB 의 WEEK 모드를 맞춰야 한다. PHP 의 `date("W")` 는 ISO-8601 주차라
-        #    `WEEK(NOW(), 3)` 에 대응한다 — 모드를 빼면 연말·연초에 한 주가 어긋난다.
-        #
-        # ⚠️ **읽기만** 한다. PHP 는 여기서 `updateVisitorCount()` 로 카운트를 올리는데
-        #    이 서비스 계정에는 SELECT 밖에 없다(운영 데이터를 공유하는 상태라 쓰기를
-        #    함부로 열지 않았다). 집계가 덜 오르는 것과 운영 테이블에 잘못 쓰는 것 중에는
-        #    전자가 낫다 — 쓰기 경로를 포팅할 때 함께 처리한다.
-        visitor_count = (
-            await db.execute(
-                text(
-                    "SELECT visit_count FROM weekly_visitors "
-                    "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-                )
-            )
-        ).scalar() or 0
+    # 다른 묶음의 카테고리를 골랐으면 그쪽 목록으로 보낸다 — 나누기 전의 `/blog?category_index=4`
+    # (금융) 같은 링크·즐겨찾기가 빈 목록 대신 제자리를 찾아간다.
+    picked = next((c for c in categories if c.category_index == category_id), None)
+    if picked is not None and picked.category_group != group:
+        return RedirectResponse(f"{_LIST_PATH[picked.category_group]}?{request.url.query}",
+                                status_code=status.HTTP_302_FOUND)
 
     return templates.TemplateResponse(
         request,
@@ -119,15 +115,28 @@ async def blog_index(request: Request):
         {
             "user": user,
             "level": level,
-            "categories": categories,
+            "categories": [c for c in categories if c.category_group == group],
             "category_id": category_id,
             "search": search,
-            "visitor_count": visitor_count,
+            "nav_group": group,
+            "list_path": _LIST_PATH[group],
             "auth_public_url": settings.auth_public_url,
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
         },
     )
+
+
+@router.get("/blog", response_class=HTMLResponse, include_in_schema=False)
+async def blog_index(request: Request):
+    """일반 글(개발·일기 등) 목록. `blog.` 도메인의 첫 화면이다."""
+    return await _post_list(request, "general")
+
+
+@router.get("/insights", response_class=HTMLResponse, include_in_schema=False)
+async def insights_index(request: Request):
+    """금융 글 목록 — 토스증권의 "뉴스" 자리. 주식이 메인이 되며 상단 메뉴에 따로 뒀다."""
+    return await _post_list(request, "finance")
 
 
 def _int_arg(request: Request, key: str, default: int) -> int:
@@ -182,6 +191,7 @@ async def post_detail(request: Request):
                     # 소유자 판정에 쓴다 — 빠뜨리면 버튼 조건에서 KeyError 가 난다.
                     Post.user_index,
                     Category.category_name,
+                    Category.category_group,
                     User.user_id,
                 )
                 .select_from(Post)
@@ -202,14 +212,6 @@ async def post_detail(request: Request):
             )
         ).scalars().all()
 
-        visitor_count = (
-            await db.execute(
-                text(
-                    "SELECT visit_count FROM weekly_visitors "
-                    "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-                )
-            )
-        ).scalar() or 0
 
         # 어떤 버튼을 보일지 — 서버가 판단한다. 화면에서 숨기는 것만으로는 부족해서
         # 각 POST 라우트가 같은 조건을 한 번 더 검사한다.
@@ -263,7 +265,8 @@ async def post_detail(request: Request):
             "categories": categories,
             "category_id": row.category_index,
             "search": "",
-            "visitor_count": visitor_count,
+            # 상단 메뉴에서 "인사이트"·"블로그" 중 어디를 켤지 — 글의 카테고리 묶음이 정한다.
+            "nav_group": row.category_group or "general",
             "is_owner": is_owner,
             "can_moderate": can_moderate,
             "csrf_token": csrf_token,
@@ -295,21 +298,12 @@ async def _shell_ctx(request: Request, db, level: int, category_id: int | None =
             .order_by(Category.category_order)
         )
     ).scalars().all()
-    visitor_count = (
-        await db.execute(
-            text(
-                "SELECT visit_count FROM weekly_visitors "
-                "WHERE year_week = CONCAT(YEAR(NOW()), LPAD(WEEK(NOW(), 3), 2, '0'))"
-            )
-        )
-    ).scalar() or 0
     return {
         "user": getattr(request.state, "user", None),
         "level": level,
         "categories": categories,
         "category_id": category_id,
         "search": "",
-        "visitor_count": visitor_count,
         "auth_public_url": settings.auth_public_url,
         "contact_email": settings.contact_email,
         "github_url": settings.github_url,

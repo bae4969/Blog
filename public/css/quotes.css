@@ -20,99 +20,6 @@
     grid-row: 1;
 }
 
-.stock-floating-search {
-    position: relative;
-    flex: none;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    overflow: visible;
-}
-
-.stock-search-floating-results {
-    position: absolute;
-    z-index: 100;
-    top: calc(100% + 5px);
-    right: 0;
-    width: min(390px, calc(100vw - 20px));
-    max-height: 420px;
-    overflow-y: auto;
-    border: 1px solid var(--border-hover);
-    border-radius: var(--border-radius, 6px);
-    background: var(--bg-primary);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
-}
-
-.stock-search-floating-results[hidden] {
-    display: none;
-}
-
-.stock-floating-result {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 10px;
-    border-bottom: 1px solid var(--border-color);
-    color: var(--text-primary);
-    text-decoration: none;
-}
-
-.stock-floating-result:last-child {
-    border-bottom: 0;
-}
-
-.stock-floating-result:hover,
-.stock-floating-result:focus-visible {
-    background: var(--bg-hover);
-    text-decoration: none;
-}
-
-.stock-floating-result-info {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.stock-floating-result-name,
-.stock-floating-result-code {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.stock-floating-result-name {
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-
-.stock-floating-result-code {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-}
-
-.stock-floating-result-market {
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.65rem;
-    font-weight: 600;
-}
-
-.stock-floating-result-price {
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.stock-floating-search-message {
-    padding: 18px 12px;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    text-align: center;
-}
-
 .quotes-container {
     display: flex;
     flex-direction: column;
@@ -219,14 +126,6 @@
 }
 
 /* ── 지수·환율 상세 ────────────────────────────────────────────────── */
-
-.quote-detail-header .stock-header-main {
-    margin-bottom: 0;
-}
-
-.quote-chart-section {
-    min-height: 480px;
-}
 
 /* ⚠️ 등락 색(`.q-up`/`.q-down`/`.q-flat`)은 **`stocks.css` 에 있다.** 이 화면과 `/stocks`
       가 같은 색이어야 해서 한 곳에만 둔다 — quotes.css 는 stocks.css 뒤에 실린다. */
@@ -438,11 +337,6 @@
         grid-row: 2;
     }
 
-    .stock-search-floating-results {
-        left: 0;
-        right: auto;
-        width: 100%;
-    }
 }
 
 @media (max-width: 600px) {

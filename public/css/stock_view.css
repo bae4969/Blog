@@ -1,0 +1,510 @@
+/* ===========================================
+   종목 상세(`/stocks/view`) — 2026-09-23 토스증권 PC 처럼
+   ===========================================
+   `stocks.css` **뒤에** 싣는다(레이어 밖, 같은 특이도면 뒤가 이긴다). 새 뼈대는 `sd-*`
+   클래스라 옛 규칙과 부딪히지 않고, 옛 클래스를 그대로 쓰는 조각(차트 안쪽의
+   `.chart-wrapper`·`.chart-type-btn`, 바텀시트 `.execution-overlay*`)만 `.sd` 로 좁혀 덮는다.
+
+   ⚠️ 지수 상세(`/quotes/view`)는 아직 옛 마크업이라 `stocks.css` 의 `.stock-detail-*`·
+      `.chart-controls` 를 그대로 쓴다 — 옛 규칙을 지우지 말 것(6단계에서 함께 옮긴다).
+
+   원칙(토스증권 PC)
+   · 테두리 대신 **바탕 한 단계**로 칸을 나눈다 — 카드 = 본문 바탕보다 한 단 밝게.
+   · 숫자는 굵고 크게, 고정폭. 라벨은 흐리게 작게.
+   · 등락 색은 대비를 맞춘 **글자 전용 토큰**(`--chart-*-text`)이 `.q-up`·`.q-down` 으로 온다.
+*/
+
+.sd {
+    /* 카드 바탕: 본문(#202020)과 표면(#2B2B2B)의 중간. 등락 글자 대비는 두 바탕 사이라
+       최저 5.96(빨강 on #2B2B2B) 이상이다. 행 호버는 표면색. */
+    --sd-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
+    --sd-radius: 1rem;
+    --sd-pad: clamp(1rem, 0.7rem + 1vw, 1.5rem);
+
+    display: grid;
+    gap: clamp(0.75rem, 0.5rem + 1vw, 1.25rem);
+    max-inline-size: 80rem;
+    margin-inline: auto;
+    padding-block: var(--space-3, 0.75rem) var(--space-6, 2rem);
+}
+
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+    .sd { --sd-card: var(--bae-surface); }
+}
+
+/* ⚠️ 옛 `blog.css` 가 모든 div·section 에 clearfix `::after{content:"";display:table}` 를 준다.
+      flex·grid 안에서는 그게 **빈 칸 하나**가 되어 `space-between` 이 값을 가운데로 밀고(시세의
+      값이 오른쪽에 안 붙었다), 그리드에 빈 줄을 하나 더 만든다. 이 화면의 뼈대(`sd-*`)에서만 끈다
+      — 차트 안쪽의 옛 조각(말풍선·스피너)은 제 가상 요소를 쓸 수 있다. */
+.sd::after,
+.sd :where([class^="sd-"], [class*=" sd-"])::after,
+.sd-kv > div::after {
+    content: none;
+}
+
+/* ⚠️ 옛 `blog.css` 가 1024px 이하에서 `section { display:flex }` 를 준다. 카드가 flex 가 되면
+      차트 판의 `flex: 1 1 0%`(stocks.css) 가 높이를 무시해 모바일 차트가 171px 로 눌렸다. */
+.sd-card { display: block; }
+.sd-chart { display: flex; flex-direction: column; }
+
+/* ── 머리: 이름 · 현재가 ──────────────────────────────────────── */
+.sd-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+        "back id watch"
+        "quote quote quote";
+    align-items: center;
+    column-gap: var(--space-3, 0.75rem);
+    row-gap: var(--space-3, 0.75rem);
+    padding-inline: var(--space-1, 0.25rem);
+}
+
+.sd-back { grid-area: back; }
+.sd-watch { grid-area: watch; gap: var(--space-2, 0.5rem); }
+.sd-id { grid-area: id; min-inline-size: 0; }
+.sd-quote { grid-area: quote; }
+
+.sd-name {
+    margin: 0;
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
+    font-weight: 800;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sd-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2, 0.5rem);
+    margin: 0.125rem 0 0;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+}
+
+.sd-meta span + span::before {
+    content: "·";
+    margin-inline-end: var(--space-2, 0.5rem);
+}
+
+.sd-price {
+    margin: 0;
+    font-size: clamp(1.875rem, 1.45rem + 1.6vw, 2.625rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+}
+
+.sd-price small {
+    margin-inline-start: 0.125em;
+    font-size: 0.5em;
+    font-weight: 700;
+}
+
+.sd-change {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    margin: var(--space-2, 0.5rem) 0 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-change__label {
+    color: var(--bae-text-dim);
+    font-weight: 600;
+}
+
+/* ── 본문: 차트 | 시세·체결 ────────────────────────────────────── */
+.sd-body {
+    display: grid;
+    gap: inherit;
+    align-items: start;
+}
+
+/* PC: 왼쪽 = 차트 + 종목 정보, 오른쪽 = 시세 + 체결.
+   **왼쪽이 높이를 정한다** — 차트는 화면 높이(58vh)를 따르고, 오른쪽 체결 목록이 남는 높이를
+   채우며 스크롤된다. (처음엔 차트가 오른쪽 칸 높이를 따라 늘게 했더니 1366×768 노트북에서 차트가
+   797px 로 화면보다 커졌다.) 오른쪽이 더 길어지면 그만큼 차트가 늘어 빈칸이 생기지 않는다.
+   ⚠️ 캔버스는 절대 위치다 — 캔버스 크기가 판을 밀면 "캔버스 높이 → 판 높이 → 캔버스 높이" 로
+      물려 창을 줄여도 안 줄어든다. */
+@media (min-width: 64rem) {
+    .sd-body {
+        grid-template-columns: minmax(0, 1fr) 22rem;
+        grid-template-areas:
+            "chart side"
+            "info  side";
+        grid-template-rows: 1fr auto;
+        align-items: stretch;
+    }
+
+    .sd-chart { grid-area: chart; }
+    .sd-info  { grid-area: info; }
+
+    .sd-side {
+        grid-area: side;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sd-exec {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-block-size: 0;
+    }
+
+    .sd-exec .sd-exec__body {
+        flex: 1 1 0;
+        min-block-size: 12rem;
+        max-block-size: none;
+    }
+
+    /* 지수·환율 상세 — 종목 정보·체결이 없다. 오른쪽 "시세" 는 제 높이만큼만. */
+    .sd-body--quote {
+        grid-template-areas: "chart side";
+        grid-template-rows: auto;
+    }
+
+    .sd-body--quote .sd-side { align-self: start; }
+}
+
+.sd-side {
+    display: grid;
+    gap: clamp(0.75rem, 0.5rem + 1vw, 1.25rem);
+    min-inline-size: 0;
+}
+
+.sd-card {
+    min-inline-size: 0;
+    padding: var(--sd-pad);
+    border-radius: var(--sd-radius);
+    background: var(--sd-card);
+}
+
+.sd-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+    margin-block-end: var(--space-3, 0.75rem);
+}
+
+.sd-card__title {
+    margin: 0;
+    color: var(--bae-text-primary);
+    font-size: 1.0625rem;
+    font-weight: 800;
+}
+
+.sd-card__sub {
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+}
+
+.sd-card__action { margin-inline-start: auto; }
+
+/* ── 차트 칸 ───────────────────────────────────────────────────── */
+.sd-chart__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2, 0.5rem);
+    margin-block-end: var(--space-3, 0.75rem);
+}
+
+/* 봉 단위·차트 모양 — 한 덩어리로 보이는 버튼 묶음(segmented). 켜진 것만 한 단 밝다. */
+.sd-periods,
+.sd-charttype {
+    display: flex;
+    gap: 0.125rem;
+    max-inline-size: 100%;
+    padding: 0.1875rem;
+    border-radius: 0.625rem;
+    background: var(--bae-bg-alt);
+}
+
+/* 320px 폰에서는 여덟 개가 한 줄에 안 들어간다 — 접지 않고 가로로 민다. */
+.sd-periods {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.sd-periods::-webkit-scrollbar { display: none; }
+
+.sd-periods button,
+.sd-charttype .chart-type-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+    min-inline-size: 0;
+    block-size: 2rem;
+    padding: 0 0.625rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.sd-periods button:hover,
+.sd-charttype .chart-type-btn:hover {
+    background: none;
+    color: var(--bae-text-primary);
+}
+
+.sd-periods button[aria-pressed="true"],
+.sd-charttype .chart-type-btn[aria-pressed="true"] {
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+/* 360px 안팎에서 여덟 개가 한 줄에 들어가게 여백을 줄인다(320px 은 그래도 민다). */
+@media (max-width: 29.99rem) {
+    .sd-periods button { padding-inline: 0.5rem; }
+}
+
+.sd-charttype .chart-type-btn .c-ico {
+    inline-size: 1rem;
+    block-size: 1rem;
+}
+
+/* 차트 판 — 카드가 바탕을 가지므로 판 자체의 바탕·여백은 걷는다. 높이는 화면 높이를 따라가되
+   PC 에서 오른쪽 칸(시세+체결)과 비슷한 높이가 되게 38rem 에서 멈춘다. */
+.sd .chart-wrapper {
+    flex: 1 1 0;
+    block-size: auto;
+    min-block-size: clamp(20rem, 58vh, 38rem);
+    max-block-size: none;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+}
+
+.sd .chart-wrapper canvas {
+    position: absolute;
+    inset: 0;
+}
+
+.sd .chart-settings-btn .c-ico,
+.sd .chart-indicator-help-btn .c-ico {
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+}
+
+/* ── 시세 ───────────────────────────────────────────────────────── */
+.sd-kv {
+    display: grid;
+    /* 오른쪽 칸(22rem)에서는 한 줄씩, 넓은 카드에서는 여러 열로. */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+    gap: 0 var(--space-6, 2rem);
+    margin: 0;
+}
+
+.sd-kv > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3, 0.75rem);
+    padding-block: 0.4375rem;
+}
+
+.sd-kv dt {
+    flex: 0 0 auto;
+    color: var(--bae-text-dim);
+    font-size: 0.875rem;
+}
+
+.sd-kv dd {
+    min-inline-size: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 넓은 카드(종목 정보)는 줄마다 얇은 선을 둔다 — 열이 여럿이라 눈이 줄을 잃는다. */
+.sd-kv--wide > div {
+    padding-block: var(--space-3, 0.75rem);
+    border-block-end: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+}
+
+.sd-strength,
+.sd-range {
+    margin-block-start: var(--space-3, 0.75rem);
+    padding-block-start: var(--space-4, 1rem);
+    border-block-start: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+}
+
+.sd-strength {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.sd-strength__label {
+    color: var(--bae-text-dim);
+    font-size: 0.875rem;
+}
+
+.sd-strength__val {
+    font-size: 1.0625rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-strength__val small {
+    margin-inline-start: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* 52주 범위 — 트랙 위 표시점. 방향이 아니라 위치라 중립색(흰색)이다. */
+.sd-range__head,
+.sd-range__vals {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8125rem;
+}
+
+.sd-range__head {
+    margin-block-end: var(--space-2, 0.5rem);
+    color: var(--bae-text-dim);
+}
+
+.sd-range__vals {
+    margin-block-start: var(--space-2, 0.5rem);
+    color: var(--bae-text-muted);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-range__track {
+    position: relative;
+    block-size: 0.375rem;
+    border-radius: 999px;
+    background: var(--bae-surface-hover);
+}
+
+.sd-range__track > i {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: calc(var(--pos, 50) * 1%);
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+    border-radius: 50%;
+    background: var(--bae-text-primary);
+    box-shadow: 0 0 0 3px var(--sd-card);
+    transform: translate(-50%, -50%);
+}
+
+/* ── 체결 ───────────────────────────────────────────────────────── */
+.sd-exec__head,
+.sd-exec__row {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 0.8fr) 2.25rem;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+    padding-inline: var(--space-2, 0.5rem);
+}
+
+/* 머리줄과 몸통이 **같은 스크롤바 자리**를 갖게 한다 — 몸통에만 스크롤바가 생기면 칸이 밀린다.
+   (전에는 JS 가 스크롤바 폭을 재서 머리줄 패딩을 맞췄다. `scrollbar-gutter` 가 대신한다.) */
+.sd-exec__head,
+.sd-exec__body {
+    scrollbar-gutter: stable;
+}
+
+.sd-exec__head {
+    overflow-y: hidden;
+    padding-block-end: var(--space-2, 0.5rem);
+    border-block-end: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sd-exec__head span:not(:first-child) { text-align: end; }
+
+.sd-exec__body {
+    max-block-size: 20rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bae-border) transparent;
+}
+
+.sd-exec__row {
+    padding-block: 0.4375rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-exec__row:hover { background: var(--bae-surface); }
+
+.sd-exec__t { color: var(--bae-text-dim); font-size: 0.8125rem; }
+
+.sd-exec__p,
+.sd-exec__v,
+.sd-exec__k {
+    overflow: hidden;
+    text-align: end;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sd-exec__p { color: var(--bae-text-primary); font-weight: 700; }
+.sd-exec__k { font-size: 0.8125rem; font-weight: 700; }
+
+/* 매수 빨강 · 매도 파랑(한국 관례). 수량과 구분 글자에만 칠한다 — 가격은 중립. */
+.sd-exec__row.is-buy :is(.sd-exec__v, .sd-exec__k) { color: var(--chart-up-text); }
+.sd-exec__row.is-sell :is(.sd-exec__v, .sd-exec__k) { color: var(--chart-down-text); }
+
+.sd-exec__empty {
+    padding: var(--space-6, 2rem) var(--space-4, 1rem);
+    color: var(--bae-text-dim);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.sd-exec__more { display: none; }
+
+/* 좁은 화면: 몇 건만 보이고 "체결 전체 보기" 가 바텀시트(`#executionOverlay`)를 연다.
+   ⚠️ 시트는 `stocks.css` 가 768px 이하에서만 켠다 — 같은 경계(48rem)를 쓴다. */
+@media (max-width: 48rem) {
+    .sd-exec .sd-exec__body {
+        max-block-size: none;
+        overflow: visible;
+    }
+
+    .sd-exec .sd-exec__row:nth-child(n + 6) { display: none; }
+
+    .sd-exec__more {
+        display: inline-flex;
+        justify-content: center;
+        gap: var(--space-2, 0.5rem);
+        inline-size: 100%;
+        margin-block-start: var(--space-3, 0.75rem);
+    }
+
+    .execution-overlay-content .sd-exec__body {
+        flex: 1;
+        max-block-size: none;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}

@@ -430,18 +430,37 @@
     }
 
     /** `quiet` 이면 "불러오는 중" 으로 비우지 않는다 — 앱으로 돌아와 다시 받을 때 깜빡이지 않게. */
+    /**
+     * 받은 행은 `stock-dashboard-heatmap` 이벤트로도 내보낸다 — 홈의 상승률·하락률 순위
+     * (`stocks_dashboard.js`)가 같은 데이터를 정렬해 쓴다(API 를 두 번 부르지 않게).
+     * ⚠️ 받는 사이 시장이 바뀌었으면 버린다 — 늦게 온 옛 시장 응답이 새 시장 히트맵을 덮지 않게.
+     */
     function loadHeatmap(quiet) {
+        var asked = market;
         if (!quiet) boxEl.innerHTML = '<div class="quote-empty">불러오는 중…</div>';
-        fetch('/api/v1/stocks/heatmap?market=' + encodeURIComponent(market), { credentials: 'same-origin' })
-            .then(function (r) { return r.ok ? r.json() : []; })
+        fetch('/api/v1/stocks/heatmap?market=' + encodeURIComponent(asked), { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
             .then(function (rows) {
+                if (asked !== market) return;
                 heatmapData = rows || [];
                 renderHeatmap();
+                announceHeatmap(heatmapData, false);
             })
             .catch(function () {
+                if (asked !== market) return;
                 heatmapData = [];
                 boxEl.innerHTML = '<div class="quote-empty">불러오지 못했습니다.</div>';
+                announceHeatmap([], true);
             });
+    }
+
+    function announceHeatmap(rows, failed) {
+        document.dispatchEvent(new CustomEvent('stock-dashboard-heatmap', {
+            detail: { market: market, rows: rows, failed: failed }
+        }));
     }
 
     function setMarket(m) {
@@ -479,7 +498,8 @@
         boxEl = document.getElementById('heatmapBox');
         tooltipEl = document.getElementById('heatmapTooltip');
         legendEl = document.getElementById('heatmapLegend');
-        tabEls = rootEl.querySelectorAll('.market-stat-item-h[data-group], .heatmap-tab');
+        // `[data-market-tab]` — 홈 순위 표의 시장 버튼. 히트맵 탭과 한 상태를 공유한다.
+        tabEls = rootEl.querySelectorAll('.market-stat-item-h[data-group], .heatmap-tab, [data-market-tab]');
 
         var d = (rootEl.dataset.market || '').toUpperCase();
         market = GROUPS.indexOf(d) >= 0 ? d : 'KR';

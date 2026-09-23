@@ -11,18 +11,16 @@
      도커 네트워크에 갇히면 LAN 까지 닿지 않는다. 화면 문구도 전송까지만 말한다.
 #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}WOL · Developer Blog{% endblock %}
+{% block title %}WOL · Developer Notes{% endblock %}
 
 {# 관리자 화면 스타일. PHP 는 컨트롤러가 additionalCss 로 넘기던 것이다. #}
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
 <div class="admin-content">
-    {% if msg %}
-    <div class="alert alert-info">{{ msg }}</div>
-    {% endif %}
-
+{# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card collapsed">
         <h2>WOL (Wake-on-LAN)</h2>
         <div class="stat-row">
@@ -51,7 +49,7 @@
                 </div>
             </div>
             <div class="admin-form-actions">
-                <button type="submit" class="btn btn-primary">등록</button>
+                <button type="submit" class="btn btn-primary">{{ icons.i('add') }}<span>등록</span></button>
             </div>
         </form>
         </div>
@@ -90,9 +88,9 @@
                                 <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
                             </form>
                             <div class="wol-device-actions">
-                                <button type="submit" form="wol-edit-{{ d.wol_device_id }}" class="btn btn-sm btn-primary wol-save-btn" disabled>저장</button>
-                                <button type="submit" form="wol-exec-{{ d.wol_device_id }}" class="btn btn-sm btn-wol">전원 켜기</button>
-                                <button type="submit" form="wol-del-{{ d.wol_device_id }}" class="btn btn-sm btn-danger">삭제</button>
+                                <button type="submit" form="wol-edit-{{ d.wol_device_id }}" class="btn btn-sm btn-primary wol-save-btn" disabled>{{ icons.i('save') }}<span>저장</span></button>
+                                <button type="submit" form="wol-exec-{{ d.wol_device_id }}" class="btn btn-sm btn-wol">{{ icons.i('power') }}<span>전원 켜기</span></button>
+                                <button type="submit" form="wol-del-{{ d.wol_device_id }}" class="btn btn-sm btn-danger">{{ icons.i('trash') }}<span>삭제</span></button>
                             </div>
                         </div>
                     </div>

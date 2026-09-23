@@ -9,6 +9,7 @@
 """
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import func, select, text
@@ -47,7 +48,8 @@ def _summary(row) -> PostSummary:
         # DB 값(경로 또는 base64)이 아니라 바로 쓸 수 있는 URL 로 바꿔 내보낸다.
         thumbnail_url=thumbnail.src(row.posting_thumbnail) or None,
         category=(
-            CategoryOut(id=row.category_index, name=row.category_name, order=0)
+            CategoryOut(id=row.category_index, name=row.category_name, order=0,
+                        group=getattr(row, "category_group", None) or "general")
             if row.category_index is not None else None
         ),
         author=row.user_id,
@@ -58,16 +60,25 @@ def _summary(row) -> PostSummary:
     )
 
 
+#: 글 묶음 — 금융(`/insights`) · 일반(`/blog`). 2026-09-23 블로그를 둘로 나눴다.
+Group = Literal["finance", "general"]
+
+
 @router.get("/categories", response_model=list[CategoryOut], summary="읽을 수 있는 카테고리")
-async def categories(request: Request):
+async def categories(
+    request: Request,
+    group: Group | None = Query(None, description="finance(인사이트) · general(블로그)로 거른다"),
+):
     level = _level(request)
     async with db_session() as db:
+        where = [Category.category_read_level >= level]
+        if group:
+            where.append(Category.category_group == group)
         rows = (await db.execute(
-            select(Category)
-            .where(Category.category_read_level >= level)
-            .order_by(Category.category_order)
+            select(Category).where(*where).order_by(Category.category_order)
         )).scalars().all()
-    return [CategoryOut(id=c.category_index, name=c.category_name, order=c.category_order)
+    return [CategoryOut(id=c.category_index, name=c.category_name, order=c.category_order,
+                        group=c.category_group)
             for c in rows]
 
 
@@ -78,6 +89,7 @@ async def posts(
     size: int = Query(10, ge=1, le=_MAX_SIZE),
     category: int | None = Query(None, description="카테고리 번호로 거른다"),
     q: str | None = Query(None, max_length=100, description="제목 부분검색"),
+    group: Group | None = Query(None, description="finance(인사이트) · general(블로그)로 거른다"),
 ):
     level = _level(request)
     async with db_session() as db:
@@ -86,6 +98,8 @@ async def posts(
             where.append(Post.posting_state == 0)
         if category is not None:
             where.append(Post.category_index == category)
+        if group:
+            where.append(Category.category_group == group)
         if q:
             where.append(Post.posting_title.like(f"%{q}%"))
 
@@ -104,7 +118,8 @@ async def posts(
                 Post.posting_index, Post.posting_title, Post.posting_summary,
                 Post.posting_thumbnail, Post.posting_read_cnt, Post.posting_state,
                 Post.posting_first_post_datetime, Post.posting_last_edit_datetime,
-                Category.category_name, Category.category_index, User.user_id,
+                Category.category_name, Category.category_index, Category.category_group,
+                User.user_id,
             )
             .select_from(Post)
             .join(Category, Category.category_index == Post.category_index)
@@ -134,7 +149,8 @@ async def post(request: Request, post_id: int):
                 Post.posting_content, Post.posting_thumbnail, Post.posting_read_cnt,
                 Post.posting_state,
                 Post.posting_first_post_datetime, Post.posting_last_edit_datetime,
-                Category.category_name, Category.category_index, User.user_id,
+                Category.category_name, Category.category_index, Category.category_group,
+                User.user_id,
             )
             .select_from(Post)
             .outerjoin(Category, Category.category_index == Post.category_index)
