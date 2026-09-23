@@ -1,11 +1,32 @@
-/** `/stocks` 오른쪽 열 — 거래대금 TOP10. (종목 검색은 2026-09-23 상단바로 옮겼다 — `stock_search.js`) */
+/**
+ * `/stocks` 홈의 순위 표 — 거래대금 · 상승률 · 하락률 × 한국 · 미국 · 코인.
+ *
+ * · 거래대금: `/api/v1/stocks/top` (⚠️ 최근 30일 합계 — 화면 머리 아래에 그렇게 적는다)
+ * · 상승률·하락률: `quotes.js` 가 히트맵을 받을 때마다 보내는 `stock-dashboard-heatmap` 이벤트의
+ *   행(구독 종목 전체)을 등락률로 정렬한다. API 를 한 번 더 부르지 않는다.
+ *
+ * 시장은 화면 하나의 상태다 — 이 표의 시장 버튼도 `quotes.js` 가 히트맵 탭과 함께 잡는다.
+ * 여기서는 `stock-dashboard-market-change` 를 듣기만 한다.
+ *
+ * (종목 검색은 2026-09-23 상단바로 옮겼다 — `stock_search.js`)
+ */
 (function () {
     'use strict';
 
     var US_MARKETS = ['NYSE', 'NASDAQ', 'AMEX'];
-    var topEl, rootEl;
-    var topRequestId = 0;
-    var topMarket = null;
+    var LIMIT = 10;
+    var NOTE = {
+        amount: '최근 30일 거래대금 합계',
+        up: '구독 종목 기준 · 직전 거래일 대비',
+        down: '구독 종목 기준 · 직전 거래일 대비'
+    };
+
+    var listEl, noteEl, metricEl, kindEls;
+    var kind = 'amount';
+    var market = 'KR';
+    var requestId = 0;
+    // 마지막으로 받은 히트맵 — 상승률·하락률은 여기서 만든다. 시장이 다르면 아직 안 온 것이다.
+    var heat = { market: null, rows: [], failed: false };
 
     function n(v, digits) {
         return Number(v || 0).toLocaleString('en-US', {
@@ -16,7 +37,7 @@
 
     function pctText(value) {
         if (value === null || value === undefined) return '-';
-        return (value >= 0 ? '+' : '') + n(value, 2) + '%';
+        return (value > 0 ? '+' : '') + n(value, 2) + '%';
     }
 
     function pctClass(value) {
@@ -26,25 +47,35 @@
         return 'q-flat';
     }
 
-    /** 거래대금 → [숫자, 단위]. 단위를 떼어 두는 것은 숫자를 먼저 읽히고 단위(`조`)를 작게
-     *  흐리게 붙이기 위해서다(순위 목록의 1행 오른쪽 값). */
-    function amountParts(value) {
-        if (!value) return ['0', ''];
-        if (value >= 1e20) return [n(value / 1e20, 1), '해'];
-        if (value >= 1e16) return [n(value / 1e16, 1), '경'];
-        if (value >= 1e12) return [n(value / 1e12, 1), '조'];
-        if (value >= 1e8) return [n(value / 1e8, 0), '억'];
-        if (value >= 1e4) return [n(value / 1e4, 0), '만'];
-        return [n(value, 0), ''];
+    function isUS(item) {
+        return US_MARKETS.indexOf(item.market) >= 0;
     }
 
-    function isUS(market) {
-        return US_MARKETS.indexOf(market) >= 0;
+    function isCoin(item) {
+        return item.type === 'COIN' || item.market === 'Bithumb' || item.market === 'COIN' || market === 'COIN';
     }
 
-    function price(value, market) {
+    function price(value, item) {
         if (value === null || value === undefined) return '-';
-        return isUS(market) ? '$' + n(value, 2) : n(value, 0) + '원';
+        if (isUS(item)) return '$' + n(value, 2);
+        // 코인은 1원 아래 값이 있다 — 정수로 자르면 0원이 된다.
+        return (value < 100 ? n(value, value < 1 ? 4 : 2) : n(value, 0)) + '원';
+    }
+
+    /** 거래대금·시가총액. 원화는 조·억, 달러는 B·M. */
+    function money(value, item) {
+        if (!value) return '-';
+        if (isUS(item)) {
+            if (value >= 1e12) return '$' + n(value / 1e12, 2) + 'T';
+            if (value >= 1e9) return '$' + n(value / 1e9, 1) + 'B';
+            if (value >= 1e6) return '$' + n(value / 1e6, 1) + 'M';
+            return '$' + n(value, 0);
+        }
+        if (value >= 1e16) return n(value / 1e16, 1) + '경';
+        if (value >= 1e12) return n(value / 1e12, 1) + '조';
+        if (value >= 1e8) return n(value / 1e8, 0) + '억';
+        if (value >= 1e4) return n(value / 1e4, 0) + '만';
+        return n(value, 0);
     }
 
     function el(tag, className, text) {
@@ -54,141 +85,150 @@
         return node;
     }
 
-    function marketGroup(item) {
-        if (item.type === 'COIN' || item.market === 'Bithumb') return 'COIN';
-        return isUS(item.market) ? 'US' : 'KR';
-    }
-
     function detailUrl(item) {
         var query = 'code=' + encodeURIComponent(item.code);
-        if (marketGroup(item) === 'COIN') query += '&market=COIN';
+        if (isCoin(item)) query += '&market=COIN';
         return '/stocks/view?' + query;
     }
 
+    function message(text) {
+        listEl.classList.remove('is-stale');
+        listEl.removeAttribute('aria-busy');
+        listEl.innerHTML = '';
+        listEl.appendChild(el('li', 'sh-rank__empty', text));
+    }
+
     /**
-     * 거래대금 순위를 그린다. 형태·근거는 `stocks_index.html` 의 순위 목록 주석 참조.
-     *
-     * 행: `li.top10-item > a.top10-link > (순위, 몸통)`
-     *   1행 — 이름 · 거래대금(순위 기준, 가장 진하게)
-     *   막대 — 1위 대비 비율(`--pct`). 상한이 없는 값이라 트랙은 두지 않는다.
-     *   2행 — 코드 · 가격 · 등락
-     * ⚠️ 가격은 중립 색이다. 185만원과 2.6만원은 행끼리 비교할 의미가 없는 값이라 보조로
-     *    내리고, 방향은 등락률 한 곳에서만 색으로 말한다.
+     * 행: `li > a.sh-rank__row > (순위, 이름, [코드·기준값], 현재가, 등락률)`
+     * 넓은 화면에서는 `.sh-rank__sub` 가 `display: contents` 라 코드와 기준값이 제 칸으로 가고,
+     * 좁은 화면에서는 이름 밑에 "코드 · 기준값" 한 줄로 붙는다(`stock_home.css`).
      */
-    function renderTop(rows) {
-        topEl.classList.remove('is-stale');
-        topEl.removeAttribute('aria-busy');
-        topEl.innerHTML = '';
+    function render(rows) {
+        listEl.classList.remove('is-stale');
+        listEl.removeAttribute('aria-busy');
+        listEl.innerHTML = '';
         if (!rows.length) {
-            topEl.appendChild(el('li', 'top10-empty', '데이터가 없습니다.'));
+            listEl.appendChild(el('li', 'sh-rank__empty', '데이터가 없습니다.'));
             return;
         }
+        rows.forEach(function (item, i) {
+            var li = el('li', 'sh-rank__item');
+            var a = el('a', 'sh-rank__row');
+            a.href = detailUrl(item);
 
-        // 정렬돼 오지만 믿지 않는다 — 막대의 기준은 목록 안 최댓값이다.
-        var max = rows.reduce(function (m, r) { return Math.max(m, r.trading_amount || 0); }, 0) || 1;
+            a.appendChild(el('span', 'sh-rank__n', String(i + 1)));
+            var nm = el('span', 'sh-rank__nm', item.name_kr || item.code);
+            nm.title = item.name_kr || item.code;
+            a.appendChild(nm);
 
-        rows.forEach(function (item, index) {
-            var li = el('li', 'top10-item');
-            li.style.setProperty('--pct', ((item.trading_amount || 0) / max * 100).toFixed(1));
+            var sub = el('span', 'sh-rank__sub');
+            sub.appendChild(el('span', 'sh-rank__cd', item.code));
+            sub.appendChild(el('span', 'sh-rank__mt',
+                               money(kind === 'amount' ? item.trading_amount : item.market_cap, item)));
+            a.appendChild(sub);
 
-            var link = el('a', 'top10-link');
-            link.href = detailUrl(item);
-            link.appendChild(el('span', 'top10-n', String(index + 1)));
-
-            var body = el('span', 'top10-body');
-
-            var l1 = el('span', 'top10-l1');
-            var nm = el('span', 'top10-nm', item.name_kr || item.code);
-            nm.title = item.name_kr || item.code;   // 좁은 칸에서 잘리면 마우스로 전체 이름을 본다
-            l1.appendChild(nm);
-            var parts = amountParts(item.trading_amount);
-            var val = el('span', 'top10-val', parts[0]);
-            if (parts[1]) val.appendChild(el('small', null, parts[1]));
-            l1.appendChild(val);
-            body.appendChild(l1);
-
-            var bar = el('span', 'top10-bar');
-            bar.setAttribute('aria-hidden', 'true');   // 값은 글자로 이미 있다
-            bar.appendChild(el('i'));
-            body.appendChild(bar);
-
-            var l2 = el('span', 'top10-l2');
-            l2.appendChild(el('span', 'top10-cd', item.code));
-            l2.appendChild(el('span', 'top10-px', price(item.price, item.market)));
-            l2.appendChild(el('span', 'top10-ch ' + pctClass(item.change_pct), pctText(item.change_pct)));
-            body.appendChild(l2);
-
-            link.appendChild(body);
-            li.appendChild(link);
-            topEl.appendChild(li);
+            a.appendChild(el('span', 'sh-rank__px', price(item.price, item)));
+            a.appendChild(el('span', 'sh-rank__ch ' + pctClass(item.change_pct), pctText(item.change_pct)));
+            li.appendChild(a);
+            listEl.appendChild(li);
         });
     }
 
-    /** 범위 칩 — 목록이 어느 시장을 따르는지. 시장 탭의 이름을 그대로 쓴다. */
-    function setTopScope(market) {
-        var scope = document.getElementById('stockTop10Scope');
-        var tab = document.querySelector('.market-stat-item-h[data-group="' + market + '"] .market-name span');
-        if (scope && tab) scope.textContent = tab.textContent;
+    /** 새 목록이 올 때까지 옛 목록을 흐리게 남긴다 — 비우면 표 높이가 출렁인다. */
+    function markStale() {
+        if (listEl.querySelector('.sh-rank__item')) {
+            listEl.classList.add('is-stale');
+            listEl.setAttribute('aria-busy', 'true');
+        } else {
+            message('불러오는 중…');
+        }
     }
 
-    /**
-     * `quiet` 이면 아무 표시 없이 바꿔 끼운다 — 앱으로 돌아와 다시 받을 때 깜빡이지 않게.
-     *
-     * ⚠️ 시장을 바꿀 때 목록을 "불러오는 중…" 한 줄로 비우지 않는다. 그러면 사이드바가
-     *    10행 → 1행 → 10행으로 **접혔다 펴지며 튄다.** 이전 목록을 흐리게 둔 채 받아서
-     *    바꿔 끼운다. 비어 있을 때(첫 로드)만 안내 문구를 쓴다.
-     */
-    function loadTop(market, quiet) {
-        if (!topEl || ['KR', 'US', 'COIN'].indexOf(market) < 0) return;
-        topMarket = market;
-        var mine = ++topRequestId;
-        setTopScope(market);
-        if (!quiet) {
-            if (topEl.querySelector('.top10-item')) {
-                topEl.classList.add('is-stale');
-                topEl.setAttribute('aria-busy', 'true');
-            } else {
-                topEl.innerHTML = '<li class="top10-empty">불러오는 중…</li>';
-            }
-        }
-        fetch('/api/v1/stocks/top?limit=10&market=' + market)
+    function fromHeatmap() {
+        if (heat.market !== market) { markStale(); return; }   // 히트맵이 오면 다시 부른다
+        if (heat.failed) { message('불러오지 못했습니다.'); return; }
+        var rows = heat.rows.filter(function (r) {
+            return r.change_pct !== null && r.change_pct !== undefined &&
+                   (kind === 'up' ? r.change_pct > 0 : r.change_pct < 0);
+        });
+        rows.sort(function (a, b) {
+            return kind === 'up' ? b.change_pct - a.change_pct : a.change_pct - b.change_pct;
+        });
+        render(rows.slice(0, LIMIT));
+    }
+
+    function fromTop(quiet) {
+        var mine = ++requestId;
+        var asked = market;
+        if (!quiet) markStale();
+        fetch('/api/v1/stocks/top?limit=' + LIMIT + '&market=' + encodeURIComponent(asked))
             .then(function (response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json();
             })
             .then(function (rows) {
-                if (mine === topRequestId) renderTop(rows || []);
+                if (mine === requestId && kind === 'amount') render(rows || []);
             })
             .catch(function (error) {
-                if (mine !== topRequestId) return;
-                // 흐리게 남겨 둔 목록은 **다른 시장의 것**이라 그대로 두면 안 된다 — 비우고
-                // 자리 설명을 남긴다. 무슨 일이 있었는지는 토스트로(프로젝트 디자인 규칙).
-                topEl.classList.remove('is-stale');
-                topEl.removeAttribute('aria-busy');
-                topEl.innerHTML = '<li class="top10-empty">불러오지 못했습니다.</li>';
+                if (mine !== requestId || kind !== 'amount') return;
+                // 흐리게 남겨 둔 목록은 **다른 시장의 것**일 수 있다 — 비우고 자리 설명을 남긴다.
+                // 무슨 일이 있었는지는 토스트로(프로젝트 디자인 규칙).
+                message('불러오지 못했습니다.');
                 if (window.toast) {
                     window.toast('거래대금 순위를 불러오지 못했습니다.', 'error',
-                                 { action: { label: '다시 시도', onClick: function () { loadTop(market); } } });
+                                 { action: { label: '다시 시도', onClick: function () { show(); } } });
                 }
-                if (window.console) console.error('거래대금 TOP10 로드 실패', error);
+                if (window.console) console.error('거래대금 순위 로드 실패', error);
             });
     }
 
+    function show(quiet) {
+        noteEl.textContent = NOTE[kind];
+        metricEl.textContent = kind === 'amount' ? '거래대금' : '시가총액';
+        if (kind === 'amount') fromTop(quiet);
+        else { requestId += 1; fromHeatmap(); }
+    }
+
+    function setKind(next) {
+        if (!NOTE[next] || next === kind) return;
+        kind = next;
+        kindEls.forEach(function (b) {
+            b.setAttribute('aria-pressed', b.dataset.rankKind === kind ? 'true' : 'false');
+        });
+        show();
+    }
+
     function init() {
-        rootEl = document.getElementById('quotesRoot');
-        topEl = document.getElementById('stockTop10');
-        if (!rootEl || !topEl) return;
+        var rootEl = document.getElementById('quotesRoot');
+        listEl = document.getElementById('rankList');
+        noteEl = document.getElementById('rankNote');
+        metricEl = document.getElementById('rankMetricLabel');
+        if (!rootEl || !listEl || !noteEl || !metricEl) return;
+        kindEls = Array.prototype.slice.call(document.querySelectorAll('[data-rank-kind]'));
 
-        var market = (rootEl.dataset.market || '').toUpperCase();
-        loadTop(['KR', 'US', 'COIN'].indexOf(market) >= 0 ? market : 'KR');
+        var m = (rootEl.dataset.market || '').toUpperCase();
+        market = ['KR', 'US', 'COIN'].indexOf(m) >= 0 ? m : 'KR';
 
+        kindEls.forEach(function (b) {
+            b.addEventListener('click', function () { setKind(b.dataset.rankKind); });
+        });
         document.addEventListener('stock-dashboard-market-change', function (event) {
-            loadTop(event.detail && event.detail.market);
+            var next = event.detail && event.detail.market;
+            if (!next || next === market) return;
+            market = next;
+            show();
         });
-        // 앱으로 돌아왔을 때 quotes.js 가 보낸다.
+        document.addEventListener('stock-dashboard-heatmap', function (event) {
+            var d = event.detail || {};
+            heat = { market: d.market, rows: d.rows || [], failed: !!d.failed };
+            if (kind !== 'amount') fromHeatmap();
+        });
+        // 앱으로 돌아왔을 때 quotes.js 가 보낸다(상승·하락은 히트맵 이벤트로 따라온다).
         document.addEventListener('stock-dashboard-refresh', function () {
-            loadTop(topMarket, true);
+            if (kind === 'amount') fromTop(true);
         });
+
+        show();
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

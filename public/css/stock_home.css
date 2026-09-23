@@ -1,0 +1,324 @@
+/* ===========================================
+   주식 홈(`/stocks`) — 2026-09-23 토스증권 PC 처럼
+   ===========================================
+   `stocks.css`·`quotes.css` **뒤에** 싣는다. 새 뼈대는 `sh-*` 클래스이고, 옛 조각(지수 카드·
+   히트맵 탭·포트폴리오 TOP 10)은 `.sh` 로 좁혀 모양만 덮는다 — 동작(quotes.js·rotator.js)과
+   히트맵 탭의 1px 맞춤(`stocks.css`)은 그대로 쓴다.
+
+   원칙은 종목 상세(`stock_view.css`)와 같다:
+   · 테두리 대신 바탕 한 단계로 칸을 나눈다. 카드 = 본문 바탕(#202020)과 표면(#2B2B2B)의 중간.
+   · 숫자는 굵고 고정폭, 라벨은 흐리게. 등락 색은 `.q-up`·`.q-down`(대비 맞춘 글자 토큰).
+*/
+
+.sh {
+    --sh-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
+    --sh-radius: 1rem;
+    --sh-pad: clamp(1rem, 0.7rem + 1vw, 1.5rem);
+    --sh-gap: clamp(0.75rem, 0.5rem + 1vw, 1.25rem);
+
+    display: grid;
+    gap: var(--sh-gap);
+    max-inline-size: 80rem;
+    margin-inline: auto;
+    padding-block: var(--space-2, 0.5rem) var(--space-6, 2rem);
+}
+
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+    .sh { --sh-card: var(--bae-surface); }
+}
+
+/* ⚠️ 옛 `blog.css` 의 clearfix(`div::after{display:table}`)가 flex·grid 에 빈 칸을 끼운다 —
+      이 화면의 새 뼈대에서만 끈다(`stock_view.css` 와 같은 이유). */
+.sh::after,
+.sh :where([class^="sh-"], [class*=" sh-"])::after {
+    content: none;
+}
+
+.sh-card {
+    display: block;   /* 옛 blog.css 의 1024px 이하 `section { display:flex }` 를 끊는다 */
+    min-inline-size: 0;
+    padding: var(--sh-pad);
+    border-radius: var(--sh-radius);
+    background: var(--sh-card);
+}
+
+.sh-card__title,
+.sh-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+    margin: 0;
+    color: var(--bae-text-primary);
+    font-size: 1.0625rem;
+    font-weight: 800;
+}
+
+/* 제목 아이콘은 흐리게 — accent 는 상호작용 색이라 장식에 쓰지 않는다(포트폴리오 제목과 같다). */
+.sh-card__title .c-ico,
+.sh-section-title .c-ico {
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
+    color: var(--bae-text-dim);
+}
+
+.sh-section-title {
+    margin-block-start: var(--space-3, 0.75rem);
+    padding-inline: var(--space-1, 0.25rem);
+}
+
+/* ── 지수·환율 줄 ────────────────────────────────────────────────── */
+.sh-quotes {
+    display: grid;
+    gap: 0.625rem;
+    min-inline-size: 0;
+}
+
+/* 넓은 화면에서만 카드 모양을 덮는다 — 모바일은 회전 카드(`stocks.css` 768px 이하)가 따로 그린다. */
+@media (min-width: 769px) {
+    .sh .quote-card {
+        border-color: transparent;
+        border-radius: 0.75rem;
+        background: var(--sh-card);
+    }
+
+    .sh .quote-card:hover,
+    .sh .quote-card:focus-visible {
+        border-color: transparent;
+        background: var(--bae-surface);
+    }
+}
+
+/* ── 본문 두 칸 ──────────────────────────────────────────────────── */
+/* `quotes.css` 가 1200px 이하에서 한 칸으로 접는다 — 같은 경계를 쓴다. */
+.sh-grid {
+    gap: var(--sh-gap);
+}
+
+@media (min-width: 1201px) {
+    .sh-grid { grid-template-columns: minmax(0, 1fr) 20rem; }
+}
+
+/* ── 순위 표 ─────────────────────────────────────────────────────── */
+.sh-rank__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+}
+
+.sh-rank__head .sh-card__title { margin-inline-end: auto; }
+
+/* 기준·시장 버튼 묶음(segmented) — 종목 상세의 봉 단위 묶음과 같은 모양. */
+.sh-seg {
+    display: flex;
+    gap: 0.125rem;
+    padding: 0.1875rem;
+    border-radius: 0.625rem;
+    background: var(--bae-bg-alt);
+}
+
+.sh-seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    block-size: 2rem;
+    padding: 0 0.625rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.sh-seg button:hover { color: var(--bae-text-primary); }
+
+.sh-seg button[aria-pressed="true"] {
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+.sh-seg .c-ico,
+.sh-seg .market-symbol {
+    flex: none;
+    inline-size: 1rem;
+    block-size: 1rem;
+}
+
+/* 시장 아이콘의 원판은 히트맵 탭에서 채워 쓰는 모양이다 — 여기선 선만. */
+.sh-seg .market-symbol-disc { fill: none; }
+
+.sh-rank__note {
+    margin: var(--space-2, 0.5rem) 0 var(--space-3, 0.75rem);
+    padding-inline: var(--space-1, 0.25rem);
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+}
+
+.sh-rank__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    transition: opacity 0.15s;
+}
+
+/* 새 목록이 올 때까지 옛 것을 흐리게 남긴다 — 비우면 표 높이가 출렁인다. */
+.sh-rank__list.is-stale { opacity: 0.45; }
+
+.sh-rank__empty {
+    padding: var(--space-6, 2rem) var(--space-4, 1rem);
+    color: var(--bae-text-dim);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+/*
+ * 행 — 좁은 화면(기본):         넓은 화면(≥ 48rem):
+ *   n  이름            현재가       n  이름   현재가  등락률  기준값
+ *   n  코드 · 기준값   등락률       n  코드
+ * `.sh-rank__sub` 는 좁은 화면에서 "코드 · 기준값" 한 줄이고, 넓은 화면에서는
+ * `display: contents` 로 풀려 두 조각이 제 칸으로 간다.
+ */
+.sh-rank__row {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+    grid-template-areas:
+        "n nm  px"
+        "n sub ch";
+    align-items: baseline;
+    column-gap: var(--space-3, 0.75rem);
+    row-gap: 0.125rem;
+    padding: 0.625rem var(--space-2, 0.5rem);
+    border-radius: 0.625rem;
+    color: var(--bae-text-primary);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    transition: background-color 0.15s;
+}
+
+.sh-rank__row:hover,
+.sh-rank__row:focus-visible { background: var(--bae-surface); }
+
+.sh-rank__n {
+    grid-area: n;
+    align-self: center;
+    color: var(--bae-text-dim);
+    font-size: 0.9375rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.sh-rank__nm {
+    grid-area: nm;
+    overflow: hidden;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sh-rank__sub {
+    grid-area: sub;
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    min-inline-size: 0;
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+}
+
+.sh-rank__sub > * + *::before {
+    content: "·";
+    margin-inline-end: var(--space-2, 0.5rem);
+}
+
+.sh-rank__px {
+    grid-area: px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    text-align: end;
+    white-space: nowrap;
+}
+
+.sh-rank__ch {
+    grid-area: ch;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-align: end;
+    white-space: nowrap;
+}
+
+/* 머리줄은 표 모양일 때만 */
+.sh-rank__cols { display: none; }
+
+@media (min-width: 48rem) {
+    .sh-rank__row,
+    .sh-rank__cols {
+        grid-template-columns: 1.75rem minmax(0, 1fr) 8rem 6rem 7rem;
+    }
+
+    .sh-rank__row {
+        grid-template-areas:
+            "n nm px ch mt"
+            "n cd px ch mt";
+        align-items: center;
+    }
+
+    .sh-rank__sub { display: contents; }
+    .sh-rank__sub > * + *::before { content: none; }
+
+    .sh-rank__cd {
+        grid-area: cd;
+        color: var(--bae-text-dim);
+        font-size: 0.75rem;
+    }
+
+    .sh-rank__mt {
+        grid-area: mt;
+        color: var(--bae-text-muted);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-align: end;
+    }
+
+    .sh-rank__px,
+    .sh-rank__ch { font-size: 0.9375rem; }
+
+    .sh-rank__cols {
+        display: grid;
+        column-gap: var(--space-3, 0.75rem);
+        padding: 0 var(--space-2, 0.5rem) var(--space-2, 0.5rem);
+        border-block-end: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+        margin-block-end: var(--space-1, 0.25rem);
+        color: var(--bae-text-dim);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .sh-rank__cols > :first-child { grid-column: 1 / 3; padding-inline-start: 2.5rem; }
+    .sh-rank__cols > :not(:first-child) { text-align: end; }
+}
+
+/* ── 오른쪽: 포트폴리오 TOP 10 ───────────────────────────────────── */
+/* 모양만 카드로 맞춘다 — 목록·미터·회전 카드는 `stocks.css` 그대로다. */
+.sh .top10-section {
+    padding: var(--sh-pad);
+    border: 0;
+    border-radius: var(--sh-radius);
+    background: var(--sh-card);
+}
+
+.sh .top10-section h3 {
+    margin-inline: 0;
+    font-size: 1.0625rem;
+    font-weight: 800;
+}
+
+.sh-portfolio-cta {
+    justify-content: center;
+    gap: var(--space-2, 0.5rem);
+    inline-size: 100%;
+    margin-block-start: var(--space-3, 0.75rem);
+}
