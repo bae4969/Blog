@@ -5,12 +5,13 @@
    거절**됐고, 화면은 "이름을 입력하세요" 토스트만 띄웠다. 한 달 넘게 아무도 몰랐다(2026-09-23 발견).
 """
 
+import inspect
 import re
 from pathlib import Path
 
 import pytest
 
-from app.main import app
+from app.ui import admin
 
 TEMPLATE = Path("app/templates/admin_categories.html").read_text()
 
@@ -22,11 +23,20 @@ def _form_fields(action: str) -> set[str]:
     return set(re.findall(r'name="([a-z_]+)"', TEMPLATE[start:end]))
 
 
-def _handler_fields(path: str) -> set[str]:
-    route = next(r for r in app.routes if getattr(r, "path", None) == path and "POST" in r.methods)
-    return {p.alias for p in route.dependant.body_params}
+def _handler_fields(func) -> set[str]:
+    """핸들러가 받는 폼 이름 — `Form(..., alias=)` 가 있으면 그 이름, 없으면 인자 이름.
+
+    ⚠️ FastAPI 의 라우트 목록(`app.routes`)을 뒤지지 않는다. 0.14x 부터 포함된 라우터가 내부 타입
+       (`_IncludedRouter`)으로 감싸여 밖에서 경로를 못 찾는다(CI 는 최신 버전으로 돈다 — 2026-09-23 실패).
+       함수 서명은 버전과 상관없이 같다.
+    """
+    return {getattr(p.default, "alias", None) or p.name
+            for p in inspect.signature(func).parameters.values() if p.name != "request"}
 
 
-@pytest.mark.parametrize("path", ["/admin/categories/create", "/admin/categories/update"])
-def test_카테고리_폼_필드가_핸들러와_같다(path):
-    assert _form_fields(path) == _handler_fields(path)
+@pytest.mark.parametrize("path, func", [
+    ("/admin/categories/create", admin.category_create),
+    ("/admin/categories/update", admin.category_update),
+])
+def test_카테고리_폼_필드가_핸들러와_같다(path, func):
+    assert _form_fields(path) == _handler_fields(func)
