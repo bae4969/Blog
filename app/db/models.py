@@ -8,7 +8,7 @@
 줄이지 않는다 — DB 와 이름이 달라지면 두 스택을 오갈 때 헷갈린다.
 """
 
-from sqlalchemy import Column, DateTime, Integer, SmallInteger, Text, func
+from sqlalchemy import Column, DateTime, Integer, SmallInteger, String, Text, func
 
 from app.db.session import Base
 
@@ -48,6 +48,9 @@ class Category(Base):
     category_order = Column(SmallInteger, nullable=False)
     category_read_level = Column(SmallInteger, nullable=False, server_default="0")
     category_write_level = Column(SmallInteger, nullable=False, server_default="0")
+    #: 금융(`finance` → `/insights`) · 일반(`general` → `/blog`). 2026-09-23 블로그를 둘로 나눴다.
+    #: ⚠️ DB 는 ENUM 이다(`sql/category_group.sql`). 운영에 컬럼이 없으면 목록·글이 500 이다.
+    category_group = Column(String(16), nullable=False, server_default="general")
 
 
 class User(Base):

@@ -156,6 +156,40 @@
     }
 
     /**
+     * 뉴스처럼 한 줄 — 인사이트(금융) 목록(`data-view="feed"`, 2026-09-23).
+     * 제목 · 요약 두 줄 · 날짜·조회, 썸네일이 있으면 오른쪽에 작게. 긴 분석 글이라 카드보다
+     * **제목을 훑기** 좋은 모양을 골랐다(토스증권 뉴스 목록과 같은 배치).
+     */
+    function feedRow(post) {
+        var a = el('a', 'feed-item' + (post.is_hidden ? ' posting-disabled' : ''));
+        a.href = '/reader.php?posting_index=' + post.id;
+        var body = el('div', 'feed-item__body');
+        var h = el('h2', 'feed-item__title');
+        h.appendChild(el('span', null, post.title));
+        body.appendChild(h);
+        var s = (post.summary || '').trim();
+        if (s) {
+            var p = el('p', 'feed-item__summary');
+            p.appendChild(el('span', null, s));
+            body.appendChild(p);
+        }
+        var meta = el('p', 'feed-item__meta');
+        meta.appendChild(el('span', null, fmt(post.created_at)));
+        meta.appendChild(el('span', null, '조회 ' + (post.read_count || 0).toLocaleString()));
+        body.appendChild(meta);
+        a.appendChild(body);
+        if (post.thumbnail_url) {
+            var img = el('img', 'feed-item__thumb');
+            img.src = post.thumbnail_url;
+            img.alt = '';           // 행 전체가 링크라 장식이다(카드와 같은 이유)
+            img.loading = 'lazy';
+            img.decoding = 'async';
+            a.appendChild(img);
+        }
+        return a;
+    }
+
+    /**
      * 목록 끝의 한 칸 — "더 보기" 버튼 · "불러오는 중…" · "마지막 글입니다" 중 하나.
      *
      * ⚠️ 스크롤만으로 더 불러오면 **키보드·스크린리더 사용자는 다음 글에 닿을 방법이
@@ -232,6 +266,8 @@
         var q = ['size=' + size, 'page=' + page];
         if (state.category) q.push('category=' + encodeURIComponent(state.category));
         if (state.search) q.push('q=' + encodeURIComponent(state.search));
+        // 목록이 둘이다(2026-09-23) — 인사이트(finance) · 블로그(general).
+        if (root.dataset.group) q.push('group=' + encodeURIComponent(root.dataset.group));
 
         return fetch('/api/v1/posts?' + q.join('&'), { headers: { 'Accept': 'application/json' } })
             .then(function (r) {
@@ -244,7 +280,7 @@
                 data.items.forEach(function (p) {
                     if (seen[p.id]) return;          // offset 페이징 경계 중복 거르기
                     seen[p.id] = 1;
-                    listEl.appendChild(card(p));
+                    listEl.appendChild(root.dataset.view === 'feed' ? feedRow(p) : card(p));
                     added++;
                 });
                 // 받은 것이 size 만큼이면 그만큼 쪽을 앞당긴 것이다(되살릴 때 size 가 크다).
@@ -311,7 +347,7 @@
         var hidden = document.querySelector('.c-search input[name="category_index"]');
         if (hidden) hidden.value = state.category || '-1';
         // 필터가 바뀌면 깊이는 1 로 되돌린다 — 주소에 `page` 를 남기지 않는다.
-        history.pushState({ blogLoaded: 1 }, '', '/blog' + toQuery(state));
+        history.pushState({ blogLoaded: 1 }, '', (root.dataset.path || '/blog') + toQuery(state));
         window.scrollTo({ top: 0, behavior: 'smooth' });
         reset(state, 1);
     }

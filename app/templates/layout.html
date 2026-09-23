@@ -111,6 +111,9 @@
         {% set section = 'admin' %}
     {% elif is_stock_page %}
         {% set section = 'stocks' %}
+    {% elif nav_group == 'finance' %}
+        {# 금융 글 목록·금융 글 — 2026-09-23 블로그를 금융(인사이트)·일반(블로그)으로 나눴다. #}
+        {% set section = 'insights' %}
     {% else %}
         {% set section = 'blog' %}
     {% endif %}
@@ -153,6 +156,7 @@
         #}
         <nav class="c-nav" aria-label="섹션 이동">
             <a href="/stocks"{% if nav == 'stocks' %} aria-current="page"{% endif %}>홈</a>
+            <a href="/insights"{% if nav == 'insights' %} aria-current="page"{% endif %}>인사이트</a>
             <a href="/stocks/backtest"{% if nav == 'backtest' %} aria-current="page"{% endif %}>백테스트</a>
             <a href="/blog"{% if nav == 'blog' %} aria-current="page"{% endif %}>블로그</a>
             {% if level <= 1 %}<a href="/admin"{% if nav == 'admin' %} aria-current="page"{% endif %}>관리자</a>{% endif %}
@@ -161,8 +165,9 @@
         <div class="c-topbar__end">
             {#
               종목 검색 — 어느 화면에서든 쓴다(`/js/stock_search.js`).
-              ⚠️ 좁은 화면(< 48rem)에서는 입력칸이 접히고 돋보기 버튼이 연다. 열리면 상단바가
-                 `is-searching` 이 되어 로고·메뉴를 숨기고 입력칸이 한 줄을 쓴다.
+              ⚠️ 64rem 보다 좁으면 입력칸이 접히고 돋보기 버튼이 연다. 열리면 상단바가
+                 `is-searching` 이 되어 워드마크·다른 버튼을 숨기고 입력칸이 그 자리를 쓴다.
+              ⚠️ 48rem 보다 좁으면 상단바가 두 줄(워드마크·버튼 / 메뉴)이다(`ui.css`).
               ⚠️ `action` 은 JS 가 꺼졌을 때를 위한 것이다 — 결과 목록은 JS 가 그린다.
             #}
             <form class="c-stocksearch" id="stockSearchForm" role="search" autocomplete="off" action="/stocks">
@@ -179,8 +184,8 @@
             <button type="button" class="c-btn c-btn--icon c-rail-toggle" aria-controls="watchRail" aria-expanded="false" aria-label="관심 종목">{{ icons.i('star') }}</button>
             {% endif %}
 
-            {# 글쓰기는 블로그 화면에서만 — 주식 메인에 블로그 버튼이 떠 있으면 어색하다. #}
-            {% if user and level <= 2 and section == 'blog' %}
+            {# 글쓰기는 글 화면(인사이트·블로그)에서만 — 주식 화면에 글쓰기 버튼이 떠 있으면 어색하다. #}
+            {% if user and level <= 2 and section in ('blog', 'insights') %}
             <a class="c-btn c-btn--accent c-btn--collapse" data-button-role="blog-write" href="/writer.php" aria-label="글쓰기">{{ icons.i('write') }}<span>글쓰기</span></a>
             {% endif %}
             {#
@@ -207,18 +212,31 @@
       ⚠️ `id="search_posting_text"` 는 유지한다 — 아래 Ctrl+S 포커스 스크립트가 찾는다.
       목록 화면에만 둔다(글 상세·에디터에는 카테고리 필터가 할 일이 없다).
     #}
-    {% if section == 'blog' and request.url.path in ('/', '/blog') %}
+    {#
+      ⚠️ 2026-09-23 목록이 둘(`/blog` 일반 · `/insights` 금융)이 됐다 — 칩·검색이 **지금 목록의
+         주소**(`list_path`, 라우트가 넘긴다)로 간다. 카테고리가 하나뿐인 묶음(지금의 금융)은
+         "전체 · 금융" 칩이 같은 것을 두 번 말하므로 칩 줄을 그리지 않는다.
+    #}
+    {% if list_path is defined and request.url.path == list_path %}
     <div class="c-subbar">
+        {% if categories | length > 1 %}
         <nav class="c-cats" aria-label="카테고리 거르기">
-            <a class="c-chip" href="/blog" data-category-index="-1"
+            <a class="c-chip" href="{{ list_path }}" data-category-index="-1"
                {% if not category_id %}aria-current="true"{% endif %}>전체</a>
             {% for c in categories %}
-            <a class="c-chip" href="/blog?category_index={{ c.category_index }}"
+            <a class="c-chip" href="{{ list_path }}?category_index={{ c.category_index }}"
                data-category-index="{{ c.category_index }}"
                {% if category_id == c.category_index %}aria-current="true"{% endif %}>{{ c.category_name }}</a>
             {% endfor %}
         </nav>
-        <form class="c-search" role="search" action="/blog" method="get">
+        {% else %}
+        {# 칩이 없으면 그 자리에 목록 이름을 둔다 — 검색창만 왼쪽에 덩그러니 남지 않게. #}
+        <p class="c-subbar__title">
+            {%- if nav_group == 'finance' -%}<strong>인사이트</strong><span>시장·거시경제 분석</span>
+            {%- else -%}<strong>블로그</strong>{%- endif -%}
+        </p>
+        {% endif %}
+        <form class="c-search" role="search" action="{{ list_path }}" method="get">
             <input type="hidden" name="category_index" value="{{ category_id or -1 }}">
             <input id="search_posting_text" type="search" name="search_string" value="{{ search }}"
                    placeholder="글 제목 검색" enterkeyhint="search" autocomplete="off"

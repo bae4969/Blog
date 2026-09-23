@@ -26,11 +26,19 @@
      못 했고, 글 카드 제목도 `div` 였다. 카드 제목은 `h2` 로 올렸고(`blog_list.js`),
      여기 `h1` 은 화면에 안 보이게 둔다 — 상단바 워드마크와 글자가 겹치면 군더더기다.
 #}
-<h1 class="u-sr-only">{% if search %}"{{ search }}" 검색 결과{% elif category_id %}카테고리 글 목록{% else %}글 목록{% endif %}</h1>
+{% set finance = nav_group == 'finance' %}
+<h1 class="u-sr-only">{{ '인사이트' if finance else '블로그' }} — {% if search %}"{{ search }}" 검색 결과{% elif category_id %}카테고리 글 목록{% else %}글 목록{% endif %}</h1>
 
-<div id="postings">
+{#
+  2026-09-23 목록이 둘이 됐다 — 같은 껍데기·같은 스크립트를 쓰고 셋만 다르다:
+    data-group : `/api/v1/posts?group=` 에 싣는다(finance · general)
+    data-path  : 칩·검색으로 주소를 바꿀 때 쓰는 목록 주소(`/insights` · `/blog`)
+    data-view  : 금융은 **뉴스처럼 한 줄씩**(feed), 일반은 지금의 카드(cards).
+                 금융 글은 긴 분석 글이라 제목·요약을 훑는 게 먼저다(사용자 결정 2026-09-23).
+#}
+<div id="postings" data-group="{{ nav_group }}" data-path="{{ list_path }}" data-view="{{ 'feed' if finance else 'cards' }}">
     <div id="blogStatus" role="status" aria-live="polite"></div>
-    <div id="left" class="post-grid"></div>
+    <div id="left" class="{{ 'post-feed' if finance else 'post-grid' }}"></div>
     {#
       목록 끝 칸 — "더 보기" 버튼 · "불러오는 중…" · "마지막 글입니다" 중 하나가 들어간다.
       ⚠️ 숫자 페이저를 걷어내고 무한 스크롤로 바꿨다(2026-09-22 사용자 지시). 스크롤만으로

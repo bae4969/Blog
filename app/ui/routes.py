@@ -72,28 +72,28 @@ async def root_by_subdomain(request: Request) -> RedirectResponse:
     return RedirectResponse(target, status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/blog", response_class=HTMLResponse, include_in_schema=False)
-async def blog_index(request: Request):
-    """글 목록. 로그인하지 않아도 볼 수 있다(공개 카테고리만).
+#: 글 묶음별 목록 주소 — 2026-09-23 블로그를 금융(인사이트)·일반(블로그)으로 나눴다.
+#: 묶음은 카테고리가 정한다(`category_list.category_group`, 관리자 화면에서 바꾼다).
+_LIST_PATH = {"general": "/blog", "finance": "/insights"}
+
+
+async def _post_list(request: Request, group: str):
+    """글 목록 껍데기. 로그인하지 않아도 볼 수 있다(공개 카테고리만).
 
     권한 규칙은 PHP `Post::getMetaAllFromDb` 를 그대로 옮겼다:
       · `category_read_level >= 내 등급` 인 카테고리만
       · 등급이 2 이상(일반)이면 `posting_state = 0`(공개)만
+    ⚠️ 글 목록은 여기서 읽지 않는다(2026-08-19). `/js/blog_list.js` 가 `/api/v1/posts?group=` 로
+       가져간다 — 남은 것은 **껍데기에 필요한 것**뿐이다: 카테고리 칩과 검색어.
     """
     user: AuthUser | None = getattr(request.state, "user", None)
     level = _user_level(user)
 
-    # 목록 자체는 JS 가 가져가지만, 이 값들은 **껍데기**에 여전히 필요하다 —
-    # 사이드바가 선택된 카테고리를 표시하고 검색창에 입력값을 되살린다.
     category_id = _int_arg(request, "category_index", -1)
     category_id = category_id if category_id > 0 else None
     search = (request.query_params.get("search_string") or "").strip()
 
     async with db_session() as db:
-        # ⚠️ 글 목록은 여기서 읽지 않는다(2026-08-19). `/js/blog_list.js` 가
-        #    `/api/v1/posts` 로 가져간다 — 서버가 또 조회하면 같은 쿼리를 두 번 도는 셈이다.
-        #    남은 것은 **껍데기에 필요한 것**뿐이다: 사이드바 카테고리와 방문자 수.
-
         categories = (
             await db.execute(
                 select(Category)
@@ -102,6 +102,12 @@ async def blog_index(request: Request):
             )
         ).scalars().all()
 
+    # 다른 묶음의 카테고리를 골랐으면 그쪽 목록으로 보낸다 — 나누기 전의 `/blog?category_index=4`
+    # (금융) 같은 링크·즐겨찾기가 빈 목록 대신 제자리를 찾아간다.
+    picked = next((c for c in categories if c.category_index == category_id), None)
+    if picked is not None and picked.category_group != group:
+        return RedirectResponse(f"{_LIST_PATH[picked.category_group]}?{request.url.query}",
+                                status_code=status.HTTP_302_FOUND)
 
     return templates.TemplateResponse(
         request,
@@ -109,14 +115,28 @@ async def blog_index(request: Request):
         {
             "user": user,
             "level": level,
-            "categories": categories,
+            "categories": [c for c in categories if c.category_group == group],
             "category_id": category_id,
             "search": search,
+            "nav_group": group,
+            "list_path": _LIST_PATH[group],
             "auth_public_url": settings.auth_public_url,
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
         },
     )
+
+
+@router.get("/blog", response_class=HTMLResponse, include_in_schema=False)
+async def blog_index(request: Request):
+    """일반 글(개발·일기 등) 목록. `blog.` 도메인의 첫 화면이다."""
+    return await _post_list(request, "general")
+
+
+@router.get("/insights", response_class=HTMLResponse, include_in_schema=False)
+async def insights_index(request: Request):
+    """금융 글 목록 — 토스증권의 "뉴스" 자리. 주식이 메인이 되며 상단 메뉴에 따로 뒀다."""
+    return await _post_list(request, "finance")
 
 
 def _int_arg(request: Request, key: str, default: int) -> int:
@@ -171,6 +191,7 @@ async def post_detail(request: Request):
                     # 소유자 판정에 쓴다 — 빠뜨리면 버튼 조건에서 KeyError 가 난다.
                     Post.user_index,
                     Category.category_name,
+                    Category.category_group,
                     User.user_id,
                 )
                 .select_from(Post)
@@ -244,6 +265,8 @@ async def post_detail(request: Request):
             "categories": categories,
             "category_id": row.category_index,
             "search": "",
+            # 상단 메뉴에서 "인사이트"·"블로그" 중 어디를 켤지 — 글의 카테고리 묶음이 정한다.
+            "nav_group": row.category_group or "general",
             "is_owner": is_owner,
             "can_moderate": can_moderate,
             "csrf_token": csrf_token,

@@ -379,13 +379,23 @@ async def stocks_index(request: Request):
             "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
             .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
             {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
+        # 최신 인사이트(금융 글) — 토스증권 홈의 "뉴스" 자리. 접근 규칙은 글 목록과 **같다**
+        # (`category_read_level >= 내 등급`, 관리자(0·1)가 아니면 공개 글만) — 여기서만 다르면
+        # 목록에서는 안 보이는 글이 홈에 새어 나온다.
+        level = _level(request)
+        insights = (await db.execute(text(
+            "SELECT p.posting_index, p.posting_title, p.posting_first_post_datetime "
+            "FROM posting_list p JOIN category_list c ON c.category_index = p.category_index "
+            "WHERE c.category_group = 'finance' AND c.category_read_level >= :lv "
+            "  AND (:lv <= 1 OR p.posting_state = 0) "
+            "ORDER BY p.posting_index DESC LIMIT 5"), {"lv": level})).all()
         portfolios = (await db.execute(text(
             # ⚠️ **공개로 표시한 것만** 보여준다(2026-08-19). 예전에는 전부 보여줬는데,
             #    백테스트는 돌리기만 해도 저장되므로 남의 투자 조합이 그대로 노출됐다.
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
             "FROM backtest_portfolio WHERE is_public = 1 "
             "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
-        ctx = await _shell_ctx(request, db, _level(request))
+        ctx = await _shell_ctx(request, db, level)
 
     return templates.TemplateResponse(
         request,
@@ -393,6 +403,7 @@ async def stocks_index(request: Request):
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True,
             "stats": stats, "portfolios": portfolios, "default_market": market,
+            "insights": insights,
         },
     )
 

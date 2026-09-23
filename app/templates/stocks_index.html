@@ -3,7 +3,7 @@
 
     위: 지수·환율 줄(화면 폭 전체)
     왼쪽: 순위 표(거래대금·상승률·하락률 × 한국·미국·코인) → 시장 지도(히트맵)
-    오른쪽: 포트폴리오 TOP 10
+    오른쪽: 포트폴리오 TOP 10 · 최신 인사이트(금융 글)
 
   지수 카드와 히트맵은 `/js/quotes.js`, 순위 표는 `/js/stocks_dashboard.js` 가 공개 API 를 읽어
   채운다. 서버는 시장 통계(탭)와 공개 포트폴리오만 그린다. 종목 검색은 상단바에 있다.
@@ -209,6 +209,30 @@
                 <div class="rotator-bar"><i></i></div>
                 <a class="c-btn sh-portfolio-cta" href="/stocks/backtest">{{ icons.i('play') }}<span>백테스트 해 보기</span></a>
             </section>
+
+            {#
+              ── 최신 인사이트 ─────────────────────────────────────────────
+              금융 글 5개(서버가 읽는다 — 목록과 같은 접근 규칙). 토스증권 홈의 "뉴스" 자리다.
+              날짜는 DB 의 KST 그대로 쓴다(변환하지 않는다).
+            #}
+            {% if insights %}
+            <section class="sh-card sh-insights" aria-labelledby="shInsightsTitle">
+                <div class="sh-insights__head">
+                    <h2 class="sh-card__title" id="shInsightsTitle">{{ icons.i('list') }}인사이트</h2>
+                    <a class="sh-insights__more" href="/insights">전체 보기</a>
+                </div>
+                <ol class="sh-insights__list">
+                    {% for p in insights %}
+                    <li>
+                        <a href="/reader.php?posting_index={{ p.posting_index }}">
+                            <span class="sh-insights__title">{{ p.posting_title }}</span>
+                            <time datetime="{{ p.posting_first_post_datetime.strftime('%Y-%m-%d') }}">{{ p.posting_first_post_datetime.strftime('%m.%d') }}</time>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </section>
+            {% endif %}
         </aside>
     </div>
 </div>

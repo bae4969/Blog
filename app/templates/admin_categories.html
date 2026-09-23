@@ -17,6 +17,11 @@
 
 {% block content %}
 {% set level_options = {0: '슈퍼관리자', 1: '관리자', 2: '에디터', 3: '작성자', 4: '구독자'} %}
+{#
+  묶음 — 2026-09-23 블로그를 금융(인사이트 `/insights`)·일반(블로그 `/blog`)으로 나눴다.
+  카테고리가 어느 목록에 나올지, 그 글을 볼 때 상단 메뉴의 어디가 켜질지를 정한다.
+#}
+{% set group_options = {'general': '일반 · 블로그', 'finance': '금융 · 인사이트'} %}
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card collapsed">
@@ -56,6 +61,14 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="admin-form-field">
+                    <label>묶음</label>
+                    <select name="category_group">
+                        {% for g, label in group_options.items() %}
+                            <option value="{{ g }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">{{ icons.i('add') }}<span>생성</span></button>
@@ -74,6 +87,7 @@
                             <th>이름</th>
                             <th>읽기 권한</th>
                             <th>쓰기 권한</th>
+                            <th>묶음</th>
                             <th>게시글</th>
                             <th>작업</th>
                         </tr>
@@ -122,6 +136,13 @@
                                     <select name="category_write_level" class="inline-select">
                                         {% for lv, label in level_options.items() %}
                                             <option value="{{ lv }}" {% if cat.category_write_level == lv %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="category_group" class="inline-select" aria-label="{{ cat.category_name }} 묶음">
+                                        {% for g, label in group_options.items() %}
+                                            <option value="{{ g }}" {% if cat.category_group == g %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>

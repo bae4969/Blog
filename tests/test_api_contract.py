@@ -596,3 +596,11 @@ class TestWatchlistInput:
     def test_잘못된_입력은_422(self, client, method, url):
         r = client.request(method.upper(), url, headers={"Authorization": "Bearer dummy-token"})
         assert r.status_code == 422
+
+
+class TestPostGroup:
+    """글 묶음(2026-09-23) — finance(인사이트)·general(블로그) 말고는 DB 에 닿기 전에 거른다."""
+
+    @pytest.mark.parametrize("url", ["/api/v1/posts?group=news", "/api/v1/categories?group=FINANCE"])
+    def test_모르는_묶음은_422(self, client, url):
+        assert client.get(url).status_code == 422

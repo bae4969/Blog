@@ -322,3 +322,61 @@
     inline-size: 100%;
     margin-block-start: var(--space-3, 0.75rem);
 }
+
+/* ── 오른쪽: 최신 인사이트 ───────────────────────────────────────── */
+.sh-insights__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2, 0.5rem);
+    margin-block-end: var(--space-2, 0.5rem);
+}
+
+.sh-insights__more {
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.sh-insights__more:hover { color: var(--bae-text-primary); }
+
+.sh-insights__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sh-insights__list a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--space-3, 0.75rem);
+    padding: 0.625rem var(--space-2, 0.5rem);
+    border-radius: 0.625rem;
+    color: var(--bae-text-primary);
+    text-decoration: none;
+}
+
+.sh-insights__list a:hover,
+.sh-insights__list a:focus-visible { background: var(--bae-surface); }
+
+.sh-insights__list li + li { border-block-start: 1px solid color-mix(in srgb, var(--bae-border) 50%, transparent); }
+
+/* 긴 분석 제목이라 두 줄에서 자른다 — 말줄임은 안쪽 span 에(그리드 아이템에 걸면 줄을 안 자른다). */
+.sh-insights__title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.sh-insights__list time {
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}

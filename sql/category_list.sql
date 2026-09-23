@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `category_list` (
     `category_order` TINYINT(3) UNSIGNED NOT NULL,
     `category_read_level` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'follow user_level',
     `category_write_level` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'follow user_level',
+    `category_group` ENUM('finance', 'general') NOT NULL DEFAULT 'general' COMMENT '금융(인사이트) / 일반(블로그)',
     PRIMARY KEY (`category_index`) USING BTREE,
     UNIQUE INDEX `category_order` (`category_order`) USING BTREE,
     UNIQUE INDEX `category_index` (`category_index`) USING BTREE,
