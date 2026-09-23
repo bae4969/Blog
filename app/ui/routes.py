@@ -54,16 +54,19 @@ _user_level = blog_user.level_of
 @router.get("/", include_in_schema=False)
 @router.get("/index.php", include_in_schema=False)
 async def root_by_subdomain(request: Request) -> RedirectResponse:
-    """사이트 루트 — 서브도메인을 보고 블로그/주식으로 보낸다.
+    """사이트 루트 — 서브도메인을 보고 주식/블로그로 보낸다.
 
     세 도메인(`blog`·`stock`·…)이 한 서버를 가리키므로 진입점에서 갈라야 한다.
-    PHP `HomeController::redirectBySubdomain` 을 그대로 옮겼다 — 쿼리스트링을 붙여 넘기고
+    PHP `HomeController::redirectBySubdomain` 을 옮긴 것이다 — 쿼리스트링을 붙여 넘기고
     상태코드도 302 로 맞춘다(PHP `View::redirect` 와 같다).
 
+    ⚠️ 2026-09-23 **주식이 메인**이 됐다 — 기본값이 `/blog` 에서 `/stocks` 로 뒤집혔다.
+       `blog.` 로 들어온 사람만 블로그로 보낸다(그 주소를 친 사람은 블로그를 보러 왔고,
+       옛 즐겨찾기도 그대로 산다). `blogtest` 는 `blog` 가 아니라 주식으로 간다.
     """
     host = request.headers.get("host", "localhost").split(":")[0]
     subdomain = host.split(".")[0]
-    target = "/stocks" if subdomain == "stock" else "/blog"
+    target = "/blog" if subdomain == "blog" else "/stocks"
     if request.url.query:
         target += f"?{request.url.query}"
     return RedirectResponse(target, status_code=status.HTTP_302_FOUND)

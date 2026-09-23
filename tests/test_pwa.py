@@ -36,8 +36,13 @@ class TestManifest:
 
     def test_설치형으로_열린다(self, manifest):
         assert manifest["display"] == "standalone"   # "browser" 면 설치가 안 뜬다
-        assert manifest["start_url"] == "/blog"
+        assert manifest["start_url"] == "/stocks"   # 2026-09-23 주식이 메인이 됐다
         assert manifest["scope"] == "/"
+
+    def test_앱_식별값은_그대로다(self, manifest):
+        """⚠️ `id` 가 바뀌면 이미 설치한 기기에서 **다른 앱**으로 인식된다. 시작 화면을
+        `/stocks` 로 옮겼어도 `id` 는 처음 설치 때의 `/blog` 로 남겨 둔다."""
+        assert manifest["id"] == "/blog"
 
     def test_아이콘(self, client, manifest):
         """192·512(any)와 512 maskable 이 있고, 실제로 받아진다."""

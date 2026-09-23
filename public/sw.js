@@ -29,7 +29,7 @@ const OFFLINE_HTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#1C1C1C">
-<title>오프라인 — Developer Blog</title>
+<title>오프라인 — Developer Notes</title>
 <style>
   html, body { height: 100%; margin: 0; }
   body { display: flex; align-items: center; justify-content: center; background: #1C1C1C;

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         env_file=".env.api", env_file_encoding="utf-8", extra="ignore"
     )
 
-    app_name: str = "Developer Blog"
+    app_name: str = "Developer Notes"
     debug: bool = False
 
     # 환경마다 다른 값은 .env.api 에서 받는다 — 공개 저장소라 기본값은 예시만 둔다.

@@ -22,7 +22,7 @@
     #}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-    <title>{% block title %}Developer Blog{% endblock %}</title>
+    <title>{% block title %}Developer Notes{% endblock %}</title>
     {#
       아이콘 — 예전에는 선언이 하나도 없어 브라우저가 관례로 `/favicon.ico` 를 찾아가는
       것에만 기대고 있었다. 그래서 PC 즐겨찾기만 되고 **모바일 홈 화면 바로가기는 48px
@@ -41,7 +41,7 @@
     <link rel="apple-touch-icon" href="/res/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#1C1C1C">
-    <meta name="apple-mobile-web-app-title" content="Blog">
+    <meta name="apple-mobile-web-app-title" content="Dev Notes">
     {#
       설치형 앱(PWA) — manifest 가 `display: standalone` 이라 안드로이드는 그것만 본다.
       ⚠️ iOS 는 manifest 를 거의 안 본다. 홈 화면에서 주소창 없이 뜨게 하려면 아래 메타가
@@ -114,7 +114,10 @@
     {% else %}
         {% set section = 'blog' %}
     {% endif %}
-    {% set section_home = {'admin': '/admin', 'stocks': '/stocks', 'blog': '/blog'}[section] %}
+    {#
+      ⚠️ 2026-09-23 **주식이 메인**이다. 워드마크·바닥글은 어느 화면에서든 `/stocks` 로 간다
+         (전에는 지금 보고 있는 섹션의 첫 화면으로 갔다).
+    #}
 
     {#
       ── 상단바 ──────────────────────────────────────────────────────────
@@ -135,18 +138,19 @@
          올리고 나머지 화면에서는 링크로 둔다 — 글 상세의 `h1` 은 글 제목이어야 한다.
     #}
     <header class="c-topbar">
-        <a class="c-brand" href="{{ section_home }}" aria-label="Developer Notes 홈">
+        <a class="c-brand" href="/stocks" aria-label="Developer Notes 홈">
             <span class="c-brand__lead">DEVELOPER</span><span class="c-brand__tail">NOTES</span>
         </a>
 
         <nav class="c-nav" aria-label="섹션 이동">
-            <a href="/blog"{% if section == 'blog' %} aria-current="page"{% endif %}>블로그</a>
             <a href="/stocks"{% if section == 'stocks' %} aria-current="page"{% endif %}>주식</a>
+            <a href="/blog"{% if section == 'blog' %} aria-current="page"{% endif %}>블로그</a>
             {% if level <= 1 %}<a href="/admin"{% if section == 'admin' %} aria-current="page"{% endif %}>관리자</a>{% endif %}
         </nav>
 
         <div class="c-topbar__end">
-            {% if user and level <= 2 %}
+            {# 글쓰기는 블로그 화면에서만 — 주식 메인에 블로그 버튼이 떠 있으면 어색하다. #}
+            {% if user and level <= 2 and section == 'blog' %}
             <a class="c-btn c-btn--accent" data-button-role="blog-write" href="/writer.php">{{ icons.i('write') }}<span>글쓰기</span></a>
             {% endif %}
             {#
@@ -255,7 +259,7 @@
     <footer class="c-footer">
         <div class="c-footer__inner">
             <div class="c-footer__main">
-                <a class="c-footer__brand" href="{{ section_home }}">
+                <a class="c-footer__brand" href="/stocks">
                     <span class="c-brand__lead">DEVELOPER</span><span class="c-brand__tail">NOTES</span>
                 </a>
 

@@ -46,7 +46,8 @@ async def _require_admin(request: Request, db):
     return me
 
 
-def _deny(reason: str, to: str = "/blog") -> RedirectResponse:
+def _deny(reason: str, to: str = "/stocks") -> RedirectResponse:
+    # 사이트 메인(주식)으로 돌려보낸다 — 2026-09-23 전에는 /blog 였다.
     logger.warning("관리자 거부: %s", reason)
     return RedirectResponse(to, status_code=status.HTTP_303_SEE_OTHER)
 
