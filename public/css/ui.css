@@ -448,7 +448,9 @@
         content: none;
     }
 
-    body.blog-page #blog > header::after,
+    /* ⚠️ `#blog > header` 는 되살리지 않는다 — 상단바(`.c-topbar`)는 flex 라 유령이 빈 칸 하나 +
+          gap 24px 를 먹어 **블로그 화면에서만** 오른쪽 버튼이 24px 안쪽으로 밀렸다(2026-09-23 실측:
+          로그인 버튼 오른끝 주식 1556 · 블로그 1532). 화면을 옮길 때마다 버튼이 오락가락했다. */
     body.blog-page #blog > section::after,
     body.blog-page #postings > div::after {
         content: "";
@@ -656,6 +658,13 @@
     }
 
     .c-cats::-webkit-scrollbar { display: none; }
+
+    /* 글쓰기(글 목록에서만) — 상단바에서 내려왔다. 검색창 오른쪽에 붙는다. */
+    .c-subbar__write {
+        flex: 0 0 auto;
+        gap: var(--space-2);
+        min-block-size: 2.375rem;
+    }
 
     .c-subbar__title {
         display: flex;

@@ -401,7 +401,7 @@ async def stocks_index(request: Request):
         request,
         "stocks_index.html",
         {
-            **ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True,
+            **ctx, "is_stock_page": True, "hide_sidebar": True,
             "stats": stats, "portfolios": portfolios, "default_market": market,
             "insights": insights,
         },
@@ -776,7 +776,7 @@ async def stocks_show(request: Request):
 
     return templates.TemplateResponse(
         request, "stocks_show.html",
-        {**ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True,
+        {**ctx, "is_stock_page": True, "hide_sidebar": True,
          "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats},
     )
 

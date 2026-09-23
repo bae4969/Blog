@@ -179,15 +179,13 @@
                 <div class="c-stocksearch__results" id="stockSearchResults" role="listbox" aria-label="종목 검색 결과" hidden></div>
             </form>
             <button type="button" class="c-btn c-btn--icon c-stocksearch__open" data-search-open aria-label="종목 검색">{{ icons.i('search') }}</button>
-            {% if watch_rail %}
-            {# 관심 종목 레일을 여닫는다(`_watchlist.html`). 상태는 `watchlist.js` 가 맞춘다. #}
+            {#
+              관심 종목 레일을 여닫는다(`_watchlist.html`). 상태는 `watchlist.js` 가 맞춘다.
+              ⚠️ **상단바 오른쪽은 모든 화면에서 같다 — 검색 · ☆ · 로그인.** 화면에 따라 버튼이
+                 붙고 빠지면 옮길 때마다 옆 버튼이 오락가락한다(2026-09-23 사용자 지적). 그래서
+                 ☆ 는 모든 화면에 두고, 글쓰기는 글 목록의 검색 줄로 내렸다.
+            #}
             <button type="button" class="c-btn c-btn--icon c-rail-toggle" aria-controls="watchRail" aria-expanded="false" aria-label="관심 종목">{{ icons.i('star') }}</button>
-            {% endif %}
-
-            {# 글쓰기는 글 화면(인사이트·블로그)에서만 — 주식 화면에 글쓰기 버튼이 떠 있으면 어색하다. #}
-            {% if user and level <= 2 and section in ('blog', 'insights') %}
-            <a class="c-btn c-btn--accent c-btn--collapse" data-button-role="blog-write" href="/writer.php" aria-label="글쓰기">{{ icons.i('write') }}<span>글쓰기</span></a>
-            {% endif %}
             {#
               로그인·로그아웃은 **중앙 auth** 로 보낸다(PHP 의 /login.php 가 아니다).
               이 페이지가 포팅본이라도 세션은 auth 가 발급한 것을 쓰기 때문이다.
@@ -243,6 +241,10 @@
                    aria-label="글 제목 검색">
             <button id="search_posting_btn" type="submit" aria-label="검색">{{ icons.i('search') }}</button>
         </form>
+        {# 글쓰기 — 상단바에서 내려왔다(상단바는 모든 화면에서 같게 둔다). 글 목록에만 둔다. #}
+        {% if user and level <= 2 %}
+        <a class="c-btn c-btn--accent c-subbar__write" data-button-role="blog-write" href="/writer.php">{{ icons.i('write') }}<span>글쓰기</span></a>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -340,7 +342,7 @@
     </footer>
 
 </div>
-{% if watch_rail %}{% include "_watchlist.html" %}{% endif %}
+{% include "_watchlist.html" %}
 
 <script>
 // (2026-09-22) 좌상단 "이동" 드롭다운 토글은 함께 사라졌다 — 목적지가 셋뿐이라
@@ -401,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function () {
 #}
 <script src="/js/toast.js?v={{ static_v }}" defer></script>
 <script src="/js/stock_search.js?v={{ static_v }}" defer></script>
-{% if watch_rail %}<script src="/js/watchlist.js?v={{ static_v }}" defer></script>{% endif %}
+<script src="/js/watchlist.js?v={{ static_v }}" defer></script>
 {#
   서버가 리다이렉트로 넘긴 안내(`?msg=...`)를 토스트로 띄운다.
   ⚠️ 전에는 관리자 4화면이 각자 `<div class="alert alert-info">{{ msg }}</div>` 를

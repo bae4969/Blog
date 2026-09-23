@@ -77,7 +77,7 @@ async def backtest_page(request: Request):
         ctx = await _shell_ctx(request, db, _level(request))
     return templates.TemplateResponse(
         request, "stocks_backtest.html",
-        {**ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True})
+        {**ctx, "is_stock_page": True, "hide_sidebar": True})
 
 
 def _stock_summary(stocks: list) -> str:

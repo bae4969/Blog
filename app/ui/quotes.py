@@ -234,6 +234,6 @@ async def quotes_show(request: Request):
     return templates.TemplateResponse(
         request,
         "quotes_show.html",
-        {**ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True,
+        {**ctx, "is_stock_page": True, "hide_sidebar": True,
          "item": item, "stats": stats},
     )
