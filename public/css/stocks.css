@@ -27,13 +27,6 @@
     grid-row: 1;
 }
 
-.sidebar-search-bar {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    max-height: 38px;
-}
-
 .stocks-main {
     grid-column: 1;
     grid-row: 2;
@@ -58,59 +51,6 @@
 }
 .stocks-sidebar-right > *:not(:last-child) {
     margin-bottom: 10px;
-}
-
-.sidebar-search-bar .stocks-search-bar {
-    max-width: 100%;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar input {
-    min-width: 0;
-    padding: 6px 10px;
-    margin-right: 5px;
-    height: 34px;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar .search-btn {
-    min-height: unset;
-    height: 34px;
-    width: 34px;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.sidebar-search-bar .stocks-search-bar .search-btn svg {
-    width: 16px;
-    height: 16px;
-}
-
-.backtest-link-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px 20px;
-    height: 100%;
-    box-sizing: border-box;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--border-radius);
-    text-decoration: none;
-    cursor: pointer;
-    transition: var(--transition);
-    min-height: 50px;
-}
-
-.backtest-link-btn:hover {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-    transform: translateY(-2px);
 }
 
 /* 시장 통계 가로 배치 */
@@ -321,14 +261,11 @@
     }
 }
 
-/* 사이드바 검색 */
-.sidebar-search {
-    margin-bottom: 12px;
-    max-height: 34px;
-}
-
 /* =============================
-   TOP 10 공통 (거래대금 / 포트폴리오)
+   포트폴리오 TOP 10
+
+   ⚠️ 거래대금 순위는 2026-09-23 홈의 **순위 표**(`stock_home.css` 의 `sh-rank`)로 옮겼다 —
+      이 블록의 "거래대금" 설명은 그 전의 기록이다.
 
    2026-09-23 재설계. 근거 전문은 temp/output/26092201_레이아웃-리디자인/0014.
    형태는 **라벨 위·막대 아래의 가로 막대그래프**(이름이 긴데 칸이 좁을 때의 기본 배치)
@@ -361,17 +298,6 @@
 .top10-section h3 > .c-ico {
     font-size: 16px;
     color: var(--bae-text-dim);
-}
-
-/* 범위 칩 — 시장 탭은 히트맵 위(옆 칸)에 있어 이 목록을 감싸지 않는다. 목록이 어느
-   시장을 따르는지 여기서 말해 준다. */
-.top10-scope {
-    padding: 1px 8px;
-    border: 1px solid var(--bae-border-hover);
-    border-radius: 999px;
-    color: var(--bae-text-muted);
-    font-size: 11px;
-    font-weight: 600;
 }
 
 /* 10행 고정이라 길어질 일이 없다 — 높이를 묶으면 카드 안에 스크롤바만 생긴다.
@@ -502,28 +428,6 @@
     font-variant-numeric: tabular-nums;
 }
 
-.top10-cd {
-    font-size: 11px;
-    color: var(--bae-text-dim);
-}
-
-/* 가격은 중립 색 — 행끼리 비교할 의미가 없는 값이다. 방향은 등락률 한 곳에서만 말한다. */
-.top10-px {
-    margin-left: auto;
-    color: var(--bae-text-muted);
-}
-
-/* 등락 칸 폭을 고정해 행끼리 소수점이 맞는다. */
-.top10-ch {
-    min-width: 4.4em;
-    text-align: right;
-    font-weight: 600;
-}
-
-.top10-ch.q-up { color: var(--chart-up-text); }
-.top10-ch.q-down { color: var(--chart-down-text); }
-.top10-ch.q-flat { color: var(--bae-text-dim); }
-
 /* 포트폴리오 등급 — 중립 칩. 예전에는 점수와 함께 "상승 빨강" 이었다. */
 .top10-gr {
     padding: 0 7px;
@@ -547,29 +451,6 @@
     background: var(--bae-accent);
 }
 
-.stocks-search-bar {
-    display: flex;
-    flex: 1;
-    max-width: 400px;
-    max-height: 38px;
-}
-
-.stocks-search-bar input {
-    flex: 1;
-    padding: 10px 15px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
-    font-size: 14px;
-}
-
-.stocks-search-bar input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-}
-
-.stocks-search-bar .search-btn,
 .clear-filter-btn {
     padding: 8px 20px;
     min-height: 42px;
@@ -584,42 +465,8 @@
     justify-content: center;
 }
 
-.stocks-search-bar .search-btn svg {
-    display: block;
-    width: 20px;
-    height: 20px;
-    stroke: var(--text-on-primary);
-    color: var(--text-on-primary);
-}
-
-.stocks-search-bar .search-btn:hover,
 .clear-filter-btn:hover {
     background: var(--primary-hover);
-}
-
-/* 사이드바 검색 버튼 오버라이드 */
-.stocks-search-bar.sidebar-search input {
-    height: 34px;
-    padding: 6px 10px;
-    box-sizing: border-box;
-    font-size: 13px;
-}
-
-.stocks-search-bar.sidebar-search .search-btn {
-    min-height: 34px;
-    min-width: 34px;
-    max-height: 34px;
-    max-width: 34px;
-    height: 34px;
-    width: 34px;
-    flex-shrink: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.stocks-search-bar.sidebar-search .search-btn svg {
-    width: 16px;
-    height: 16px;
 }
 
 .clear-filter-btn {
@@ -942,53 +789,12 @@
     color: var(--primary-color);
 }
 
-.current-price .currency {
-    font-size: 16px;
-    font-weight: 400;
-    margin-left: 2px;
-}
-
-.stock-header-stats {
-    display: flex;
-    gap: 10px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
-}
-
-.stock-stat-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-sm);
-    font-size: 13px;
-}
-
-.stock-stat-label {
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-.stock-stat-value {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
 .stock-meta {
     display: flex;
     flex-direction: column;
     gap: 4px;
     font-size: 13px;
     color: var(--text-secondary);
-}
-
-/* 메인 컨텐츠 */
-.stock-detail-main {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 10px;
-    align-items: stretch;
 }
 
 /* 차트 섹션 */
@@ -1340,197 +1146,6 @@
     to { transform: rotate(360deg); }
 }
 
-.execution-loading {
-    text-align: center;
-    padding: 24px;
-    color: var(--text-muted);
-    font-size: 14px;
-}
-
-/* 체결 정보 섹션 */
-.execution-section {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    border: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-}
-
-.execution-section h3 {
-    margin: 0 0 15px 0;
-    font-size: 18px;
-    color: var(--text-primary);
-}
-
-.execution-list {
-    flex: 1 1 auto;
-    min-height: 0;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    overflow-x: hidden;
-    margin-bottom: 0;
-}
-
-.execution-header {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
-    gap: 10px;
-    padding: 12px 15px;
-    margin-right: 14px;
-    background: var(--bg-quaternary);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 2px solid var(--border-color);
-    text-align: center;
-    align-items: center;
-}
-
-.execution-body {
-    max-height: 490px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-gutter: stable;
-}
-
-/* 체결 리스트 스크롤바 (Webkit + Firefox) */
-.execution-body,
-.execution-overlay-content .execution-body {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-color) transparent;
-}
-
-.execution-body::-webkit-scrollbar,
-.execution-overlay-content .execution-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-.execution-body::-webkit-scrollbar-track,
-.execution-overlay-content .execution-body::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 3px;
-}
-
-.execution-body::-webkit-scrollbar-thumb,
-.execution-overlay-content .execution-body::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 3px;
-    transition: background 0.2s;
-}
-
-.execution-body::-webkit-scrollbar-thumb:hover,
-.execution-overlay-content .execution-body::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
-}
-
-.execution-item {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 52px 42px;
-    gap: 10px;
-    padding: 10px 15px;
-    font-size: 13px;
-    border-bottom: 1px solid var(--border-color);
-    transition: var(--transition);
-    text-align: center;
-    align-items: center;
-}
-
-.execution-header>div,
-.execution-item>div {
-    min-width: 0;
-}
-
-.execution-item:hover {
-    background: var(--bg-hover);
-}
-
-.execution-item.buy {
-    background: var(--primary-bg-subtle);
-}
-
-.execution-item.sell {
-    background: var(--danger-bg-subtle);
-}
-
-.exec-time {
-    color: var(--text-muted);
-    font-family: monospace;
-}
-
-.exec-price {
-    font-weight: 600;
-    color: var(--text-primary);
-    text-align: center;
-}
-
-.exec-volume {
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.exec-type {
-    font-weight: 600;
-    text-align: center;
-}
-
-.execution-item.buy .exec-type {
-    color: var(--primary-color);
-}
-
-.execution-item.sell .exec-type {
-    color: var(--danger-color);
-}
-
-.execution-no-data {
-    padding: 40px;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-/* 종목 정보 섹션 */
-.stock-info-section {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    border: 1px solid var(--border-color);
-}
-
-.stock-info-section h3 {
-    margin: 0 0 20px 0;
-    font-size: 20px;
-    color: var(--text-primary);
-}
-
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-}
-
-.info-item {
-    padding: 15px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
-}
-
-.info-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-}
-
-.info-value {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
 /* 반응형 디자인 */
 @media (max-width: 1200px) {
     .stocks-container {
@@ -1546,19 +1161,9 @@
         margin-bottom: -8px;
     }
 
-    .sidebar-search-bar {
-        grid-column: 1;
-        grid-row: 2;
-        margin-bottom: 10px;
-    }
-
     .stocks-sidebar-right {
         grid-column: 1;
         grid-row: 3;
-    }
-
-    .stocks-search-bar.sidebar-search {
-        max-width: 100%;
     }
 
     .stocks-main {
@@ -1579,10 +1184,6 @@
 
     .top10-list > li {
         break-inside: avoid;
-    }
-
-    .stock-detail-main {
-        grid-template-columns: 1fr;
     }
 
     /* 상세 헤더 줄바꿈 */
@@ -1717,19 +1318,6 @@
         font-size: 24px;
     }
 
-    .stock-header-stats {
-        gap: 8px;
-        padding-top: 10px;
-    }
-
-    .stock-stat-chip {
-        flex: 1;
-        justify-content: center;
-        padding: 5px 10px;
-        font-size: 12px;
-        gap: 6px;
-    }
-
     .stock-meta {
         flex-direction: row;
         flex-wrap: wrap;
@@ -1765,47 +1353,6 @@
         padding: 10px;
     }
 
-    /* 체결 정보 */
-    .execution-header,
-    .execution-item {
-        grid-template-columns: 60px minmax(0, 1fr) 48px 36px;
-        gap: 6px;
-        padding: 8px 10px;
-        font-size: 12px;
-    }
-
-    .execution-header {
-        margin-right: 14px;
-        font-size: 11px;
-    }
-
-    /* 종목 정보 그리드 */
-    .info-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-    }
-
-    .info-item {
-        padding: 10px;
-    }
-
-    .info-label {
-        font-size: 10px;
-        margin-bottom: 4px;
-    }
-
-    .info-value {
-        font-size: 13px;
-    }
-
-    .stock-info-section h3 {
-        font-size: 17px;
-        margin-bottom: 14px;
-    }
-
-    .stock-info-section {
-        padding: 14px;
-    }
 }
 
 /* ====== 좁은 화면에서 시장 탭 시총 숨김 (840px 이하) ====== */
@@ -1893,11 +1440,6 @@
         font-size: 10px;
     }
 
-    .stocks-search-bar input {
-        padding: 8px 10px;
-        font-size: 13px;
-    }
-
     /* 페이지네이션 */
     .pagination {
         gap: 4px;
@@ -1954,23 +1496,6 @@
         font-size: 22px;
     }
 
-    .current-price .currency {
-        font-size: 14px;
-    }
-
-    .stock-header-stats {
-        gap: 6px;
-        padding-top: 8px;
-    }
-
-    .stock-stat-chip {
-        flex: 1;
-        justify-content: center;
-        padding: 4px 8px;
-        font-size: 11px;
-        gap: 4px;
-    }
-
     /* 차트 */
     .chart-section {
         padding: 7px;
@@ -2000,55 +1525,6 @@
         padding: 8px;
     }
 
-    /* 체결 정보 */
-    .execution-section {
-        padding: 12px;
-    }
-
-    .execution-header,
-    .execution-item {
-        grid-template-columns: 54px minmax(0, 1fr) 42px 32px;
-        gap: 4px;
-        padding: 6px 8px;
-        font-size: 11px;
-    }
-
-    .execution-header {
-        font-size: 10px;
-        margin-right: 10px;
-    }
-
-    .execution-list {
-        min-height: 300px;
-    }
-
-    /* 종목 정보 */
-    .stock-info-section {
-        padding: 10px;
-    }
-
-    .stock-info-section h3 {
-        font-size: 14px;
-        margin-bottom: 8px;
-    }
-
-    .info-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-    }
-
-    .info-item {
-        padding: 6px 8px;
-    }
-
-    .info-label {
-        font-size: 9px;
-        margin-bottom: 2px;
-    }
-
-    .info-value {
-        font-size: 11px;
-    }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -2060,15 +1536,6 @@
 /* ===========================================
    모바일 체결내역 오버레이 (바텀시트)
    =========================================== */
-
-/* 기본: 모바일 전용 요소 숨김 */
-.execution-mobile-trigger {
-    display: none;
-}
-
-.execution-fade-overlay {
-    display: none;
-}
 
 .execution-overlay-backdrop {
     display: none;
@@ -2124,68 +1591,8 @@
     min-height: 0;
 }
 
-.execution-overlay-content .execution-header {
-    margin-right: 0;
-}
-
-.execution-overlay-content .execution-body {
-    flex: 1;
-    max-height: none;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
 /* ====== 768px 이하: 모바일 체결 축약 + 오버레이 활성화 ====== */
 @media (max-width: 768px) {
-    /* 인라인 체결 리스트 축약 미리보기 */
-    .execution-section .execution-list {
-        position: relative;
-        min-height: auto;
-    }
-
-    .execution-section .execution-body {
-        max-height: 200px;
-        overflow: hidden;
-    }
-
-    .execution-fade-overlay {
-        display: block;
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 60px;
-        background: linear-gradient(to bottom, transparent, var(--bg-tertiary));
-        pointer-events: none;
-        border-radius: 0 0 var(--border-radius) var(--border-radius);
-        z-index: 1;
-    }
-
-    /* 인라인 새로고침 버튼 숨김 (오버레이에 있음) */
-    .execution-section > .btn-primary {
-        display: none;
-    }
-
-    /* 모바일 자세히 보기 버튼 표시 */
-    .execution-mobile-trigger {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        width: 100%;
-        padding: 10px;
-        font-size: 13px;
-        color: var(--primary-color);
-        border: 1px dashed var(--primary-color);
-        border-radius: var(--border-radius);
-        background: transparent;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .execution-mobile-trigger:hover {
-        background: var(--primary-bg-subtle);
-    }
 
     /* 오버레이: 비활성 상태 (visibility로 숨김 → 트랜지션 가능) */
     .execution-overlay-backdrop {
@@ -3589,8 +2996,7 @@ details[open] > .config-section-title.clickable {
 .rotator-head,
 .rotator-count,
 .rotator-bar,
-.rotator-expand,
-.execution-latest-hint {
+.rotator-expand {
     display: none;
 }
 
@@ -3876,7 +3282,7 @@ details[open] > .config-section-title.clickable {
         border-radius: 10px;
     }
 
-    /* ── 거래대금·포트폴리오 TOP10: 한 종목씩 크게 ─────────────────────── */
+    /* ── 포트폴리오 TOP10: 한 종목씩 크게 ─────────────────────────────── */
     .top10-section[data-rotator] {
         padding: 12px 0 0;
     }
@@ -3913,83 +3319,4 @@ details[open] > .config-section-title.clickable {
         height: 6px;
     }
 
-    /* ── 종목 상세: 최근 체결은 최신 1건만 크게 ─────────────────────────
-       ⚠️ 회전시키지 않는다 — 체결은 시간순 흐름이라 이전 체결이 다시 나오면 그 가격이 현재가처럼
-          읽힌다. 전체 50건은 "자세히 보기" 바텀시트(`#executionOverlayList`, 이 섹션 밖)가 보여준다. */
-    .execution-section h3 {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-    }
-
-    .execution-section .execution-latest-hint {
-        display: inline;
-        margin-left: auto;
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text-muted);
-    }
-
-    .execution-section .execution-list > .execution-header,
-    .execution-section .execution-fade-overlay {
-        display: none;
-    }
-
-    .execution-section .execution-body {
-        max-height: none;
-    }
-
-    .execution-section .execution-item:not(:first-child) {
-        display: none;
-    }
-
-    .execution-section .execution-item {
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-            "type price"
-            "time vol";
-        column-gap: 12px;
-        row-gap: 6px;
-        padding: 14px 16px 16px;
-        border-bottom: 0;
-        text-align: left;
-    }
-
-    .execution-section .exec-type {
-        grid-area: type;
-        align-self: center;
-        justify-self: start;
-        padding: 3px 10px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .execution-section .exec-price {
-        grid-area: price;
-        justify-self: end;
-        font-size: 20px;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .execution-section .exec-time {
-        grid-area: time;
-        font-size: 12px;
-    }
-
-    .execution-section .exec-volume {
-        grid-area: vol;
-        justify-self: end;
-        font-size: 12px;
-    }
-
-    .execution-section .exec-volume::before {
-        content: '수량 ';
-        color: var(--text-muted);
-    }
-
-    .execution-section .execution-mobile-trigger {
-        margin-top: 10px;
-    }
 }
