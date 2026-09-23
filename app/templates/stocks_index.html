@@ -125,7 +125,8 @@
                 <div class="sh-rank__cols" aria-hidden="true">
                     <span>종목</span><span>현재가</span><span>등락률</span><span id="rankMetricLabel">거래대금</span>
                 </div>
-                <ol class="sh-rank__list" id="rankList">
+                {# `is-loading` — 첫 목록이 올 때까지 10행 높이를 잡아 둔다(아래 히트맵이 밀려 내려가지 않게). #}
+                <ol class="sh-rank__list is-loading" id="rankList">
                     <li class="sh-rank__empty">불러오는 중…</li>
                 </ol>
             </section>

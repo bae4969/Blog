@@ -7,8 +7,8 @@
  * 만료 30초 전에 다시 받는다.
  *
  * 레일 여닫기
- * · 넓은 화면(≥ 90rem): 오른쪽에 붙고 본문이 비켜선다(`body.rail-open`). 기본은 열림, 고른
- *   상태를 기억한다.
+ * · 넓은 화면(≥ 90rem): 오른쪽에 붙고 본문이 비켜선다(`html.rail-open`). 기본은 열림, 고른
+ *   상태를 기억한다. ⚠️ 첫 상태는 `layout.html` <head> 가 정한다 — `preferredOpen()` 과 조건을 맞출 것.
  * · 좁은 화면: 본문을 덮는 서랍. 늘 닫힌 채로 시작하고, 바깥·Esc·✕ 로 닫힌다.
  */
 (function () {
@@ -18,7 +18,7 @@
     var PREF_KEY = 'watchRail';
     var US_MARKETS = ['US'];
 
-    var railEl, listEl, countEl, toggleEls, backdropEl, starEl;
+    var railEl, listEl, countEl, toggleEls, starEl;
     var loggedIn = false;
     var loginUrl = '';
     var items = null;          // null = 아직 안 받음
@@ -196,14 +196,14 @@
     }
 
     /* ── 레일 여닫기 ───────────────────────────────────────────────── */
+    /** 열림은 `<html class="rail-open">` 하나다 — <head> 인라인 스크립트가 첫 그림 전에 붙이고,
+     *  여기서는 그 뒤의 여닫기만 한다(CSS 가 레일·바깥·본문 비켜서기를 모두 이 클래스로 본다). */
     function isOpen() {
-        return !railEl.hidden;
+        return document.documentElement.classList.contains('rail-open');
     }
 
     function setOpen(open, remember) {
-        railEl.hidden = !open;
-        document.body.classList.toggle('rail-open', open && WIDE.matches);
-        backdropEl.hidden = !(open && !WIDE.matches);
+        document.documentElement.classList.toggle('rail-open', open);
         toggleEls.forEach(function (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
         if (remember && WIDE.matches) {
             try { localStorage.setItem(PREF_KEY, open ? 'open' : 'closed'); } catch (e) { /* 무시 */ }
@@ -229,7 +229,6 @@
         if (!railEl) return;
         listEl = document.getElementById('watchList');
         countEl = document.getElementById('watchCount');
-        backdropEl = document.querySelector('.c-rail__backdrop');
         toggleEls = Array.prototype.slice.call(document.querySelectorAll('.c-rail-toggle'));
         starEl = document.querySelector('[data-watch-code]');
         loggedIn = railEl.dataset.loggedIn === 'true';

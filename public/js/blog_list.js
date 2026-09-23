@@ -276,6 +276,7 @@
             })
             .then(function (data) {
                 loading = false;
+                root.classList.remove('is-loading');   // 자리 잡기를 푼다(blog_index.html)
                 var added = 0;
                 data.items.forEach(function (p) {
                     if (seen[p.id]) return;          // offset 페이징 경계 중복 거르기
@@ -301,9 +302,8 @@
                 }
             })
             .catch(function (e) {
-                // ⚠️ 조용히 빈 화면을 두지 않는다. 서버 렌더 때는 실패가 곧 500 이라
-                //    눈에 보였는데, 클라이언트 렌더는 아무 일도 없던 것처럼 보인다.
                 loading = false;
+                root.classList.remove('is-loading');
                 // ⚠️ 조용히 빈 화면을 두지 않는다. 서버 렌더 때는 실패가 곧 500 이라
                 //    눈에 보였는데, 클라이언트 렌더는 아무 일도 없던 것처럼 보인다.
                 //    프로젝트 디자인 규칙대로 **안내는 화면 아래 가운데 토스트**로 띄우고,

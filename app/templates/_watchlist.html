@@ -3,6 +3,7 @@
 
   · 넓은 화면(≥ 90rem): 오른쪽에 늘 붙어 있고 본문이 그만큼 비켜선다. 상단바 ☆ 로 접고 펴며,
     고른 상태를 기억한다(localStorage `watchRail`).
+  · 열림은 `<html class="rail-open">` 하나로 정한다 — `layout.html` <head> 가 첫 그림 전에 붙인다.
   · 그보다 좁으면: 같은 버튼이 여는 서랍이다(본문을 덮고, 바깥을 누르거나 Esc 로 닫힌다).
   · 목록은 계정마다 서버에 저장된다(`/api/v1/watchlist`, Bearer 전용). 로그인 안 했으면 로그인 안내만.
 
@@ -10,7 +11,7 @@
      오락가락해서다. 처음에는 주식 화면에만 있었다.
 #}
 {% import "_icons.html" as icons %}
-<aside class="c-rail" id="watchRail" aria-labelledby="watchRailTitle" hidden
+<aside class="c-rail" id="watchRail" aria-labelledby="watchRailTitle"
        data-logged-in="{{ 'true' if user else 'false' }}"
        data-login-url="{{ auth_public_url }}/login?next={{ request.url | string | urlencode }}">
     <div class="c-rail__head">
@@ -28,4 +29,4 @@
         {% endif %}
     </div>
 </aside>
-<div class="c-rail__backdrop" data-rail-close hidden></div>
+<div class="c-rail__backdrop" data-rail-close></div>

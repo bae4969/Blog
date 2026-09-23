@@ -114,9 +114,13 @@
         min-inline-size: 0;              /* blog.css:29 의 min-width:400px 대체 */
     }
 
-    /* 가로 모드에서 iOS 가 글자를 멋대로 키우는 것을 막는다. */
+    /* 가로 모드에서 iOS 가 글자를 멋대로 키우는 것을 막는다.
+       ⚠️ 스크롤바 자리는 늘 비워 둔다(`scrollbar-gutter`) — 화면마다 스크롤이 생겼다 없어졌다
+          하면(글 목록이 불러오는 동안 짧다) 스크롤바 폭만큼 화면 전체가 옆으로 움찔한다.
+          오버레이 스크롤바(맥·모바일)에서는 아무 일도 하지 않는다. */
     html {
         -webkit-text-size-adjust: 100%;
+        scrollbar-gutter: stable;
     }
 
     /* 본문 글자는 블로그 표면에서만 새 스케일로 — 주식·관리자 표는 건드리지 않는다. */
@@ -763,8 +767,11 @@
     /* ── 관심 종목 레일 ────────────────────────────────────────────────
      * 2026-09-23 토스증권 PC 의 오른쪽 패널(`_watchlist.html` · `/js/watchlist.js`).
      * 상단바 아래에서 화면 끝까지 붙는 고정 칸이다.
-     *   ≥ 90rem : 열리면 본문이 그만큼 비켜선다(`body.rail-open`) — 덮지 않는다.
+     *   ≥ 90rem : 열리면 본문이 그만큼 비켜선다(`html.rail-open`) — 덮지 않는다.
      *   < 90rem : 본문을 덮는 서랍 + 어두운 바깥(`.c-rail__backdrop`).
+     * ⚠️ 열림은 `<html>` 의 클래스 하나로만 정한다. `layout.html` 의 <head> 인라인 스크립트가
+     *    **첫 그림 전에** 붙인다 — 스크립트(defer)가 나중에 열면 본문이 온 폭으로 한 번 그려진
+     *    뒤 레일 폭만큼 옆으로 뛴다(2026-09-23 실측: 화면을 옮길 때마다 본문이 140~160px 움찔).
      * ⚠️ 상단바 높이는 노치 안전영역만큼 더 크다 — 같은 값을 더해야 둘이 겹치지 않는다.
      */
     .c-rail {
@@ -772,7 +779,7 @@
         inset-block: calc(var(--topbar-h) + env(safe-area-inset-top)) 0;
         inset-inline-end: 0;
         z-index: 46;
-        display: flex;
+        display: none;
         flex-direction: column;
         inline-size: min(var(--rail-w), 100vw);
         padding-block-end: env(safe-area-inset-bottom);
@@ -780,24 +787,24 @@
         background: var(--bae-bg-alt);
     }
 
-    .c-rail[hidden] { display: none; }
+    html.rail-open .c-rail { display: flex; }
 
     .c-rail__backdrop {
         position: fixed;
         inset: calc(var(--topbar-h) + env(safe-area-inset-top)) 0 0;
         z-index: 45;
+        display: none;
         background: rgb(0 0 0 / 0.5);
     }
 
-    .c-rail__backdrop[hidden] { display: none; }
-
     @media (max-width: 89.99rem) {
         .c-rail { box-shadow: -1rem 0 2.5rem rgb(0 0 0 / 0.45); }
+        html.rail-open .c-rail__backdrop { display: block; }
     }
 
     /* 넓은 화면에서 열려 있으면 본문·바닥글이 레일 폭만큼 비켜선다(상단바는 그대로 끝까지). */
     @media (min-width: 90rem) {
-        body.rail-open #blog > :not(.c-topbar) { margin-inline-end: var(--rail-w); }
+        html.rail-open #blog > :not(.c-topbar) { margin-inline-end: var(--rail-w); }
     }
 
     .c-rail__head {
@@ -923,13 +930,15 @@
     .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
 
     /* ☆ — 켜지면(레일이 열림 · 관심에 담김) 별을 채운다. 노랑은 "즐겨찾기" 관례이고 등락 색과 겹치지 않는다. */
-    .c-rail-toggle[aria-expanded="true"],
+    /* ⚠️ 레일 버튼은 `aria-expanded`(스크립트가 나중에 맞춘다)가 아니라 `html.rail-open` 을 본다 —
+          그래야 별 색도 첫 그림부터 맞다. */
+    html.rail-open .c-rail-toggle,
     .sd-watch[aria-pressed="true"] {
         border-color: color-mix(in srgb, var(--bae-warn) 45%, transparent);
         color: var(--bae-warn);
     }
 
-    .c-rail-toggle[aria-expanded="true"] .c-ico,
+    html.rail-open .c-rail-toggle .c-ico,
     .sd-watch[aria-pressed="true"] .c-ico { fill: currentColor; }
 
     /* ── 글 카드 그리드 ───────────────────────────────────────────────
@@ -1021,6 +1030,12 @@
         object-fit: cover;
     }
 
+    /* 첫 쪽이 올 때까지 **목록 칸**을 화면 높이만큼 잡는다 — 바닥글·"더 보기" 칸이 화면 위쪽에
+       떴다가 글이 오면 밀려 내려가지 않게(감싸는 `#postings` 에 잡으면 "더 보기" 칸이 여전히 위에 뜬다). */
+    body.blog-page #postings.is-loading > #left {
+        min-block-size: calc(100dvh - var(--topbar-h));
+    }
+
     body.blog-page .post-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min)), 1fr));
@@ -1063,6 +1078,17 @@
         padding-block: var(--space-6);
         color: var(--bae-text-dim);
         text-align: center;
+    }
+
+    /* 첫 쪽을 기다리는 동안의 "불러오는 중…" 은 **자리를 차지하지 않고** 잡아 둔 목록 칸 위에
+       뜬다 — 흐름에 넣으면 목록이 한 번 내려갔다가 글이 오며 올라왔다(2026-09-23 "움찔").
+       다 불러온 뒤의 안내("게시글이 없습니다" 등)는 목록이 비어 있으니 흐름에 두어도 된다. */
+    body.blog-page #postings.is-loading { position: relative; }
+
+    body.blog-page #postings.is-loading > #blogStatus {
+        position: absolute;
+        inset-inline: 0;
+        inset-block-start: 0;
     }
 
     /* ── 글 카드 ──────────────────────────────────────────────────────

@@ -73,6 +73,28 @@
     min-inline-size: 0;
 }
 
+/* 카드가 올 때까지 "불러오는 중…" 이 카드 줄의 높이를 잡는다(실측) — 안 잡으면 카드가 올 때
+   아래 순위 표·시장 지도가 30~100px 밀려 내려간다. 경계는 `quotes.css` 의 열 수를 따른다:
+     ≤ 768px  회전 카드 한 장 78px · 769~1399px 3열 두 줄 184px · 1400px~ 6열 한 줄 87px
+   ⚠️ 카드 격자의 clearfix 유령도 끈다 — 격자에 빈 줄 + gap 10px 을 더해 높이가 어긋났다. */
+.sh .quote-card-grid::after { content: none; }
+
+.sh .quote-empty {
+    display: grid;
+    place-items: center;
+    grid-column: 1 / -1;
+    box-sizing: border-box;
+    min-block-size: 4.875rem;
+}
+
+@media (min-width: 769px) {
+    .sh .quote-empty { min-block-size: 11.5rem; }
+}
+
+@media (min-width: 1400px) {
+    .sh .quote-empty { min-block-size: 5.4375rem; }
+}
+
 /* 넓은 화면에서만 카드 모양을 덮는다 — 모바일은 회전 카드(`stocks.css` 768px 이하)가 따로 그린다. */
 @media (min-width: 769px) {
     .sh .quote-card {
@@ -167,6 +189,14 @@
 
 /* 새 목록이 올 때까지 옛 것을 흐리게 남긴다 — 비우면 표 높이가 출렁인다. */
 .sh-rank__list.is-stale { opacity: 0.45; }
+
+/* 첫 목록이 올 때까지 10행 높이를 잡는다(실측 행 56·57px) — 비워 두면 아래 시장 지도가
+   목록이 올 때 500px 넘게 밀려 내려갔다(2026-09-23 "움찔"). */
+.sh-rank__list.is-loading { min-block-size: 35.125rem; }
+
+@media (min-width: 48rem) {
+    .sh-rank__list.is-loading { min-block-size: 34.5rem; }
+}
 
 .sh-rank__empty {
     padding: var(--space-6, 2rem) var(--space-4, 1rem);

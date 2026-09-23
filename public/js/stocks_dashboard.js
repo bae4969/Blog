@@ -104,7 +104,7 @@
      * 좁은 화면에서는 이름 밑에 "코드 · 기준값" 한 줄로 붙는다(`stock_home.css`).
      */
     function render(rows) {
-        listEl.classList.remove('is-stale');
+        listEl.classList.remove('is-stale', 'is-loading');
         listEl.removeAttribute('aria-busy');
         listEl.innerHTML = '';
         if (!rows.length) {
@@ -146,7 +146,7 @@
 
     function fromHeatmap() {
         if (heat.market !== market) { markStale(); return; }   // 히트맵이 오면 다시 부른다
-        if (heat.failed) { message('불러오지 못했습니다.'); return; }
+        if (heat.failed) { listEl.classList.remove('is-loading'); message('불러오지 못했습니다.'); return; }
         var rows = heat.rows.filter(function (r) {
             return r.change_pct !== null && r.change_pct !== undefined &&
                    (kind === 'up' ? r.change_pct > 0 : r.change_pct < 0);
@@ -173,6 +173,7 @@
                 if (mine !== requestId || kind !== 'amount') return;
                 // 흐리게 남겨 둔 목록은 **다른 시장의 것**일 수 있다 — 비우고 자리 설명을 남긴다.
                 // 무슨 일이 있었는지는 토스트로(프로젝트 디자인 규칙).
+                listEl.classList.remove('is-loading');
                 message('불러오지 못했습니다.');
                 if (window.toast) {
                     window.toast('거래대금 순위를 불러오지 못했습니다.', 'error',

@@ -36,7 +36,11 @@
     data-view  : 금융은 **뉴스처럼 한 줄씩**(feed), 일반은 지금의 카드(cards).
                  금융 글은 긴 분석 글이라 제목·요약을 훑는 게 먼저다(사용자 결정 2026-09-23).
 #}
-<div id="postings" data-group="{{ nav_group }}" data-path="{{ list_path }}" data-view="{{ 'feed' if finance else 'cards' }}">
+{#
+  `is-loading` — 첫 쪽이 올 때까지 목록 자리를 화면 높이만큼 잡아 둔다(`ui.css`). 비워 두면
+  바닥글이 화면 가운데 떴다가 글이 오면 아래로 밀려 내려간다(2026-09-23 "움찔" — CLS 0.2~0.3).
+#}
+<div id="postings" class="is-loading" data-group="{{ nav_group }}" data-path="{{ list_path }}" data-view="{{ 'feed' if finance else 'cards' }}">
     <div id="blogStatus" role="status" aria-live="polite"></div>
     <div id="left" class="{{ 'post-feed' if finance else 'post-grid' }}"></div>
     {#
