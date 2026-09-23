@@ -13,16 +13,24 @@
 
 {% block title %}포트폴리오 백테스팅 · Developer Notes{% endblock %}
 
-{% block extra_css %}<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/backtest_view.css?v={{ static_v }}">
+{% endblock %}
 
 {% block content %}
-<button class="btn btn-ghost stock-back-btn" onclick="location.href='/stocks'">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-    </svg>
-    목록으로
-</button>
-<h2 class="stock-detail-title">포트폴리오 백테스팅</h2>
+{#
+  2026-09-23 주식 화면들과 같은 겉모양으로 맞췄다(`backtest_view.css`) — 머리·폭·카드 바탕만.
+  ⚠️ 안쪽 구조와 id 는 그대로다. `backtest.js`(1,600줄)가 이 마크업을 id 로 찾는다.
+#}
+<div class="bt">
+<header class="bt-head">
+    <a class="c-btn c-btn--icon" href="/stocks" aria-label="주식 홈으로">{{ icons.i('back') }}</a>
+    <div>
+        <h1 class="bt-title">포트폴리오 백테스팅</h1>
+        <p class="bt-sub">종목과 전략을 정해 과거 수익률을 돌려 봅니다.</p>
+    </div>
+</header>
 
 <!-- 포트폴리오 이름 (자동 저장 후 표시) -->
 <div class="portfolio-name-section" id="portfolioNameSection" style="display:none">
@@ -367,6 +375,7 @@
         <button type="button" id="runBacktest" class="btn btn-primary btn-lg btn-block">{{ icons.i('play') }}<span>백테스트 실행</span></button>
     </div>
 </div>
+</div>{# .bt #}
 
 <!-- 시그널 규칙 템플릿 -->
 <template id="signalRuleTemplate">

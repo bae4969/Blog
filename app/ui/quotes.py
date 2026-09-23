@@ -19,6 +19,7 @@ from sqlalchemy import text
 from app.db.session import db_session
 from app.ui.routes import _shell_ctx, templates
 from app.ui.stocks import (
+    _day_stats,
     _latest_quotes,
     _level,
     _resolve_source,
@@ -225,10 +226,14 @@ async def quotes_show(request: Request):
         item["price"] = (latest or {}).get("close")
         item["prev_price"] = (latest or {}).get("prev_close")
         item["change_pct"] = (latest or {}).get("change_pct")
+        # 종목 상세와 같은 "시세" 칸 — 지수·환율엔 거래량·체결이 없어(0) 시·고·저와 52주 범위만 쓴다.
+        # 액면분할이 없으니 보정 이벤트는 비운다.
+        stats = await _day_stats(db, item["table"], [])
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(
         request,
         "quotes_show.html",
-        {**ctx, "is_stock_page": True, "hide_sidebar": True, "item": item},
+        {**ctx, "is_stock_page": True, "hide_sidebar": True, "watch_rail": True,
+         "item": item, "stats": stats},
     )

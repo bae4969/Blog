@@ -1,0 +1,53 @@
+/* ===========================================
+   백테스트(`/stocks/backtest`) — 2026-09-23 주식 화면들과 같은 겉모양
+   ===========================================
+   `stocks.css` **뒤에** 싣는다. 구조·동작은 그대로 두고(`backtest.js` 가 id 로 찾는다)
+   머리·폭·카드 바탕만 종목 상세(`stock_view.css`)·홈(`stock_home.css`)과 맞춘다:
+   테두리 대신 바탕 한 단계, 둥근 모서리 1rem, 가운데 80rem.
+   ⚠️ 포트폴리오 이름 칸(`.portfolio-name-section`)의 accent 테두리는 남긴다 — 방금 저장된
+      결과를 가리키는 표시다.
+*/
+
+.bt {
+    --bt-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
+    max-inline-size: 80rem;
+    margin-inline: auto;
+    padding-block: var(--space-3, 0.75rem) var(--space-6, 2rem);
+}
+
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+    .bt { --bt-card: var(--bae-surface); }
+}
+
+/* 옛 blog.css 의 clearfix 유령이 flex 머리에 빈 칸을 끼우지 않게. */
+.bt::after,
+.bt-head::after { content: none; }
+
+.bt-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 0.75rem);
+    margin-block-end: var(--space-4, 1rem);
+    padding-inline: var(--space-1, 0.25rem);
+}
+
+.bt-title {
+    margin: 0;
+    color: var(--bae-text-primary);
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.bt-sub {
+    margin: 0.125rem 0 0;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+}
+
+.bt :is(.config-section, .total-score-card, .metric-card, .backtest-chart-section,
+        .annual-returns-section, .trade-summary-section) {
+    border-color: transparent;
+    border-radius: 1rem;
+    background: var(--bt-card);
+}

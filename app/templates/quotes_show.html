@@ -1,4 +1,13 @@
-{# 지수·환율 상세 — 주식 차트 모듈을 쓰되 체결·기업 정보는 싣지 않는다. #}
+{#
+  지수·환율 상세 — 2026-09-23 종목 상세(`stocks_show.html`)와 같은 뼈대(`sd-*`)로 옮겼다.
+  주식 차트 모듈(`stocks.js`)을 쓰되 체결·기업 정보는 없다 — 지수·환율엔 거래량·체결이 없다.
+
+    머리: 이름 · 코드 · 분류 → 현재가 → "전일 대비"
+    본문: 왼쪽 차트 | 오른쪽 "시세"(시·고·저·전일 종가 · 52주 범위)
+
+  ⚠️ `stocks.js` 가 찾는 id·전역은 종목 상세와 같다(그쪽 머리말 참조). `isQuoteMarket` 이
+     통화 표기를 끄고, `stockDataApiPrefix` 가 캔들을 `/api/v1/quotes` 에서 받게 한다.
+#}
 {% extends "layout.html" %}
 {% import "_icons.html" as icons %}
 
@@ -7,6 +16,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
 <link rel="stylesheet" href="/css/quotes.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/stock_view.css?v={{ static_v }}">
 {% endblock %}
 
 {% macro value(v) -%}
@@ -16,109 +26,132 @@
 {%- endif -%}
 {%- endmacro %}
 
+{% macro dir(v) -%}
+{%- if v is none or item.prev_price is none -%}q-flat
+{%- elif v > item.prev_price -%}q-up
+{%- elif v < item.prev_price -%}q-down
+{%- else -%}q-flat
+{%- endif -%}
+{%- endmacro %}
+
 {% block content %}
-<div class="stock-detail-container quote-detail-container">
-    <a class="btn btn-ghost stock-back-btn" href="/stocks">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        목록으로
-    </a>
+{% set chg = item.change_pct %}
+{% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
+<div class="sd">
+    <header class="sd-head">
+        <a class="c-btn c-btn--icon sd-back" href="/stocks" aria-label="주식 홈으로">{{ icons.i('back') }}</a>
+        <div class="sd-id">
+            <h1 class="sd-name">{{ item.name }}</h1>
+            <p class="sd-meta"><span>{{ item.code }}</span><span>{{ item.category_label }}</span></p>
+        </div>
+        <div class="sd-quote">
+            <p class="sd-price {{ chg_cls }}"><span id="currentPriceMainValue">{{ value(item.price) }}</span></p>
+            <p class="sd-change" id="currentPriceChange" data-prev="{{ item.prev_price if item.prev_price is not none else '' }}">
+                <span class="sd-change__label">전일 대비</span>
+                {% if chg is none or item.prev_price is none -%}
+                <span class="q-flat" data-change>-</span>
+                {%- else -%}
+                {% set diff = item.price - item.prev_price %}
+                <span class="{{ chg_cls }}" data-change>
+                    {{- '+' if diff > 0 else ('-' if diff < 0 else '') -}}
+                    {{- value(diff | abs) }} ({{ '{:+,.2f}'.format(chg) }}%)
+                </span>
+                {%- endif %}
+            </p>
+        </div>
+    </header>
 
-    <div class="stock-detail-header quote-detail-header">
-        <div class="stock-header-main">
-            <div class="stock-title-section"><h2>{{ item.name }}</h2></div>
-            <div class="stock-header-badges">
-                <span class="code-badge">{{ item.code }}</span>
-                <span class="market-badge">{{ item.category_label }}</span>
-            </div>
-            {% set chg = item.change_pct %}
-            {% set chg_cls = 'q-flat' if chg is none else ('q-up' if chg > 0 else ('q-down' if chg < 0 else 'q-flat')) %}
-            <div class="stock-price-section">
-                <div class="current-price {{ chg_cls }}">
-                    <span id="currentPriceMainValue">{{ value(item.price) }}</span>
-                    <span class="stock-price-change {{ chg_cls }}">
-                        {%- if chg is none -%}-
-                        {%- else -%}{{ '{:+,.2f}'.format(chg) }}%
-                        {%- endif -%}
-                    </span>
+    <div class="sd-body sd-body--quote">
+        <section class="sd-card sd-chart" aria-label="차트">
+            <div class="sd-chart__bar">
+                {# 봉 단위 — 종목 상세와 같다(아이콘을 달지 않는 이유도 그쪽 주석 참조). #}
+                <div class="sd-periods" role="group" aria-label="봉 단위">
+                    {% for v, label in [('10M', '10분'), ('30M', '30분'), ('1H', '1시간'), ('3H', '3시간'), ('6H', '6시간'), ('1D', '일'), ('1W', '주'), ('1M', '월')] %}
+                    <button type="button" data-period="{{ v }}" aria-pressed="{{ 'true' if v == '1D' else 'false' }}" onclick="loadChartData('{{ v }}')">{{ label }}</button>
+                    {% endfor %}
+                </div>
+                <div class="sd-charttype" role="group" aria-label="차트 모양">
+                    <button type="button" class="chart-type-btn active" aria-pressed="true" onclick="setChartType('candle', this)">{{ icons.i('candle') }}<span>캔들</span></button>
+                    <button type="button" class="chart-type-btn" aria-pressed="false" onclick="setChartType('line', this)">{{ icons.i('line') }}<span>라인</span></button>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="chart-section quote-chart-section">
-        <div class="chart-controls">
-            <div class="chart-type-buttons">
-                <button class="chart-type-btn active" onclick="setChartType('candle', this)">{{ icons.i('candle') }}<span>캔들</span></button>
-                <button class="chart-type-btn" onclick="setChartType('line', this)">{{ icons.i('line') }}<span>라인</span></button>
-            </div>
-            <div class="chart-period-select-wrapper">
-                <select id="periodSelect" class="period-select" onchange="loadChartData(this.value)">
-                    <option value="10M">10M</option>
-                    <option value="30M">30M</option>
-                    <option value="1H">1H</option>
-                    <option value="3H">3H</option>
-                    <option value="6H">6H</option>
-                    <option value="1D" selected>1D</option>
-                    <option value="1W">1W</option>
-                    <option value="1M">1M</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="chart-wrapper">
-            <div class="chart-top-buttons">
-                <div class="chart-indicator-help">
-                    <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명">{{ icons.i('help') }}</button>
-                    <div class="chart-indicator-tooltip">
-                        <div class="chart-indicator-tooltip-section">
-                            <strong>보조지표</strong>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma5-color)"></span>SMA5</div>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma20-color)"></span>SMA20</div>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma60-color)"></span>SMA60</div>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-upper-color)"></span>BB 상단</div>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-middle-color)"></span>BB 중앙</div>
-                            <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-lower-color)"></span>BB 하단</div>
+            <div class="chart-wrapper">
+                <div class="chart-top-buttons">
+                    <div class="chart-indicator-help">
+                        <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명">{{ icons.i('help') }}</button>
+                        <div class="chart-indicator-tooltip">
+                            <div class="chart-indicator-tooltip-section">
+                                <strong>보조지표</strong>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma5-color)"></span>SMA5</div>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma20-color)"></span>SMA20</div>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-sma60-color)"></span>SMA60</div>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-upper-color)"></span>BB 상단</div>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-middle-color)"></span>BB 중앙</div>
+                                <div class="chart-indicator-item"><span class="chart-indicator-dot" style="background: var(--chart-bb-lower-color)"></span>BB 하단</div>
+                            </div>
+                            <hr class="chart-indicator-divider">
+                            <div class="chart-indicator-tooltip-section">
+                                <strong>조작법</strong>
+                                <div>Ctrl + 휠: 확대/축소</div>
+                                <div>Shift + 드래그: 구간 확대</div>
+                                <div>더블클릭: 리셋</div>
+                            </div>
                         </div>
-                        <hr class="chart-indicator-divider">
-                        <div class="chart-indicator-tooltip-section">
-                            <strong>조작법</strong>
-                            <div>Ctrl + 휠: 확대/축소</div>
-                            <div>Shift + 드래그: 구간 확대</div>
-                            <div>더블클릭: 리셋</div>
+                    </div>
+                    <div class="chart-settings">
+                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)" aria-label="차트 설정">{{ icons.i('settings') }}</button>
+                        <div class="chart-settings-panel" id="chartSettingsPanel">
+                            <strong>차트 설정</strong>
+                            <label class="chart-settings-option">
+                                <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">
+                                <span>로그 스케일</span>
+                            </label>
                         </div>
                     </div>
                 </div>
-                <div class="chart-settings">
-                    <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                        </svg>
-                    </button>
-                    <div class="chart-settings-panel" id="chartSettingsPanel">
-                        <strong>차트 설정</strong>
-                        <label class="chart-settings-option">
-                            <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">
-                            <span>로그 스케일</span>
-                        </label>
-                    </div>
+                <canvas id="stockChart"></canvas>
+                <div id="chartLoading" class="chart-loading">
+                    <div class="chart-loading-spinner"></div>
+                    <p>차트 데이터를 불러오는 중...</p>
+                </div>
+                <div id="chartNoData" class="chart-no-data" style="display:none;">
+                    <p>차트 데이터가 없습니다.</p>
                 </div>
             </div>
-            <canvas id="stockChart"></canvas>
-            <div id="chartLoading" class="chart-loading">
-                <div class="chart-loading-spinner"></div>
-                <p>차트 데이터를 불러오는 중...</p>
-            </div>
-            <div id="chartNoData" class="chart-no-data" style="display:none;">
-                <p>차트 데이터가 없습니다.</p>
-            </div>
+        </section>
+
+        {% if stats %}
+        <div class="sd-side">
+            <section class="sd-card sd-stats" aria-labelledby="sdStatsTitle">
+                <div class="sd-card__head">
+                    <h2 class="sd-card__title" id="sdStatsTitle">시세</h2>
+                    <span class="sd-card__sub">{{ stats.date.month }}월 {{ stats.date.day }}일</span>
+                </div>
+                <dl class="sd-kv">
+                    <div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ value(stats.open) }}</dd></div>
+                    <div><dt>고가</dt><dd class="{{ dir(stats.high) }}">{{ value(stats.high) }}</dd></div>
+                    <div><dt>저가</dt><dd class="{{ dir(stats.low) }}">{{ value(stats.low) }}</dd></div>
+                    <div><dt>전일 종가</dt><dd>{{ value(item.prev_price) }}</dd></div>
+                </dl>
+                {% if stats.w52_low and stats.w52_high and stats.w52_high > stats.w52_low and item.price is not none %}
+                {% set pos = ((item.price - stats.w52_low) / (stats.w52_high - stats.w52_low) * 100) %}
+                {% set pos = [[pos, 0] | max, 100] | min %}
+                <div class="sd-range" style="--pos: {{ '%.1f' | format(pos) }}">
+                    <div class="sd-range__head"><span>52주 최저</span><span>52주 최고</span></div>
+                    <div class="sd-range__track" role="img"
+                         aria-label="52주 범위의 {{ '%.0f' | format(pos) }}% 위치"><i></i></div>
+                    <div class="sd-range__vals"><span>{{ value(stats.w52_low) }}</span><span>{{ value(stats.w52_high) }}</span></div>
+                </div>
+                {% endif %}
+            </section>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <script>
+// stocks.js 가 읽는 전역이다 — stocks.js 보다 **먼저** 실행돼야 한다.
 const stockCode = {{ item.code | tojson }};
 const isUSMarket = false;
 const isCoinMarket = false;

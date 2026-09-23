@@ -163,6 +163,14 @@
         min-block-size: 12rem;
         max-block-size: none;
     }
+
+    /* 지수·환율 상세 — 종목 정보·체결이 없다. 오른쪽 "시세" 는 제 높이만큼만. */
+    .sd-body--quote {
+        grid-template-areas: "chart side";
+        grid-template-rows: auto;
+    }
+
+    .sd-body--quote .sd-side { align-self: start; }
 }
 
 .sd-side {
