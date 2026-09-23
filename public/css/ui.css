@@ -83,6 +83,12 @@
     @media (min-width: 64rem) {
         :root { --topbar-h: 4rem; }
     }
+
+    /* 좁은 화면은 상단바가 두 줄이다(워드마크·버튼 / 메뉴) — 아래 `.c-topbar` 참조.
+       이 값을 보는 곳(관심 레일의 위치, 스크롤 여백)이 함께 따라온다. */
+    @media (max-width: 47.99rem) {
+        :root { --topbar-h: 6rem; }
+    }
 }
 
 @layer shell {
@@ -222,17 +228,34 @@
     .c-brand__lead { color: var(--bae-text-primary); }
     .c-brand__tail { color: var(--bae-accent); }
 
-    /* 좁은 화면에서는 워드마크를 줄인다 — 메뉴(홈·백테스트·블로그)가 **다 보이는 것**이 먼저다.
-       메뉴는 넘치면 가로로 밀리게 해 두었지만, 그러면 지금 있는 곳("블로그")이 화면 밖으로
-       밀려 안 보였다(2026-09-23 390px 실측). 워드마크가 가는 곳은 "홈" 과 같아 잃는 길이 없다.
-         < 48rem : "NOTES" 만
-         < 24rem : 워드마크를 접는다(320px 에서 메뉴 셋 + 검색 + 로그인이 들어가는 폭) */
+    /* 좁은 화면(< 48rem)은 **두 줄** — 1줄: 워드마크 · 검색·관심·로그인 / 2줄: 메뉴.
+       ⚠️ 한 줄에 다 넣으려고 워드마크를 줄이고 접어 봤지만(2026-09-23 1단계), 메뉴가 넷
+          (홈·인사이트·백테스트·블로그)이 되고 주식 화면에 ☆ 버튼이 붙자 390px 에서도 "블로그" 가
+          잘렸다. 지금 있는 곳이 화면 밖으로 밀리는 메뉴는 메뉴가 아니다 — 줄을 나눈다.
+          두 번째 줄은 넘치면 가로로 민다(관리자까지 다섯이면 320px 에서). */
     @media (max-width: 47.99rem) {
-        .c-brand__lead { display: none; }
+        .c-topbar {
+            flex-wrap: wrap;
+            align-content: flex-start;
+            row-gap: 0;
+        }
+
+        .c-brand {
+            min-block-size: 3.5rem;
+            align-items: center;
+        }
+
+        .c-nav {
+            order: 3;
+            flex: 1 0 100%;
+            gap: var(--space-5);
+            min-block-size: 2.5rem;
+        }
     }
 
+    /* 320px 급에서는 1줄에 워드마크 전체 + 버튼 셋(검색·관심·로그인)이 안 들어간다 — 앞 단어만 접는다. */
     @media (max-width: 23.99rem) {
-        .c-brand { display: none; }
+        .c-brand__lead { display: none; }
     }
 
     .c-nav {
@@ -439,10 +462,9 @@
      * 2026-09-23 주식이 메인이 되며 `/stocks` 오른쪽 열에서 상단바로 올라왔다
      * (`/js/stock_search.js`). 토스증권 PC 처럼 테두리 없는 둥근 칸 하나.
      *
-     * 넓은 화면(≥ 48rem): 입력칸이 늘 보이고 결과는 칸 아래로 떠 있다.
-     * 좁은 화면: 입력칸을 접고 돋보기 버튼(`.c-stocksearch__open`)만 둔다. 누르면 상단바가
-     *   `is-searching` 이 되어 로고·메뉴·다른 버튼을 숨기고 입력칸 + "취소" 가 한 줄을 쓴다.
-     *   결과는 상단바 바로 아래에 화면 폭 그대로 깔린다.
+     * 넓은 화면(≥ 64rem): 입력칸이 늘 보이고 결과는 칸 아래로 떠 있다.
+     * 그보다 좁으면: 입력칸을 접고 돋보기 버튼(`.c-stocksearch__open`)만 둔다. 누르면 상단바가
+     *   `is-searching` 이 되어 워드마크·다른 버튼을 숨기고 입력칸 + 닫기(✕)가 그 자리를 쓴다.
      */
     .c-stocksearch {
         position: relative;
@@ -566,11 +588,14 @@
     .c-stocksearch .q-down { color: var(--chart-down-text); }
     .c-stocksearch .q-flat { color: var(--bae-text-dim); }
 
-    @media (max-width: 47.99rem) {
+    /* ⚠️ 경계가 64rem 인 이유: 태블릿 세로(768px)에서 입력칸을 펼쳐 두면 메뉴 넷이 한 줄에
+          안 들어간다(실측 2026-09-23). 상단바가 두 줄이 되는 경계(48rem)와 다르다. */
+    @media (max-width: 63.99rem) {
         .c-stocksearch { display: none; }
         .c-stocksearch__open { display: inline-flex; }
 
-        .c-topbar.is-searching > :not(.c-topbar__end),
+        /* 펼치면 1줄(워드마크 자리까지)을 검색이 쓴다. 2줄 메뉴는 그대로 둔다. */
+        .c-topbar.is-searching > .c-brand,
         .c-topbar.is-searching .c-topbar__end > :not(.c-stocksearch) { display: none; }
         .c-topbar.is-searching .c-topbar__end {
             flex: 1 1 auto;
