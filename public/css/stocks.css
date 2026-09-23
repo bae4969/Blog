@@ -2,13 +2,14 @@
    주식 페이지 스타일시트
    =========================================== */
 
-/* 주식 페이지 전용 컨텐츠 영역 */
+/* 주식 페이지 전용 컨텐츠 영역
+   ⚠️ 바탕판(#202020 · 둥근 모서리)을 걷었다(2026-09-23 사용자 요청 "배경 어색하다").
+      카드들이 저마다 바탕을 가지므로 판이 한 겹 더 있으면 가장자리만 어색하게 남았다 —
+      블로그 화면처럼 페이지 바탕 위에 카드가 바로 놓인다. */
 .stock-page-content {
     width: 100% !important;
     margin: 0 !important;
     padding: 10px !important;
-    border-radius: var(--border-radius-lg);
-    background: var(--bg-secondary);
 }
 
 /* 주식 목록 페이지 */

@@ -24,8 +24,8 @@
   ⚠️ 안쪽 구조와 id 는 그대로다. `backtest.js`(1,600줄)가 이 마크업을 id 로 찾는다.
 #}
 <div class="bt">
+{# 뒤로가기 버튼은 두지 않는다 — 상단 메뉴의 한 칸("백테스트")이라 돌아갈 "앞 화면" 이 없다(2026-09-23 사용자 요청). #}
 <header class="bt-head">
-    <a class="c-btn c-btn--icon" href="/stocks" aria-label="주식 홈으로">{{ icons.i('back') }}</a>
     <div>
         <h1 class="bt-title">포트폴리오 백테스팅</h1>
         <p class="bt-sub">종목과 전략을 정해 과거 수익률을 돌려 봅니다.</p>
