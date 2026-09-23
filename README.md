@@ -27,9 +27,10 @@ app/
 ├── db/               # SQLAlchemy 비동기 세션
 ├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음)
 ├── ui/               # 라우트: routes(블로그) · stocks · backtest · admin
+├── migrations/       # DB 변경(NNNN_이름.sql) — 컨테이너가 뜰 때 앱보다 먼저 적용된다(migrate.py)
 └── templates/        # Jinja2
 public/               # 정적 파일. **앱이 직접 서빙한다**(css·js·res·vendor·uploads)
-sql/                  # DB 스키마 정의. 마이그레이션 도구는 없고 수동 적용이다
+sql/                  # DB 스키마 정의(새로 만들 때 참고). 이미 있는 DB 의 변경은 app/migrations/
 .github/workflows/    # main 푸시 → 검사 → 릴리스 → 배포
 ```
 
