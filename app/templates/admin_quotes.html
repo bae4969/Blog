@@ -26,6 +26,8 @@
 {% endblock %}
 
 {% set category_labels = {'KR_INDEX': '국내지수', 'EX_INDEX': '해외지수', 'FX': '환율'} %}
+{# 분류 탭 아이콘 — 국내지수(차트선) · 해외지수(지구) · 환율(주고받는 화살표). #}
+{% set category_icons = {'KR_INDEX': 'line', 'EX_INDEX': 'globe', 'FX': 'cycle'} %}
 
 {% macro query_base(c=none, p=none) -%}
     {%- set parts = ['category=' ~ (c or category)|urlencode] -%}
@@ -52,7 +54,7 @@
             <div class="stock-admin-market-tabs">
                 {% for code in categories %}
                     <a class="stock-admin-market-tab {{ 'active' if category == code else '' }}" href="/admin/quotes?{{ query_base(c=code, p=1) }}">
-                        {{ category_labels.get(code, code) }}
+                        {{- icons.i(category_icons.get(code, 'list')) }}<span>{{ category_labels.get(code, code) }}</span>
                     </a>
                 {% endfor %}
             </div>

@@ -1263,12 +1263,20 @@
     }
 
     /* 한글 글자는 라틴보다 속이 꽉 차서 1em 아이콘이 옆에 서면 작아 보인다 — 한 단 키운다. */
-    :where(.c-btn, .btn, .c-toast) .c-ico {
+    /* 관리자 화면의 탭·"상세 보기"·사이드바 "메뉴" 도 버튼이다(2026-09-24 아이콘을 달았다). */
+    :where(.c-btn, .btn, .c-toast, .stock-admin-market-tab, .stock-admin-view-link, .sidebar-toggle) .c-ico {
         font-size: 1.2em;
     }
 
+    /* 사이드바 "메뉴" 는 `display` 를 건드리지 않는다 — legacy 가 1025px 이상에서 `display:none` 으로
+       숨기는데, 여기서 inline-flex 를 주면 레이어가 이겨 넓은 화면에도 뜬다. 아이콘만 글줄에 맞춘다. */
+    .sidebar-toggle .c-ico {
+        margin-inline-end: 0.4em;
+        vertical-align: -0.2em;
+    }
+
     /* 아이콘을 넣으면 글자와 세로 가운데가 맞아야 한다 — 기존 `.btn`(legacy)까지 함께. */
-    :where(.c-btn, .btn, .c-toast__action) {
+    :where(.c-btn, .btn, .c-toast__action, .stock-admin-market-tab, .stock-admin-view-link) {
         display: inline-flex;
         align-items: center;
         justify-content: center;
