@@ -28,6 +28,8 @@
 {% endblock %}
 
 {% set market_labels = {'KR': '한국', 'US': '미국', 'COIN': '코인'} %}
+{# 시장 탭 아이콘 — 주식 홈 시장 버튼과 같은 통화 기호(디자인 규칙: 버튼엔 SVG). #}
+{% set market_icons = {'KR': 'won', 'US': 'dollar', 'COIN': 'bitcoin'} %}
 
 {% macro query_base(m=none, p=none) -%}
     {%- set parts = ['market=' ~ (m or market)|urlencode] -%}
@@ -53,7 +55,7 @@
             <div class="stock-admin-market-tabs">
                 {% for code, label in market_labels.items() %}
                     <a class="stock-admin-market-tab {{ 'active' if market == code else '' }}" href="/admin/stocks?{{ query_base(m=code, p=1) }}">
-                        {{ label }}
+                        {{- icons.i(market_icons.get(code, 'list')) }}<span>{{ label }}</span>
                     </a>
                 {% endfor %}
             </div>
@@ -123,7 +125,7 @@
                                 <td>{{ '등록됨' if stock.is_registered else '미등록' }}</td>
                                 <td>
                                     <a class="stock-admin-view-link" href="/stocks/view?code={{ stock.code|urlencode }}{{ '&market=COIN' if prefix == 'COIN' else '' }}">
-                                        상세 보기
+                                        {{- icons.i('open') }}<span>상세 보기</span>
                                     </a>
                                 </td>
                             </tr>

@@ -17,7 +17,7 @@
 fastapi
 pydantic
 pydantic-settings
-SQLAlchemy
+SQLAlchemy[asyncio]   # 2.1 부터 greenlet 을 함께 깔지 않는다 — app.db.session 의 asyncio 가 요구한다
 aiomysql
 PyJWT
 python-multipart      # 폼 라우트(Form(...))가 있으면 임포트 단계에서 요구한다

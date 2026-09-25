@@ -132,11 +132,11 @@
             {% if total_pages > 1 %}
                 <div class="admin-pagination">
                     {% if page > 1 %}
-                        <a href="/admin/stock-splits?page={{ page - 1 }}" class="btn btn-sm">← 이전</a>
+                        <a href="/admin/stock-splits?page={{ page - 1 }}" class="btn btn-sm">{{ icons.i('prev') }}<span>이전</span></a>
                     {% endif %}
                     <span class="text-muted">{{ page }} / {{ total_pages }}</span>
                     {% if page < total_pages %}
-                        <a href="/admin/stock-splits?page={{ page + 1 }}" class="btn btn-sm">다음 →</a>
+                        <a href="/admin/stock-splits?page={{ page + 1 }}" class="btn btn-sm"><span>다음</span>{{ icons.i('next') }}</a>
                     {% endif %}
                 </div>
             {% endif %}

@@ -66,6 +66,8 @@ class PostCreate(BaseModel):
     category_id: int = Field(description="쓰기 등급을 넘는 카테고리여야 한다")
     #: base64 WebP 또는 이미 저장된 경로. 넣으면 파일로 구워 경로만 저장한다.
     thumbnail: str | None = None
+    #: 목록에 뿌릴 요약. 없으면 본문 앞 200자로 만든다 — 자동 포스팅(n8n)은 AI 요약을 넣는다.
+    summary: str | None = Field(default=None, description="평문. 태그는 지우고 200자로 자른다")
 
 
 class PostUpdate(BaseModel):

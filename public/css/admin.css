@@ -1023,7 +1023,7 @@
     color: var(--text-primary);
     font-size: 14px;
     transition: var(--transition);
-    min-width: 200px;
+    min-width: 190px;
 }
 
 .stock-admin-search-form input:focus {
@@ -1051,12 +1051,15 @@
     flex-wrap: wrap;
 }
 
+/* 2026-09-24 아이콘을 달면서(디자인 규칙) 좌우 여백을 20→12px, 사이 8→6px 로 줄였다 — 그대로 두면
+   탭 셋이 66px 넓어져 1600px 에서도 "되돌리기·저장" 이 둘째 줄로 밀렸다. 검색칸 쪽도 조금 줄였다
+   (지수·환율 화면은 탭 이름이 길어 17px 가 모자랐다). 아이콘 전과 같은 폭에서 한 줄인지 쟀다. */
 .stock-admin-market-tab {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 40px;
-    padding: 0px 20px;
+    padding: 0px 12px;
     border-radius: var(--border-radius-pill);
     border: none;
     background: var(--bg-tertiary);
@@ -1065,7 +1068,7 @@
     font-size: 13px;
     font-weight: 600;
     transition: var(--transition);
-    margin-right: 8px;
+    margin-right: 6px;
 }
 
 .stock-admin-market-tab:last-child {
@@ -1083,7 +1086,7 @@
     align-items: center;
     flex-wrap: nowrap;
     gap: 8px;
-    margin-left: 12px;
+    margin-left: 4px;
 }
 
 .stock-admin-selection-note {
