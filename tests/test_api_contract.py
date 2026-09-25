@@ -35,6 +35,12 @@ class TestRoutesExist:
         paths = set(app.openapi()["paths"])
         assert {"/api/v1/posts", "/api/v1/posts/{post_id}", "/api/v1/categories"} <= paths
 
+    def test_글_작성은_요약을_선택으로_받는다(self):
+        """자동 포스팅(n8n)이 AI 요약을 넣는다 — 빠지면 본문 앞 200자로 조용히 바뀐다."""
+        schema = app.openapi()["components"]["schemas"]["PostCreate"]
+        assert "summary" in schema["properties"]
+        assert "summary" not in schema.get("required", [])
+
     def test_화면_라우트는_스키마에_안_들어간다(self):
         """`include_in_schema=False` 로 감춰 둔 것들 — 문서가 화면 URL 로 지저분해지지 않게."""
         paths = set(app.openapi()["paths"])

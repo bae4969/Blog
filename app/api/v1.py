@@ -214,8 +214,9 @@ async def create_post(request: Request, body: PostCreate):
                  "(posting_title, posting_content, posting_summary, posting_thumbnail, "
                  " category_index, user_index, posting_first_post_datetime) "
                  "VALUES (:t, :c, :s, :th, :cat, :u, NOW())"),
-            {"t": title, "c": content, "s": make_summary(content), "th": thumb,
-             "cat": body.category_id, "u": me.user_index},
+            # 요약을 주면 그걸 쓰되 본문 요약과 같은 손질(태그 제거·200자)을 거친다.
+            {"t": title, "c": content, "s": make_summary(body.summary or "") or make_summary(content),
+             "th": thumb, "cat": body.category_id, "u": me.user_index},
         )
         new_id = res.lastrowid
         # 작성 수를 함께 올린다 — 이게 빠지면 제한이 영원히 안 걸린다(화면과 같다).
