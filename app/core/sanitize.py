@@ -66,12 +66,13 @@ def has_image(html: str | None) -> bool:
 
 
 # ── 저장용 ──────────────────────────────────────────────────────────
-#: PHP `Models/Post.php::create` 의 `HTML.Allowed`. 출력용보다 **좁다**.
-_SAVE_TAGS: set[str] = {
-    "p", "br", "strong", "em", "s", "ul", "ol", "li",
-    "a", "img", "code", "pre", "blockquote",
-}
+#: 원래 PHP `Models/Post.php::create` 의 `HTML.Allowed` 라 출력용보다 좁았다.
+#: 2026-09-25 **출력용 태그를 모두 받게** 넓혔다 — 자동 포스팅(n8n)이 쓰는 소제목(`h2`·`h3`)·
+#: 강조(`b`·`span style`)가 저장 때 지워졌다. 출력이 어차피 보여 주는 것이라 새로 열리는 구멍은
+#: 없다. `s` 는 옛 저장 목록에만 있던 것이라 그대로 둔다.
+_SAVE_TAGS: set[str] = _TAGS | {"s"}
 _SAVE_ATTRS: dict[str, set[str]] = {
+    "span": {"style"},
     "a": {"href", "title"},
     "img": {"src", "alt", "title"},
 }
@@ -89,7 +90,7 @@ _THUMB_CHARS = re.compile(r"^[A-Za-z0-9+/=]+$")
 
 
 def sanitize_for_save(html: str | None) -> str:
-    """글을 저장하기 전 정화. 출력용보다 좁은 목록을 쓴다(PHP 와 동일).
+    """글을 저장하기 전 정화. 태그는 출력용과 같고 속성은 조금 좁다(`_SAVE_TAGS` 참조).
 
     ⚠️ 저장 목록이 좁다고 출력 정화를 생략하면 안 된다 — 옛 글은 더 넓은 HTML 을 갖고 있다.
     """
