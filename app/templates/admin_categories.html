@@ -80,7 +80,7 @@
             <p class="admin-placeholder">등록된 카테고리가 없습니다.</p>
         {% else %}
             <div class="admin-table-wrap">
-                <table class="admin-table">
+                <table class="admin-table category-table">
                     <thead>
                         <tr>
                             <th>순서</th>
@@ -119,34 +119,34 @@
                                         {% endif %}
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="이름">
                                     <form method="post" action="/admin/categories/update" class="inline-form">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="category_index" value="{{ cat.category_index }}">
                                         <input type="text" name="category_name" value="{{ cat.category_name }}" required maxlength="50" class="inline-input">
                                 </td>
-                                <td>
-                                    <select name="category_read_level" class="inline-select">
+                                <td data-label="읽기 권한">
+                                    <select name="category_read_level" class="inline-select" aria-label="{{ cat.category_name }} 읽기 권한">
                                         {% for lv, label in level_options.items() %}
                                             <option value="{{ lv }}" {% if cat.category_read_level == lv %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
-                                <td>
-                                    <select name="category_write_level" class="inline-select">
+                                <td data-label="쓰기 권한">
+                                    <select name="category_write_level" class="inline-select" aria-label="{{ cat.category_name }} 쓰기 권한">
                                         {% for lv, label in level_options.items() %}
                                             <option value="{{ lv }}" {% if cat.category_write_level == lv %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
-                                <td>
+                                <td data-label="묶음">
                                     <select name="category_group" class="inline-select" aria-label="{{ cat.category_name }} 묶음">
                                         {% for g, label in group_options.items() %}
                                             <option value="{{ g }}" {% if cat.category_group == g %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
-                                <td>{{ cat.post_count }}</td>
+                                <td data-label="게시글">{{ cat.post_count }}</td>
                                 <td class="action-cell">
                                     <div class="action-buttons">
                                         <button type="submit" class="btn btn-sm btn-primary">{{ icons.i('save') }}<span>저장</span></button>
