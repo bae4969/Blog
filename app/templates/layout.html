@@ -365,7 +365,6 @@
 (function () {
     const box = document.getElementById('search_posting_text');
     if (!box) return;
-    const btn = document.getElementById('search_posting_btn');
     document.addEventListener('keydown', function (e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
@@ -377,7 +376,7 @@
         this.style.borderColor = this.value.trim() ? 'var(--bae-accent)' : '';
     });
     box.title = '게시글 제목으로 검색 (Ctrl+S로 포커스)';
-    if (btn) btn.title = '검색 (Enter 또는 Ctrl+S)';
+    // 검색 버튼에는 title 을 주지 않는다 — `tooltip.js` 가 aria-label 로 이름 풍선을 띄워 둘이 겹친다.
 })();
 
 // (2026-09-22) 전역 `selectCategory`·`searchPostingClick` 은 함께 사라졌다.
