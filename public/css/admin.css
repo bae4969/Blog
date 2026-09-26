@@ -502,8 +502,7 @@
 }
 
 .action-buttons {
-    display: inline-grid;
-    grid-template-columns: 50px 50px;
+    display: inline-flex;
     gap: 4px;
     align-items: center;
 }
@@ -739,7 +738,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 24px;
+    padding-block: 10px;
     background: var(--btn-warning);
     color: var(--text-on-primary);
     border: none;
@@ -757,7 +756,7 @@
 }
 
 .btn-wol.btn-sm {
-    padding: 6px 12px;
+    padding-block: 6px;
     font-size: 12px;
     min-height: 32px;
     border-radius: var(--border-radius-sm);
@@ -801,8 +800,6 @@
 
 .wol-device-actions .btn,
 .wol-device-actions .btn-wol {
-    min-width: 80px;
-    text-align: center;
     border-radius: var(--border-radius-sm);
 }
 
@@ -1000,11 +997,6 @@
     flex-wrap: nowrap;
     margin-left: auto;
     flex: 0 0 auto;
-}
-
-.stock-admin-actions .btn {
-    width: 160px;
-    text-align: center;
 }
 
 .stock-admin-action {
@@ -1317,12 +1309,6 @@
     .stock-admin-actions {
         flex: 1 0 100%;
     }
-
-    .stock-admin-actions .btn {
-        width: auto;
-        min-width: 0;
-        flex: 1 1 0;
-    }
 }
 
 /* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
@@ -1480,12 +1466,6 @@
     .wol-device-actions {
         flex-wrap: wrap;
     }
-
-    .wol-device-actions .btn,
-    .wol-device-actions .btn-wol {
-        flex: 1;
-        min-width: 0;
-    }
 }
 
 /* ===========================================
@@ -1527,29 +1507,23 @@
 
     .btn {
         min-height: 44px;
-        padding: 10px 16px;
+        padding-block: 10px;
     }
 
     .btn-sm {
         min-height: 36px;
-        padding: 8px 12px;
+        padding-block: 8px;
     }
 
     .btn-wol.btn-sm {
         min-height: 36px;
-        padding: 8px 12px;
+        padding-block: 8px;
         border-radius: var(--border-radius-sm);
     }
 
 
     .wol-device-actions {
         flex-wrap: wrap;
-    }
-
-    .wol-device-actions .btn,
-    .wol-device-actions .btn-wol {
-        flex: 1;
-        min-width: 0;
     }
 }
 

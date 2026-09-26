@@ -1399,12 +1399,6 @@ footer a:hover {
         text-align: center;
     }
     
-    .form-actions .btn {
-        width: 100%;
-        margin-bottom: 12px;
-        margin-right: 0;
-    }
-    
     .notification {
         top: 10px;
         right: 10px;
@@ -1556,12 +1550,6 @@ footer a:hover {
         min-height: 180px;
     }
     
-    .btn-primary,
-    .btn-secondary {
-        padding: 8px 16px;
-        font-size: 13px;
-        min-height: 36px;
-    }
 }
 
 /* 데스크톱에서는 토글 버튼 숨김 */
