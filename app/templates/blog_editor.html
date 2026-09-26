@@ -731,7 +731,9 @@ const quillDarkTheme = `
     }
     
     /* 구분선 버튼 아이콘은 이제 Quill 아이콘 레지스트리가 **DOM SVG** 로 넣는다
-       (위 `quillIcons['divider']`). 여기서 배경 이미지로 그리면 두 겹이 된다. */
+       (위 quillIcons['divider']). 여기서 배경 이미지로 그리면 두 겹이 된다.
+       ⚠️ 이 CSS 는 JS 템플릿 문자열(quillDarkTheme) 안이다 — 백틱을 쓰면 문자열이 닫혀
+          스크립트 전체가 구문 오류로 죽는다(v2.12.0~2.13.0 글쓰기가 이렇게 멈춰 있었다). */
     
     /* --- 텍스트를 구분선으로 변환 */
     .ql-editor p {
