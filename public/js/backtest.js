@@ -180,18 +180,27 @@
         if (!btn || btn.disabled) return;
 
         if (!hasRunOnce) {
-            btn.textContent = '백테스트 실행';
+            setRunLabel(btn, '백테스트 실행');
             btn.className = 'btn btn-primary btn-lg btn-block';
             return;
         }
         var currentKey = JSON.stringify(collectConfig());
         if (currentKey === lastRunKey) {
-            btn.textContent = '재계산';
+            setRunLabel(btn, '재계산');
             btn.className = 'btn btn-primary btn-lg btn-block btn-recalc';
         } else {
-            btn.textContent = '백테스트 실행';
+            setRunLabel(btn, '백테스트 실행');
             btn.className = 'btn btn-primary btn-lg btn-block btn-refetch';
         }
+    }
+
+    /**
+     * 실행 버튼의 이름만 바꾼다. 버튼은 아이콘만 보이고 이름은 눈에 숨긴 span 에 있다
+     * (프로젝트 디자인 규칙) — 버튼에 `textContent` 를 쓰면 아이콘이 지워지고 글자가 드러난다.
+     */
+    function setRunLabel(btn, text) {
+        var label = btn.querySelector('span');
+        (label || btn).textContent = text;
     }
 
     /* =========================================
@@ -963,7 +972,7 @@
 
         var btn = document.getElementById('runBacktest');
         btn.disabled = true;
-        btn.textContent = '실행 중...';
+        setRunLabel(btn, '실행 중...');
 
         var progressDiv = document.getElementById('backtestProgress');
         var progressFill = document.getElementById('progressFill');

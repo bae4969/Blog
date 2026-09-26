@@ -498,6 +498,7 @@
         justify-content: center;
         gap: var(--space-2, 0.5rem);
         inline-size: 100%;
+        aspect-ratio: auto;      /* 꽉 채우는 막대 — 아이콘만 남아도 정사각으로 만들지 않는다 */
         margin-block-start: var(--space-3, 0.75rem);
     }
 

@@ -203,9 +203,8 @@
               로그인·로그아웃은 **중앙 auth** 로 보낸다(PHP 의 /login.php 가 아니다).
               이 페이지가 포팅본이라도 세션은 auth 가 발급한 것을 쓰기 때문이다.
               next 로 돌아올 곳을 실어 로그인 뒤 보던 화면으로 되돌아오게 한다.
-              ⚠️ 좁은 화면에서는 글자를 접고 아이콘만 남는다 — 그래서 `aria-label` 을 준다.
             #}
-            <a class="c-btn c-btn--collapse" href="{{ auth_public_url }}/{{ 'logout' if user else 'login' }}?next={{ request.url | string | urlencode }}" aria-label="{{ '로그아웃' if user else '로그인' }}">{{ icons.i('logout' if user else 'login') }}<span>{{ '로그아웃' if user else '로그인' }}</span></a>
+            <a class="c-btn c-btn--icon" href="{{ auth_public_url }}/{{ 'logout' if user else 'login' }}?next={{ request.url | string | urlencode }}" aria-label="{{ '로그아웃' if user else '로그인' }}">{{ icons.i('logout' if user else 'login') }}</a>
         </div>
     </header>
 
@@ -415,6 +414,8 @@ document.addEventListener('DOMContentLoaded', function () {
   ⚠️ `extra_js` 보다 **먼저** 싣는다 — 화면 스크립트가 `window.toast` 를 부른다.
 #}
 <script src="/js/toast.js?v={{ static_v }}" defer></script>
+{# 버튼은 아이콘만 보이고 이름은 마우스를 올리면 뜬다(프로젝트 디자인 규칙). #}
+<script src="/js/tooltip.js?v={{ static_v }}" defer></script>
 <script src="/js/stock_search.js?v={{ static_v }}" defer></script>
 <script src="/js/watchlist.js?v={{ static_v }}" defer></script>
 {#

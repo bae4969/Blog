@@ -238,11 +238,6 @@ function initSearchEnhancements() {
         }
     });
     
-    // 검색 버튼에 툴팁 추가
-    if (searchBtn) {
-        searchBtn.title = '검색 (Enter 또는 Ctrl+S)';
-    }
-    
     // 검색 입력창에 툴팁 추가
     searchText.title = '게시글 제목으로 검색 (Ctrl+S로 포커스)';
 }

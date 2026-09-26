@@ -501,9 +501,82 @@
     vertical-align: middle;
 }
 
+/* 카테고리 표 — 이름 입력칸이 제 글자 폭(약 20자)을 고집하면 표가 카드보다 넓어져 가로 스크롤이
+   생긴다. 이름 칸만 줄어들게 한다. 권한·묶음 선택은 줄이면 값이 잘려서("일반 · 블로ㄱ") 제 폭을 둔다. */
+.category-table .inline-input {
+    width: 100%;
+    min-width: 6rem;
+}
+
+/* 좁은 화면 — 일곱 칸이 한 줄에 들어가지 않는다. 칸을 줄이면 선택 상자가 화살표만 남아(390px 에서
+   29px) 쓸 수 없으므로 행마다 카드로 쌓는다. 머리글이 사라지니 칸 이름은 `data-label` 로 붙인다.
+   ⚠️ 저장 폼이 이름 칸에서 열려 작업 칸에서 닫힌다(템플릿 머리 주석) — 칸의 순서는 그대로 두고
+      자리만 격자로 옮긴다. */
+@media (max-width: 48rem) {
+    .admin-table.category-table thead {
+        display: none;
+    }
+
+    .admin-table.category-table,
+    .admin-table.category-table tbody {
+        display: block;
+    }
+
+    .admin-table.category-table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "name  name"
+            "read  write"
+            "group count"
+            "order act";
+        gap: 10px 12px;
+        height: auto;
+        padding: 14px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .admin-table.category-table tbody td {
+        display: block;
+        padding: 0;
+        border: 0;
+        text-align: left;
+        white-space: normal;
+    }
+
+    .admin-table.category-table td:nth-child(1) { grid-area: order; }
+    .admin-table.category-table td:nth-child(2) { grid-area: name; }
+    .admin-table.category-table td:nth-child(3) { grid-area: read; }
+    .admin-table.category-table td:nth-child(4) { grid-area: write; }
+    .admin-table.category-table td:nth-child(5) { grid-area: group; }
+    .admin-table.category-table td:nth-child(6) { grid-area: count; }
+    .admin-table.category-table td:nth-child(7) { grid-area: act; text-align: right; }
+
+    .admin-table.category-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .admin-table.category-table .inline-select {
+        width: 100%;
+    }
+
+    .admin-table.category-table .order-cell {
+        width: auto;
+    }
+
+    .admin-table.category-table .order-buttons {
+        flex-direction: row;
+        gap: 6px;
+    }
+}
+
 .action-buttons {
-    display: inline-grid;
-    grid-template-columns: 50px 50px;
+    display: inline-flex;
     gap: 4px;
     align-items: center;
 }
@@ -739,7 +812,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 24px;
+    padding-block: 10px;
     background: var(--btn-warning);
     color: var(--text-on-primary);
     border: none;
@@ -757,7 +830,7 @@
 }
 
 .btn-wol.btn-sm {
-    padding: 6px 12px;
+    padding-block: 6px;
     font-size: 12px;
     min-height: 32px;
     border-radius: var(--border-radius-sm);
@@ -801,8 +874,6 @@
 
 .wol-device-actions .btn,
 .wol-device-actions .btn-wol {
-    min-width: 80px;
-    text-align: center;
     border-radius: var(--border-radius-sm);
 }
 
@@ -1000,11 +1071,6 @@
     flex-wrap: nowrap;
     margin-left: auto;
     flex: 0 0 auto;
-}
-
-.stock-admin-actions .btn {
-    width: 160px;
-    text-align: center;
 }
 
 .stock-admin-action {
@@ -1317,12 +1383,6 @@
     .stock-admin-actions {
         flex: 1 0 100%;
     }
-
-    .stock-admin-actions .btn {
-        width: auto;
-        min-width: 0;
-        flex: 1 1 0;
-    }
 }
 
 /* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
@@ -1480,12 +1540,6 @@
     .wol-device-actions {
         flex-wrap: wrap;
     }
-
-    .wol-device-actions .btn,
-    .wol-device-actions .btn-wol {
-        flex: 1;
-        min-width: 0;
-    }
 }
 
 /* ===========================================
@@ -1527,29 +1581,23 @@
 
     .btn {
         min-height: 44px;
-        padding: 10px 16px;
+        padding-block: 10px;
     }
 
     .btn-sm {
         min-height: 36px;
-        padding: 8px 12px;
+        padding-block: 8px;
     }
 
     .btn-wol.btn-sm {
         min-height: 36px;
-        padding: 8px 12px;
+        padding-block: 8px;
         border-radius: var(--border-radius-sm);
     }
 
 
     .wol-device-actions {
         flex-wrap: wrap;
-    }
-
-    .wol-device-actions .btn,
-    .wol-device-actions .btn-wol {
-        flex: 1;
-        min-width: 0;
     }
 }
 
