@@ -73,7 +73,7 @@
     }
 
     /** 버튼 아이콘 — 템플릿의 `_icons.html` 과 같은 선 두께·모서리를 쓴다.
-     *  프로젝트 디자인 규칙: 버튼에는 글자만 넣지 않고 SVG 아이콘을 함께 단다. */
+     *  프로젝트 디자인 규칙: 버튼은 SVG 아이콘만 보이고 이름은 마우스를 올리면 뜬다. */
     var ICON = {
         more:  '<path d="m6 9 6 6 6-6"/>',
         retry: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>'
@@ -87,7 +87,7 @@
         return wrap.firstChild;
     }
 
-    /** 아이콘 + 글자 버튼 하나. */
+    /** 아이콘 버튼 하나. 이름 span 은 ui.css 가 눈에만 숨기고 `tooltip.js` 가 풍선으로 띄운다. */
     function iconButton(cls, name, label) {
         var b = el('button', cls);
         b.type = 'button';

@@ -164,8 +164,8 @@ async def post(request: Request, post_id: int):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "글을 찾을 수 없습니다")
 
     base = _summary(row)
-    # ⚠️ DB 에는 정화 전 원본이 들어 있다. 여기서 거르지 않으면 그대로 XSS 가 된다
-    #    (화면도 출력 시점에 `sanitize()` 를 거친다).
+    # ⚠️ DB 에는 저장 정화를 안 거친 글이 있다(`app/core/sanitize.py` 설명). 여기서 거르지 않으면
+    #    그대로 XSS 가 된다(화면도 출력 시점에 `sanitize()` 를 거친다).
     return PostDetail(**base.model_dump(), content=sanitize(row.posting_content))
 
 

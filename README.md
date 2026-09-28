@@ -9,10 +9,15 @@ FastAPI 로 만든 주식·암호화폐 분석 화면과 개인 블로그입니�
 
 ## 무엇이 있나
 
-- **주식** — KR·US·COIN 세 시장, 캔들 차트, 체결 내역, 종목 검색, 액면분할 소급 보정
-- **블로그** — 글 CRUD, 카테고리, 등급별 열람 제한, Quill 에디터, 이미지 업로드
+- **주식** — KR·US·COIN 세 시장, 캔들 차트, 체결 내역, 종목 검색, 액면분할 소급 보정, 관심 종목
+- **지수·환율** — 대시보드(`/stocks`)의 지수·환율 카드와 시장 지도(히트맵), 상세 차트(`/quotes/view`)
+- **블로그** — 글 CRUD, 카테고리, 등급별 열람 제한, Quill 에디터, 이미지 업로드.
+  금융 글은 인사이트(`/insights`), 일반 글은 블로그(`/blog`) 목록에 나뉘어 나온다
 - **백테스트** — 포트폴리오 시뮬레이션(적립식·리밸런싱·신호 매매), 지표·점수·등급, 벤치마크 비교
-- **관리자** — 카테고리·주식 구독·액면분할·WOL
+- **REST API** — `/api/v1`(글·주식·지수·백테스트·관심 종목). 쓰기는 `Authorization: Bearer` 전용.
+  문서(`/api/docs`)는 관리자에게만 열린다
+- **관리자** — 카테고리·주식 구독·지수·환율 구독·액면분할·WOL
+- **설치형 앱(PWA)** — 홈 화면에 추가하면 주소창 없이 뜬다
 
 ## 구조
 
@@ -23,18 +28,21 @@ FastAPI 로 만든 주식·암호화폐 분석 화면과 개인 블로그입니�
 ```text
 app/
 ├── main.py           # 진입점. 미들웨어(인증 자동갱신)와 정적 마운트
-├── core/             # config · security(JWT 검증) · csrf · blog_user · sanitize
-├── db/               # SQLAlchemy 비동기 세션
+├── migrate.py        # 컨테이너가 뜰 때 앱보다 먼저 migrations/ 를 적용한다
+├── api/              # REST API `/api/v1`
+├── core/             # config · security(JWT 검증) · csrf · blog_user · sanitize · thumbnail
+├── db/               # SQLAlchemy 비동기 세션·모델
+├── schemas/          # API 요청·응답 모델
 ├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음)
-├── ui/               # 라우트: routes(블로그) · stocks · backtest · admin
-├── migrations/       # DB 변경(NNNN_이름.sql) — 컨테이너가 뜰 때 앱보다 먼저 적용된다(migrate.py)
+├── ui/               # 화면 라우트: routes(블로그) · stocks · quotes · backtest · admin
+├── migrations/       # DB 변경(NNNN_이름.sql) — 더하기만(새 테이블·컬럼·데이터)
 └── templates/        # Jinja2
 public/               # 정적 파일. **앱이 직접 서빙한다**(css·js·res·vendor·uploads)
 sql/                  # DB 스키마 정의(새로 만들 때 참고). 이미 있는 DB 의 변경은 app/migrations/
-.github/workflows/    # main 푸시 → 검사 → 릴리스 → 배포
+tests/                # pytest
+deploy/               # 이미지 배포 — TrueNAS compose 와 NAS 쪽 적용 스크립트(deploy/README.md)
+.github/workflows/    # 토픽 브랜치 → 검사 / main → 검사 → 릴리스 → 배포
 ```
-
-규모: 파이썬 4,558줄 · 템플릿 3,194줄 · JS 4,636줄 · CSS 6,768줄 · 라우트 46개.
 
 ⚠️ **`public/` 의 URL 경로를 바꾸지 마세요.** 글 본문이 `/uploads/...` 를 직접 가리키고
 있어서 바꾸면 기존 글의 이미지가 전부 깨집니다.
@@ -45,11 +53,13 @@ sql/                  # DB 스키마 정의(새로 만들 때 참고). 이미 �
 # 의존성: 공용 이미지(fastapi-py312)에 대부분 들어 있고, 없는 것만 requirements-api.txt 에 적는다
 pip install -r requirements-api.txt
 # .env.api 를 만들어 아래 표의 키를 채운다 (예시 파일은 없다 — 값이 전부 비밀이라)
+python -m app.migrate     # 적용 안 한 DB 변경이 있으면 먼저 적용한다(컨테이너는 Dockerfile 이 한다)
 uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allow-ips "*"
 ```
 
-⚠️ `--proxy-headers` 가 없으면 **모든 방문자가 게이트웨이 IP 하나로 보입니다.** 백테스트
-포트폴리오는 소유권을 IP 로 가리므로 이게 빠지면 아무나 남의 것을 고칠 수 있게 됩니다.
+⚠️ `--proxy-headers` 가 없으면 앱이 모든 요청을 **게이트웨이에서 온 http 요청**으로 봅니다
+(앞단이 TLS 를 끊기 때문). 로그인 뒤 돌아올 주소(`next`)처럼 `request.url` 로 만드는 주소가
+http 가 됩니다.
 
 ### 설정 (`.env.api`)
 
@@ -59,6 +69,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allo
 | `AUTH_BASE_URL` | 서버 간 호출용 auth 주소(컨테이너 이름) |
 | `AUTH_PUBLIC_URL` | 브라우저를 보낼 auth 주소 |
 | `BASE_DOMAIN` | 쿠키 스코프 계산에 쓴다 |
+| `MIGRATE_DATABASE_URL` | 마이그레이션 전용 계정(DDL 권한). 앱이 뜨기 전에 환경에서 지운다 — 앱 계정에는 DDL 이 없다 |
+| `CONTACT_EMAIL` · `GITHUB_URL` | 바닥글에 보이는 연락처(공개 저장소라 기본값은 비워 둔다) |
 
 ⚠️ `.env.api` 는 `.gitignore` 대상이라 **배포로 따라가지 않습니다.** 각 환경에서 직접
 관리해야 합니다.
@@ -85,10 +97,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allo
 
 ## 보안
 
-- **XSS** — 본문은 `nh3`(Rust ammonia)로 정화합니다. ⚠️ DB 에는 정화 전 원본이 들어
-  있어서, 출력 경로에서 정화를 빼먹으면 그대로 XSS 가 됩니다.
-- **CSRF** — 폼은 double submit cookie. JSON·GET API 는 토큰을 실을 자리가 없어
-  `X-Requested-With` + Origin/Referer 를 봅니다(`csrf.require_internal`).
+- **XSS** — 본문은 `nh3`(Rust ammonia)로 저장할 때와 보여줄 때 두 번 정화합니다. ⚠️ DB 에는
+  저장 정화를 안 거친 글(옛 PHP 글, 자동 포스팅이 DB 에 직접 넣던 글)이 있어서, 출력 경로에서
+  정화를 빼먹으면 그대로 XSS 가 됩니다.
+- **CSRF** — 폼은 double submit cookie. `/api/v1` 의 쓰기는 `Authorization: Bearer` 만 받습니다 —
+  쿠키는 브라우저가 알아서 붙이지만 헤더는 남의 사이트가 붙일 수 없습니다.
 - **SQL 인젝션** — 바인딩 파라미터. 테이블명·정렬 컬럼은 바인딩이 안 되므로
   **화이트리스트**로 거릅니다.
 > **IP 차단은 2026-08-18 에 걷어냈습니다.** 자동 판정은 애초에 옮기지 않았고 수동 차단은
@@ -102,14 +115,17 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allo
 ⚠️ **`main` 직접 푸시는 저장소 규칙이 막습니다. PR 로만 들어갑니다.**
 
 ⚠️ **버전을 올리고 머지하세요.** 릴리스 태그는 `package.json` 의 `version` 으로 만드는데,
-같은 태그가 있으면 **지우고 다시 만듭니다** — 안 올리면 직전 릴리스가 사라집니다.
+같은 태그가 이미 있으면 릴리스가 **실패하고 배포를 건너뜁니다** — 머지는 됐는데 운영은 그대로입니다.
 
-⚠️ 배포는 파일만 바꾸는 게 아니라 **컨테이너를 재시작**합니다. uvicorn 은 떠 있는
-프로세스라 파일만 갈아끼우면 옛 코드가 계속 돕니다.
+배포는 CI 러너가 이미지를 빌드해 사설 레지스트리에 올리고, NAS 에 SSH 로 붙어 TrueNAS compose 를
+그 이미지로 다시 적용한 뒤 사이트가 200 을 내는지까지 확인합니다. DB 변경은 `app/migrations/` 에
+두면 새 컨테이너가 뜰 때 앱보다 먼저 적용됩니다 — ⚠️ **더하기만** 하세요. 배포가 실패하면
+이미지만 옛것으로 돌아가고 DB 는 그대로라, 지우기·이름 바꾸기는 옛 코드를 깨뜨립니다.
 
 ## 테스트
 
-자동화된 테스트는 없습니다. CI 는 파이썬 컴파일과 **Jinja 템플릿 컴파일**만 확인합니다.
+`tests/` 의 pytest 로 돌립니다(`python -m pytest -q`). CI 는 토픽 브랜치 푸시와 `main` 머지 때
+파이썬 컴파일 · Jinja 템플릿 컴파일 · 배포 파일 검사 · pytest · 이미지 빌드를 확인합니다.
 
 ⚠️ 템플릿은 컴파일만으로 부족합니다. 리스트 리터럴 안의 Jinja 주석 때문에 관리자 화면이
 전부 500 이 난 적이 있는데 컴파일은 통과했습니다. 화면을 바꿨으면 **실제로 렌더해서**

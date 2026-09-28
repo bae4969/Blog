@@ -1034,7 +1034,7 @@
         var nameEl = document.getElementById('portfolioNameText');
         if (!section || !nameEl) return;
         nameEl.textContent = name || '';
-        section.style.display = '';
+        section.classList.remove('is-empty');
         // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
         // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
         renderPublicToggle(!!mine, !!isPublic);

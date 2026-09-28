@@ -170,6 +170,8 @@ expected_logging = {
         "syslog-address": "udp://127.0.0.1:5514",
         "syslog-format": "rfc5424micro",
         "tag": "{{.Name}}",
+        "mode": "non-blocking",
+        "max-buffer-size": "4m",
     },
 }
 if service.get("logging") != expected_logging:

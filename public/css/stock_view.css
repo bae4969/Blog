@@ -126,6 +126,14 @@
     align-items: start;
 }
 
+.sd-side {
+    display: grid;
+    gap: clamp(0.75rem, 0.5rem + 1vw, 1.25rem);
+    min-inline-size: 0;
+}
+
+/* ⚠️ 위 기본 규칙은 아래 PC 미디어쿼리보다 **앞에** 둔다 — 뒤에 두면 `display: grid` 가 PC 의
+   `flex` 를 덮어써, 남는 높이가 체결로 가지 않고 시세 카드 아래 빈칸으로 나뉜다. */
 /* PC: 왼쪽 = 차트 + 종목 정보, 오른쪽 = 시세 + 체결.
    **왼쪽이 높이를 정한다** — 차트는 화면 높이(58vh)를 따르고, 오른쪽 체결 목록이 남는 높이를
    채우며 스크롤된다. (처음엔 차트가 오른쪽 칸 높이를 따라 늘게 했더니 1366×768 노트북에서 차트가
@@ -171,12 +179,6 @@
     }
 
     .sd-body--quote .sd-side { align-self: start; }
-}
-
-.sd-side {
-    display: grid;
-    gap: clamp(0.75rem, 0.5rem + 1vw, 1.25rem);
-    min-inline-size: 0;
 }
 
 .sd-card {
