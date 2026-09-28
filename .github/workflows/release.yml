@@ -1,14 +1,14 @@
-name: Topic Branch CI / Main CD
+name: PR CI / Main CD
 
 on:
   push:
     branches:
       - main # main 브랜치에 코드가 푸시(머지 포함)될 때 실행
-      # 공개 저장소의 fork PR 코드를 내부 VM에서 실행하지 않는다. PR에 쓰는 저장소 내부
-      # 토픽 브랜치만 검사하고, 이 결과를 main ruleset의 required check로 묶는다.
-      - 'release/**'
-      - 'fix/**'
-      - 'chore/**'
+  # main 으로 가는 PR(보통 dev → main)은 합친 결과를 검사하고, 이 결과를 main ruleset 의
+  # required check 로 묶는다. fork PR 은 quality-check 의 `if` 가 걸러 내부 VM 에 닿지 않는다.
+  pull_request:
+    branches:
+      - main
 
 concurrency:
   group: production-deploy-${{ github.ref }}
@@ -30,6 +30,9 @@ jobs:
   # 0단계: 기본 검증 (CI)
   quality-check:
     name: quality-check
+    # ⚠️ 공개 저장소라 fork PR 코드를 self-hosted 러너(내부 VM)에서 돌리지 않는다. 조건은 러너에
+    #    넘기기 전에 GitHub 이 본다. 건너뛴 검사도 required check 로는 통과로 치니 fork PR 은 합치지 않는다.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:

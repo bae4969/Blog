@@ -41,7 +41,7 @@ public/               # 정적 파일. **앱이 직접 서빙한다**(css·js·r
 sql/                  # DB 스키마 정의(새로 만들 때 참고). 이미 있는 DB 의 변경은 app/migrations/
 tests/                # pytest
 deploy/               # 이미지 배포 — TrueNAS compose 와 NAS 쪽 적용 스크립트(deploy/README.md)
-.github/workflows/    # 토픽 브랜치 → 검사 / main → 검사 → 릴리스 → 배포
+.github/workflows/    # main 으로 가는 PR → 검사 / main → 검사 → 릴리스 → 배포
 ```
 
 ⚠️ **`public/` 의 URL 경로를 바꾸지 마세요.** 글 본문이 `/uploads/...` 를 직접 가리키고
@@ -124,7 +124,7 @@ http 가 됩니다.
 
 ## 테스트
 
-`tests/` 의 pytest 로 돌립니다(`python -m pytest -q`). CI 는 토픽 브랜치 푸시와 `main` 머지 때
+`tests/` 의 pytest 로 돌립니다(`python -m pytest -q`). CI 는 `main` 으로 가는 PR 과 `main` 머지 때
 파이썬 컴파일 · Jinja 템플릿 컴파일 · 배포 파일 검사 · pytest · 이미지 빌드를 확인합니다.
 
 ⚠️ 템플릿은 컴파일만으로 부족합니다. 리스트 리터럴 안의 Jinja 주석 때문에 관리자 화면이
