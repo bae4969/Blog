@@ -221,6 +221,10 @@
     background: var(--bg-secondary);
 }
 
+.heat-group:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
 .heat-group-name {
     position: absolute;
     z-index: 1;
@@ -300,18 +304,51 @@
     color: var(--text-primary);
 }
 
-.heatmap-tooltip .tip-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
+.heatmap-tooltip .tip-grid {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
     line-height: 1.6;
+    max-width: 280px;
 }
 
-.heatmap-tooltip .tip-row b {
+/* 요약 줄은 라벨이 1·2열을 차지하고 값은 3열에 오른쪽으로 붙는다. */
+.heatmap-tooltip .tip-label {
+    grid-column: 1 / 3;
+}
+
+.heatmap-tooltip .tip-value {
+    grid-column: 3;
+    justify-self: end;
     color: var(--text-primary);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
+
+.heatmap-tooltip .tip-side,
+.heatmap-tooltip .tip-diff {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.heatmap-tooltip .tip-stock {
+    overflow: hidden;
+    color: var(--text-primary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.heatmap-tooltip .tip-sep {
+    grid-column: 1 / -1;
+    margin: 4px 0;
+    border-top: 1px solid var(--border-color);
+}
+
+/* `.tip-value` 의 글자색보다 뒤에 둬야 등락색이 이긴다. */
+.heatmap-tooltip .q-up { color: var(--chart-up-text); }
+.heatmap-tooltip .q-down { color: var(--chart-down-text); }
+.heatmap-tooltip .q-flat { color: var(--text-muted); }
 
 /* ── 좁은 화면 ──────────────────────────────────────────────────────── */
 
