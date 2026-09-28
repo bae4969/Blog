@@ -1929,33 +1929,11 @@ details[open] > .config-section-title.clickable {
     pointer-events: none;
 }
 
-/* ⚠️ 흐름 안에 둔다. 예전엔 `position: absolute; bottom: 0` 이라 목록 마지막 줄 **위에**
-   글자가 겹쳐 찍혔다(2026-08-23 사용자 제보). 자리를 미리 잡아(min-height) 메시지가
-   떴다 사라져도 아래가 밀리지 않게 한다. */
-.preset-status {
-    display: block;
-    min-height: 1.1em;
-    margin-top: 4px;
-    text-align: right;
-    font-size: 0.72rem;
-    color: var(--success-color, #10b981);
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
 .config-save-row {
     display: flex;
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-}
-
-.config-save-status {
-    font-size: 0.72rem;
-    color: var(--success-color, #10b981);
-    opacity: 0;
-    transition: opacity 0.3s;
-    margin-left: auto;
 }
 
 /* 실행 버튼 */
@@ -2139,14 +2117,6 @@ details[open] > .config-section-title.clickable {
     background: var(--primary-bg);
     border-color: var(--primary-color);
     color: var(--primary-color);
-}
-
-.portfolio-name-status {
-    font-size: 11px;
-    color: var(--success-color, #22c55e);
-    opacity: 0;
-    transition: opacity 0.3s;
-    flex-shrink: 0;
 }
 
 /* 진행률 — 토스트 자리(아래 가운데)에 떠 있는다. 본문 위에 끼우면 실행할 때마다 아래가
