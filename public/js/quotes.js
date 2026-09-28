@@ -32,6 +32,7 @@
     var market = 'KR';
     var heatmapData = [];
     var renderedHeatmapItems = [];
+    var renderedHeatmapGroups = [];
     var resizeTimer = null;
 
     /* ── 포맷 ──────────────────────────────────────────────────────────── */
@@ -249,7 +250,8 @@
             groupEl.style.top = gr.y + 'px';
             groupEl.style.width = Math.max(0, gr.w - 1) + 'px';
             groupEl.style.height = Math.max(0, gr.h - 1) + 'px';
-            groupEl.title = g.name + ' · ' + g.items.length + '종목';
+            groupEl.dataset.group = String(renderedHeatmapGroups.length);
+            renderedHeatmapGroups.push(g);
 
             var haveTitle = gr.w >= 58 && gr.h >= 38;
             var titleH = haveTitle ? 19 : 2;
@@ -286,6 +288,7 @@
         if (w < 2 || h < 2) return;
 
         renderedHeatmapItems = [];
+        renderedHeatmapGroups = [];
         var frag = document.createDocumentFragment();
         var haveCategories = items.some(function (d) { return !!d.category_name; });
         // API/DB 배포 순서가 엇갈려 카테고리가 하나도 없으면 기존 평면 배치를 유지한다.
@@ -312,24 +315,105 @@
 
     /* ── 툴팁 ──────────────────────────────────────────────────────────── */
 
-    function showTooltip(evt, d) {
-        if (!tooltipEl) return;
-        var category = d.category_name
-            ? '<div class="tip-row"><span>분류</span><b>' + escapeHtml(d.category_name) + '</b></div>'
-            : '';
-        var capitalization = market === 'COIN' ? ''
-            : '<div class="tip-row"><span>시가총액</span><b>' + won(d.market_cap) + '</b></div>';
-        tooltipEl.innerHTML =
-            '<div class="tip-name">' + escapeHtml(d.name_kr || d.code) + '</div>'
-            + '<div class="tip-row"><span>코드</span><b>' + escapeHtml(d.code) + '</b></div>'
-            + category
-            + '<div class="tip-row"><span>현재가</span><b>' + quoteValue(d.price) + '</b></div>'
-            + '<div class="tip-row"><span>전일</span><b>' + quoteValue(d.prev_price) + '</b></div>'
-            + '<div class="tip-row"><span>등락</span><b class="' + pctClass(d.change_pct) + '">'
-            + pctText(d.change_pct) + '</b></div>'
-            + capitalization;
+    /** 미국 시총은 달러다 — 시장 카드와 같은 `$…B` 로 쓴다. */
+    function capText(v) {
+        return market === 'US' ? '$' + n((v || 0) / 1e9, 2) + 'B' : won(v);
+    }
+
+    /** `ref` 는 자릿수를 정하는 기준값이다 — 변동폭은 현재가 자릿수를 따른다. */
+    function priceText(v, ref) {
+        if (v === null || v === undefined) return '-';
+        if (market === 'US') return '$' + n(v, 2);
+        return (market === 'KR' || (ref === undefined ? v : ref) >= 1000 ? n(v, 0) : quoteValue(v)) + '원';
+    }
+
+    function sign(v) {
+        return v > 0 ? '+' : v < 0 ? '-' : '';
+    }
+
+    /** 분류 요약. 평균 등락은 시총 가중이고, 코인은 시총이 가짜라 단순 평균이다. */
+    function groupSummary(g) {
+        var s = { up: 0, down: 0, flat: 0, cap: 0, avg: null, best: null, worst: null };
+        var sum = 0, weight = 0;
+        for (var i = 0; i < g.items.length; i++) {
+            var d = g.items[i], p = d.change_pct;
+            s.cap += d.market_cap || 0;
+            if (p === null || p === undefined) continue;
+            if (p > 0) s.up += 1; else if (p < 0) s.down += 1; else s.flat += 1;
+            var w = market === 'COIN' ? 1 : (d.market_cap || 0);
+            sum += p * w;
+            weight += w;
+            if (!s.best || p > s.best.change_pct) s.best = d;
+            if (!s.worst || p < s.worst.change_pct) s.worst = d;
+        }
+        if (weight) s.avg = sum / weight;
+        return s;
+    }
+
+    // 3열 격자(라벨 | 종목명 | 값) — 값은 모두 오른쪽 열에 모여 세로로 맞는다.
+    function tipHead(name, side) {
+        return '<span class="tip-name tip-label">' + escapeHtml(name) + '</span>'
+            + '<span class="tip-value tip-side">' + escapeHtml(side) + '</span>';
+    }
+
+    function tipRow(label, value, cls) {
+        return '<span class="tip-label">' + label + '</span>'
+            + '<b class="tip-value' + (cls ? ' ' + cls : '') + '">' + value + '</b>';
+    }
+
+    function tipMover(label, d) {
+        return '<span>' + label + '</span><span class="tip-stock">' + escapeHtml(d.name_kr || d.code) + '</span>'
+            + '<b class="tip-value ' + pctClass(d.change_pct) + '">' + pctText(d.change_pct) + '</b>';
+    }
+
+    var TIP_SEP = '<i class="tip-sep"></i>';
+
+    function openTooltip(evt, html) {
+        tooltipEl.innerHTML = '<div class="tip-grid">' + html + '</div>';
         tooltipEl.hidden = false;
         moveTooltip(evt);
+    }
+
+    /** 종목. `g` 는 속한 분류(평면 배치·코인이면 없다). */
+    function showTooltip(evt, d, g) {
+        if (!tooltipEl) return;
+        var p = d.change_pct;
+        var diff = d.price !== null && d.price !== undefined && d.prev_price
+            ? d.price - d.prev_price : null;
+        var diffText = diff === null ? ''
+            : ' <span class="tip-diff">(' + sign(diff) + priceText(Math.abs(diff), d.price) + ')</span>';
+        var html = tipHead(d.name_kr || d.code, d.code)
+            + (d.category_name ? tipRow('분류', escapeHtml(d.category_name)) : '')
+            + TIP_SEP
+            + tipRow('현재가', priceText(d.price))
+            + tipRow('전일', priceText(d.prev_price))
+            + tipRow('등락', pctText(p) + diffText, pctClass(p))
+            + (market === 'COIN' ? '' : tipRow('시가총액', capText(d.market_cap)));
+        if (g && g.items.length > 1) {
+            var s = groupSummary(g);
+            var rank = 1;
+            for (var i = 0; i < g.items.length; i++) {
+                if ((g.items[i].market_cap || 0) > (d.market_cap || 0)) rank += 1;
+            }
+            var gap = p !== null && p !== undefined && s.avg !== null ? p - s.avg : null;
+            html += TIP_SEP
+                + (market === 'COIN' ? '' : tipRow('분류 내 시총', rank + '위 / ' + g.items.length))
+                + tipRow('분류 평균 대비', gap === null ? '-' : sign(gap) + n(Math.abs(gap), 2) + '%p', pctClass(gap));
+        }
+        openTooltip(evt, html);
+    }
+
+    function showGroupTooltip(evt, g) {
+        if (!tooltipEl) return;
+        var s = groupSummary(g);
+        openTooltip(evt, tipHead(g.name, g.items.length + '종목')
+            + tipRow(market === 'COIN' ? '평균 등락' : '평균 등락 (시총 가중)', pctText(s.avg), pctClass(s.avg))
+            + tipRow('상승 · 보합 · 하락', '<span class="q-up">' + s.up + '</span> · ' + s.flat
+                + ' · <span class="q-down">' + s.down + '</span>')
+            + (market === 'COIN' ? '' : tipRow('시가총액', capText(s.cap)))
+            + (s.best && s.best !== s.worst
+                ? TIP_SEP + tipMover('최고', s.best) + tipMover('최저', s.worst)
+                : ''));
     }
 
     function moveTooltip(evt) {
@@ -521,10 +605,19 @@
 
         // 타일마다 리스너를 달면 수백 개가 된다 — 상자 하나에서 위임한다.
         boxEl.addEventListener('mouseover', function (e) {
-            var tile = e.target.closest ? e.target.closest('.heat-tile') : null;
-            if (!tile) return;
-            var d2 = renderedHeatmapItems[+tile.dataset.idx];
-            if (d2) showTooltip(e, d2);
+            if (!e.target.closest) return;
+            var tile = e.target.closest('.heat-tile');
+            if (tile) {
+                var d2 = renderedHeatmapItems[+tile.dataset.idx];
+                var g2 = tile.parentNode.dataset.group ? renderedHeatmapGroups[+tile.parentNode.dataset.group] : null;
+                if (d2) showTooltip(e, d2, g2);
+                return;
+            }
+            // 타일 밖(분류 이름 줄·테두리)이면 분류 요약을 띄운다.
+            var group = e.target.closest('.heat-group');
+            var g = group ? renderedHeatmapGroups[+group.dataset.group] : null;
+            if (g) showGroupTooltip(e, g);
+            else hideTooltip();
         });
         boxEl.addEventListener('mousemove', moveTooltip);
         boxEl.addEventListener('mouseleave', hideTooltip);
