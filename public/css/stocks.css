@@ -2042,10 +2042,25 @@ details[open] > .config-section-title.clickable {
     margin-bottom: 8px;
 }
 
+/* 실행 전 — 자리만 잡고 안내 문구를 흐리게. accent 테두리는 저장된 결과가 생겨야 켠다. */
+.portfolio-name-section.is-empty {
+    border-color: var(--border-color);
+}
+
+.portfolio-name-section.is-empty .portfolio-name-text {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.portfolio-name-section.is-empty .portfolio-name-edit-btn {
+    visibility: hidden;
+}
+
 .portfolio-name-row {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-height: 24px;   /* 공개 토글(24px)이 나중에 떠도 줄이 1px 도 안 커지게 */
 }
 
 .portfolio-name-row svg {
@@ -2134,14 +2149,22 @@ details[open] > .config-section-title.clickable {
     flex-shrink: 0;
 }
 
-/* 진행률 바 */
+/* 진행률 — 토스트 자리(아래 가운데)에 떠 있는다. 본문 위에 끼우면 실행할 때마다 아래가
+   밀렸다 내려왔다(2026-09-28 사용자 지적). 토스트와 달리 실행이 끝날 때까지 남아 있어야 해서
+   `toast()` 가 아니라 이 요소를 켜고 끈다. */
 .backtest-progress {
-    padding: 16px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    position: fixed;
+    z-index: 200;
+    inset-block-end: max(var(--space-6, 2rem), env(safe-area-inset-bottom));
+    inset-inline-start: 50%;
+    inline-size: min(20rem, calc(100% - 2rem));
+    padding: 12px 16px;
+    background: var(--bae-surface);
+    border: 1px solid var(--bae-border-hover);
     border-radius: var(--border-radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     text-align: center;
-    margin-bottom: 8px;
+    transform: translateX(-50%);
 }
 
 .progress-bar {
