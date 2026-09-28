@@ -159,21 +159,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      # package.json에서 버전 추출
-      - name: Extract version
+      # 버전은 **태그 기준**으로 정한다(2026-09-28). package.json 이 최신 태그보다 큰 새 번호면
+      # 그것(minor·major 는 손으로 올린다), 아니면 최신 태그의 patch + 1. main 에 커밋을 되밀지
+      # 않으므로 ruleset 에 구멍을 낼 필요가 없고, 있는 태그를 지우고 다시 만들지도 않는다.
+      # ⚠️ package.json 숫자는 실제 릴리스보다 뒤처질 수 있다 — 앱은 이 값을 읽지 않는다.
+      - name: Decide version
         id: get_version
         run: |
-          VERSION=$(jq -r .version package.json)
-          echo "VERSION=v$VERSION" >> "$GITHUB_OUTPUT"
-
-      # 같은 버전을 다시 쓰면 이전 릴리스 이력이 사라진다. 삭제 후 재생성하지 않고 실패시킨다.
-      - name: Check version is new
-        run: |
-          TAG="${{ steps.get_version.outputs.VERSION }}"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "::error::이미 존재하는 버전이다: $TAG"
-            exit 1
+          WANT="v$(jq -r .version package.json)"
+          LATEST=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST" ]; then
+            VERSION="$WANT"
+          elif ! git rev-parse -q --verify "refs/tags/$WANT" >/dev/null \
+               && [ "$(printf '%s\n%s\n' "$LATEST" "$WANT" | sort -V | tail -n 1)" = "$WANT" ]; then
+            VERSION="$WANT"
+          else
+            IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+            VERSION="v$MAJOR.$MINOR.$((PATCH + 1))"
           fi
+          echo "package.json=$WANT latest=$LATEST -> $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Set release decision
         id: release_decision
         run: echo "release_created=true" >> "$GITHUB_OUTPUT"

@@ -49,7 +49,6 @@
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
         </button>
-        <span class="portfolio-name-status" id="portfolioNameStatus"></span>
 
         {#
           공개 토글 — **내 포트폴리오일 때만** 보인다(JS 가 portfolioMine 을 보고 켠다).
@@ -361,7 +360,6 @@
                 <div class="preset-list" id="presetList">
                     <!-- JS에서 동적 렌더링 -->
                 </div>
-                <span class="preset-status" id="presetStatus"></span>
             </div>
             {% endif %}
             {% if not user %}
@@ -369,7 +367,6 @@
                 <button type="button" class="btn btn-sm btn-outline" id="saveConfig">{{ icons.i('save') }}<span>설정 저장</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="loadConfig">{{ icons.i('folder') }}<span>불러오기</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="clearConfig">{{ icons.i('trash') }}<span>초기화</span></button>
-                <span class="config-save-status" id="saveStatus"></span>
             </div>
             {% endif %}
         </div>

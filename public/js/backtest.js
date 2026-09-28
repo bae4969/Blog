@@ -1062,7 +1062,6 @@
      */
     function savePortfolioPublic(next) {
         if (!currentPortfolioId) return;
-        var statusEl = document.getElementById('portfolioNameStatus');
         apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(currentPortfolioId), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -1075,19 +1074,9 @@
             .then(function (json) {
                 // 서버가 돌려준 값을 그대로 반영한다 — 눌린 값을 믿지 않는다.
                 renderPublicToggle(true, json.is_public);
-                if (statusEl) {
-                    statusEl.textContent = json.is_public ? '랭킹에 공개했습니다' : '비공개로 바꿨습니다';
-                    statusEl.style.opacity = '1';
-                    setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
-                }
+                notify(json.is_public ? '포트폴리오를 랭킹에 공개했습니다.' : '포트폴리오를 비공개로 바꿨습니다.', 'success');
             })
-            .catch(function (err) {
-                if (statusEl) {
-                    statusEl.textContent = err.message || '변경하지 못했습니다';
-                    statusEl.style.opacity = '1';
-                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
-                }
-            });
+            .catch(function (err) { notify(err.message || '공개 여부를 바꾸지 못했습니다.'); });
     }
 
     /**
@@ -1102,21 +1091,9 @@
         })
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                var statusEl = document.getElementById('portfolioNameStatus');
-                if (statusEl) {
-                    statusEl.textContent = '저장됨';
-                    statusEl.style.opacity = '1';
-                    setTimeout(function () { statusEl.style.opacity = '0'; }, 2000);
-                }
+                notify('포트폴리오 이름을 바꿨습니다.', 'success');
             })
-            .catch(function (err) {
-                var statusEl = document.getElementById('portfolioNameStatus');
-                if (statusEl) {
-                    statusEl.textContent = err.message || '저장 실패';
-                    statusEl.style.opacity = '1';
-                    setTimeout(function () { statusEl.style.opacity = '0'; }, 3000);
-                }
-            });
+            .catch(function (err) { notify(err.message || '포트폴리오 이름을 바꾸지 못했습니다.'); });
     }
 
     /**
@@ -1174,7 +1151,7 @@
 
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            showSaveStatus('저장 완료');
+            notify('설정을 이 브라우저에 저장했습니다.', 'success');
         } catch (e) {
             notify('설정 저장에 실패했습니다.');
         }
@@ -1230,7 +1207,7 @@
                 if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
             });
 
-            showSaveStatus('설정 복원됨');
+            notify('저장해 둔 설정을 불러왔습니다.', 'success');
             updateDateRange();
         } catch (e) {
             notify('설정 불러오기에 실패했습니다.');
@@ -1239,15 +1216,7 @@
 
     function clearStoredConfig() {
         localStorage.removeItem(STORAGE_KEY);
-        showSaveStatus('삭제됨');
-    }
-
-    function showSaveStatus(msg) {
-        var el = document.getElementById('saveStatus');
-        if (!el) return;
-        el.textContent = msg;
-        el.style.opacity = '1';
-        setTimeout(function () { el.style.opacity = '0'; }, 3000);
+        notify('저장해 둔 설정을 지웠습니다.', 'success');
     }
 
     /* =========================================
@@ -1267,14 +1236,6 @@
             if (k !== 'startDate' && k !== 'endDate') copy[k] = config[k];
         });
         return copy;
-    }
-
-    function showPresetStatus(msg) {
-        var el = document.getElementById('presetStatus');
-        if (!el) return;
-        el.textContent = msg;
-        el.style.opacity = '1';
-        setTimeout(function () { el.style.opacity = '0'; }, 3000);
     }
 
     function loadPresetList() {
@@ -1367,7 +1328,7 @@
         })
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                showPresetStatus('저장됨');
+                notify('"' + name + '" 프리셋을 저장했습니다.', 'success');
                 nameInput.value = '';
                 loadPresetList();
             })
@@ -1423,7 +1384,7 @@
             .then(function (json) {
                 if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
                 applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
-                showPresetStatus('"' + (json.name || '') + '" 적용됨');
+                notify('"' + (json.name || '') + '" 프리셋을 적용했습니다.', 'success');
             })
             .catch(function (err) { notify(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
     }
@@ -1433,7 +1394,7 @@
         apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id), { method: 'DELETE' })
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                showPresetStatus('삭제됨');
+                notify('프리셋을 지웠습니다.', 'success');
                 loadPresetList();
             })
             .catch(function (err) { notify(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
