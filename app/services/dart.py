@@ -108,6 +108,28 @@ async def disclosures(db, code: str, kind: str, page: int, size: int) -> tuple[i
     return total, items
 
 
+
+async def recent_subscribed(db, limit: int) -> list[dict]:
+    """구독 중인 종목(메인 화면의 순위·히트맵과 같은 범위)의 최근 **주요** 공시.
+
+    ⚠️ 날짜로 먼저 자른다 — 없으면 구독 종목 1년치(약 2만 건)를 다 모아 정렬해 110ms 가 걸렸다.
+       `idx_stock_code(stock_code, rcept_dt)` 를 범위로 타게 한다. DB 세션이 KST 라 `CURDATE()` 가 맞다.
+    """
+    where, params = _kind_sql("major")
+    rows = (await db.execute(text(
+        "SELECT d.rcept_no, d.rcept_dt, d.report_nm, d.stock_code, s.stock_name_kr "
+        "FROM Dart.disclosure d JOIN KoreaInvest.stock_info s ON s.stock_code = d.stock_code "
+        "WHERE d.stock_code IN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) "
+        "  AND d.rcept_dt >= CURDATE() - INTERVAL 14 DAY "
+        f"{where} ORDER BY d.rcept_dt DESC, d.rcept_no DESC LIMIT :limit"),
+        params | {"limit": limit})).all()
+    out = []
+    for r in rows:
+        title, tag = split_tag(r.report_nm)
+        out.append({"code": r.stock_code, "name": r.stock_name_kr, "date": r.rcept_dt,
+                    "title": title, "tag": tag})
+    return out
+
 _FIN = ("revenue", "operating_income", "net_income")
 
 

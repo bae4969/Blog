@@ -396,6 +396,7 @@ async def stocks_index(request: Request):
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
             "FROM backtest_portfolio WHERE is_public = 1 "
             "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
+        disclosures = await dart.recent_subscribed(db, 8)
         ctx = await _shell_ctx(request, db, level)
 
     return templates.TemplateResponse(
@@ -404,7 +405,7 @@ async def stocks_index(request: Request):
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
             "stats": stats, "portfolios": portfolios, "default_market": market,
-            "insights": insights,
+            "insights": insights, "disclosures": disclosures,
         },
     )
 
