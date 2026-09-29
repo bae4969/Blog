@@ -152,15 +152,17 @@
 
     .sd-chart { grid-area: chart; }
     .sd-info  { grid-area: info; }
+    .sd-fin   { grid-area: fin; }
     .sd-disc  { grid-area: disc; }
 
-    /* 공시 카드는 DART 가 있는 종목에만 있다 — 없는 종목에 빈 줄을 두면 줄 간격만큼 아래가 빈다. */
+    /* 실적·공시 카드는 DART 가 있는 종목에만 있다 — 없는 종목에 빈 줄을 두면 줄 간격만큼 아래가 빈다. */
     .sd-body:has(> .sd-disc) {
         grid-template-areas:
             "chart side"
             "info  side"
+            "fin   side"
             "disc  side";
-        grid-template-rows: 1fr auto auto;
+        grid-template-rows: 1fr auto auto auto;
     }
 
     .sd-side {
@@ -600,3 +602,17 @@
 }
 
 .sd-disc__more[hidden] { display: none; }
+
+.sd-disc__kinds button[hidden] { display: none; }
+
+/* ── 실적 ───────────────────────────────────────────────────────── */
+/* 높이를 처음부터 잡아 둔다 — 데이터가 오기 전후로 아래 공시 카드가 밀리지 않게. */
+.sd-fin__plot {
+    position: relative;
+    block-size: 13rem;
+}
+
+.sd-fin__plot canvas {
+    position: absolute;
+    inset: 0;
+}

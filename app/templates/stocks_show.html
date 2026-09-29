@@ -314,7 +314,24 @@
 
         {% if has_dart %}
         {#
-          공시 — `/js/stock_disclosures.js` 가 `/api/v1/stocks/{code}/disclosures` 로 채운다.
+          분기 실적 — `/js/stock_financials.js` 가 `/api/v1/stocks/{code}/financials` 로 그린다.
+          칩은 서로 다른 값을 고르는 필터라 글자를 보인다(디자인 규칙의 예외). 매출이 없는 회사(금융사)면 JS 가 매출 칩을 숨긴다.
+        #}
+        <section class="sd-card sd-fin" aria-labelledby="sdFinTitle" data-fin-code="{{ stock.stock_code }}">
+            <div class="sd-card__head">
+                <h2 class="sd-card__title" id="sdFinTitle">실적</h2>
+                <span class="sd-card__sub" id="finSub"></span>
+                <div class="sd-disc__kinds" role="group" aria-label="실적 항목">
+                    <button type="button" data-fin-key="revenue" aria-pressed="true">매출</button>
+                    <button type="button" data-fin-key="operating_income" aria-pressed="false">영업이익</button>
+                    <button type="button" data-fin-key="net_income" aria-pressed="false">순이익</button>
+                </div>
+            </div>
+            <div class="sd-fin__plot"><canvas id="finChart" role="img" aria-label="분기 실적 막대 차트"></canvas></div>
+        </section>
+
+        {#
+          공시 —`/js/stock_disclosures.js` 가 `/api/v1/stocks/{code}/disclosures` 로 채운다.
           "주요" 가 기본이다. 지분 신고(임원 소유보고·대량보유)가 공시의 절반 가까이라 섞으면 목록이 덮인다.
         #}
         <section class="sd-card sd-disc" aria-labelledby="sdDiscTitle" data-disc-code="{{ stock.stock_code }}">
@@ -361,6 +378,8 @@
 const stockCode = {{ stock.stock_code | tojson }};
 const isUSMarket = {{ 'true' if is_us else 'false' }};
 const isCoinMarket = {{ 'true' if is_coin else 'false' }};
+// DART 종목이면 차트가 핵심 공시를 봉 아래에 점으로 찍는다(`stocks.js` 의 `loadChartDisclosures`).
+const chartDisclosureCode = {{ (stock.stock_code if has_dart else none) | tojson }};
 let candleData = [];
 const recentExecutions = [];
 
@@ -377,4 +396,5 @@ function goBackToStockList() {
 {% endblock %}
 
 {% block extra_js %}<script src="/js/stocks.js?v={{ static_v }}"></script>
-{% if has_dart %}<script src="/js/stock_disclosures.js?v={{ static_v }}"></script>{% endif %}{% endblock %}
+{% if has_dart %}<script src="/js/stock_disclosures.js?v={{ static_v }}"></script>
+<script src="/js/stock_financials.js?v={{ static_v }}"></script>{% endif %}{% endblock %}

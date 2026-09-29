@@ -38,6 +38,12 @@ def test_SQL_조건이_분류_목록을_다_쓴다(kind, needles):
     assert where.count("LIKE") == len(needles)
 
 
+def test_차트용_핵심은_KEY_목록만_쓴다():
+    where, params = dart._kind_sql("key")
+    assert sorted(params.values()) == sorted(f"%{n}%" for n in dart._KEY)
+    assert "NOT" not in where
+
+
 def test_전체는_조건이_없다():
     assert dart._kind_sql("all") == ("", {})
 
@@ -53,7 +59,9 @@ def test_앞머리(raw, title, tag):
 
 def test_경로와_잘못된_kind():
     paths = set(app.openapi()["paths"])
-    assert {"/api/v1/stocks/{code}/fundamentals", "/api/v1/stocks/{code}/disclosures"} <= paths
+    assert {"/api/v1/stocks/{code}/fundamentals", "/api/v1/stocks/{code}/disclosures",
+            "/api/v1/stocks/{code}/financials"} <= paths
     with TestClient(app, raise_server_exceptions=False) as c:
         assert c.get("/api/v1/stocks/005930/disclosures?kind=bad").status_code == 422
         assert c.get("/api/v1/stocks/005930/disclosures?size=101").status_code == 422
+        assert c.get("/api/v1/stocks/005930/financials?limit=41").status_code == 422

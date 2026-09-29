@@ -383,6 +383,84 @@ const candleDrawPlugin = {
 };
 
 /* ========================================
+   공시 표시 — 핵심 공시가 있는 봉 아래에 점을 찍는다
+   - 목록은 `chartDisclosureCode`(종목 상세가 DART 종목에만 정의) 로 한 번 받는다.
+   - 봉과 짝짓기는 `markDisclosures` 가, 풍선 글자는 툴팁의 `afterBody` 가 한다.
+   ======================================== */
+let chartDisclosures = null;   // [{date, title}] — 받기 전·대상 아님은 null
+
+const disclosureMarkPlugin = {
+    id: 'disclosureMarkPlugin',
+    afterDatasetsDraw(chart) {
+        var marks = chart._marks;
+        if (!marks) return;
+        var meta = chart.getDatasetMeta(0);
+        var area = chart.chartArea;
+        if (!meta || !meta.data || !area) return;
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.fillStyle = chartColors.primary;
+        for (var i = 0; i < marks.length; i++) {
+            if (!marks[i]) continue;
+            var p = meta.data[i];
+            if (!p || p.x < area.left || p.x > area.right) continue;
+            ctx.beginPath();
+            ctx.arc(p.x, area.bottom - 6, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+};
+
+/**
+ * 그리는 봉마다 그 봉에 걸리는 공시 목록(없으면 null). 일·주·월봉만 — 분봉은 공시 **시각**이 없다
+ * (DART 는 날짜만 준다).
+ * - 일봉: 공시일 **이후 첫 봉** — 주말·장 마감 뒤 공시는 다음 거래일에 반영된다.
+ * - 주·월봉: 공시일을 담은 봉 = 공시일 이전의 마지막 봉(봉 시각은 버킷의 첫 거래 시각이다).
+ */
+function markDisclosures(rows) {
+    if (!chartDisclosures || !rows.length) return null;
+    if (['1d', '1w', '1M'].indexOf(currentTimeframe) < 0) return null;
+    var days = rows.map(function(d) { return String(d.at).slice(0, 10); });
+    var marks = new Array(rows.length).fill(null);
+    chartDisclosures.forEach(function(item) {
+        if (item.date < days[0]) return;
+        var idx = -1;
+        if (currentTimeframe === '1d') {
+            for (var i = 0; i < days.length; i++) { if (days[i] >= item.date) { idx = i; break; } }
+        } else {
+            for (var j = days.length - 1; j >= 0; j--) { if (days[j] <= item.date) { idx = j; break; } }
+        }
+        if (idx < 0) return;
+        (marks[idx] = marks[idx] || []).push(item);
+    });
+    return marks;
+}
+
+function loadChartDisclosures() {
+    if (typeof chartDisclosureCode === 'undefined' || !chartDisclosureCode) return;
+    // 1년치 핵심 공시는 대형주도 수십 건이다 — 한 번에 받고, 넘치면 다음 쪽을 잇는다.
+    var all = [];
+    (function page(n) {
+        fetch('/api/v1/stocks/' + encodeURIComponent(chartDisclosureCode) + '/disclosures?kind=key&size=100&page=' + n)
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function(res) {
+                all = all.concat(res.items.map(function(d) { return { date: d.date, title: d.title }; }));
+                if (n < res.pages && n < 5) return page(n + 1);
+                chartDisclosures = all;
+                if (stockChart) {
+                    stockChart._marks = markDisclosures(displayedCandleData);
+                    stockChart.draw();
+                }
+            })
+            .catch(function(e) { console.error('차트 공시 로드 실패:', e); });
+    })(1);
+}
+
+/* ========================================
    초기화
    ======================================== */
 document.addEventListener('DOMContentLoaded', function() {
@@ -391,9 +469,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadChartModules().then(() => {
         if (typeof Chart !== 'undefined') {
-            Chart.register(crosshairPlugin, candleDrawPlugin);
+            Chart.register(crosshairPlugin, candleDrawPlugin, disclosureMarkPlugin);
         }
         loadChartData(currentPeriod);
+        loadChartDisclosures();
         if (document.getElementById('executionList')) loadInitialExecutions();
     });
 
@@ -1031,6 +1110,7 @@ function initChart() {
         })
     });
     stockChart._ohlcData = chartData._ohlcData || null;
+    stockChart._marks = markDisclosures(displayedCandleData);
     enforceVisibleRangeBounds();
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
@@ -1305,6 +1385,12 @@ function getChartOptions(chartType, dataRange, initialRange) {
                     title: function(items) {
                         if (items.length > 0) return items[0].label;
                         return '';
+                    },
+                    afterBody: function(items) {
+                        var marks = items.length ? items[0].chart._marks : null;
+                        var list = marks && marks[items[0].dataIndex];
+                        if (!list) return [];
+                        return [''].concat(list.map(function(d) { return '공시 ' + d.date.slice(5).replace('-', '/') + ' ' + d.title; }));
                     },
                     label: function(context) {
                         if (context.dataset.label === '거래량') {
@@ -1662,6 +1748,7 @@ function prependChartData() {
         }
     }
     stockChart._ohlcData = newChartData._ohlcData || null;
+    stockChart._marks = markDisclosures(displayedCandleData);
 
     var yMaxVol = volumeAxisMax(candleData);
     if (yMaxVol) stockChart.options.scales.y2.max = yMaxVol;

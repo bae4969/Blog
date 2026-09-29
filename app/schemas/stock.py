@@ -132,6 +132,25 @@ class Disclosure(BaseModel):
     url: str = Field(description="DART 원문")
 
 
+class FinancialQuarter(BaseModel):
+    """분기 하나의 **3개월** 실적(원). 원본 누적값에서 직전 분기를 뺀 값이다."""
+
+    year: int = Field(description="사업연도")
+    quarter: int = Field(description="1~4 (4 = 연간 − 3분기 누적)")
+    period_end: date | None = None
+    revenue: float | None = Field(default=None, description="매출액 — 금융사는 없을 수 있다")
+    operating_income: float | None = None
+    net_income: float | None = Field(default=None, description="연결이면 비지배 포함")
+    revenue_yoy: float | None = Field(default=None, description="전년 같은 분기 대비(%). 기준이 0 이하면 null")
+    operating_income_yoy: float | None = None
+    net_income_yoy: float | None = None
+
+
+class Financials(BaseModel):
+    fs_div: str = Field(description="CFS 연결 · OFS 개별 — 한 가지만 쓴다")
+    quarters: list[FinancialQuarter] = Field(description="오래된 순")
+
+
 class QuoteOut(BaseModel):
     """지수·환율 카드 하나.
 

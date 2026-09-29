@@ -19,7 +19,11 @@ _HOLDING = ("임원ㆍ주요주주특정증권등", "주식등의대량보유상
 #: 증권 발행 서류 — 채권·파생결합증권 발행마다 쏟아진다. 어디에도 넣지 않고 "전체" 에서만 보인다.
 _ISSUE = ("투자설명서", "일괄신고추가서류", "증권발행실적보고서")
 
-KINDS = ("major", "holding", "all")
+#: 차트에 찍는 공시 — "주요" 는 삼성전자만 해도 1년 120건이라 봉마다 점이 붙는다. 주가에 직접 닿는 것만.
+_KEY = ("사업보고서", "반기보고서", "분기보고서", "영업(잠정)실적", "매출액또는손익구조",
+        "주요사항보고서", "현금ㆍ현물배당결정", "단일판매ㆍ공급계약")
+
+KINDS = ("major", "holding", "all", "key")
 
 _TAG = re.compile(r"^\[([^\]]+)\]\s*")
 
@@ -40,6 +44,9 @@ def split_tag(report_nm: str) -> tuple[str, str | None]:
 
 
 def _kind_sql(kind: str) -> tuple[str, dict]:
+    if kind == "key":
+        return ("AND (" + " OR ".join(f"report_nm LIKE :k{i}" for i in range(len(_KEY))) + ")",
+                {f"k{i}": f"%{k}%" for i, k in enumerate(_KEY)})
     hold = [f"report_nm LIKE :h{i}" for i in range(len(_HOLDING))]
     issue = [f"report_nm LIKE :s{i}" for i in range(len(_ISSUE))]
     params = {f"h{i}": f"%{k}%" for i, k in enumerate(_HOLDING)}
@@ -99,3 +106,45 @@ async def disclosures(db, code: str, kind: str, page: int, size: int) -> tuple[i
                       "filer": r.flr_nm, "kind": classify(r.report_nm),
                       "url": DART_VIEWER + r.rcept_no})
     return total, items
+
+
+_FIN = ("revenue", "operating_income", "net_income")
+
+
+async def financials(db, code: str, limit: int) -> tuple[str, list[dict]] | None:
+    """분기 실적 — 3개월 값과 전년 같은 분기 대비 증감률. 최근 `limit` 분기, 오래된 순.
+
+    ⚠️ 원본(`fin_summary`)은 **연초부터의 누적**이다. 분기 값은 직전 분기 누적을 뺀다(4분기 = 연간 − 3분기).
+       직전 분기가 없으면 그 분기는 비운다 — 누적을 3개월로 착각해 보여 주지 않는다.
+    ⚠️ 연결·개별을 섞지 않는다. 최신 분기에 연결이 있으면 연결, 없으면 개별 하나로 간다(`valuation` 과 같다).
+    """
+    rows = (await db.execute(text(
+        "SELECT f.bsns_year, f.quarter, f.fs_div, f.period_end, f.revenue_ytd, "
+        "       f.operating_income_ytd, f.net_income_ytd "
+        "FROM Dart.fin_summary f JOIN Dart.corp_info c ON c.corp_code = f.corp_code "
+        "WHERE c.stock_code = :c ORDER BY f.bsns_year, f.quarter"), {"c": code})).all()
+    if not rows:
+        return None
+    last = max((r.bsns_year, r.quarter) for r in rows)
+    fs = "CFS" if any((r.bsns_year, r.quarter) == last and r.fs_div == "CFS" for r in rows) else "OFS"
+    ytd = {(r.bsns_year, r.quarter): r for r in rows if r.fs_div == fs}
+
+    def quarter_value(y, q, k):
+        cur = ytd.get((y, q))
+        cur = getattr(cur, k + "_ytd") if cur else None
+        if cur is None or q == 1:
+            return cur
+        prev = ytd.get((y, q - 1))
+        prev = getattr(prev, k + "_ytd") if prev else None
+        return None if prev is None else cur - prev
+
+    out = []
+    for (y, q), r in sorted(ytd.items()):
+        item = {"year": y, "quarter": q, "period_end": r.period_end}
+        for k in _FIN:
+            v, p = quarter_value(y, q, k), quarter_value(y - 1, q, k)
+            item[k] = v
+            # 기준이 0 이하(적자)면 증감률은 뜻이 없다 — 흑자전환 여부는 두 값으로 본다.
+            item[k + "_yoy"] = (v - p) / p * 100 if v is not None and p and p > 0 else None
+        out.append(item)
+    return fs, out[-limit:]
