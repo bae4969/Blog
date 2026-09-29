@@ -70,6 +70,26 @@ def _candle_candidates(code: str, prefix: str) -> list[str]:
     ]))
 
 
+# 코인(`c`)·환율(`f`)은 하루가 끊기지 않는 시장이라 등락률을 **최근 24시간**으로 잰다. 마지막 캔들
+# 날짜의 0시로 자르면 자정 직후엔 몇 분치만 남고, 환율은 주말 내내 토요일 0~6시만 보였다
+# (데이터가 토 06:00 에 멈춰 월 06:00 에 다시 쌓인다). 주식·지수는 전일 종가 그대로다.
+_ROLLING_PREFIXES = ("c", "f")
+
+
+def _change_base_sql(tbl: str) -> str:
+    """등락률 기준 시각 — 주식·지수는 마지막 캔들 날짜의 0시, 코인·환율은 마지막 캔들의 24시간 전."""
+    if tbl[:1] in _ROLLING_PREFIXES:
+        return f"((SELECT MAX(execution_datetime) FROM `candle`.`{tbl}`) - INTERVAL 24 HOUR)"
+    return f"(SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`)"
+
+
+def _prev_close_sql(tbl: str) -> str:
+    """등락률의 비교 가격 서브쿼리 — 기준 시각 직전(24시간 창이면 그 시각까지)의 마지막 종가."""
+    op = "<=" if tbl[:1] in _ROLLING_PREFIXES else "<"
+    return (f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime {op} "
+            f"{_change_base_sql(tbl)} ORDER BY execution_datetime DESC LIMIT 1)")
+
+
 async def _latest_quotes(db, pairs) -> dict[str, dict]:
     """`(종목코드, 접두사)` 목록 → `{code: {close, prev_close, change_pct}}`.
 
@@ -79,7 +99,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
     ⚠️ 전일 종가의 기준일은 `CURDATE()` 가 **아니라** 그 종목 캔들의 마지막 날짜다.
        미국 종목의 `execution_datetime` 은 현지시각(ET)이라 KST 의 오늘로 자르면 장중에
        하루가 통째로 빈다. `_heatmap_rows`·`app.ui.quotes._quote_rows` 와 같은 기준이라야
-       목록·히트맵·지수 화면이 같은 등락률을 보인다.
+       목록·히트맵·지수 화면이 같은 등락률을 보인다. 코인·환율은 24시간 전과 견준다(`_change_base_sql`).
     """
     if not pairs:
         return {}
@@ -111,9 +131,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
     parts = [
         f"SELECT '{code}' AS code, (SELECT execution_close FROM `candle`.`{tbl}` "
         f"ORDER BY execution_datetime DESC LIMIT 1) AS close_price, "
-        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
-        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
-        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_close"
+        f"{_prev_close_sql(tbl)} AS prev_close"
         for code, tbl in picked.items()
         if tbl.replace("_", "").isalnum() and code.replace("_", "").replace(".", "").replace("/", "").isalnum()
     ]
@@ -326,9 +344,7 @@ async def _heatmap_rows(db, market: str) -> list[dict]:
         f"SELECT '{code}' AS code, "
         f"(SELECT execution_close FROM `candle`.`{tbl}` "
         f" ORDER BY execution_datetime DESC LIMIT 1) AS price, "
-        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
-        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
-        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_price "
+        f"{_prev_close_sql(tbl)} AS prev_price "
         f"FROM DUAL"
         for code, tbl in code_to_table.items()
     )
@@ -718,7 +734,8 @@ async def _day_stats(db, table: str, events: list) -> dict | None:
         f"SELECT execution_open FROM `candle`.`{table}` WHERE execution_datetime = :t"),
         {"t": last_raw.first_at})).scalar()
     ask, bid = last["execution_ask_volume"], last["execution_bid_volume"]
-    return {
+    out = {
+        "rolling": False,
         "date": last_raw.d,
         "open": None if open_ is None else float(open_),
         "high": last["execution_max"],
@@ -733,6 +750,21 @@ async def _day_stats(db, table: str, events: list) -> dict | None:
         "w52_low": min(r["execution_min"] for r in rows if r["execution_min"] > 0) if any(
             r["execution_min"] > 0 for r in rows) else None,
     }
+    if table[:1] in _ROLLING_PREFIXES:
+        # 코인·환율은 머리의 등락률과 같은 창(마지막 캔들의 24시간 전 이후)으로 잰다. 시가는 곧
+        # "24시간 전" 가격이라 비운다. 분할이 없는 시장이라 보정도 없고, 52주 범위는 일 단위 그대로다.
+        w = (await db.execute(text(
+            "SELECT MIN(execution_min) AS lo, MAX(execution_max) AS hi, "
+            "SUM(execution_ask_volume) AS av, SUM(execution_bid_volume) AS bv, "
+            "SUM(execution_non_volume) AS nv, "
+            "SUM(execution_ask_amount + execution_bid_amount + execution_non_amount) AS amt "
+            f"FROM `candle`.`{table}` WHERE execution_datetime > {_change_base_sql(table)}"))).first()
+        ask, bid = float(w.av or 0), float(w.bv or 0)
+        out.update(rolling=True, date=None, open=None,
+                   high=float(w.hi or 0), low=float(w.lo or 0),
+                   volume=ask + bid + float(w.nv or 0), amount=float(w.amt or 0),
+                   strength=bid / ask * 100 if ask else None)
+    return out
 
 
 @router.get("/stocks/view", response_class=HTMLResponse, include_in_schema=False)

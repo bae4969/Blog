@@ -32,7 +32,7 @@ class WatchItem(BaseModel):
     name_kr: str | None = None
     market: str = Field(description="시장 묶음 KR·US·COIN")
     price: float | None = None
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 

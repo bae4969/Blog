@@ -126,7 +126,7 @@
             </p>
             {# `data-prev` 로 전일 종가를 넘긴다 — `stocks.js` 가 현재가를 갈아끼울 때 이 줄도 다시 계산한다. #}
             <p class="sd-change" id="currentPriceChange" data-prev="{{ stock.prev_price if stock.prev_price is not none else '' }}">
-                <span class="sd-change__label">전일 대비</span>
+                <span class="sd-change__label">{{ '24시간 대비' if is_coin else '전일 대비' }}</span>
                 {% if chg is none or stock.prev_price is none -%}
                 <span class="q-flat" data-change>-</span>
                 {%- else -%}
@@ -213,17 +213,18 @@
             {#
               그날 시세 — 서버가 계산한다(`_day_stats`). 마지막 거래일이라 **날짜를 함께 적는다**
               (주말·휴장이면 오늘이 아니다). 고가·저가·시가는 전일 종가와 견준 색을 쓴다.
+              코인은 머리 등락률과 같이 최근 24시간으로 재고 시가는 뺀다(`stats.rolling`).
             #}
             <section class="sd-card sd-stats" aria-labelledby="sdStatsTitle">
                 <div class="sd-card__head">
                     <h2 class="sd-card__title" id="sdStatsTitle">시세</h2>
-                    <span class="sd-card__sub">{{ stats.date.month }}월 {{ stats.date.day }}일</span>
+                    <span class="sd-card__sub">{% if stats.rolling %}최근 24시간{% else %}{{ stats.date.month }}월 {{ stats.date.day }}일{% endif %}</span>
                 </div>
                 <dl class="sd-kv">
-                    <div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ price(stats.open) }}</dd></div>
+                    {% if not stats.rolling %}<div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ price(stats.open) }}</dd></div>{% endif %}
                     <div><dt>고가</dt><dd class="{{ dir(stats.high) }}">{{ price(stats.high) }}</dd></div>
                     <div><dt>저가</dt><dd class="{{ dir(stats.low) }}">{{ price(stats.low) }}</dd></div>
-                    <div><dt>전일 종가</dt><dd>{{ price(stock.prev_price) }}</dd></div>
+                    <div><dt>{{ '24시간 전' if stats.rolling else '전일 종가' }}</dt><dd>{{ price(stock.prev_price) }}</dd></div>
                     <div><dt>거래량</dt><dd>{{ qty(stats.volume) }}</dd></div>
                     <div><dt>거래대금</dt><dd>{{ cap(stats.amount) }}</dd></div>
                 </dl>

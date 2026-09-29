@@ -305,7 +305,7 @@
         var html = market === 'COIN'
             ? '<span class="heatmap-note">코인 타일 크기는 상대 비교용으로 세제곱근 보정했으며 실제 시가총액과 다를 수 있습니다.</span>'
             : '';
-        html += '<span class="heat-legend-label">전일 대비</span>';
+        html += '<span class="heat-legend-label">' + (market === 'COIN' ? '24시간 대비' : '전일 대비') + '</span>';
         for (var i = 0; i < stops.length; i++) {
             html += '<span class="heat-legend-chip" style="background:' + tileColor(stops[i]) + '">'
                 + (stops[i] > 0 ? '+' : '') + stops[i] + '%</span>';
@@ -386,7 +386,7 @@
             + (d.category_name ? tipRow('분류', escapeHtml(d.category_name)) : '')
             + TIP_SEP
             + tipRow('현재가', priceText(d.price))
-            + tipRow('전일', priceText(d.prev_price))
+            + tipRow(market === 'COIN' ? '24시간 전' : '전일', priceText(d.prev_price))
             + tipRow('등락', pctText(p) + diffText, pctClass(p))
             + (market === 'COIN' ? '' : tipRow('시가총액', capText(d.market_cap)));
         if (g && g.items.length > 1) {

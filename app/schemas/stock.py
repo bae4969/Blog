@@ -21,7 +21,7 @@ class StockOut(BaseModel):
     market_cap: float | None = Field(default=None, description="시가총액. 코인은 가격×수량")
     quantity: float | None = Field(default=None, description="상장주식수 또는 코인 수량")
     #: 등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — `_latest_quotes` 참조.
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
@@ -74,7 +74,7 @@ class TopStock(BaseModel):
     market: str | None = None
     price: float | None = None
     trading_amount: float | None = Field(default=None, description="기간 거래대금 합계")
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
@@ -84,6 +84,7 @@ class HeatmapItem(BaseModel):
     ⚠️ `change_pct` 는 **각 종목 캔들의 마지막 날짜**를 기준으로 계산한다. 미국 종목은
        `execution_datetime` 이 현지시각(ET)이라 KST 의 "오늘"로 자르면 하루씩 어긋난다.
        종목마다 자기 마지막 거래일과 그 직전 거래일을 비교하므로 시장이 섞여도 맞는다.
+       코인은 마지막 캔들의 24시간 전과 비교한다.
     """
 
     code: str
@@ -93,7 +94,7 @@ class HeatmapItem(BaseModel):
     category_name: str | None = Field(default=None, description="마스터 기반 업종 분류명")
     market_cap: float | None = Field(default=None, description="타일 크기. 코인은 가격×수량")
     price: float | None = Field(default=None, description="마지막 거래일 종가")
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 

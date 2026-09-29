@@ -47,7 +47,7 @@
         <div class="sd-quote">
             <p class="sd-price {{ chg_cls }}"><span id="currentPriceMainValue">{{ value(item.price) }}</span></p>
             <p class="sd-change" id="currentPriceChange" data-prev="{{ item.prev_price if item.prev_price is not none else '' }}">
-                <span class="sd-change__label">전일 대비</span>
+                <span class="sd-change__label">{{ '24시간 대비' if item.rolling else '전일 대비' }}</span>
                 {% if chg is none or item.prev_price is none -%}
                 <span class="q-flat" data-change>-</span>
                 {%- else -%}
@@ -126,13 +126,13 @@
             <section class="sd-card sd-stats" aria-labelledby="sdStatsTitle">
                 <div class="sd-card__head">
                     <h2 class="sd-card__title" id="sdStatsTitle">시세</h2>
-                    <span class="sd-card__sub">{{ stats.date.month }}월 {{ stats.date.day }}일</span>
+                    <span class="sd-card__sub">{% if stats.rolling %}최근 24시간{% else %}{{ stats.date.month }}월 {{ stats.date.day }}일{% endif %}</span>
                 </div>
                 <dl class="sd-kv">
-                    <div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ value(stats.open) }}</dd></div>
+                    {% if not stats.rolling %}<div><dt>시가</dt><dd class="{{ dir(stats.open) }}">{{ value(stats.open) }}</dd></div>{% endif %}
                     <div><dt>고가</dt><dd class="{{ dir(stats.high) }}">{{ value(stats.high) }}</dd></div>
                     <div><dt>저가</dt><dd class="{{ dir(stats.low) }}">{{ value(stats.low) }}</dd></div>
-                    <div><dt>전일 종가</dt><dd>{{ value(item.prev_price) }}</dd></div>
+                    <div><dt>{{ '24시간 전' if stats.rolling else '전일 종가' }}</dt><dd>{{ value(item.prev_price) }}</dd></div>
                 </dl>
                 {% if stats.w52_low and stats.w52_high and stats.w52_high > stats.w52_low and item.price is not none %}
                 {% set pos = ((item.price - stats.w52_low) / (stats.w52_high - stats.w52_low) * 100) %}
