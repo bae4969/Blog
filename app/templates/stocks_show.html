@@ -2,7 +2,8 @@
   종목 상세 — 2026-09-23 토스증권 PC 처럼 다시 짰다(계획: temp/output/26092301_주식메인-MTS/0004).
 
     머리: 이름 · 코드 · 시장 → 큰 현재가 → "전일 대비 +10,500원 (+3.82%)"
-    본문: 왼쪽 큰 차트 + 종목 정보(+ 투자 지표) + 공시(DART 가 있는 한국 보통주만) | 오른쪽 "시세"(시·고·저·거래량·거래대금·체결강도·52주 범위) + 체결
+    본문: 왼쪽 큰 차트 + 종목 정보(+ 투자 지표) | 오른쪽 "시세"(시·고·저·거래량·거래대금·체결강도·52주 범위) + 체결
+          그 아래 전체 폭을 반반으로 실적 | 공시(DART 가 있는 한국 보통주만)
 
   토스의 오른쪽 칸은 호가·주문이지만 여기엔 호가 데이터가 없다(수집기가 모으지 않는다) —
   그 자리에 **그날 시세와 체결**을 둔다. 좁은 화면에서는 위에서 아래로 한 줄씩 쌓인다.
@@ -313,6 +314,8 @@
         </section>
 
         {% if has_dart %}
+        {# 실적 | 공시 — PC 에서는 종목 정보 아래 전체 폭을 반반으로 나눈다(`stock_view.css` 의 `.sd-extra`). #}
+        <div class="sd-extra">
         {#
           분기 실적 — `/js/stock_financials.js` 가 `/api/v1/stocks/{code}/financials` 로 그린다.
           칩은 서로 다른 값을 고르는 필터라 글자를 보인다(디자인 규칙의 예외). 매출이 없는 회사(금융사)면 JS 가 매출 칩을 숨긴다.
@@ -331,7 +334,7 @@
         </section>
 
         {#
-          공시 —`/js/stock_disclosures.js` 가 `/api/v1/stocks/{code}/disclosures` 로 채운다.
+          공시 — `/js/stock_disclosures.js` 가 `/api/v1/stocks/{code}/disclosures` 로 채운다.
           "주요" 가 기본이다. 지분 신고(임원 소유보고·대량보유)가 공시의 절반 가까이라 섞으면 목록이 덮인다.
         #}
         <section class="sd-card sd-disc" aria-labelledby="sdDiscTitle" data-disc-code="{{ stock.stock_code }}">
@@ -346,8 +349,8 @@
             <ol class="sd-disc__list" id="discList">
                 <li class="sd-exec__empty">공시를 불러오는 중...</li>
             </ol>
-            <button type="button" class="c-btn sd-disc__more" id="discMore" hidden>{{ icons.i('down') }}<span>공시 더 보기</span></button>
         </section>
+        </div>
         {% endif %}
     </div>
 </div>

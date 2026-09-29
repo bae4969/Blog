@@ -125,10 +125,15 @@ class Disclosure(BaseModel):
 
     rcept_no: str
     date: date
-    title: str = Field(description="`[기재정정]` 같은 앞머리를 뗀 보고서명")
+    title: str = Field(description="`[기재정정]` 같은 앞머리를 뗀 보고서명(원문)")
     tag: str | None = Field(default=None, description="뗀 앞머리 — 기재정정·첨부정정·발행조건확정 등")
+    label: str = Field(description="쉬운 제목 — '자사주 취득 결정'. 모르는 서식이면 원문 그대로")
+    category: str = Field(description="earnings·periodic·dividend·buyback·financing·contract·mna·governance·"
+                                      "risk·ir·management·other · holding 지분 · issue 발행 · admin 행정")
+    category_label: str = Field(description="분류 배지 글자 — 실적·배당·자사주…")
+    detail: str | None = Field(default=None, description="자사주 금액·수량, 지분 신고 보고자·증감 — 이어 붙일 표가 있을 때만")
+    reaction: float | None = Field(default=None, description="반영된 날의 등락률(%). 장 마감 뒤 공시는 다음 거래일")
     filer: str = Field(description="제출인 — 지분 신고는 보고자")
-    kind: str = Field(description="major 주요 · holding 지분 신고 · issue 증권 발행 서류")
     url: str = Field(description="DART 원문")
 
 

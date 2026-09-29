@@ -152,18 +152,41 @@
 
     .sd-chart { grid-area: chart; }
     .sd-info  { grid-area: info; }
-    .sd-fin   { grid-area: fin; }
-    .sd-disc  { grid-area: disc; }
+    .sd-extra { grid-area: extra; }
 
-    /* 실적·공시 카드는 DART 가 있는 종목에만 있다 — 없는 종목에 빈 줄을 두면 줄 간격만큼 아래가 빈다. */
-    .sd-body:has(> .sd-disc) {
+    /* 실적·공시 카드는 DART 가 있는 종목에만 있다 — 없는 종목에 빈 줄을 두면 줄 간격만큼 아래가 빈다.
+       ⚠️ 오른쪽 칸(시세·체결)은 **차트·종목 정보 옆까지만** 둔다. 실적·공시 옆까지 늘이면 체결 목록이
+          1,600px 넘게 길어졌다(2026-09-29 사용자 지적). 차트 옆에서만 끝내면 시세(약 430px) 때문에
+          오른쪽 칸이 차트보다 길어져 차트가 767px 로 늘고 1366×768 에서 화면 밖으로 나간다 — 그래서 종목 정보까지. */
+    .sd-body:has(> .sd-extra) {
         grid-template-areas:
             "chart side"
             "info  side"
-            "fin   side"
-            "disc  side";
-        grid-template-rows: 1fr auto auto auto;
+            "extra extra";
+        grid-template-rows: 1fr auto auto;
     }
+
+    /* 실적 | 공시 반반. 전체 폭 한 장씩이면 1,280px 로 늘어 막대가 듬성하고 제목 옆이 비었다(2026-09-29 사용자 지적).
+       높이는 **실적이 정하고** 공시는 체결처럼 목록만 안에서 스크롤한다 — 공시 목록(10건 약 830px)이 줄 높이를
+       정하면 실적 옆이 빈다. `contain: size` 가 목록의 높이 기여를 없앤다. */
+    .sd-extra { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .sd-extra .sd-disc {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sd-extra .sd-disc__list {
+        flex: 1 1 0;
+        min-block-size: 0;
+        overflow-y: auto;
+        contain: size;
+        scrollbar-width: thin;
+        scrollbar-color: var(--bae-border) transparent;
+    }
+
+    /* 공시가 한 번에 4건 보이는 높이 — 16rem 에서는 3건이었다. */
+    .sd-extra .sd-fin__plot { block-size: 20rem; }
 
     .sd-side {
         grid-area: side;
@@ -570,11 +593,43 @@
 
 .sd-disc__list a:hover { background: var(--bae-surface-hover); }
 
+.sd-disc__head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2, 0.5rem);
+    min-inline-size: 0;
+}
+
 .sd-disc__title {
+    flex: 1 1 auto;
+    min-inline-size: 0;
     color: var(--bae-text-primary);
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: 700;
     overflow-wrap: anywhere;
+}
+
+/* 분류 배지 — 무슨 종류의 일인지 먼저 읽히게. ⚠️ 빨강·파랑은 등락 전용이라 쓰지 않는다:
+   주가에 직접 닿는 분류(실적·배당·자사주·자금·계약·M&A)는 보라(강조), 주의는 주황, 나머지는 중립. */
+.sd-disc__cat {
+    flex: 0 0 auto;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.25rem;
+    background: var(--bae-bg-alt);
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.sd-disc__cat--earnings, .sd-disc__cat--periodic, .sd-disc__cat--dividend, .sd-disc__cat--buyback,
+.sd-disc__cat--financing, .sd-disc__cat--contract, .sd-disc__cat--mna {
+    background: rgba(var(--bae-accent-rgb), 0.16);
+    color: var(--bae-accent-text);
+}
+
+.sd-disc__cat--risk {
+    background: rgba(var(--bae-warn-rgb), 0.16);
+    color: var(--bae-warn);
 }
 
 .sd-disc__tag {
@@ -588,22 +643,48 @@
     font-weight: 700;
 }
 
-.sd-disc__meta {
-    color: var(--bae-text-dim);
+/* 그날 등락률 — 장 마감 뒤 공시는 다음 거래일(`dart._effective_day`). */
+.sd-disc__react {
+    flex: 0 0 auto;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 핵심 숫자 — 자사주 금액·주식 수, 지분 신고 보고자·증감. */
+.sd-disc__detail {
+    color: var(--bae-text-primary);
     font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
 }
 
-/* 가로로 꽉 채우는 버튼 — 아이콘 버튼의 정사각 비율을 풀어야 높이가 폭만큼 커지지 않는다(디자인 규칙). */
-.sd-disc__more {
-    inline-size: 100%;
-    aspect-ratio: auto;
-    margin-block-start: var(--space-2, 0.5rem);
+/* 날짜 · 제출인 · 원문 제목 — 한 줄에서 자른다(원문은 참고용). */
+.sd-disc__meta {
+    overflow: hidden;
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.sd-disc__more[hidden] { display: none; }
+/* 행정 공시(주총 소집·명부 폐쇄…)는 "전체" 에서만 보이고 흐리게. */
+.sd-disc__list > li.is-muted { opacity: 0.55; }
+
+/* 무한 스크롤 끝 표시 — 보이면 다음 쪽을 받는다(`stock_disclosures.js`). */
+.sd-disc__list > li.sd-disc__sentinel {
+    block-size: 1px;
+    border: 0;
+}
 
 .sd-disc__kinds button[hidden] { display: none; }
+
+/* 실적·공시 묶음 — 좁은 화면에서는 본문처럼 한 줄씩 쌓인다. */
+.sd-extra {
+    display: grid;
+    gap: inherit;
+    min-inline-size: 0;
+}
 
 /* ── 실적 ───────────────────────────────────────────────────────── */
 /* 높이를 처음부터 잡아 둔다 — 데이터가 오기 전후로 아래 공시 카드가 밀리지 않게. */

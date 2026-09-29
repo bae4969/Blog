@@ -448,7 +448,7 @@ function loadChartDisclosures() {
                 return r.json();
             })
             .then(function(res) {
-                all = all.concat(res.items.map(function(d) { return { date: d.date, title: d.title }; }));
+                all = all.concat(res.items.map(function(d) { return { date: d.date, title: d.label }; }));
                 if (n < res.pages && n < 5) return page(n + 1);
                 chartDisclosures = all;
                 if (stockChart) {
