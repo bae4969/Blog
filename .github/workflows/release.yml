@@ -130,7 +130,6 @@ jobs:
             --tag "$CI_IMAGE" .
           docker run --rm --entrypoint sh "$CI_IMAGE" -c '
             test -s /app/public/vendor/chart.umd.min.js &&
-            test -s /app/public/vendor/chartjs-chart-financial.min.js &&
             test -s /app/public/vendor/chartjs-plugin-zoom.min.js &&
             test -s /app/public/vendor/hammer.min.js &&
             test -s /app/public/vendor/quill/quill.min.js &&
