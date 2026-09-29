@@ -27,6 +27,7 @@ from sqlalchemy import bindparam, text
 
 from app.core import blog_user
 from app.db.session import db_session
+from app.services import dart
 from app.ui.routes import _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
@@ -772,12 +773,16 @@ async def stocks_show(request: Request):
                 stock["change_pct"] = q["change_pct"]
             events = await _split_events(db, code, "COIN" if is_coin else ("US" if is_us else "KR"))
             stats = await _day_stats(db, table, events)
+        # OpenDART — 한국 보통주만 이어진다(우선주·ETF 는 `corp_info` 에 없다). 이어지면 공시 카드를 그린다.
+        has_dart = stock["stock_market"] in _KR_MARKETS and await dart.has_corp(db, code)
+        fund = await dart.fundamentals(db, code, stock["stock_price"]) if has_dart else None
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(
         request, "stocks_show.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True,
-         "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats},
+         "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats,
+         "has_dart": has_dart, "fund": fund},
     )
 
 

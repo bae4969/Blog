@@ -6,7 +6,7 @@
    같은 모양으로 본다.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -95,6 +95,41 @@ class HeatmapItem(BaseModel):
     price: float | None = Field(default=None, description="마지막 거래일 종가")
     prev_price: float | None = Field(default=None, description="직전 거래일 종가")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
+
+
+class Fundamentals(BaseModel):
+    """투자지표 — OpenDART 재무·배당 × 최신 종가. 한국 보통주만 있다(우선주·ETF 는 404).
+
+    ⚠️ PER 이 두 가지다. `per` 는 최근 4분기 순이익(연결은 **비지배 포함** — 주요계정 API 에
+       지배주주 몫이 없다), `per_controlling` 은 직전 사업연도 **지배주주** 순이익(배당 공시 값)이다.
+       이익이 크게 변한 해엔 둘이 몇 배 차이 난다. 적자면 각각 null.
+    """
+
+    price: float | None = Field(default=None, description="계산에 쓴 종가")
+    bsns_year: int = Field(description="재무 기준 사업연도")
+    quarter: int = Field(description="1·2·3 분기, 4 사업보고서")
+    fs_div: str = Field(description="CFS 연결 · OFS 개별")
+    period_end: date | None = None
+    net_income_ttm: float | None = Field(default=None, description="최근 4분기 순이익(원)")
+    per: float | None = None
+    pbr: float | None = None
+    dividend_year: int | None = Field(default=None, description="배당·지배주주 순이익 기준 사업연도")
+    net_income_controlling: float | None = Field(default=None, description="지배주주 순이익(원)")
+    per_controlling: float | None = None
+    dps: float | None = Field(default=None, description="보통주 주당배당금(원)")
+    dividend_yield: float | None = Field(default=None, description="dps ÷ 종가 × 100")
+
+
+class Disclosure(BaseModel):
+    """공시 한 건. 접수 **시각**은 없다(DART 가 날짜만 준다)."""
+
+    rcept_no: str
+    date: date
+    title: str = Field(description="`[기재정정]` 같은 앞머리를 뗀 보고서명")
+    tag: str | None = Field(default=None, description="뗀 앞머리 — 기재정정·첨부정정·발행조건확정 등")
+    filer: str = Field(description="제출인 — 지분 신고는 보고자")
+    kind: str = Field(description="major 주요 · holding 지분 신고 · issue 증권 발행 서류")
+    url: str = Field(description="DART 원문")
 
 
 class QuoteOut(BaseModel):

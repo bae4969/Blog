@@ -2,7 +2,7 @@
   종목 상세 — 2026-09-23 토스증권 PC 처럼 다시 짰다(계획: temp/output/26092301_주식메인-MTS/0004).
 
     머리: 이름 · 코드 · 시장 → 큰 현재가 → "전일 대비 +10,500원 (+3.82%)"
-    본문: 왼쪽 큰 차트 + 종목 정보 | 오른쪽 "시세"(시·고·저·거래량·거래대금·체결강도·52주 범위) + 체결
+    본문: 왼쪽 큰 차트 + 종목 정보(+ 투자 지표) + 공시(DART 가 있는 한국 보통주만) | 오른쪽 "시세"(시·고·저·거래량·거래대금·체결강도·52주 범위) + 체결
 
   토스의 오른쪽 칸은 호가·주문이지만 여기엔 호가 데이터가 없다(수집기가 모으지 않는다) —
   그 자리에 **그날 시세와 체결**을 둔다. 좁은 화면에서는 위에서 아래로 한 줄씩 쌓인다.
@@ -65,6 +65,14 @@
 {%- if v is none -%}-
 {%- elif is_us -%}${{ '{:,.2f}'.format(v) }}
 {%- else -%}{{ '{:,.0f}'.format(v) }}원
+{%- endif -%}
+{%- endmacro %}
+
+{# 배수(PER·PBR). 값이 없는데 기준 이익이 음수면 적자라 계산하지 않은 것이다. #}
+{% macro ratio(v, base) -%}
+{%- if v is not none -%}{{ '{:,.2f}'.format(v) }}배
+{%- elif base is not none and base < 0 -%}적자
+{%- else -%}-
 {%- endif -%}
 {%- endmacro %}
 
@@ -283,7 +291,47 @@
                 {# DB 에 KST 로 들어 있는 값이다 — 변환하지 않는다. #}
                 <div><dt>정보 갱신</dt><dd>{{ stock.stock_update.strftime('%Y-%m-%d %H:%M') if stock.stock_update else '-' }}</dd></div>
             </dl>
+            {#
+              투자지표 — OpenDART 재무·배당을 위 현재가로 다시 계산한 값(`app/services/dart.py`).
+              ⚠️ PER 이 둘이다. 최근 4분기는 연결이면 비지배 포함, 지배주주는 직전 사업연도 값이라 늦다 —
+                 이익이 크게 변한 해엔 몇 배 차이 나므로 한쪽만 보여 주지 않는다.
+            #}
+            {% if fund %}
+            <h3 class="sd-info__sub">투자 지표
+                <span>{{ fund.bsns_year }}년 {{ '연간' if fund.quarter == 4 else fund.quarter ~ '분기' }}
+                    {{ '연결' if fund.fs_div == 'CFS' else '개별' }} 기준</span></h3>
+            <dl class="sd-kv sd-kv--wide">
+                <div><dt>PER (최근 4분기)</dt><dd>{{ ratio(fund.per, fund.net_income_ttm) }}</dd></div>
+                {% if fund.dividend_year %}
+                <div><dt>PER ({{ fund.dividend_year }} 지배주주)</dt><dd>{{ ratio(fund.per_controlling, fund.net_income_controlling) }}</dd></div>
+                {% endif %}
+                <div><dt>PBR</dt><dd>{{ ratio(fund.pbr, 1) }}</dd></div>
+                <div><dt>배당수익률</dt><dd>{{ '%.2f%%' | format(fund.dividend_yield) if fund.dividend_yield is not none else '-' }}</dd></div>
+                <div><dt>주당배당금{% if fund.dividend_year %} ({{ fund.dividend_year }}){% endif %}</dt><dd>{{ price(fund.dps) }}</dd></div>
+            </dl>
+            {% endif %}
         </section>
+
+        {% if has_dart %}
+        {#
+          공시 — `/js/stock_disclosures.js` 가 `/api/v1/stocks/{code}/disclosures` 로 채운다.
+          "주요" 가 기본이다. 지분 신고(임원 소유보고·대량보유)가 공시의 절반 가까이라 섞으면 목록이 덮인다.
+        #}
+        <section class="sd-card sd-disc" aria-labelledby="sdDiscTitle" data-disc-code="{{ stock.stock_code }}">
+            <div class="sd-card__head">
+                <h2 class="sd-card__title" id="sdDiscTitle">공시</h2>
+                <div class="sd-disc__kinds" role="group" aria-label="공시 종류">
+                    <button type="button" data-disc-kind="major" aria-pressed="true">주요</button>
+                    <button type="button" data-disc-kind="holding" aria-pressed="false">지분</button>
+                    <button type="button" data-disc-kind="all" aria-pressed="false">전체</button>
+                </div>
+            </div>
+            <ol class="sd-disc__list" id="discList">
+                <li class="sd-exec__empty">공시를 불러오는 중...</li>
+            </ol>
+            <button type="button" class="c-btn sd-disc__more" id="discMore" hidden>{{ icons.i('down') }}<span>공시 더 보기</span></button>
+        </section>
+        {% endif %}
     </div>
 </div>
 
@@ -328,4 +376,5 @@ function goBackToStockList() {
 </script>
 {% endblock %}
 
-{% block extra_js %}<script src="/js/stocks.js?v={{ static_v }}"></script>{% endblock %}
+{% block extra_js %}<script src="/js/stocks.js?v={{ static_v }}"></script>
+{% if has_dart %}<script src="/js/stock_disclosures.js?v={{ static_v }}"></script>{% endif %}{% endblock %}
