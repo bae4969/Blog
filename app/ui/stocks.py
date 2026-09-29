@@ -697,38 +697,58 @@ async def candle_rows(db, code: str, market: str, start: datetime, end: datetime
     return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
 
 
+def _day_row(d, lo, hi, av=0, bv=0, nv=0) -> dict:
+    """일 단위 행 — `_apply_split_adjustment` 가 읽는 키를 다 채운다(시가·종가는 쓰지 않는다)."""
+    return {
+        "execution_datetime": datetime.combine(d, datetime.min.time()),
+        "execution_open": 0.0, "execution_close": 0.0,
+        "execution_min": float(lo or 0), "execution_max": float(hi or 0),
+        "execution_ask_volume": float(av or 0), "execution_bid_volume": float(bv or 0),
+        "execution_non_volume": float(nv or 0),
+    }
+
+
 async def _day_stats(db, table: str, events: list) -> dict | None:
     """종목 상세 오른쪽 "시세" 칸 — 마지막 거래일의 시·고·저·거래량·거래대금·체결강도와 52주 최고·최저.
 
-    ⚠️ 원본이 10분봉이라 1년치를 `candle_rows(..., "1d")` 로 받으면 파이썬이 코인 기준 5만 행을
-       집계한다. 날짜별 합계는 SQL 에서 내고(≤ 366행) 액면분할 보정만 파이썬에서 한다 —
-       `_apply_split_adjustment` 는 **날짜**로 계수를 정하므로 일 단위 행에도 그대로 맞는다.
+    ⚠️ 원본이 10분봉이라 1년치를 날짜별로 묶어 합계를 다 내면 코인 기준 5만 행에 45ms 가 들었다.
+       그런데 합계는 마지막 날 것만 쓴다 — 그래서 **마지막 날 시세**와 **52주 고저**를 따로 읽는다
+       (2026-09-30, BTC 45 → 16ms). 52주 고저는 창 안에 분할이 없으면 `MIN`·`MAX` 한 줄이고, 있으면
+       날짜마다 보정계수가 달라 날짜별로 묶어 보정한다(`_apply_split_adjustment` 는 날짜로 계수를 정한다).
     ⚠️ 차트의 일봉과 **같은 기준**이다(정규장만 거르지 않는다). 그래서 시가는 그날 첫 10분봉의
        시가이고, 거래량·거래대금은 장 전후를 포함한다.
     ⚠️ "마지막 거래일" 이지 KST 의 오늘이 아니다 — 주말·휴장이면 직전 거래일이 나온다. 화면은
        그 날짜를 함께 적는다.
     """
     since = datetime.now(_KST).replace(tzinfo=None) - timedelta(days=365)
-    days = (await db.execute(text(
+    last_raw = (await db.execute(text(
         "SELECT DATE(execution_datetime) AS d, MIN(execution_datetime) AS first_at, "
         "MIN(execution_min) AS lo, MAX(execution_max) AS hi, "
         "SUM(execution_ask_volume) AS av, SUM(execution_bid_volume) AS bv, "
         "SUM(execution_non_volume) AS nv, "
         "SUM(execution_ask_amount + execution_bid_amount + execution_non_amount) AS amt "
-        f"FROM `candle`.`{table}` WHERE execution_datetime >= :s GROUP BY d ORDER BY d"),
-        {"s": since})).all()
-    if not days:
+        f"FROM `candle`.`{table}` WHERE execution_datetime >= :s AND execution_datetime >= "
+        f"(SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{table}`) GROUP BY d"),
+        {"s": since})).first()
+    if last_raw is None:
         return None
+    last = _apply_split_adjustment(
+        [_day_row(last_raw.d, last_raw.lo, last_raw.hi, last_raw.av, last_raw.bv, last_raw.nv)], events)[0]
 
-    rows = [{
-        "execution_datetime": datetime.combine(r.d, datetime.min.time()),
-        "execution_open": 0.0, "execution_close": 0.0,
-        "execution_min": float(r.lo or 0), "execution_max": float(r.hi or 0),
-        "execution_ask_volume": float(r.av or 0), "execution_bid_volume": float(r.bv or 0),
-        "execution_non_volume": float(r.nv or 0),
-    } for r in days]
-    rows = _apply_split_adjustment(rows, events)
-    last, last_raw = rows[-1], days[-1]
+    if any(ev["event_date"] > since.date() for ev in events):
+        days = (await db.execute(text(
+            "SELECT DATE(execution_datetime) AS d, MIN(execution_min) AS lo, MAX(execution_max) AS hi "
+            f"FROM `candle`.`{table}` WHERE execution_datetime >= :s GROUP BY d"), {"s": since})).all()
+        rows = _apply_split_adjustment([_day_row(r.d, r.lo, r.hi) for r in days], events)
+        w52_high = max(r["execution_max"] for r in rows)
+        lows = [r["execution_min"] for r in rows if r["execution_min"] > 0]
+        w52_low = min(lows) if lows else None
+    else:
+        hl = (await db.execute(text(
+            "SELECT MAX(execution_max) AS hi, MIN(NULLIF(execution_min, 0)) AS lo "
+            f"FROM `candle`.`{table}` WHERE execution_datetime >= :s"), {"s": since})).first()
+        w52_high = float(hl.hi or 0)
+        w52_low = None if hl.lo is None else float(hl.lo)
 
     open_ = (await db.execute(text(
         f"SELECT execution_open FROM `candle`.`{table}` WHERE execution_datetime = :t"),
@@ -746,9 +766,8 @@ async def _day_stats(db, table: str, events: list) -> dict | None:
         # 체결강도 = 매수 체결량 ÷ 매도 체결량 × 100. 100 보다 크면 매수가 우세하다.
         # ⚠️ `bid` 가 매수다 — 체결 목록(`stocks.js` 의 `isBuy`)과 같은 해석이다.
         "strength": bid / ask * 100 if ask else None,
-        "w52_high": max(r["execution_max"] for r in rows),
-        "w52_low": min(r["execution_min"] for r in rows if r["execution_min"] > 0) if any(
-            r["execution_min"] > 0 for r in rows) else None,
+        "w52_high": w52_high,
+        "w52_low": w52_low,
     }
     if table[:1] in _ROLLING_PREFIXES:
         # 코인·환율은 머리의 등락률과 같은 창(마지막 캔들의 24시간 전 이후)으로 잰다. 시가는 곧
