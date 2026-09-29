@@ -521,7 +521,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return (stockChart.chartArea.right - stockChart.chartArea.left) / range;
         }
 
-        chartCanvas.addEventListener('mousedown', function(e) {
+        // 포인터 이벤트라 마우스·터치가 한 경로다(마우스 이벤트만 걸었을 땐 모바일에서 안 돌았다).
+        chartCanvas.addEventListener('pointerdown', function(e) {
             var zone = getAxisHitZone(e);
             if (!zone || !stockChart || !stockChart.scales || !stockChart.scales.x) return;
             var xScale = stockChart.scales.x;
@@ -542,11 +543,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     startXMax: xMax
                 };
             }
+            chartCanvas.setPointerCapture(e.pointerId);
             e.preventDefault();
             e.stopPropagation();
         });
 
-        chartCanvas.addEventListener('mousemove', function(e) {
+        chartCanvas.addEventListener('pointermove', function(e) {
             // 커서 변경 (드래그 중이 아닐 때)
             if (!axisDragState) {
                 var zone = getAxisHitZone(e);
@@ -627,8 +629,8 @@ document.addEventListener('DOMContentLoaded', function() {
             checkAndLoadMoreData();
         }
 
-        chartCanvas.addEventListener('mouseup', endAxisDrag);
-        chartCanvas.addEventListener('mouseleave', endAxisDrag);
+        chartCanvas.addEventListener('pointerup', endAxisDrag);
+        chartCanvas.addEventListener('pointercancel', endAxisDrag);
     }
 
     document.addEventListener('keydown', function(e) {
@@ -1504,6 +1506,8 @@ function getChartOptions(chartType, dataRange, initialRange) {
             pan: {
                 enabled: true,
                 mode: 'x',
+                // 축 라벨 드래그 중이면 판 팬은 쉬게 한다 — 둘이 함께 움직인다.
+                onPanStart: function() { return !axisDragState; },
                 onPanComplete: function() {
                     scheduleYAxisRangeUpdate();
                     checkAndLoadMoreData();
