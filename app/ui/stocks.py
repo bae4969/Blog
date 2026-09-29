@@ -27,6 +27,7 @@ from sqlalchemy import bindparam, text
 
 from app.core import blog_user
 from app.db.session import db_session
+from app.services import dart
 from app.ui.routes import _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,26 @@ def _candle_candidates(code: str, prefix: str) -> list[str]:
     ]))
 
 
+# 코인(`c`)·환율(`f`)은 하루가 끊기지 않는 시장이라 등락률을 **최근 24시간**으로 잰다. 마지막 캔들
+# 날짜의 0시로 자르면 자정 직후엔 몇 분치만 남고, 환율은 주말 내내 토요일 0~6시만 보였다
+# (데이터가 토 06:00 에 멈춰 월 06:00 에 다시 쌓인다). 주식·지수는 전일 종가 그대로다.
+_ROLLING_PREFIXES = ("c", "f")
+
+
+def _change_base_sql(tbl: str) -> str:
+    """등락률 기준 시각 — 주식·지수는 마지막 캔들 날짜의 0시, 코인·환율은 마지막 캔들의 24시간 전."""
+    if tbl[:1] in _ROLLING_PREFIXES:
+        return f"((SELECT MAX(execution_datetime) FROM `candle`.`{tbl}`) - INTERVAL 24 HOUR)"
+    return f"(SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`)"
+
+
+def _prev_close_sql(tbl: str) -> str:
+    """등락률의 비교 가격 서브쿼리 — 기준 시각 직전(24시간 창이면 그 시각까지)의 마지막 종가."""
+    op = "<=" if tbl[:1] in _ROLLING_PREFIXES else "<"
+    return (f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime {op} "
+            f"{_change_base_sql(tbl)} ORDER BY execution_datetime DESC LIMIT 1)")
+
+
 async def _latest_quotes(db, pairs) -> dict[str, dict]:
     """`(종목코드, 접두사)` 목록 → `{code: {close, prev_close, change_pct}}`.
 
@@ -78,7 +99,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
     ⚠️ 전일 종가의 기준일은 `CURDATE()` 가 **아니라** 그 종목 캔들의 마지막 날짜다.
        미국 종목의 `execution_datetime` 은 현지시각(ET)이라 KST 의 오늘로 자르면 장중에
        하루가 통째로 빈다. `_heatmap_rows`·`app.ui.quotes._quote_rows` 와 같은 기준이라야
-       목록·히트맵·지수 화면이 같은 등락률을 보인다.
+       목록·히트맵·지수 화면이 같은 등락률을 보인다. 코인·환율은 24시간 전과 견준다(`_change_base_sql`).
     """
     if not pairs:
         return {}
@@ -110,9 +131,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
     parts = [
         f"SELECT '{code}' AS code, (SELECT execution_close FROM `candle`.`{tbl}` "
         f"ORDER BY execution_datetime DESC LIMIT 1) AS close_price, "
-        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
-        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
-        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_close"
+        f"{_prev_close_sql(tbl)} AS prev_close"
         for code, tbl in picked.items()
         if tbl.replace("_", "").isalnum() and code.replace("_", "").replace(".", "").replace("/", "").isalnum()
     ]
@@ -325,9 +344,7 @@ async def _heatmap_rows(db, market: str) -> list[dict]:
         f"SELECT '{code}' AS code, "
         f"(SELECT execution_close FROM `candle`.`{tbl}` "
         f" ORDER BY execution_datetime DESC LIMIT 1) AS price, "
-        f"(SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime < "
-        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{tbl}`) "
-        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_price "
+        f"{_prev_close_sql(tbl)} AS prev_price "
         f"FROM DUAL"
         for code, tbl in code_to_table.items()
     )
@@ -395,6 +412,7 @@ async def stocks_index(request: Request):
             "SELECT portfolio_id, portfolio_name, ranking_score, ranking_grade "
             "FROM backtest_portfolio WHERE is_public = 1 "
             "ORDER BY ranking_score DESC, updated_at DESC LIMIT 10"))).all()
+        disclosures = await dart.recent_subscribed(db, 8)
         ctx = await _shell_ctx(request, db, level)
 
     return templates.TemplateResponse(
@@ -403,7 +421,7 @@ async def stocks_index(request: Request):
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
             "stats": stats, "portfolios": portfolios, "default_market": market,
-            "insights": insights,
+            "insights": insights, "disclosures": disclosures,
         },
     )
 
@@ -679,44 +697,65 @@ async def candle_rows(db, code: str, market: str, start: datetime, end: datetime
     return await _fetch_candles(db, table, start, end, limit, tf, is_kr, events)
 
 
+def _day_row(d, lo, hi, av=0, bv=0, nv=0) -> dict:
+    """일 단위 행 — `_apply_split_adjustment` 가 읽는 키를 다 채운다(시가·종가는 쓰지 않는다)."""
+    return {
+        "execution_datetime": datetime.combine(d, datetime.min.time()),
+        "execution_open": 0.0, "execution_close": 0.0,
+        "execution_min": float(lo or 0), "execution_max": float(hi or 0),
+        "execution_ask_volume": float(av or 0), "execution_bid_volume": float(bv or 0),
+        "execution_non_volume": float(nv or 0),
+    }
+
+
 async def _day_stats(db, table: str, events: list) -> dict | None:
     """종목 상세 오른쪽 "시세" 칸 — 마지막 거래일의 시·고·저·거래량·거래대금·체결강도와 52주 최고·최저.
 
-    ⚠️ 원본이 10분봉이라 1년치를 `candle_rows(..., "1d")` 로 받으면 파이썬이 코인 기준 5만 행을
-       집계한다. 날짜별 합계는 SQL 에서 내고(≤ 366행) 액면분할 보정만 파이썬에서 한다 —
-       `_apply_split_adjustment` 는 **날짜**로 계수를 정하므로 일 단위 행에도 그대로 맞는다.
+    ⚠️ 원본이 10분봉이라 1년치를 날짜별로 묶어 합계를 다 내면 코인 기준 5만 행에 45ms 가 들었다.
+       그런데 합계는 마지막 날 것만 쓴다 — 그래서 **마지막 날 시세**와 **52주 고저**를 따로 읽는다
+       (2026-09-30, BTC 45 → 16ms). 52주 고저는 창 안에 분할이 없으면 `MIN`·`MAX` 한 줄이고, 있으면
+       날짜마다 보정계수가 달라 날짜별로 묶어 보정한다(`_apply_split_adjustment` 는 날짜로 계수를 정한다).
     ⚠️ 차트의 일봉과 **같은 기준**이다(정규장만 거르지 않는다). 그래서 시가는 그날 첫 10분봉의
        시가이고, 거래량·거래대금은 장 전후를 포함한다.
     ⚠️ "마지막 거래일" 이지 KST 의 오늘이 아니다 — 주말·휴장이면 직전 거래일이 나온다. 화면은
        그 날짜를 함께 적는다.
     """
     since = datetime.now(_KST).replace(tzinfo=None) - timedelta(days=365)
-    days = (await db.execute(text(
+    last_raw = (await db.execute(text(
         "SELECT DATE(execution_datetime) AS d, MIN(execution_datetime) AS first_at, "
         "MIN(execution_min) AS lo, MAX(execution_max) AS hi, "
         "SUM(execution_ask_volume) AS av, SUM(execution_bid_volume) AS bv, "
         "SUM(execution_non_volume) AS nv, "
         "SUM(execution_ask_amount + execution_bid_amount + execution_non_amount) AS amt "
-        f"FROM `candle`.`{table}` WHERE execution_datetime >= :s GROUP BY d ORDER BY d"),
-        {"s": since})).all()
-    if not days:
+        f"FROM `candle`.`{table}` WHERE execution_datetime >= :s AND execution_datetime >= "
+        f"(SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{table}`) GROUP BY d"),
+        {"s": since})).first()
+    if last_raw is None:
         return None
+    last = _apply_split_adjustment(
+        [_day_row(last_raw.d, last_raw.lo, last_raw.hi, last_raw.av, last_raw.bv, last_raw.nv)], events)[0]
 
-    rows = [{
-        "execution_datetime": datetime.combine(r.d, datetime.min.time()),
-        "execution_open": 0.0, "execution_close": 0.0,
-        "execution_min": float(r.lo or 0), "execution_max": float(r.hi or 0),
-        "execution_ask_volume": float(r.av or 0), "execution_bid_volume": float(r.bv or 0),
-        "execution_non_volume": float(r.nv or 0),
-    } for r in days]
-    rows = _apply_split_adjustment(rows, events)
-    last, last_raw = rows[-1], days[-1]
+    if any(ev["event_date"] > since.date() for ev in events):
+        days = (await db.execute(text(
+            "SELECT DATE(execution_datetime) AS d, MIN(execution_min) AS lo, MAX(execution_max) AS hi "
+            f"FROM `candle`.`{table}` WHERE execution_datetime >= :s GROUP BY d"), {"s": since})).all()
+        rows = _apply_split_adjustment([_day_row(r.d, r.lo, r.hi) for r in days], events)
+        w52_high = max(r["execution_max"] for r in rows)
+        lows = [r["execution_min"] for r in rows if r["execution_min"] > 0]
+        w52_low = min(lows) if lows else None
+    else:
+        hl = (await db.execute(text(
+            "SELECT MAX(execution_max) AS hi, MIN(NULLIF(execution_min, 0)) AS lo "
+            f"FROM `candle`.`{table}` WHERE execution_datetime >= :s"), {"s": since})).first()
+        w52_high = float(hl.hi or 0)
+        w52_low = None if hl.lo is None else float(hl.lo)
 
     open_ = (await db.execute(text(
         f"SELECT execution_open FROM `candle`.`{table}` WHERE execution_datetime = :t"),
         {"t": last_raw.first_at})).scalar()
     ask, bid = last["execution_ask_volume"], last["execution_bid_volume"]
-    return {
+    out = {
+        "rolling": False,
         "date": last_raw.d,
         "open": None if open_ is None else float(open_),
         "high": last["execution_max"],
@@ -727,10 +766,24 @@ async def _day_stats(db, table: str, events: list) -> dict | None:
         # 체결강도 = 매수 체결량 ÷ 매도 체결량 × 100. 100 보다 크면 매수가 우세하다.
         # ⚠️ `bid` 가 매수다 — 체결 목록(`stocks.js` 의 `isBuy`)과 같은 해석이다.
         "strength": bid / ask * 100 if ask else None,
-        "w52_high": max(r["execution_max"] for r in rows),
-        "w52_low": min(r["execution_min"] for r in rows if r["execution_min"] > 0) if any(
-            r["execution_min"] > 0 for r in rows) else None,
+        "w52_high": w52_high,
+        "w52_low": w52_low,
     }
+    if table[:1] in _ROLLING_PREFIXES:
+        # 코인·환율은 머리의 등락률과 같은 창(마지막 캔들의 24시간 전 이후)으로 잰다. 시가는 곧
+        # "24시간 전" 가격이라 비운다. 분할이 없는 시장이라 보정도 없고, 52주 범위는 일 단위 그대로다.
+        w = (await db.execute(text(
+            "SELECT MIN(execution_min) AS lo, MAX(execution_max) AS hi, "
+            "SUM(execution_ask_volume) AS av, SUM(execution_bid_volume) AS bv, "
+            "SUM(execution_non_volume) AS nv, "
+            "SUM(execution_ask_amount + execution_bid_amount + execution_non_amount) AS amt "
+            f"FROM `candle`.`{table}` WHERE execution_datetime > {_change_base_sql(table)}"))).first()
+        ask, bid = float(w.av or 0), float(w.bv or 0)
+        out.update(rolling=True, date=None, open=None,
+                   high=float(w.hi or 0), low=float(w.lo or 0),
+                   volume=ask + bid + float(w.nv or 0), amount=float(w.amt or 0),
+                   strength=bid / ask * 100 if ask else None)
+    return out
 
 
 @router.get("/stocks/view", response_class=HTMLResponse, include_in_schema=False)
@@ -772,12 +825,16 @@ async def stocks_show(request: Request):
                 stock["change_pct"] = q["change_pct"]
             events = await _split_events(db, code, "COIN" if is_coin else ("US" if is_us else "KR"))
             stats = await _day_stats(db, table, events)
+        # OpenDART — 한국 보통주만 이어진다(우선주·ETF 는 `corp_info` 에 없다). 이어지면 공시 카드를 그린다.
+        has_dart = stock["stock_market"] in _KR_MARKETS and await dart.has_corp(db, code)
+        fund = await dart.fundamentals(db, code, stock["stock_price"]) if has_dart else None
         ctx = await _shell_ctx(request, db, _level(request))
 
     return templates.TemplateResponse(
         request, "stocks_show.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True,
-         "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats},
+         "stock": stock, "is_coin": is_coin, "is_us": is_us, "stats": stats,
+         "has_dart": has_dart, "fund": fund},
     )
 
 

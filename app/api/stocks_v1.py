@@ -18,7 +18,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import bindparam, text
 
 from app.db.session import db_session
-from app.schemas.stock import Candle, Execution, HeatmapItem, MarketStat, StockOut, TopStock
+from app.schemas.stock import (Candle, Disclosure, Execution, Financials, Fundamentals, HeatmapItem,
+                               MarketStat, StockOut, TopStock)
+from app.services import dart
 from app.schemas import Page
 from app.ui.stocks import (
     _heatmap_rows,
@@ -169,6 +171,46 @@ async def executions(
                   bid_volume=_f(r.execution_bid_volume))
         for r in rows
     ]
+
+
+@router.get("/{code}/fundamentals", response_model=Fundamentals, summary="투자지표(PER·PBR·배당)")
+async def fundamentals(code: str):
+    """OpenDART 재무·배당을 **최신 종가**로 다시 계산한다. 한국 보통주만 있다."""
+    code = code[:32]
+    async with db_session() as db:
+        q = (await _latest_quotes(db, [(code, "s")])).get(code)
+        price = _f(q["close"]) if q else None
+        f = await dart.fundamentals(db, code, price)
+    if f is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "투자지표가 없는 종목입니다")
+    return Fundamentals(price=price, **f)
+
+
+@router.get("/{code}/disclosures", response_model=Page[Disclosure], summary="공시 목록")
+async def disclosures(
+    code: str,
+    kind: str = Query("major", description="major 주요(지분 신고·증권 발행 서류 제외) · holding 지분 신고 · "
+                                            "all 전체 · key 차트용 핵심(정기보고서·실적·주요사항·배당·공급계약)"),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=_MAX_SIZE),
+):
+    """2025-09-29 부터의 공시. 최신순."""
+    if kind not in dart.KINDS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"kind 는 {dart.KINDS} 중 하나여야 합니다")
+    async with db_session() as db:
+        total, items = await dart.disclosures(db, code[:32], kind, page, size)
+    return Page[Disclosure](items=items, total=total, page=page, size=size,
+                            pages=max(1, (total + size - 1) // size))
+
+
+@router.get("/{code}/financials", response_model=Financials, summary="분기 실적")
+async def financials(code: str, limit: int = Query(12, ge=1, le=40)):
+    """OpenDART 정기보고서의 분기 매출·영업이익·순이익(3개월). 2023년부터. 한국 보통주만 있다."""
+    async with db_session() as db:
+        r = await dart.financials(db, code[:32], limit)
+    if r is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "실적이 없는 종목입니다")
+    return Financials(fs_div=r[0], quarters=r[1])
 
 
 @router.get("/markets", response_model=list[MarketStat], summary="시장 통계")

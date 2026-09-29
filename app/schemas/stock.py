@@ -6,7 +6,7 @@
    같은 모양으로 본다.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ class StockOut(BaseModel):
     market_cap: float | None = Field(default=None, description="시가총액. 코인은 가격×수량")
     quantity: float | None = Field(default=None, description="상장주식수 또는 코인 수량")
     #: 등락률은 **마지막 거래일 기준**이다(KST 의 오늘이 아니다) — `_latest_quotes` 참조.
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
@@ -74,7 +74,7 @@ class TopStock(BaseModel):
     market: str | None = None
     price: float | None = None
     trading_amount: float | None = Field(default=None, description="기간 거래대금 합계")
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
@@ -84,6 +84,7 @@ class HeatmapItem(BaseModel):
     ⚠️ `change_pct` 는 **각 종목 캔들의 마지막 날짜**를 기준으로 계산한다. 미국 종목은
        `execution_datetime` 이 현지시각(ET)이라 KST 의 "오늘"로 자르면 하루씩 어긋난다.
        종목마다 자기 마지막 거래일과 그 직전 거래일을 비교하므로 시장이 섞여도 맞는다.
+       코인은 마지막 캔들의 24시간 전과 비교한다.
     """
 
     code: str
@@ -93,8 +94,67 @@ class HeatmapItem(BaseModel):
     category_name: str | None = Field(default=None, description="마스터 기반 업종 분류명")
     market_cap: float | None = Field(default=None, description="타일 크기. 코인은 가격×수량")
     price: float | None = Field(default=None, description="마지막 거래일 종가")
-    prev_price: float | None = Field(default=None, description="직전 거래일 종가")
+    prev_price: float | None = Field(default=None, description="직전 거래일 종가 — 코인·환율은 24시간 전 가격")
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
+
+
+class Fundamentals(BaseModel):
+    """투자지표 — OpenDART 재무·배당 × 최신 종가. 한국 보통주만 있다(우선주·ETF 는 404).
+
+    ⚠️ PER 이 두 가지다. `per` 는 최근 4분기 순이익(연결은 **비지배 포함** — 주요계정 API 에
+       지배주주 몫이 없다), `per_controlling` 은 직전 사업연도 **지배주주** 순이익(배당 공시 값)이다.
+       이익이 크게 변한 해엔 둘이 몇 배 차이 난다. 적자면 각각 null.
+    """
+
+    price: float | None = Field(default=None, description="계산에 쓴 종가")
+    bsns_year: int = Field(description="재무 기준 사업연도")
+    quarter: int = Field(description="1·2·3 분기, 4 사업보고서")
+    fs_div: str = Field(description="CFS 연결 · OFS 개별")
+    period_end: date | None = None
+    net_income_ttm: float | None = Field(default=None, description="최근 4분기 순이익(원)")
+    per: float | None = None
+    pbr: float | None = None
+    dividend_year: int | None = Field(default=None, description="배당·지배주주 순이익 기준 사업연도")
+    net_income_controlling: float | None = Field(default=None, description="지배주주 순이익(원)")
+    per_controlling: float | None = None
+    dps: float | None = Field(default=None, description="보통주 주당배당금(원)")
+    dividend_yield: float | None = Field(default=None, description="dps ÷ 종가 × 100")
+
+
+class Disclosure(BaseModel):
+    """공시 한 건. 접수 **시각**은 없다(DART 가 날짜만 준다)."""
+
+    rcept_no: str
+    date: date
+    title: str = Field(description="`[기재정정]` 같은 앞머리를 뗀 보고서명(원문)")
+    tag: str | None = Field(default=None, description="뗀 앞머리 — 기재정정·첨부정정·발행조건확정 등")
+    label: str = Field(description="쉬운 제목 — '자사주 취득 결정'. 모르는 서식이면 원문 그대로")
+    category: str = Field(description="earnings·periodic·dividend·buyback·financing·contract·mna·governance·"
+                                      "risk·ir·management·other · holding 지분 · issue 발행 · admin 행정")
+    category_label: str = Field(description="분류 배지 글자 — 실적·배당·자사주…")
+    detail: str | None = Field(default=None, description="자사주 금액·수량, 지분 신고 보고자·증감 — 이어 붙일 표가 있을 때만")
+    reaction: float | None = Field(default=None, description="반영된 날의 등락률(%). 장 마감 뒤 공시는 다음 거래일")
+    filer: str = Field(description="제출인 — 지분 신고는 보고자")
+    url: str = Field(description="DART 원문")
+
+
+class FinancialQuarter(BaseModel):
+    """분기 하나의 **3개월** 실적(원). 원본 누적값에서 직전 분기를 뺀 값이다."""
+
+    year: int = Field(description="사업연도")
+    quarter: int = Field(description="1~4 (4 = 연간 − 3분기 누적)")
+    period_end: date | None = None
+    revenue: float | None = Field(default=None, description="매출액 — 금융사는 없을 수 있다")
+    operating_income: float | None = None
+    net_income: float | None = Field(default=None, description="연결이면 비지배 포함")
+    revenue_yoy: float | None = Field(default=None, description="전년 같은 분기 대비(%). 기준이 0 이하면 null")
+    operating_income_yoy: float | None = None
+    net_income_yoy: float | None = None
+
+
+class Financials(BaseModel):
+    fs_div: str = Field(description="CFS 연결 · OFS 개별 — 한 가지만 쓴다")
+    quarters: list[FinancialQuarter] = Field(description="오래된 순")
 
 
 class QuoteOut(BaseModel):

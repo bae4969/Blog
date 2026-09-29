@@ -19,8 +19,11 @@ from sqlalchemy import text
 from app.db.session import db_session
 from app.ui.routes import _shell_ctx, templates
 from app.ui.stocks import (
+    _ROLLING_PREFIXES,
+    _change_base_sql,
     _day_stats,
     _latest_quotes,
+    _prev_close_sql,
     _level,
     _resolve_source,
     _SAFE_TABLE,
@@ -129,7 +132,7 @@ async def _quote_rows(db) -> list[dict]:
 
     ⚠️ 등락률 기준일은 `CURDATE()` 가 아니라 **그 테이블의 마지막 캔들 날짜**다. 해외지수는
        `execution_datetime` 이 현지시각(ET)이라 KST 의 오늘로 자르면 어긋난다
-       (`app.ui.stocks._heatmap_rows` 와 같은 이유).
+       (`app.ui.stocks._heatmap_rows` 와 같은 이유). 환율은 24시간 전과 견주고 스파크라인도 24시간이다.
     """
     rows = (await db.execute(text(
         "SELECT L.quote_query, L.query_type, I.quote_name_kr "
@@ -168,9 +171,7 @@ async def _quote_rows(db) -> list[dict]:
         f"SELECT '{p['code']}' AS code, "
         f"(SELECT execution_close FROM `candle`.`{p['table']}` "
         f" ORDER BY execution_datetime DESC LIMIT 1) AS price, "
-        f"(SELECT execution_close FROM `candle`.`{p['table']}` WHERE execution_datetime < "
-        f" (SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{p['table']}`) "
-        f" ORDER BY execution_datetime DESC LIMIT 1) AS prev_price, "
+        f"{_prev_close_sql(p['table'])} AS prev_price, "
         f"(SELECT MAX(execution_datetime) FROM `candle`.`{p['table']}`) AS at "
         f"FROM DUAL"
         for p in picked
@@ -179,8 +180,7 @@ async def _quote_rows(db) -> list[dict]:
 
     series = "\nUNION ALL\n".join(
         f"SELECT '{p['code']}' AS code, execution_datetime AS at, execution_close AS close "
-        f"FROM `candle`.`{p['table']}` WHERE execution_datetime >= "
-        f"(SELECT DATE(MAX(execution_datetime)) FROM `candle`.`{p['table']}`)"
+        f"FROM `candle`.`{p['table']}` WHERE execution_datetime >= {_change_base_sql(p['table'])}"
         for p in picked
     )
     spark: dict[str, list] = {}
@@ -226,6 +226,7 @@ async def quotes_show(request: Request):
         item["price"] = (latest or {}).get("close")
         item["prev_price"] = (latest or {}).get("prev_close")
         item["change_pct"] = (latest or {}).get("change_pct")
+        item["rolling"] = item["prefix"] in _ROLLING_PREFIXES
         # 종목 상세와 같은 "시세" 칸 — 지수·환율엔 거래량·체결이 없어(0) 시·고·저와 52주 범위만 쓴다.
         # 액면분할이 없으니 보정 이벤트는 비운다.
         stats = await _day_stats(db, item["table"], [])

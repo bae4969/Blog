@@ -10,11 +10,13 @@ FastAPI 로 만든 주식·암호화폐 분석 화면과 개인 블로그입니�
 ## 무엇이 있나
 
 - **주식** — KR·US·COIN 세 시장, 캔들 차트, 체결 내역, 종목 검색, 액면분할 소급 보정, 관심 종목
+- **공시·재무(OpenDART)** — 한국 보통주의 PER·PBR·배당, 분기 실적, 공시 목록·차트 위 공시 표시, 메인의 최근 공시.
+  데이터는 별도 수집기(`25.dart`)가 채우는 `Dart` 스키마를 읽기만 한다
 - **지수·환율** — 대시보드(`/stocks`)의 지수·환율 카드와 시장 지도(히트맵), 상세 차트(`/quotes/view`)
 - **블로그** — 글 CRUD, 카테고리, 등급별 열람 제한, Quill 에디터, 이미지 업로드.
   금융 글은 인사이트(`/insights`), 일반 글은 블로그(`/blog`) 목록에 나뉘어 나온다
 - **백테스트** — 포트폴리오 시뮬레이션(적립식·리밸런싱·신호 매매), 지표·점수·등급, 벤치마크 비교
-- **REST API** — `/api/v1`(글·주식·지수·백테스트·관심 종목). 쓰기는 `Authorization: Bearer` 전용.
+- **REST API** — `/api/v1`(글·주식·공시·재무·지수·백테스트·관심 종목). 쓰기는 `Authorization: Bearer` 전용.
   문서(`/api/docs`)는 관리자에게만 열린다
 - **관리자** — 카테고리·주식 구독·지수·환율 구독·액면분할·WOL
 - **설치형 앱(PWA)** — 홈 화면에 추가하면 주소창 없이 뜬다
@@ -33,7 +35,7 @@ app/
 ├── core/             # config · security(JWT 검증) · csrf · blog_user · sanitize · thumbnail
 ├── db/               # SQLAlchemy 비동기 세션·모델
 ├── schemas/          # API 요청·응답 모델
-├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음)
+├── services/         # backtest.py — 시뮬레이션 엔진(순수 계산, DB 접근 없음) · dart.py — OpenDART 조회
 ├── ui/               # 화면 라우트: routes(블로그) · stocks · quotes · backtest · admin
 ├── migrations/       # DB 변경(NNNN_이름.sql) — 더하기만(새 테이블·컬럼·데이터)
 └── templates/        # Jinja2

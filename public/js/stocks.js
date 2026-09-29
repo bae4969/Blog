@@ -100,10 +100,6 @@ const INDICATOR_WARMUP_COUNT = Math.max(
     INDICATOR_PERIODS.volumeMa
 );
 
-function setShiftZoomArmedState(isArmed) {
-    // Shift 키 상태 표시 — 현재 사용하지 않음
-}
-
 /* ========================================
    통화 포맷팅
    ======================================== */
@@ -159,6 +155,24 @@ function formatPrice(value) {
         return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
     }
     return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
+}
+
+// 가격 축 라벨 — 통화 기호는 머리의 현재가에 있으니 붙이지 않고, 1만 이상은 원화 만·억 / 달러 K·M 으로
+// 줄이며, 자릿수는 눈금 간격만큼만 쓴다(모바일에서 `169,644.8원` 같은 라벨이 판 폭의 1/4 을 먹었다).
+// 지수·환율은 단위 없는 값이라 줄이지 않는다.
+function formatAxisPrice(value, ticks) {
+    // 간격은 안쪽 눈금끼리로 잰다 — 맨 위·아래는 데이터 끝값이라 간격이 들쭉날쭉하다.
+    var gaps = [];
+    for (var i = 1; i < ticks.length; i++) gaps.push(Math.abs(ticks[i].value - ticks[i - 1].value));
+    if (gaps.length > 2) gaps = gaps.slice(1, -1);
+    var step = gaps.length ? Math.min.apply(null, gaps) : 0;
+    var units = (typeof isQuoteMarket !== 'undefined' && isQuoteMarket) ? []
+        : (typeof isUSMarket !== 'undefined' && isUSMarket) ? [[1e6, 1e6, 'M'], [1e4, 1e3, 'K']]
+        : [[1e8, 1e8, '억'], [1e4, 1e4, '만']];
+    var unit = units.find(function (u) { return Math.abs(value) >= u[0]; }) || [0, 1, ''];
+    var s = step / unit[1];
+    var digits = s >= 1 || s === 0 ? 0 : Math.min(8, Math.ceil(-Math.log10(s)));
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(value / unit[1]) + unit[2];
 }
 
 function formatPriceValueOnly(value) {
@@ -387,6 +401,84 @@ const candleDrawPlugin = {
 };
 
 /* ========================================
+   공시 표시 — 핵심 공시가 있는 봉 아래에 점을 찍는다
+   - 목록은 `chartDisclosureCode`(종목 상세가 DART 종목에만 정의) 로 한 번 받는다.
+   - 봉과 짝짓기는 `markDisclosures` 가, 풍선 글자는 툴팁의 `afterBody` 가 한다.
+   ======================================== */
+let chartDisclosures = null;   // [{date, title}] — 받기 전·대상 아님은 null
+
+const disclosureMarkPlugin = {
+    id: 'disclosureMarkPlugin',
+    afterDatasetsDraw(chart) {
+        var marks = chart._marks;
+        if (!marks) return;
+        var meta = chart.getDatasetMeta(0);
+        var area = chart.chartArea;
+        if (!meta || !meta.data || !area) return;
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.fillStyle = chartColors.primary;
+        for (var i = 0; i < marks.length; i++) {
+            if (!marks[i]) continue;
+            var p = meta.data[i];
+            if (!p || p.x < area.left || p.x > area.right) continue;
+            ctx.beginPath();
+            ctx.arc(p.x, area.bottom - 6, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+};
+
+/**
+ * 그리는 봉마다 그 봉에 걸리는 공시 목록(없으면 null). 일·주·월봉만 — 분봉은 공시 **시각**이 없다
+ * (DART 는 날짜만 준다).
+ * - 일봉: 공시일 **이후 첫 봉** — 주말·장 마감 뒤 공시는 다음 거래일에 반영된다.
+ * - 주·월봉: 공시일을 담은 봉 = 공시일 이전의 마지막 봉(봉 시각은 버킷의 첫 거래 시각이다).
+ */
+function markDisclosures(rows) {
+    if (!chartDisclosures || !rows.length) return null;
+    if (['1d', '1w', '1M'].indexOf(currentTimeframe) < 0) return null;
+    var days = rows.map(function(d) { return String(d.at).slice(0, 10); });
+    var marks = new Array(rows.length).fill(null);
+    chartDisclosures.forEach(function(item) {
+        if (item.date < days[0]) return;
+        var idx = -1;
+        if (currentTimeframe === '1d') {
+            for (var i = 0; i < days.length; i++) { if (days[i] >= item.date) { idx = i; break; } }
+        } else {
+            for (var j = days.length - 1; j >= 0; j--) { if (days[j] <= item.date) { idx = j; break; } }
+        }
+        if (idx < 0) return;
+        (marks[idx] = marks[idx] || []).push(item);
+    });
+    return marks;
+}
+
+function loadChartDisclosures() {
+    if (typeof chartDisclosureCode === 'undefined' || !chartDisclosureCode) return;
+    // 1년치 핵심 공시는 대형주도 수십 건이다 — 한 번에 받고, 넘치면 다음 쪽을 잇는다.
+    var all = [];
+    (function page(n) {
+        fetch('/api/v1/stocks/' + encodeURIComponent(chartDisclosureCode) + '/disclosures?kind=key&size=100&page=' + n)
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function(res) {
+                all = all.concat(res.items.map(function(d) { return { date: d.date, title: d.label }; }));
+                if (n < res.pages && n < 5) return page(n + 1);
+                chartDisclosures = all;
+                if (stockChart) {
+                    stockChart._marks = markDisclosures(displayedCandleData);
+                    stockChart.draw();
+                }
+            })
+            .catch(function(e) { console.error('차트 공시 로드 실패:', e); });
+    })(1);
+}
+
+/* ========================================
    초기화
    ======================================== */
 document.addEventListener('DOMContentLoaded', function() {
@@ -395,9 +487,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadChartModules().then(() => {
         if (typeof Chart !== 'undefined') {
-            Chart.register(crosshairPlugin, candleDrawPlugin);
+            Chart.register(crosshairPlugin, candleDrawPlugin, disclosureMarkPlugin);
         }
         loadChartData(currentPeriod);
+        loadChartDisclosures();
         if (document.getElementById('executionList')) loadInitialExecutions();
     });
 
@@ -446,7 +539,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return (stockChart.chartArea.right - stockChart.chartArea.left) / range;
         }
 
-        chartCanvas.addEventListener('mousedown', function(e) {
+        // 포인터 이벤트라 마우스·터치가 한 경로다(마우스 이벤트만 걸었을 땐 모바일에서 안 돌았다).
+        chartCanvas.addEventListener('pointerdown', function(e) {
             var zone = getAxisHitZone(e);
             if (!zone || !stockChart || !stockChart.scales || !stockChart.scales.x) return;
             var xScale = stockChart.scales.x;
@@ -467,11 +561,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     startXMax: xMax
                 };
             }
+            chartCanvas.setPointerCapture(e.pointerId);
             e.preventDefault();
             e.stopPropagation();
         });
 
-        chartCanvas.addEventListener('mousemove', function(e) {
+        chartCanvas.addEventListener('pointermove', function(e) {
             // 커서 변경 (드래그 중이 아닐 때)
             if (!axisDragState) {
                 var zone = getAxisHitZone(e);
@@ -552,27 +647,12 @@ document.addEventListener('DOMContentLoaded', function() {
             checkAndLoadMoreData();
         }
 
-        chartCanvas.addEventListener('mouseup', endAxisDrag);
-        chartCanvas.addEventListener('mouseleave', endAxisDrag);
+        chartCanvas.addEventListener('pointerup', endAxisDrag);
+        chartCanvas.addEventListener('pointercancel', endAxisDrag);
     }
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Shift') setShiftZoomArmedState(true);
         if (e.key === 'Escape') closeExecutionOverlay();
-    });
-
-    document.addEventListener('keyup', function(e) {
-        if (e.key === 'Shift') setShiftZoomArmedState(false);
-    });
-
-    window.addEventListener('blur', function() {
-        setShiftZoomArmedState(false);
-    });
-
-    document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState !== 'visible') {
-            setShiftZoomArmedState(false);
-        }
     });
 
 });
@@ -631,14 +711,6 @@ function isChartReady() {
     return typeof Chart !== 'undefined';
 }
 
-function hasCandlestickSupport() {
-    if (typeof window.CandlestickController !== 'undefined') return true;
-    if (typeof Chart !== 'undefined' && Chart.registry && typeof Chart.registry.getController === 'function') {
-        try { return !!Chart.registry.getController('candlestick'); } catch (e) { return false; }
-    }
-    return false;
-}
-
 function loadScript(src) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
@@ -658,10 +730,6 @@ function hasZoomSupport() {
 async function loadChartModules() {
     try {
         if (typeof Chart === 'undefined') await loadScript('/vendor/chart.umd.min.js');
-        if (!hasCandlestickSupport()) {
-            try { await loadScript('/vendor/chartjs-chart-financial.min.js'); }
-            catch (e) { console.warn('캔들 플러그인 로드 실패, 라인 차트로 대체합니다.', e); }
-        }
         if (!hasZoomSupport()) {
             try {
                 if (typeof Hammer === 'undefined') await loadScript('/vendor/hammer.min.js');
@@ -672,16 +740,14 @@ async function loadChartModules() {
 }
 
 /* ========================================
-   줌 리셋 버튼
+   줌 리셋
    ======================================== */
-function updateZoomResetButton() {
-    // 리셋 버튼은 항상 보이므로 별도 토글 불필요
-}
-
 function resetChartZoom() {
     if (!stockChart) return;
+    // ⚠️ 'none' — 기본값은 애니메이션을 돌리는데, 그 사이 점 위치로 보이는 구간을 재면(`updateYAxisRange`)
+    //    전체 구간이 잡혀 y축이 넓게 남았다(리셋하면 캔들이 납작해졌다).
     if (typeof stockChart.resetZoom === 'function') {
-        stockChart.resetZoom();
+        stockChart.resetZoom('none');
     }
     // 초기 x 범위(최근 구간)로 복원
     if (stockChart.options.scales.x) {
@@ -697,7 +763,6 @@ function resetChartZoom() {
         }
     }
     stockChart.update('none');
-    updateZoomResetButton();
     updateYAxisRange();
 }
 
@@ -849,6 +914,24 @@ function updateYAxisRange(forceUpdate) {
     }
 }
 
+/** 봉 하나의 거래량. 원본이 매수·매도·미구분 셋으로 나뉘어 온다(`Candle` 스키마). */
+function candleVolume(d) {
+    return Math.max(
+        parseFloat(d.non_volume || 0),
+        parseFloat(d.ask_volume || 0) + parseFloat(d.bid_volume || 0)
+    );
+}
+
+/** 거래량 축 천장 — 가격과 겹치지 않게 최대 거래량의 5배. 거래량이 없으면 `undefined`(자동). */
+function volumeAxisMax(rows) {
+    var maxVol = 0;
+    for (var i = 0; i < rows.length; i++) {
+        var v = candleVolume(rows[i]);
+        if (v > maxVol) maxVol = v;
+    }
+    return maxVol > 0 ? maxVol * 5 : undefined;
+}
+
 function isFiniteNumber(value) {
     return typeof value === 'number' && isFinite(value);
 }
@@ -935,13 +1018,19 @@ function calculateBollingerBands(values, period, stdMultiplier) {
 
 function getVisiblePriceRange(startIndex, endIndex) {
     if (!stockChart) return null;
+    return priceRange(stockChart._ohlcData, stockChart.data ? stockChart.data.datasets : [], startIndex, endIndex);
+}
 
+/**
+ * [startIndex, endIndex] 구간의 가격 범위 — 봉의 고저와 가격 축 선(지표 제외)을 함께 본다.
+ * 차트를 만들기 전(`initChart`)에도 쓰므로 차트가 아니라 데이터를 받는다.
+ */
+function priceRange(ohlc, datasets, startIndex, endIndex) {
     var lo = Infinity;
     var hi = -Infinity;
     var i;
     var value;
 
-    var ohlc = stockChart._ohlcData;
     if (ohlc && ohlc.length > 0) {
         for (i = startIndex; i <= endIndex; i++) {
             if (!ohlc[i]) continue;
@@ -950,7 +1039,7 @@ function getVisiblePriceRange(startIndex, endIndex) {
         }
     }
 
-    var datasets = (stockChart.data && stockChart.data.datasets) ? stockChart.data.datasets : [];
+    datasets = datasets || [];
     for (var dsIdx = 0; dsIdx < datasets.length; dsIdx++) {
         var dataset = datasets[dsIdx];
         if (dataset.yAxisID === 'y2') continue;
@@ -1027,41 +1116,10 @@ function initChart() {
     visibleRangeMinLimit = 0;
     visibleRangeMaxLimit = initialXMax;
 
-    // 데이터 범위 계산 (보이는 캔들 범위 기준)
-    let dataRange = null;
-    var visStart = (typeof initialXMin === 'number') ? initialXMin : 0;
-    var visEnd = (typeof initialXMax === 'number') ? initialXMax : totalLabels - 1;
-    var lo = Infinity;
-    var hi = -Infinity;
-
-    if (chartData._ohlcData && chartData._ohlcData.length > 0) {
-        for (var ri = visStart; ri <= visEnd; ri++) {
-            var od = chartData._ohlcData[ri];
-            if (!od) continue;
-            if (isFiniteNumber(od.l) && od.l < lo) lo = od.l;
-            if (isFiniteNumber(od.h) && od.h > hi) hi = od.h;
-        }
-    }
-
-    if (chartData.datasets) {
-        for (var di = 0; di < chartData.datasets.length; di++) {
-            var ds = chartData.datasets[di];
-            if (ds.yAxisID === 'y2') continue;
-            var dsLbl = ds.label || '';
-            if (dsLbl.indexOf('SMA') === 0 || dsLbl.indexOf('BB ') === 0) continue;
-            if (!ds.data || !Array.isArray(ds.data)) continue;
-            for (var ri = visStart; ri <= visEnd; ri++) {
-                var val = ds.data[ri];
-                if (!isFiniteNumber(val)) continue;
-                if (val < lo) lo = val;
-                if (val > hi) hi = val;
-            }
-        }
-    }
-
-    if (isFinite(lo) && isFinite(hi)) {
-        dataRange = { min: lo, max: hi };
-    }
+    // 보이는 캔들 범위 기준 가격 범위
+    var dataRange = priceRange(chartData._ohlcData, chartData.datasets,
+                               (typeof initialXMin === 'number') ? initialXMin : 0,
+                               (typeof initialXMax === 'number') ? initialXMax : totalLabels - 1);
 
     stockChart = new Chart(ctx, {
         type: 'line',
@@ -1072,9 +1130,8 @@ function initChart() {
         })
     });
     stockChart._ohlcData = chartData._ohlcData || null;
-    stockChart._indicatorSeries = chartData._indicatorSeries || null;
+    stockChart._marks = markDisclosures(displayedCandleData);
     enforceVisibleRangeBounds();
-    updateZoomResetButton();
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
             updateYAxisRange(true);
@@ -1133,12 +1190,7 @@ function prepareChartData(data, chartType) {
     var closePrices = displayedCandleData.map(function(d) { return parseFloat(d.close); });
 
     // 거래량 데이터 (양봉/음봉 색상 분기)
-    var volumes = displayedCandleData.map(function(d) {
-        return Math.max(
-            parseFloat(d.non_volume || 0),
-            parseFloat(d.ask_volume || 0) + parseFloat(d.bid_volume || 0)
-        );
-    });
+    var volumes = displayedCandleData.map(candleVolume);
     var volumeColors = displayedCandleData.map(function(d) {
         var open = parseFloat(d.open);
         var close = parseFloat(d.close);
@@ -1146,12 +1198,7 @@ function prepareChartData(data, chartType) {
     });
 
     var fullClosePrices = fullData.map(function(d) { return parseFloat(d.close); });
-    var fullVolumes = fullData.map(function(d) {
-        return Math.max(
-            parseFloat(d.non_volume || 0),
-            parseFloat(d.ask_volume || 0) + parseFloat(d.bid_volume || 0)
-        );
-    });
+    var fullVolumes = fullData.map(candleVolume);
 
     var volumeDataset = {
         label: '거래량',
@@ -1182,11 +1229,7 @@ function prepareChartData(data, chartType) {
 
         return {
             labels: labels,
-            datasets: lineDatasets,
-            _indicatorSeries: {
-                priceSeries: [],
-                volumeSeries: []
-            }
+            datasets: lineDatasets
         };
     }
 
@@ -1311,11 +1354,7 @@ function prepareChartData(data, chartType) {
                 order: 1
             },
         ].concat(priceIndicatorDatasets, [volumeMaDataset, volumeDataset]),
-        _ohlcData: ohlcData,
-        _indicatorSeries: {
-            priceSeries: [sma5, sma20, sma60, bollinger.upper, bollinger.middle, bollinger.lower],
-            volumeSeries: [volumeMa20]
-        }
+        _ohlcData: ohlcData
     };
 }
 
@@ -1366,6 +1405,12 @@ function getChartOptions(chartType, dataRange, initialRange) {
                     title: function(items) {
                         if (items.length > 0) return items[0].label;
                         return '';
+                    },
+                    afterBody: function(items) {
+                        var marks = items.length ? items[0].chart._marks : null;
+                        var list = marks && marks[items[0].dataIndex];
+                        if (!list) return [];
+                        return [''].concat(list.map(function(d) { return '공시 ' + d.date.slice(5).replace('-', '/') + ' ' + d.title; }));
                     },
                     label: function(context) {
                         if (context.dataset.label === '거래량') {
@@ -1430,15 +1475,16 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 ticks: {
                     color: chartColors.textMuted,
                     maxTicksLimit: useLogScale ? 14 : 10,
-                    padding: 8,
-                    font: { size: 11 },
-                    callback: function(value) {
-                        return formatPrice(value);
+                    padding: window.innerWidth <= 480 ? 4 : 8,
+                    font: { size: window.innerWidth <= 480 ? 10 : 11 },
+                    callback: function(value, index, ticks) {
+                        return formatAxisPrice(value, ticks);
                     }
                 }
             },
             y2: {
-                display: chartType !== 'line',
+                // 눈금을 안 그려도 보이는 축은 왼쪽에 8px 를 잡는다 — 거래량 막대는 축을 숨겨도 그려진다.
+                display: false,
                 position: 'left',
                 beginAtZero: true,
                 grid: { display: false },
@@ -1446,27 +1492,11 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 ticks: { display: false },
                 max: undefined
             }
-        },
-        onResize: function() {
-            updateZoomResetButton();
         }
     };
 
-    // 거래량 y2 축 max: 가격 데이터와 겹치지 않도록 거래량 최대값의 5배
     var volumeScaleSource = displayedCandleData && displayedCandleData.length > 0 ? displayedCandleData : candleData;
-    if (volumeScaleSource && volumeScaleSource.length > 0) {
-        var maxVol = 0;
-        for (var i = 0; i < volumeScaleSource.length; i++) {
-            var v = Math.max(
-                parseFloat(volumeScaleSource[i].non_volume || 0),
-                parseFloat(volumeScaleSource[i].ask_volume || 0) + parseFloat(volumeScaleSource[i].bid_volume || 0)
-            );
-            if (v > maxVol) maxVol = v;
-        }
-        if (maxVol > 0) {
-            options.scales.y2.max = maxVol * 5;
-        }
-    }
+    if (volumeScaleSource) options.scales.y2.max = volumeAxisMax(volumeScaleSource);
 
     // 데이터 범위가 제공되면 y축 범위 설정
     if (dataRange && dataRange.min !== undefined && dataRange.max !== undefined) {
@@ -1495,8 +1525,9 @@ function getChartOptions(chartType, dataRange, initialRange) {
             pan: {
                 enabled: true,
                 mode: 'x',
+                // 축 라벨 드래그 중이면 판 팬은 쉬게 한다 — 둘이 함께 움직인다.
+                onPanStart: function() { return !axisDragState; },
                 onPanComplete: function() {
-                    updateZoomResetButton();
                     scheduleYAxisRangeUpdate();
                     checkAndLoadMoreData();
                 }
@@ -1513,7 +1544,6 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 },
                 mode: 'x',
                 onZoomComplete: function() {
-                    updateZoomResetButton();
                     scheduleYAxisRangeUpdate();
                     checkAndLoadMoreData();
                 }
@@ -1693,8 +1723,6 @@ function loadMoreHistoricalData() {
                     allDataLoaded = true;
                 }
 
-                var prependedCount = newData.length;
-
                 // 최대 캔들 수 제한 — 천장에 닿으면 더 안 받는다.
                 var room = MAX_TOTAL_CANDLES - candleData.length;
                 if (room <= 0) {
@@ -1703,12 +1731,11 @@ function loadMoreHistoricalData() {
                 }
                 if (newData.length > room) {
                     newData = newData.slice(newData.length - room);
-                    prependedCount = newData.length;
                     allDataLoaded = true;
                 }
 
                 candleData = newData.concat(candleData);
-                prependChartData(prependedCount);
+                prependChartData();
             } else {
                 allDataLoaded = true;
             }
@@ -1719,10 +1746,14 @@ function loadMoreHistoricalData() {
         });
 }
 
-function prependChartData(prependedCount) {
+function prependChartData() {
     if (!stockChart) return;
 
     var newChartData = prepareChartData(candleData, currentChartType);
+    // 그리는 봉은 **끝(최신)에 붙어** 있다 — 앞에 늘어난 만큼 모든 인덱스가 밀린다.
+    // ⚠️ `prependedCount`(받은 봉 수)와 다를 수 있다. 지표 워밍업분은 그리지 않으므로 그리는 수의
+    //    차이로 잰다.
+    var shift = newChartData.labels.length - stockChart.data.labels.length;
 
     // 현재 보이는 범위 인덱스 저장
     var xScale = stockChart.scales.x;
@@ -1740,24 +1771,21 @@ function prependChartData(prependedCount) {
         }
     }
     stockChart._ohlcData = newChartData._ohlcData || null;
-    stockChart._indicatorSeries = newChartData._indicatorSeries || null;
+    stockChart._marks = markDisclosures(displayedCandleData);
 
-    // 거래량 y2 축 max 재계산
-    var maxVol = 0;
-    for (var i = 0; i < candleData.length; i++) {
-        var v = Math.max(
-            parseFloat(candleData[i].non_volume || 0),
-            parseFloat(candleData[i].ask_volume || 0) + parseFloat(candleData[i].bid_volume || 0)
-        );
-        if (v > maxVol) maxVol = v;
-    }
-    if (maxVol > 0) {
-        stockChart.options.scales.y2.max = maxVol * 5;
-    }
+    var yMaxVol = volumeAxisMax(candleData);
+    if (yMaxVol) stockChart.options.scales.y2.max = yMaxVol;
 
-    // 줌 위치 보정: 추가된 캔들 수만큼 인덱스 시프트 (결정적 산술)
-    var newMinIdx = oldMinIdx + prependedCount;
-    var newMaxIdx = oldMaxIdx + prependedCount;
+    // 줌 위치 보정: 늘어난 만큼 인덱스 시프트 (결정적 산술)
+    var newMinIdx = oldMinIdx + shift;
+    var newMaxIdx = oldMaxIdx + shift;
+
+    // ⚠️ 리셋 위치·이동 한계도 함께 민다. 전에는 안 밀어서 과거를 받은 뒤엔 **최신 봉까지 이동할 수
+    //    없었고**(한계가 옛 마지막 인덱스에 묶였다) 더블클릭 리셋이 최신이 아닌 옛 구간으로 갔다.
+    if (initialXMin !== null) initialXMin += shift;
+    if (initialXMax !== null) initialXMax += shift;
+    visibleRangeMaxLimit = initialXMax;
+    enforceVisibleRangeBounds();
 
     // 스케일 범위 지정 후 업데이트
     stockChart.options.scales.x.min = newMinIdx;
@@ -1765,7 +1793,6 @@ function prependChartData(prependedCount) {
     stockChart.update('none');
 
     updateYAxisRange();
-    updateZoomResetButton();
 }
 
 /* ========================================

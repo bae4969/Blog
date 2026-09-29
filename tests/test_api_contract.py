@@ -452,11 +452,16 @@ class TestStockPriceSource:
                 node.body = node.body[1:]          # docstring 제거
             return ast.unparse(node)
 
-        # 기준일은 마지막 캔들 날짜여야 한다 — KST 의 오늘(`CURDATE()`)이 아니라.
+        # 기준일은 마지막 캔들 날짜여야 한다 — KST 의 오늘(`CURDATE()`)이 아니라. 코인·환율은
+        # 마지막 캔들의 24시간 전이다(2026-09-30). 세 곳 모두 같은 헬퍼(`_prev_close_sql`)를 거친다.
         for fn in (stocks._latest_quotes, stocks._heatmap_rows, quotes._quote_rows):
             src = body_src(fn)
             assert "CURDATE()" not in src, fn.__name__
-            assert "DATE(MAX(execution_datetime))" in src, fn.__name__
+            assert "_prev_close_sql" in src, fn.__name__
+        assert "DATE(MAX(execution_datetime))" in stocks._prev_close_sql("s005930")
+        assert "INTERVAL" not in stocks._prev_close_sql("iKOSPI")
+        for tbl in ("cBTC", "fKRWUSD"):
+            assert "INTERVAL 24 HOUR" in stocks._prev_close_sql(tbl), tbl
 
         # 화면들이 그 헬퍼를 실제로 거치는지.
         for fn in (stocks_v1.stocks, stocks_v1.heatmap, stocks.stocks_show):

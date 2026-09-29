@@ -212,6 +212,32 @@
             </section>
 
             {#
+              ── 최근 공시 ───────────────────────────────────────────────
+              구독 종목(순위·히트맵과 같은 범위)의 **주요** 공시 8건 — OpenDART(`app/services/dart.py`).
+              지분 신고·증권 발행 서류·행정 공시는 뺀다. 제목은 쉬운 말(`dart.RULES`)로 보인다. 누르면 종목 상세로 간다(원문 링크는 거기 공시 카드에 있다).
+            #}
+            {% if disclosures %}
+            <section class="sh-card sh-insights sh-disc" aria-labelledby="shDiscTitle">
+                <div class="sh-insights__head">
+                    <h2 class="sh-card__title" id="shDiscTitle">{{ icons.i('doc') }}최근 공시</h2>
+                </div>
+                <ol class="sh-insights__list">
+                    {% for d in disclosures %}
+                    <li>
+                        <a href="/stocks/view?code={{ d.code | urlencode }}">
+                            <span class="sh-disc__body">
+                                <span class="sh-disc__name">{{ d.name }}</span>
+                                <span class="sh-insights__title"><em class="sh-disc__cat">{{ d.category_label }}</em>{% if d.tag %}<em class="sh-disc__tag">{{ d.tag }}</em>{% endif %}{{ d.label }}</span>
+                            </span>
+                            <time datetime="{{ d.date.isoformat() }}">{{ d.date.strftime('%m.%d') }}</time>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </section>
+            {% endif %}
+
+            {#
               ── 최신 인사이트 ─────────────────────────────────────────────
               금융 글 5개(서버가 읽는다 — 목록과 같은 접근 규칙). 토스증권 홈의 "뉴스" 자리다.
               날짜는 DB 의 KST 그대로 쓴다(변환하지 않는다).
