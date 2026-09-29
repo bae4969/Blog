@@ -645,8 +645,10 @@ async function loadChartModules() {
    ======================================== */
 function resetChartZoom() {
     if (!stockChart) return;
+    // ⚠️ 'none' — 기본값은 애니메이션을 돌리는데, 그 사이 점 위치로 보이는 구간을 재면(`updateYAxisRange`)
+    //    전체 구간이 잡혀 y축이 넓게 남았다(리셋하면 캔들이 납작해졌다).
     if (typeof stockChart.resetZoom === 'function') {
-        stockChart.resetZoom();
+        stockChart.resetZoom('none');
     }
     // 초기 x 범위(최근 구간)로 복원
     if (stockChart.options.scales.x) {
@@ -1612,8 +1614,6 @@ function loadMoreHistoricalData() {
                     allDataLoaded = true;
                 }
 
-                var prependedCount = newData.length;
-
                 // 최대 캔들 수 제한 — 천장에 닿으면 더 안 받는다.
                 var room = MAX_TOTAL_CANDLES - candleData.length;
                 if (room <= 0) {
@@ -1622,12 +1622,11 @@ function loadMoreHistoricalData() {
                 }
                 if (newData.length > room) {
                     newData = newData.slice(newData.length - room);
-                    prependedCount = newData.length;
                     allDataLoaded = true;
                 }
 
                 candleData = newData.concat(candleData);
-                prependChartData(prependedCount);
+                prependChartData();
             } else {
                 allDataLoaded = true;
             }
@@ -1638,10 +1637,14 @@ function loadMoreHistoricalData() {
         });
 }
 
-function prependChartData(prependedCount) {
+function prependChartData() {
     if (!stockChart) return;
 
     var newChartData = prepareChartData(candleData, currentChartType);
+    // 그리는 봉은 **끝(최신)에 붙어** 있다 — 앞에 늘어난 만큼 모든 인덱스가 밀린다.
+    // ⚠️ `prependedCount`(받은 봉 수)와 다를 수 있다. 지표 워밍업분은 그리지 않으므로 그리는 수의
+    //    차이로 잰다.
+    var shift = newChartData.labels.length - stockChart.data.labels.length;
 
     // 현재 보이는 범위 인덱스 저장
     var xScale = stockChart.scales.x;
@@ -1663,9 +1666,16 @@ function prependChartData(prependedCount) {
     var yMaxVol = volumeAxisMax(candleData);
     if (yMaxVol) stockChart.options.scales.y2.max = yMaxVol;
 
-    // 줌 위치 보정: 추가된 캔들 수만큼 인덱스 시프트 (결정적 산술)
-    var newMinIdx = oldMinIdx + prependedCount;
-    var newMaxIdx = oldMaxIdx + prependedCount;
+    // 줌 위치 보정: 늘어난 만큼 인덱스 시프트 (결정적 산술)
+    var newMinIdx = oldMinIdx + shift;
+    var newMaxIdx = oldMaxIdx + shift;
+
+    // ⚠️ 리셋 위치·이동 한계도 함께 민다. 전에는 안 밀어서 과거를 받은 뒤엔 **최신 봉까지 이동할 수
+    //    없었고**(한계가 옛 마지막 인덱스에 묶였다) 더블클릭 리셋이 최신이 아닌 옛 구간으로 갔다.
+    if (initialXMin !== null) initialXMin += shift;
+    if (initialXMax !== null) initialXMax += shift;
+    visibleRangeMaxLimit = initialXMax;
+    enforceVisibleRangeBounds();
 
     // 스케일 범위 지정 후 업데이트
     stockChart.options.scales.x.min = newMinIdx;
