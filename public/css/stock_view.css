@@ -336,6 +336,11 @@
     inset: 0;
 }
 
+/* 폰에선 판만 카드 여백을 넘어 넓힌다 — 카드 머리(기간 버튼)의 줄은 그대로 둔다. */
+@media (max-width: 29.99rem) {
+    .sd .chart-wrapper { width: auto; margin-inline: calc(0.25rem - var(--sd-pad)); }
+}
+
 .sd .chart-settings-btn .c-ico,
 .sd .chart-indicator-help-btn .c-ico {
     inline-size: 0.875rem;

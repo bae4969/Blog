@@ -157,6 +157,24 @@ function formatPrice(value) {
     return prefix + new Intl.NumberFormat('ko-KR').format(value) + suffix;
 }
 
+// 가격 축 라벨 — 통화 기호는 머리의 현재가에 있으니 붙이지 않고, 1만 이상은 원화 만·억 / 달러 K·M 으로
+// 줄이며, 자릿수는 눈금 간격만큼만 쓴다(모바일에서 `169,644.8원` 같은 라벨이 판 폭의 1/4 을 먹었다).
+// 지수·환율은 단위 없는 값이라 줄이지 않는다.
+function formatAxisPrice(value, ticks) {
+    // 간격은 안쪽 눈금끼리로 잰다 — 맨 위·아래는 데이터 끝값이라 간격이 들쭉날쭉하다.
+    var gaps = [];
+    for (var i = 1; i < ticks.length; i++) gaps.push(Math.abs(ticks[i].value - ticks[i - 1].value));
+    if (gaps.length > 2) gaps = gaps.slice(1, -1);
+    var step = gaps.length ? Math.min.apply(null, gaps) : 0;
+    var units = (typeof isQuoteMarket !== 'undefined' && isQuoteMarket) ? []
+        : (typeof isUSMarket !== 'undefined' && isUSMarket) ? [[1e6, 1e6, 'M'], [1e4, 1e3, 'K']]
+        : [[1e8, 1e8, '억'], [1e4, 1e4, '만']];
+    var unit = units.find(function (u) { return Math.abs(value) >= u[0]; }) || [0, 1, ''];
+    var s = step / unit[1];
+    var digits = s >= 1 || s === 0 ? 0 : Math.min(8, Math.ceil(-Math.log10(s)));
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(value / unit[1]) + unit[2];
+}
+
 function formatPriceValueOnly(value) {
     const prefix = getCurrencyPrefix();
     if (typeof isUSMarket !== 'undefined' && isUSMarket) {
@@ -1457,15 +1475,16 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 ticks: {
                     color: chartColors.textMuted,
                     maxTicksLimit: useLogScale ? 14 : 10,
-                    padding: 8,
-                    font: { size: 11 },
-                    callback: function(value) {
-                        return formatPrice(value);
+                    padding: window.innerWidth <= 480 ? 4 : 8,
+                    font: { size: window.innerWidth <= 480 ? 10 : 11 },
+                    callback: function(value, index, ticks) {
+                        return formatAxisPrice(value, ticks);
                     }
                 }
             },
             y2: {
-                display: chartType !== 'line',
+                // 눈금을 안 그려도 보이는 축은 왼쪽에 8px 를 잡는다 — 거래량 막대는 축을 숨겨도 그려진다.
+                display: false,
                 position: 'left',
                 beginAtZero: true,
                 grid: { display: false },
