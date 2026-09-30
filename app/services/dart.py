@@ -8,6 +8,7 @@
    화면이 쓰는 최신 종가와의 비율로 다시 맞춘다 — 시가총액이 `가격 × 주식수` 라 비례한다.
 """
 
+import json
 import re
 from datetime import date, datetime, time, timedelta
 
@@ -302,11 +303,14 @@ async def disclosures(db, code: str, kind: str, page: int, size: int) -> tuple[i
         "SELECT d.rcept_no, d.rcept_dt, d.report_nm, d.flr_nm, d.collected_at, d.collect_mode, "
         "       t.event_type AS t_type, t.amount AS t_amount, t.shares_common AS t_shares, "
         "       i.repror AS i_repror, i.position AS i_position, i.shares_change AS i_change, "
-        "       m.repror AS m_repror, m.ratio AS m_ratio, m.ratio_change AS m_ratio_change "
+        "       m.repror AS m_repror, m.ratio AS m_ratio, m.ratio_change AS m_ratio_change, "
+        "       s.summary, x.rcept_no IS NOT NULL AS has_detail "
         "FROM Dart.disclosure d "
         "LEFT JOIN Dart.treasury_event t ON t.rcept_no = d.rcept_no "
         "LEFT JOIN Dart.insider_holding i ON i.rcept_no = d.rcept_no "
         "LEFT JOIN Dart.major_holding m ON m.rcept_no = d.rcept_no "
+        "LEFT JOIN Dart.disclosure_summary s ON s.rcept_no = d.rcept_no AND s.verified = 1 "
+        "LEFT JOIN Dart.disclosure_detail x ON x.rcept_no = d.rcept_no "
         f"WHERE d.stock_code = :c {where} ORDER BY d.rcept_dt DESC, d.rcept_no DESC "
         "LIMIT :limit OFFSET :offset"),
         params | {"limit": size, "offset": (page - 1) * size})).all()
@@ -318,8 +322,48 @@ async def disclosures(db, code: str, kind: str, page: int, size: int) -> tuple[i
         items.append({"rcept_no": r.rcept_no, "date": r.rcept_dt, "title": title, "tag": tag,
                       "label": label, "category": cat, "category_label": CATEGORY_LABEL[cat],
                       "detail": _detail(r), "reaction": _reaction(closes, _effective_day(r)),
+                      "summary": r.summary, "has_detail": bool(r.has_detail),
                       "filer": r.flr_nm, "url": DART_VIEWER + r.rcept_no})
     return total, items
+
+
+#: 문서형 본문을 이만큼만 내보낸다 — 주총 소집공고는 30만 자까지 간다. 그 뒤는 DART 원문에서 읽는다.
+BODY_CAP = 20000
+
+
+def _readable(r) -> dict:
+    """원문 행 → 화면용. 서식 공시는 항목·값 표(`fields`), `fields_json` 이 없는 문서형은 본문(`body`)."""
+    body = r.body or None
+    return {
+        "doc_format": r.doc_format,
+        "fields": [{"name": k, "value": v} for k, v in json.loads(r.fields_json)] if r.fields_json else [],
+        "body": body[:BODY_CAP] if body else None,
+        "body_truncated": bool(body) and len(body) > BODY_CAP,
+    }
+
+
+async def disclosure_detail(db, code: str, rcept_no: str) -> dict | None:
+    """공시 한 건의 읽기 쉬운 원문과 AI 요약. 원문을 아직 못 받았거나 대상이 아니면 `None`.
+
+    ⚠️ 요약은 **`verified = 1` 만** 읽는다 — 0 이면 요약의 숫자 중 원문에 없는 것이 있었다(25.dart 의 대조).
+       그때는 원문 표만 나간다.
+    """
+    r = (await db.execute(text(
+        "SELECT x.doc_format, x.fields_json, "
+        "       IF(x.fields_json IS NULL, LEFT(x.body_text, :cap), NULL) AS body, "
+        "       s.summary, s.facts_json, s.changes_json, s.model "
+        "FROM Dart.disclosure d "
+        "JOIN Dart.disclosure_detail x ON x.rcept_no = d.rcept_no "
+        "LEFT JOIN Dart.disclosure_summary s ON s.rcept_no = d.rcept_no AND s.verified = 1 "
+        "WHERE d.rcept_no = :r AND d.stock_code = :c"),
+        {"r": rcept_no, "c": code, "cap": BODY_CAP + 1})).first()
+    if r is None:
+        return None
+    return {"rcept_no": rcept_no, "url": DART_VIEWER + rcept_no,
+            "summary": r.summary, "model": r.model if r.summary else None,
+            "facts": json.loads(r.facts_json) if r.facts_json else [],
+            "changes": json.loads(r.changes_json) if r.changes_json else [],
+            **_readable(r)}
 
 
 async def recent_subscribed(db, limit: int) -> list[dict]:
@@ -330,8 +374,9 @@ async def recent_subscribed(db, limit: int) -> list[dict]:
     """
     where, params = _kind_sql("major")
     rows = (await db.execute(text(
-        "SELECT d.rcept_no, d.rcept_dt, d.report_nm, d.stock_code, s.stock_name_kr "
+        "SELECT d.rcept_no, d.rcept_dt, d.report_nm, d.stock_code, s.stock_name_kr, a.summary "
         "FROM Dart.disclosure d JOIN KoreaInvest.stock_info s ON s.stock_code = d.stock_code "
+        "LEFT JOIN Dart.disclosure_summary a ON a.rcept_no = d.rcept_no AND a.verified = 1 "
         "WHERE d.stock_code IN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) "
         "  AND d.rcept_dt >= CURDATE() - INTERVAL 14 DAY "
         f"{where} ORDER BY d.rcept_dt DESC, d.rcept_no DESC LIMIT :limit"),
@@ -342,7 +387,7 @@ async def recent_subscribed(db, limit: int) -> list[dict]:
         cat, label = classify(r.report_nm)
         out.append({"code": r.stock_code, "name": r.stock_name_kr, "date": r.rcept_dt,
                     "title": title, "tag": tag, "label": label, "category": cat,
-                    "category_label": CATEGORY_LABEL[cat]})
+                    "category_label": CATEGORY_LABEL[cat], "summary": r.summary})
     return out
 
 

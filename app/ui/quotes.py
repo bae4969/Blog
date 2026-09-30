@@ -62,7 +62,8 @@ _SAFE_QUERY = re.compile(r"[A-Za-z0-9_]+")
 
 _CATEGORY_LABEL = {
     "INDEX_KR": "국내지수",
-    "INDEX_EX": "해외지수",
+    "INDEX_EX": "미국지수",
+    "INDEX_WORLD": "세계지수",
     "FX": "환율",
 }
 
@@ -81,7 +82,7 @@ def _quote_sort_key(item: dict) -> tuple[int, int, str]:
         rank = codes.index(item["code"])
     except ValueError:
         rank = len(codes)
-    category_rank = {"INDEX_KR": 0, "INDEX_EX": 1, "FX": 2}.get(category, 3)
+    category_rank = {"INDEX_KR": 0, "INDEX_EX": 1, "INDEX_WORLD": 2, "FX": 3}.get(category, 4)
     return category_rank, rank, item["code"]
 
 
@@ -130,7 +131,7 @@ async def _quote_meta(db, code: str) -> dict | None:
 async def _quote_rows(db) -> list[dict]:
     """수집 중인 지수·환율 전부. 카드 한 장 = 한 행.
 
-    ⚠️ 등락률 기준일은 `CURDATE()` 가 아니라 **그 테이블의 마지막 캔들 날짜**다. 해외지수는
+    ⚠️ 등락률 기준일은 `CURDATE()` 가 아니라 **그 테이블의 마지막 캔들 날짜**다. 미국·세계지수는
        `execution_datetime` 이 현지시각(ET)이라 KST 의 오늘로 자르면 어긋난다
        (`app.ui.stocks._heatmap_rows` 와 같은 이유). 환율은 24시간 전과 견주고 스파크라인도 24시간이다.
     """
@@ -138,7 +139,7 @@ async def _quote_rows(db) -> list[dict]:
         "SELECT L.quote_query, L.query_type, I.quote_name_kr "
         "FROM KoreaInvest.quote_last_rest_query L "
         "JOIN KoreaInvest.quote_info I ON L.quote_code = I.quote_code "
-        "ORDER BY FIELD(L.query_type, 'INDEX_KR', 'INDEX_EX', 'FX'), L.quote_query"))).all()
+        "ORDER BY FIELD(L.query_type, 'INDEX_KR', 'INDEX_EX', 'INDEX_WORLD', 'FX'), L.quote_query"))).all()
     if not rows:
         return []
 

@@ -214,7 +214,8 @@
             {#
               ── 최근 공시 ───────────────────────────────────────────────
               구독 종목(순위·히트맵과 같은 범위)의 **주요** 공시 8건 — OpenDART(`app/services/dart.py`).
-              지분 신고·증권 발행 서류·행정 공시는 뺀다. 제목은 쉬운 말(`dart.RULES`)로 보인다. 누르면 종목 상세로 간다(원문 링크는 거기 공시 카드에 있다).
+              지분 신고·증권 발행 서류·행정 공시는 뺀다. 제목은 쉬운 말(`dart.RULES`)로 보인다.
+              AI 요약(숫자 대조를 통과한 것만)이 있으면 제목 아래 두 줄까지 붙는다. 누르면 종목 상세로 간다(원문 링크는 거기 공시 카드에 있다).
             #}
             {% if disclosures %}
             <section class="sh-card sh-insights sh-disc" aria-labelledby="shDiscTitle">
@@ -228,6 +229,7 @@
                             <span class="sh-disc__body">
                                 <span class="sh-disc__name">{{ d.name }}</span>
                                 <span class="sh-insights__title"><em class="sh-disc__cat">{{ d.category_label }}</em>{% if d.tag %}<em class="sh-disc__tag">{{ d.tag }}</em>{% endif %}{{ d.label }}</span>
+                                {% if d.summary %}<span class="sh-disc__sum"><em class="sh-disc__ai">AI 요약</em>{{ d.summary }}</span>{% endif %}
                             </span>
                             <time datetime="{{ d.date.isoformat() }}">{{ d.date.strftime('%m.%d') }}</time>
                         </a>

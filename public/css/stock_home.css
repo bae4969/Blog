@@ -464,3 +464,26 @@
     font-style: normal;
     font-weight: 700;
 }
+
+/* AI 요약 — 두 줄까지. 전체는 종목 상세의 공시 카드에서 펼쳐 읽는다. */
+.sh-disc__sum {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.sh-disc__ai {
+    margin-inline-end: 0.375rem;
+    padding: 0 0.3125rem;
+    border: 1px solid color-mix(in srgb, var(--bae-accent-text) 45%, transparent);
+    border-radius: 0.25rem;
+    color: var(--bae-accent-text);
+    font-size: 0.6875rem;
+    font-style: normal;
+    font-weight: 700;
+}

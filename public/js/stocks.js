@@ -196,7 +196,7 @@ function updateCurrentPriceFromCandles(data) {
     const infoPriceEl = document.getElementById('currentPriceInfoValue');
     if (infoPriceEl) infoPriceEl.textContent = formatPriceValueOnly(latestClose);
 
-    // 종목 상세의 "전일 대비" 줄도 같이 고친다 — 가격만 바뀌면 둘이 어긋난다(2026-09-23).
+    // 종목 상세의 "전일 대비"(코인·환율은 "24시간 대비") 줄도 같이 고친다 — 가격만 바뀌면 둘이 어긋난다(2026-09-23).
     const changeEl = document.getElementById('currentPriceChange');
     const prev = changeEl ? parseFloat(changeEl.dataset.prev) : NaN;
     const valueEl = changeEl && changeEl.querySelector('[data-change]');

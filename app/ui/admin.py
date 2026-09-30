@@ -850,8 +850,9 @@ async def wol_delete(request: Request, csrf_token: str = Form(""), device_id: in
 #    반대로 **새 크로스 환산은 이 화면에서 만들 수 없다**(DB 에서 직접 넣어야 한다).
 
 #: `quote_info.quote_category` → `quote_last_rest_query.query_type`.
-_QUOTE_TYPE_BY_CATEGORY = {"KR_INDEX": "INDEX_KR", "EX_INDEX": "INDEX_EX", "FX": "FX"}
-_QUOTE_CATEGORIES = ("KR_INDEX", "EX_INDEX", "FX")
+#: `EX_INDEX` 는 미국 지수, `WORLD_INDEX` 는 그 밖의 세계지수(닛케이·항셍·DAX…, 2026-10-01 ticker 가 나눴다).
+_QUOTE_TYPE_BY_CATEGORY = {"KR_INDEX": "INDEX_KR", "EX_INDEX": "INDEX_EX", "WORLD_INDEX": "INDEX_WORLD", "FX": "FX"}
+_QUOTE_CATEGORIES = ("KR_INDEX", "EX_INDEX", "WORLD_INDEX", "FX")
 _QUOTE_PER_PAGE = 100
 #: 폴링은 60초마다 대상 수만큼 REST 를 부르고 **키 하나로만** 돈다(초당 ~9.5회). 200건이면
 #: 한 주기의 3분의 1을 쓴다 — 그 위로는 주기를 못 채우므로 여기서 막는다.

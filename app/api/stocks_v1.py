@@ -14,12 +14,12 @@
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import bindparam, text
 
 from app.db.session import db_session
-from app.schemas.stock import (Candle, Disclosure, Execution, Financials, Fundamentals, HeatmapItem,
-                               MarketStat, StockOut, TopStock)
+from app.schemas.stock import (Candle, Disclosure, DisclosureDetail, Execution, Financials, Fundamentals,
+                               HeatmapItem, MarketStat, StockOut, TopStock)
 from app.services import dart
 from app.schemas import Page
 from app.ui.stocks import (
@@ -201,6 +201,16 @@ async def disclosures(
         total, items = await dart.disclosures(db, code[:32], kind, page, size)
     return Page[Disclosure](items=items, total=total, page=page, size=size,
                             pages=max(1, (total + size - 1) // size))
+
+
+@router.get("/{code}/disclosures/{rcept_no}", response_model=DisclosureDetail, summary="공시 원문·AI 요약")
+async def disclosure_detail(code: str, rcept_no: str = Path(pattern=r"^\d{14}$")):
+    """읽기 쉽게 편 원문(항목·값 표 또는 본문)과 AI 요약. 상장사 수시공시만, 접수 15~20분 뒤부터 있다."""
+    async with db_session() as db:
+        d = await dart.disclosure_detail(db, code[:32], rcept_no)
+    if d is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원문이 없는 공시입니다")
+    return d
 
 
 @router.get("/{code}/financials", response_model=Financials, summary="분기 실적")

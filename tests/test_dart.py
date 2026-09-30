@@ -106,11 +106,23 @@ def test_등락률은_공시일_이후_첫_거래일():
     assert dart._reaction(closes, date(2026, 8, 25)) is None     # 아직 반영 전
 
 
+def test_원문은_항목표가_없을_때만_본문을_내고_길면_자른다():
+    from types import SimpleNamespace as Row
+    form = dart._readable(Row(doc_format="xforms", fields_json='[["1. 계약 > 금액(원)", "44,472"], ["", "a | b"]]',
+                              body=None))
+    assert form["fields"] == [{"name": "1. 계약 > 금액(원)", "value": "44,472"}, {"name": "", "value": "a | b"}]
+    assert form["body"] is None and form["body_truncated"] is False
+    doc = dart._readable(Row(doc_format="document", fields_json=None, body="가" * (dart.BODY_CAP + 1)))
+    assert doc["fields"] == [] and len(doc["body"]) == dart.BODY_CAP and doc["body_truncated"] is True
+    assert dart._readable(Row(doc_format="document", fields_json=None, body="짧다"))["body_truncated"] is False
+
+
 def test_경로와_잘못된_kind():
     paths = set(app.openapi()["paths"])
     assert {"/api/v1/stocks/{code}/fundamentals", "/api/v1/stocks/{code}/disclosures",
-            "/api/v1/stocks/{code}/financials"} <= paths
+            "/api/v1/stocks/{code}/disclosures/{rcept_no}", "/api/v1/stocks/{code}/financials"} <= paths
     with TestClient(app, raise_server_exceptions=False) as c:
         assert c.get("/api/v1/stocks/005930/disclosures?kind=bad").status_code == 422
         assert c.get("/api/v1/stocks/005930/disclosures?size=101").status_code == 422
         assert c.get("/api/v1/stocks/005930/financials?limit=41").status_code == 422
+        assert c.get("/api/v1/stocks/005930/disclosures/2026abc").status_code == 422

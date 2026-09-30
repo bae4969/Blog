@@ -586,17 +586,128 @@
     border-block-start: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
 }
 
-.sd-disc__list a {
+/* 한 건 — 읽기 쉬운 원문이 있으면 펼치는 버튼, 없으면 DART 로 가는 링크(`stock_disclosures.js`). */
+.sd-disc__row {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    inline-size: 100%;
     padding: var(--space-3, 0.75rem) var(--space-2, 0.5rem);
+    border: 0;
     border-radius: 0.5rem;
+    background: none;
     color: inherit;
+    font: inherit;
+    text-align: start;
     text-decoration: none;
+    cursor: pointer;
 }
 
-.sd-disc__list a:hover { background: var(--bae-surface-hover); }
+.sd-disc__row:hover { background: var(--bae-surface-hover); }
+
+.sd-disc__chev {
+    flex: 0 0 auto;
+    align-self: center;
+    color: var(--bae-text-dim);
+    transition: transform 0.15s;
+}
+
+.sd-disc__row[aria-expanded="true"] .sd-disc__chev { transform: rotate(180deg); }
+
+/* AI 요약 — 접혀 있을 땐 두 줄까지, 펼치면 전부. 25.dart 가 숫자를 원문과 대조해 통과한 것만 온다. */
+.sd-disc__sum {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.sd-disc__row[aria-expanded="true"] .sd-disc__sum { display: block; }
+
+.sd-disc__ai {
+    margin-inline-end: 0.375rem;
+    padding: 0.0625rem 0.375rem;
+    border: 1px solid color-mix(in srgb, var(--bae-accent-text) 45%, transparent);
+    border-radius: 0.25rem;
+    color: var(--bae-accent-text);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 펼친 자리 — 정정 전 → 후, 핵심 사실(AI), 원문 항목·값 표 또는 본문, DART 링크. */
+.sd-disc__panel {
+    display: grid;
+    gap: var(--space-2, 0.5rem);
+    padding: 0 var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    font-size: 0.8125rem;
+}
+
+.sd-disc__panel[hidden] { display: none; }
+
+.sd-disc__sub {
+    margin: var(--space-1, 0.25rem) 0 0;
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.sd-disc__pairs {
+    display: grid;
+    grid-template-columns: minmax(6rem, 2fr) 3fr;
+    margin: 0;
+    border: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+    border-radius: 0.5rem;
+    overflow-wrap: anywhere;
+}
+
+.sd-disc__pairs > dt,
+.sd-disc__pairs > dd {
+    margin: 0;
+    padding: 0.375rem 0.5rem;
+    border-block-start: 1px solid color-mix(in srgb, var(--bae-border) 60%, transparent);
+}
+
+.sd-disc__pairs > dt:first-of-type,
+.sd-disc__pairs > dd:first-of-type { border-block-start: 0; }
+
+.sd-disc__pairs > dt {
+    background: var(--bae-bg-alt);
+    color: var(--bae-text-dim);
+}
+
+.sd-disc__pairs > dd {
+    color: var(--bae-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-disc__pairs--ai { border-color: color-mix(in srgb, var(--bae-accent-text) 35%, transparent); }
+
+.sd-disc__pairs del { color: var(--bae-text-dim); }
+.sd-disc__pairs ins { font-weight: 700; text-decoration: none; }
+
+.sd-disc__body {
+    margin: 0;
+    color: var(--bae-text-primary);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.sd-disc__note {
+    margin: 0;
+    color: var(--bae-text-dim);
+}
+
+.sd-disc__origin {
+    justify-self: start;
+    color: var(--bae-accent-text);
+    font-weight: 700;
+}
 
 .sd-disc__head {
     display: flex;
