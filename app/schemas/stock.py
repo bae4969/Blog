@@ -136,6 +136,41 @@ class Disclosure(BaseModel):
     reaction: float | None = Field(default=None, description="반영된 날의 등락률(%). 장 마감 뒤 공시는 다음 거래일")
     filer: str = Field(description="제출인 — 지분 신고는 보고자")
     url: str = Field(description="DART 원문")
+    summary: str | None = Field(default=None, description="AI 요약(1~2문장) — 숫자 대조를 통과한 것만. 최근 7일 공시에만 있다")
+    has_detail: bool = Field(default=False, description="읽기 쉬운 원문이 있다 — `/{code}/disclosures/{rcept_no}`")
+
+
+class DisclosureFact(BaseModel):
+    label: str
+    value: str
+
+
+class DisclosureChange(BaseModel):
+    """정정 공시의 바뀐 항목."""
+
+    item: str
+    before: str
+    after: str
+
+
+class DisclosureField(BaseModel):
+    name: str = Field(description="항목 — 상위 항목과 ' > ' 로 이어진다. 비어 있을 수 있다")
+    value: str = Field(description="값 — 한 줄에 여럿이면 ' | ' 로 이어진다")
+
+
+class DisclosureDetail(BaseModel):
+    """공시 한 건의 읽기 쉬운 원문과 AI 요약. 요약은 숫자 대조를 통과한 것만 나간다."""
+
+    rcept_no: str
+    url: str = Field(description="DART 원문")
+    summary: str | None = Field(default=None, description="AI 요약 — 판단·전망 없이 사실만")
+    model: str | None = Field(default=None, description="요약을 쓴 모델")
+    facts: list[DisclosureFact] = Field(default=[], description="AI 가 뽑은 핵심 사실")
+    changes: list[DisclosureChange] = Field(default=[], description="정정 전 → 후(정정 공시만)")
+    doc_format: str = Field(description="xforms 거래소 서식 · document DART 제출 문서")
+    fields: list[DisclosureField] = Field(default=[], description="원문의 항목·값 — 서식 공시")
+    body: str | None = Field(default=None, description="원문 본문(줄·표 칸 ' | ') — 항목 표가 없는 문서형만")
+    body_truncated: bool = Field(default=False, description="본문이 길어 잘렸다 — 나머지는 `url` 에서")
 
 
 class FinancialQuarter(BaseModel):
