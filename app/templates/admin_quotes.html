@@ -25,9 +25,9 @@
 <link rel="stylesheet" href="/css/stocks.css?v={{ static_v }}">
 {% endblock %}
 
-{% set category_labels = {'KR_INDEX': '국내지수', 'EX_INDEX': '해외지수', 'FX': '환율'} %}
-{# 분류 탭 아이콘 — 국내지수(차트선) · 해외지수(지구) · 환율(주고받는 화살표). #}
-{% set category_icons = {'KR_INDEX': 'line', 'EX_INDEX': 'globe', 'FX': 'cycle'} %}
+{% set category_labels = {'KR_INDEX': '국내지수', 'EX_INDEX': '미국지수', 'WORLD_INDEX': '세계지수', 'FX': '환율'} %}
+{# 분류 탭 아이콘 — 국내지수(차트선) · 미국지수(달러) · 세계지수(지구) · 환율(주고받는 화살표). #}
+{% set category_icons = {'KR_INDEX': 'line', 'EX_INDEX': 'dollar', 'WORLD_INDEX': 'globe', 'FX': 'cycle'} %}
 
 {% macro query_base(c=none, p=none) -%}
     {%- set parts = ['category=' ~ (c or category)|urlencode] -%}

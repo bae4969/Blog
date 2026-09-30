@@ -201,9 +201,9 @@ class QuoteOut(BaseModel):
 
     code: str = Field(description="`quote_last_rest_query.quote_query`. 저장 식별자이자 테이블명")
     name: str
-    category: str = Field(description="INDEX_KR·INDEX_EX·FX")
+    category: str = Field(description="INDEX_KR 국내지수 · INDEX_EX 미국지수 · INDEX_WORLD 세계지수 · FX 환율")
     price: float | None = None
     prev_price: float | None = None
     change_pct: float | None = Field(default=None, description="수집 이력이 하루뿐이면 null")
-    at: datetime | None = Field(default=None, description="마지막 값의 시각. 해외지수는 현지시각")
+    at: datetime | None = Field(default=None, description="마지막 값의 시각. 미국·세계지수는 현지시각")
     spark: list[float] = Field(default_factory=list, description="마지막 거래일 종가 열 — 스파크라인용")

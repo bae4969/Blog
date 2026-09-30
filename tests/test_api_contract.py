@@ -480,12 +480,22 @@ class TestStockPriceSource:
         src = inspect.getsource(stocks._heatmap_rows)
         assert "si.stock_type = 'STOCK'" in src
 
+    def test_지수_환율_분류는_구독_화면과_카드가_같이_안다(self):
+        """분류를 늘릴 때 한쪽만 고치면 탭에서 켠 것이 카드에서 이름 없는 분류로 뜬다(2026-10-01 세계지수)."""
+        from app.ui import admin, quotes
+
+        assert set(admin._QUOTE_TYPE_BY_CATEGORY) == set(admin._QUOTE_CATEGORIES)
+        assert set(admin._QUOTE_TYPE_BY_CATEGORY.values()) == set(quotes._CATEGORY_LABEL)
+        assert admin._QUOTE_TYPE_BY_CATEGORY["WORLD_INDEX"] == "INDEX_WORLD"
+
     def test_지수와_환율_카드_표시순서(self):
         from app.ui.quotes import _quote_sort_key
 
         rows = [
             {"category": "FX", "code": "KRWCNY"},
+            {"category": "INDEX_WORLD", "code": "JPNI225"},
             {"category": "INDEX_EX", "code": "NDX"},
+            {"category": "INDEX_WORLD", "code": "GRDAX"},
             {"category": "INDEX_KR", "code": "KOSDAQ"},
             {"category": "FX", "code": "KRWUSD"},
             {"category": "INDEX_KR", "code": "KOSPI"},
@@ -499,7 +509,7 @@ class TestStockPriceSource:
         ]
 
         assert [r["code"] for r in sorted(rows, key=_quote_sort_key)] == [
-            "KOSPI", "KOSPI200", "KOSDAQ", "SPX", "COMP", "NDX",
+            "KOSPI", "KOSPI200", "KOSDAQ", "SPX", "COMP", "NDX", "GRDAX", "JPNI225",
             "KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR",
         ]
 
