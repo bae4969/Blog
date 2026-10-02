@@ -43,6 +43,14 @@ _INDEX_LABEL = {
     "KOSPI": "코스피",
     "KOSDAQ": "코스닥",
     "KOSPI200": "코스피 200",
+    "JPNI225": "닛케이 225",
+    "SHANG": "상해종합",
+    "HKHS": "항셍",
+    "TWWT": "대만 가권",
+    "INBOMBAY": "인도 SENSEX",
+    "SX5E": "유로스톡스 50",
+    "GRDAX": "독일 DAX",
+    "GBFTSE": "영국 FTSE 100",
 }
 
 #: 환율 라벨 조립용 통화명. `quote_query` 가 `KRW`+통화코드 꼴이다.
@@ -71,7 +79,9 @@ _CATEGORY_LABEL = {
 _QUOTE_DISPLAY_ORDER = {
     "INDEX_KR": ("KOSPI", "KOSPI200", "KOSDAQ"),
     "INDEX_EX": ("SPX", "COMP", "NDX"),
-    "FX": ("KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR"),
+    "INDEX_WORLD": ("JPNI225", "SHANG", "HKHS", "TWWT", "INBOMBAY", "SX5E", "GRDAX", "GBFTSE"),
+    "FX": ("KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR",
+           "KRWAUD", "KRWCAD", "KRWCHF", "KRWHKD", "KRWSGD", "KRWTWD"),
 }
 
 

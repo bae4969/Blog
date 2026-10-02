@@ -509,7 +509,7 @@ class TestStockPriceSource:
         ]
 
         assert [r["code"] for r in sorted(rows, key=_quote_sort_key)] == [
-            "KOSPI", "KOSPI200", "KOSDAQ", "SPX", "COMP", "NDX", "GRDAX", "JPNI225",
+            "KOSPI", "KOSPI200", "KOSDAQ", "SPX", "COMP", "NDX", "JPNI225", "GRDAX",
             "KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR",
         ]
 
