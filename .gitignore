@@ -19,3 +19,6 @@ public/uploads/
 # 파이썬 바이트코드 — 컨테이너가 실행하며 만든다. 커밋에 딸려 들어간 적 있다.
 __pycache__/
 *.pyc
+.claude
+.agents/
+.codex/hooks.json

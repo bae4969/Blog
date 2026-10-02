@@ -1,25 +1,27 @@
 /*
   회전 카드 — 768px 이하에서 목록을 한 장씩 보여주고 자동으로 넘긴다.
-  (`/stocks` 의 지수·환율 카드와 거래대금·포트폴리오 TOP10)
+  (`/stocks` 의 지수·환율 카드와 거래대금·포트폴리오 TOP10. 넓은 화면의 지수·환율 세트는
+  data-rotator-media 로 769px 이상에서 돈다)
 
   마크업은 템플릿이 갖는다(stocks_index.html):
     [data-rotator]              섹션. data-rotator-item(슬라이드 선택자) ·
-                                data-rotator-interval · data-rotator-delay (ms)
+                                data-rotator-interval · data-rotator-delay (ms) ·
+                                data-rotator-media (도는 화면 폭, 기본 768px 이하)
       .rotator-count            "n / N"
       [data-rotator-expand]     (있으면) 지금의 목록으로 펼치기
+      [data-rotator-prev|next]  (있으면) 앞·뒤 장으로
       [data-rotator-track]      슬라이드의 부모 — 768px 이하에서 가로 스냅 스크롤(stocks.css)
       .rotator-bar > i          다음 장까지 남은 시간
 
   - 넘기는 동작 자체는 브라우저의 스냅 스크롤이다. 손가락 스와이프를 따로 구현하지 않는다.
   - 목록을 그리는 JS(quotes.js·stocks_dashboard.js)는 이 모듈을 모른다. 트랙의 자식이
     바뀌면(시장 전환·다시 받기) 첫 장으로 돌아간다.
-  - 자동 넘김을 멈추는 때: 손을 댄 뒤 6초 · 화면 밖 · 탭 숨김 · 펼침 · 동작 줄이기 설정 ·
-    768px 초과.
+  - 자동 넘김을 멈추는 때: 손을 댄 뒤 6초 · 마우스를 올린 동안 · 화면 밖 · 탭 숨김 · 펼침 ·
+    동작 줄이기 설정 · data-rotator-media 밖.
 */
 (function () {
     'use strict';
 
-    var MOBILE = window.matchMedia('(max-width: 768px)');
     var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)');
     var HOLD_MS = 6000;
     var rotators = [];
@@ -33,6 +35,7 @@
         this.itemSel = root.dataset.rotatorItem || '*';
         this.interval = Number(root.dataset.rotatorInterval) || 4000;
         this.delay = Number(root.dataset.rotatorDelay) || 0;
+        this.media = window.matchMedia(root.dataset.rotatorMedia || '(max-width: 768px)');
         this.index = 0;
         this.timer = null;
         this.visible = true;
@@ -51,7 +54,7 @@
     };
 
     Rotator.prototype.active = function () {
-        return MOBILE.matches && !this.expanded;
+        return this.media.matches && !this.expanded;
     };
 
     Rotator.prototype.canAuto = function () {
@@ -149,8 +152,23 @@
         this.track.addEventListener('pointerdown', hold, { passive: true });
         this.track.addEventListener('pointerup', release, { passive: true });
         this.track.addEventListener('pointercancel', release, { passive: true });
+        // 마우스만 — 터치의 pointerenter 는 탭할 때 오고 떠날 때 안 와서 멈춘 채로 남는다.
+        this.root.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') hold(); });
+        this.root.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') release(); });
         this.root.addEventListener('focusin', hold);
         this.root.addEventListener('focusout', release);
+
+        function step(d) {
+            return function (event) {
+                event.preventDefault();
+                self.go(self.index + d, true);
+                self.schedule(HOLD_MS);
+            };
+        }
+        var prev = this.root.querySelector('[data-rotator-prev]');
+        var next = this.root.querySelector('[data-rotator-next]');
+        if (prev) prev.addEventListener('click', step(-1));
+        if (next) next.addEventListener('click', step(1));
 
         if (this.expandBtn) {
             this.expandBtn.addEventListener('click', function (event) {
@@ -180,11 +198,9 @@
         for (var i = 0; i < rotators.length; i++) fn(rotators[i]);
     }
 
-    function onModeChange() {
-        each(function (r) {
-            r.go(0, false);
-            r.restart();
-        });
+    function reset(r) {
+        r.go(0, false);
+        r.restart();
     }
 
     function listen(mq, fn) {
@@ -205,8 +221,8 @@
                 else r.restart();
             });
         });
-        listen(MOBILE, onModeChange);
-        listen(REDUCED, onModeChange);
+        each(function (r) { listen(r.media, function () { reset(r); }); });
+        listen(REDUCED, function () { each(reset); });
 
         // 폭이 바뀌면(가로 회전 등) 한 장 폭도 바뀐다 — 보던 장에 다시 맞춘다.
         var resizeTimer = null;

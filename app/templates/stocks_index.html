@@ -63,11 +63,26 @@
 
     {#
       지수·환율 — 화면 폭 전체를 쓴다(옆 칸에 넣으면 여섯 장이 140px 로 눌려 스파크라인이 뭉개진다).
-      모바일(768px 이하)에서는 두 섹션이 한 줄에 나란히 서서 카드를 한 장씩 넘긴다
-      (`/js/rotator.js`). 넓은 화면에서는 `.quote-rotator-row` 가 `display: contents` 라 없는 것과
-      같고, 제목·번호·진행바도 보이지 않는다.
+      카드 묶음(세트)은 `quotes.js` 의 `CARD_SETS` 가 정하고, 화면 폭에 따라 둘 중 하나만 보인다
+      (`/js/rotator.js` 가 넘긴다):
+        769px~   `.quote-sets` — 6장 한 줄이 세트 단위로 넘어간다.
+        ~768px   `.quote-rotator-row` — 지수·환율 두 섹션이 나란히 서서 카드를 한 장씩 넘긴다.
     #}
     <div class="sh-quotes">
+        <section class="quote-section quote-sets" aria-label="지수·환율"
+                 data-rotator data-rotator-item=".quote-set" data-rotator-interval="6000"
+                 data-rotator-media="(min-width: 769px)">
+            <div class="rotator-head">
+                <button type="button" class="c-btn" data-rotator-prev>{{ icons.i('prev') }}<span>이전</span></button>
+                <span class="rotator-count"></span>
+                <button type="button" class="c-btn" data-rotator-next>{{ icons.i('next') }}<span>다음</span></button>
+            </div>
+            <div class="quote-sets-track" id="quoteSetCards" data-rotator-track>
+                <div class="quote-empty">불러오는 중…</div>
+            </div>
+            <div class="rotator-bar"><i></i></div>
+        </section>
+
         <div class="quote-rotator-row">
             <section class="quote-section" data-rotator data-rotator-item=".quote-card" data-rotator-interval="4000">
                 <div class="rotator-head">
