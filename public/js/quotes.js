@@ -475,10 +475,32 @@
             + '</a>';
     }
 
-    function renderQuotes(rows) {
-        var idx = rows.filter(function (r) { return r.category !== 'FX'; });
-        var fx = rows.filter(function (r) { return r.category === 'FX'; });
+    // 카드로 띄우는 것과 그 묶음. 넓은 화면은 6장 한 줄이 세트 단위로 넘어가고, 모바일은
+    // 앞 두 세트를 지수로, 마지막 세트를 환율로 한 장씩 넘긴다. 여기 없는 것은 수집만 하고
+    // 카드로는 안 띄운다(나스닥 종합·코스피 200 과 새로 구독한 환율 6종 — 2026-10-03).
+    var CARD_SETS = [
+        ['KOSPI', 'KOSDAQ', 'SPX', 'NDX', 'JPNI225', 'SX5E'],
+        ['SHANG', 'HKHS', 'TWWT', 'INBOMBAY', 'GRDAX', 'GBFTSE'],
+        ['KRWUSD', 'KRWEUR', 'KRWGBP', 'KRWJPY', 'KRWCNY', 'KRWINR']
+    ];
 
+    function renderQuotes(rows) {
+        var byCode = {};
+        rows.forEach(function (r) { byCode[r.code] = r; });
+        // 아직 수집 전이라 API 에 없는 코드는 빠진다 — 세트가 통째로 비면 그 세트를 건너뛴다.
+        var sets = CARD_SETS.map(function (codes) {
+            return codes.map(function (c) { return byCode[c]; }).filter(Boolean);
+        });
+        var idx = sets[0].concat(sets[1]);
+        var fx = sets[2];
+
+        var setsEl = document.getElementById('quoteSetCards');
+        if (setsEl) {
+            var html = sets.filter(function (s) { return s.length; }).map(function (s) {
+                return '<div class="quote-card-grid quote-set">' + s.map(cardHtml).join('') + '</div>';
+            }).join('');
+            setsEl.innerHTML = html || '<div class="quote-empty">수집 중인 항목이 없습니다.</div>';
+        }
         fill('quoteIndexCards', idx);
         fill('quoteFxCards', fx);
 
