@@ -638,10 +638,13 @@
         boxEl.addEventListener('mousemove', moveTooltip);
         boxEl.addEventListener('mouseleave', hideTooltip);
 
-        window.addEventListener('resize', function () {
+        // 창 크기뿐 아니라 옆 칸 높이를 따라서도 판이 늘어난다(`stock_home.css`) — 판 자체를 지켜본다.
+        // 데이터가 오기 전에는 그리지 않는다(첫 호출이 "불러오는 중…" 을 "없습니다" 로 덮는다).
+        new ResizeObserver(function () {
+            if (!heatmapData.length) return;
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(renderHeatmap, 150);
-        });
+        }).observe(boxEl);
 
         loadQuotes();
         loadHeatmap();

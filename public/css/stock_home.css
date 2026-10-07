@@ -226,6 +226,19 @@
 
 @media (min-width: 1201px) {
     .sh-grid { grid-template-columns: minmax(0, 1fr) 20rem; }
+
+    /* 두 칸의 바닥을 맞춘다 — 왼쪽 칸을 줄 높이까지 늘이고 히트맵 판이 남는 높이를 채운다
+       (2026-10-07 사용자 지적 "하단 라인이 안 맞잖아"). 오른쪽 칸 길이는 TOP 10·인사이트·공시
+       내용에 따라 달라서 고정 높이로는 못 맞춘다.
+       ⚠️ 4:3(`quotes.css`)은 **최소 높이**로 남는다 — 판은 늘기만 하고 줄지 않는다.
+          판 높이가 바뀌면 `quotes.js` 가 `ResizeObserver` 로 타일을 다시 깐다. */
+    .sh-grid > .quotes-container { align-self: stretch; }
+    .sh-grid .heatmap-section {
+        display: flex;
+        flex-direction: column;
+        flex: 1 0 auto;
+    }
+    .sh-grid .heatmap-box { flex: 1 0 auto; }
 }
 
 /* ── 순위 표 ─────────────────────────────────────────────────────── */
