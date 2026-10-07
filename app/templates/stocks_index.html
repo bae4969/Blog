@@ -6,13 +6,11 @@
     오른쪽: 포트폴리오 TOP 10 · 최신 인사이트(금융 글)
 
   지수 카드와 히트맵은 `/js/quotes.js`, 순위 표는 `/js/stocks_dashboard.js` 가 공개 API 를 읽어
-  채운다. 서버는 시장 통계(탭)와 공개 포트폴리오만 그린다. 종목 검색은 상단바에 있다.
+  채운다. 서버는 공개 포트폴리오·인사이트·공시만 그린다. 종목 검색은 상단바에 있다.
 
-  ⚠️ **시장은 화면 하나의 상태다.** 순위 표의 시장 버튼(`[data-market-tab]`)과 히트맵 탭
-     (`.market-stat-item-h`)은 둘 다 `quotes.js` 가 잡고 함께 켜고 끈다 — 어느 쪽을 눌러도
-     히트맵·순위가 같이 바뀐다. 두 곳 모두 `#quotesRoot` **안에** 있어야 한다.
-  ⚠️ 히트맵 탭의 테두리 맞춤(`stocks.css` — 1px 어긋남을 잡은 자리)은 탭이
-     `.quotes-container` 의 **직계 자식**이라는 데 기대고 있다. 탭을 감싸지 말 것.
+  ⚠️ **시장은 화면 하나의 상태다.** 순위 표의 시장 버튼(`[data-market-tab]`)을 `quotes.js` 가 잡아
+     히트맵과 순위를 함께 바꾼다 — 버튼은 `#quotesRoot` **안에** 있어야 한다.
+     (히트맵 위에 따로 있던 시장 탭 띠는 같은 버튼이 둘이라 2026-10-07 에 걷었다.)
 #}
 {% extends "layout.html" %}
 {% import "_icons.html" as icons %}
@@ -24,17 +22,6 @@
 <link rel="stylesheet" href="/css/quotes.css?v={{ static_v }}">
 <link rel="stylesheet" href="/css/stock_home.css?v={{ static_v }}">
 {% endblock %}
-
-{% macro won(v) -%}
-{%- if not v -%}0
-{%- elif v >= 1e20 -%}{{ '{:,.2f}'.format(v / 1e20) }}해
-{%- elif v >= 1e16 -%}{{ '{:,.2f}'.format(v / 1e16) }}경
-{%- elif v >= 1e12 -%}{{ '{:,.2f}'.format(v / 1e12) }}조
-{%- elif v >= 1e8 -%}{{ '{:,.0f}'.format(v / 1e8) }}억
-{%- elif v >= 1e4 -%}{{ '{:,.0f}'.format(v / 1e4) }}만
-{%- else -%}{{ '{:,.0f}'.format(v) }}
-{%- endif -%}
-{%- endmacro %}
 
 {#
   시장 버튼 아이콘 — 원 안의 통화 기호(₩ · $ · ₿)를 선 하나로 그린다. 색은 `currentColor` 라
@@ -146,33 +133,7 @@
                 </ol>
             </section>
 
-            {#
-              ── 시장 지도 ────────────────────────────────────────────────
-              ⚠️ 아래 탭 띠와 히트맵 판은 `.quotes-container` 의 직계 자식으로 남겨 둔다(머리말 참조).
-            #}
             <h2 class="sh-section-title">{{ icons.i('map') }}시장 지도</h2>
-            <div class="market-stats-horizontal" aria-label="시장 선택">
-                {% for item in stats %}
-                {% if item.grp in ('KR', 'US', 'COIN') %}
-                <div class="market-stat-item-h market-{{ item.grp | lower }} {% if default_market == item.grp %}active{% endif %}"
-                     data-group="{{ item.grp }}" role="button" tabindex="0"
-                     aria-pressed="{{ 'true' if default_market == item.grp else 'false' }}">
-                    <div class="market-name">{{ market_symbol(item.grp) }}<span>{{ item.label }}</span></div>
-                    <div class="market-info">
-                        <span class="market-count">{{ '{:,}'.format(item.cnt) }}종목</span>
-                        {% if item.grp != 'COIN' %}
-                        <span class="market-sep">·</span>
-                        <span class="market-cap">
-                            {%- if item.grp == 'US' -%}${{ '{:,.2f}'.format((item.cap or 0) / 1e9) }}B
-                            {%- else -%}{{ won(item.cap or 0) }}
-                            {%- endif -%}
-                        </span>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-                {% endfor %}
-            </div>
 
             <section class="quote-section heatmap-section">
                 <div class="heatmap-box" id="heatmapBox">

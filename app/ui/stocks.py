@@ -373,29 +373,11 @@ async def stocks_index(request: Request):
     """지수·환율 카드 + 주식 히트맵 대시보드.
 
     종목 표는 2026-09-12 에 제거했다. 검색과 거래대금 TOP10은 화면이 뜬 뒤 공개 API를
-    읽으므로, 여기서는 시장 통계 카드·공개 포트폴리오와 공통 레이아웃만 조회한다.
+    읽으므로, 여기서는 공개 포트폴리오·인사이트·공시와 공통 레이아웃만 조회한다.
     """
     market = _norm_market(request.query_params.get("market")) or _default_market()
 
     async with db_session() as db:
-        stats = (await db.execute(text(
-            "SELECT CASE WHEN si.stock_market IN :kr THEN 'KR' "
-            "            WHEN si.stock_market IN :us THEN 'US' ELSE 'ETC' END AS grp, "
-            "       CASE WHEN si.stock_market IN :kr THEN '한국' "
-            "            WHEN si.stock_market IN :us THEN '미국' ELSE '기타' END AS label, "
-            "       COUNT(*) AS cnt, SUM(si.stock_capitalization) AS cap "
-            "FROM KoreaInvest.stock_info si "
-            "INNER JOIN (SELECT DISTINCT stock_code FROM KoreaInvest.stock_last_ws_query) w "
-            "  ON si.stock_code = w.stock_code "
-            "GROUP BY grp, label "
-            "UNION ALL "
-            "SELECT 'COIN', '코인', COUNT(*), NULL "
-            "FROM Bithumb.coin_info ci "
-            "INNER JOIN (SELECT DISTINCT coin_code FROM Bithumb.coin_last_ws_query) c "
-            "  ON ci.coin_code = c.coin_code "
-            "ORDER BY FIELD(grp, 'KR', 'US', 'COIN', 'ETC')")
-            .bindparams(bindparam("kr", expanding=True), bindparam("us", expanding=True)),
-            {"kr": list(_KR_MARKETS), "us": list(_US_MARKETS)})).all()
         # 최신 인사이트(금융 글) — 토스증권 홈의 "뉴스" 자리. 접근 규칙은 글 목록과 **같다**
         # (`category_read_level >= 내 등급`, 관리자(0·1)가 아니면 공개 글만) — 여기서만 다르면
         # 목록에서는 안 보이는 글이 홈에 새어 나온다.
@@ -420,7 +402,7 @@ async def stocks_index(request: Request):
         "stocks_index.html",
         {
             **ctx, "is_stock_page": True, "hide_sidebar": True,
-            "stats": stats, "portfolios": portfolios, "default_market": market,
+            "portfolios": portfolios, "default_market": market,
             "insights": insights, "disclosures": disclosures,
         },
     )

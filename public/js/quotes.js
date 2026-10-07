@@ -604,8 +604,8 @@
         boxEl = document.getElementById('heatmapBox');
         tooltipEl = document.getElementById('heatmapTooltip');
         legendEl = document.getElementById('heatmapLegend');
-        // `[data-market-tab]` — 홈 순위 표의 시장 버튼. 히트맵 탭과 한 상태를 공유한다.
-        tabEls = rootEl.querySelectorAll('.market-stat-item-h[data-group], .heatmap-tab, [data-market-tab]');
+        // `[data-market-tab]` — 홈 순위 표의 시장 버튼. 히트맵도 이 상태를 따른다.
+        tabEls = rootEl.querySelectorAll('[data-market-tab]');
 
         var d = (rootEl.dataset.market || '').toUpperCase();
         market = GROUPS.indexOf(d) >= 0 ? d : 'KR';
@@ -616,12 +616,6 @@
         for (var i = 0; i < tabEls.length; i++) {
             tabEls[i].addEventListener('click', function () {
                 setMarket(this.dataset.group);
-            });
-            tabEls[i].addEventListener('keydown', function (event) {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setMarket(this.dataset.group);
-                }
             });
         }
 
@@ -644,10 +638,13 @@
         boxEl.addEventListener('mousemove', moveTooltip);
         boxEl.addEventListener('mouseleave', hideTooltip);
 
-        window.addEventListener('resize', function () {
+        // 창 크기뿐 아니라 옆 칸 높이를 따라서도 판이 늘어난다(`stock_home.css`) — 판 자체를 지켜본다.
+        // 데이터가 오기 전에는 그리지 않는다(첫 호출이 "불러오는 중…" 을 "없습니다" 로 덮는다).
+        new ResizeObserver(function () {
+            if (!heatmapData.length) return;
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(renderHeatmap, 150);
-        });
+        }).observe(boxEl);
 
         loadQuotes();
         loadHeatmap();

@@ -36,10 +36,6 @@
     background: transparent;
 }
 
-.quotes-container > .market-stats-horizontal {
-    margin-bottom: -6px;
-}
-
 .quote-empty {
     padding: 24px 12px;
     text-align: center;
