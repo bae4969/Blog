@@ -82,6 +82,9 @@ def test_변경_요약은_서버가_센다():
 def test_프롬프트에_문서와_시각이_들어간다():
     p = ip.system_prompt(_doc(), datetime(2026, 10, 10, 9, 0))
     assert "2026-10-10 09:00" in p and '"fomc"' in p
+    body = p.split("```json\n", 1)[1].split("\n```", 1)[0]     # 실린 뼈대 JSON
+    assert '"holdings":[{"kind":"stock"' in body          # 지금 보유는 싣는다
+    assert '"condition"' not in body and '"holdings":null' not in body and '"about"' not in body   # 노드 상세 칸은 싣지 않는다
 
 
 class TestOwner:
@@ -131,3 +134,29 @@ def test_대화는_글로_펴고_이미지는_따로():
     ])
     assert prompt == "지시\n\n[상담가]\n이전 답\n\n[사용자]\n이걸 읽어 줘"
     assert images == ["data:image/png;base64,AAAA"]
+
+
+class TestRetrospect:
+    """복기 — 지난 이벤트의 가지마다 그때(이벤트 시각 시세)→지금(오늘 시세)."""
+
+    def test_그때와_지금_평가(self):
+        doc = _doc()   # fomc(2026-10-29) 아래 cut(삼성전자 20주)·hold(부모 그대로)
+        now = ip.valuate(doc, {"005930": 120.0, "TLT": 2.0}, {}, 1000.0)
+        then = {"fomc": ip.valuate(doc, {"005930": 100.0, "TLT": 2.0}, {}, 1000.0)}
+        r = ip.retrospect(doc, now, then)
+        assert r["cut"]["then"] == 2000.0 and r["cut"]["now"] == 2400.0
+        assert r["cut"]["change"] == 400.0 and round(r["cut"]["pct"], 1) == 20.0 and r["cut"]["missing"] == 0
+        assert r["hold"]["change"] == 200.0          # 삼성전자 10주 × 20원
+        assert set(r) == {"cut", "hold"}
+
+    def test_그때_시세가_없으면_빠진_수를_센다(self):
+        doc = _doc()
+        r = ip.retrospect(doc, ip.valuate(doc, {"005930": 120.0, "TLT": 2.0}, {}, 1000.0),
+                          {"fomc": ip.valuate(doc, {"005930": 100.0}, {}, None)})   # TLT·환율 없음
+        assert r["hold"]["missing"] == 1
+
+    def test_지난_이벤트만(self):
+        from datetime import datetime, timedelta, timezone
+        kst = timezone(timedelta(hours=9))
+        assert [e.id for e in ip.past_events(_doc(), datetime(2026, 10, 29, 3, 0, tzinfo=kst))] == ["fomc"]
+        assert ip.past_events(_doc(), datetime(2026, 10, 29, 2, 59, tzinfo=kst)) == []

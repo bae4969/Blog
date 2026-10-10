@@ -81,6 +81,9 @@ WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set")
 TOOLS = [
     {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율).",
      "inputSchema": _obj()},
+    {"annotations": _RO, "name": "node_get",
+     "description": "노드 하나의 모든 칸(개요·예상·조건·액션·보유 등)과 그 시점 평가(오늘 시세), 지난 이벤트면 복기.",
+     "inputSchema": _obj({"id": {"type": "string"}}, ["id"])},
     {"annotations": _RO, "name": "plan_revisions", "description": "계획 버전 이력(최근 것부터 최대 50개) — 번호·시각·바뀐 것 요약. 보유 변화를 볼 때 쓴다.",
      "inputSchema": _obj()},
     {"annotations": _RO, "name": "plan_revision_get", "description": "특정 버전의 계획 문서와 평가(평가는 오늘 시세 기준).",
@@ -117,6 +120,12 @@ async def _call(db, user_index: int, name: str, args: dict):
 
     if name == "plan_get":
         return await plan_view(db, await latest_rev(db, user_index))
+    if name == "node_get":
+        view = await plan_view(db, await latest_rev(db, user_index))
+        node = next((n for n in view["doc"]["nodes"] if n["id"] == args.get("id")), None)
+        if node is None:
+            raise ValueError(f"없는 노드입니다: {args.get('id')}")
+        return {"node": node, "value": view["values"].get(node["id"]), "retro": view["retro"].get(node["id"])}
     if name == "plan_revisions":
         rows = (await db.execute(text(
             "SELECT rev_id, summary, created_at FROM invest_plan_rev WHERE user_index = :u "

@@ -34,9 +34,9 @@ def test_초기화와_도구_목록():
     init = _rpc(t, "initialize", {"protocolVersion": "2025-06-18"}).json()["result"]
     assert init["protocolVersion"] == "2025-06-18" and "tools" in init["capabilities"]
     names = [x["name"] for x in _rpc(t, "tools/list").json()["result"]["tools"]]
-    assert names == ["plan_get", "plan_revisions", "plan_revision_get", "quotes_get", "stock_search",
+    assert names == ["plan_get", "node_get", "plan_revisions", "plan_revision_get", "quotes_get", "stock_search",
                      "node_add", "node_update", "node_delete", "holdings_set"]
-    assert set(plan_mcp.WRITE_TOOLS) == set(names[5:])
+    assert set(plan_mcp.WRITE_TOOLS) == set(names[6:])
     plan_mcp.revoke(t)
 
 

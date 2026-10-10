@@ -17,10 +17,11 @@ codex 는 대화를 기억하지 않아 매번 시스템 프롬프트(지금 계
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.api import plan_mcp
 from app.api.deps import bearer_user
@@ -29,7 +30,7 @@ from app.core.config import settings
 from app.db.session import db_session
 from app.services import codex_runner
 from app.services import invest_plan as ip
-from app.ui.stocks import _latest_quotes
+from app.ui.stocks import _candle_candidates, _latest_quotes
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
@@ -66,22 +67,71 @@ async def _save_rev(db, user_index: int, doc: ip.PlanDoc, summary: str) -> int:
     return res.lastrowid
 
 
+_ET = ZoneInfo("America/New_York")
+
+
+async def _closes_at(db, items: list[tuple[str, str, bool]], at: datetime) -> dict[str, float]:
+    """`(코드, 접두사, 미국 종목?)` → 그 시각 **이전 마지막 종가**. 캔들이 없으면 키가 없다.
+
+    ⚠️ 미국 종목 캔들의 시각은 현지(ET), 나머지(국내·코인·환율)는 KST 다 — 기준 시각을 종목마다 맞춰 비교한다.
+    """
+    want: dict[str, tuple[str, bool]] = {}
+    for code, prefix, us in items:
+        for cand in _candle_candidates(code, prefix):
+            want.setdefault(cand, (code, us))
+    if not want:
+        return {}
+    found = (await db.execute(text(
+        "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'candle' AND TABLE_NAME IN :n")
+        .bindparams(bindparam("n", expanding=True)), {"n": list(want)})).all()
+    picked: dict[str, tuple[str, bool]] = {}
+    for (tbl,) in found:
+        code, us = want[tbl]
+        picked.setdefault(code, (tbl, us))
+    at_kst = at.astimezone(_KST).replace(tzinfo=None)
+    at_et = at.astimezone(_ET).replace(tzinfo=None)
+    parts, params = [], {"kst": at_kst, "et": at_et}
+    for i, (code, (tbl, us)) in enumerate(picked.items()):
+        if not tbl.replace("_", "").isalnum():   # information_schema 가 준 이름이지만 한 번 더
+            continue
+        params[f"c{i}"] = code
+        parts.append(f"SELECT :c{i} AS code, (SELECT execution_close FROM `candle`.`{tbl}` WHERE execution_datetime <= "
+                     f"{':et' if us else ':kst'} ORDER BY execution_datetime DESC LIMIT 1) AS close_price")
+    if not parts:
+        return {}
+    rows = (await db.execute(text(" UNION ALL ".join(parts)), params)).all()
+    return {code: float(c) for code, c in rows if c is not None}
+
+
 async def plan_view(db, row) -> dict:
-    """문서 + 노드마다 원화 평가. 미래 노드도 오늘 시세로 환산한다(비율을 보라는 뜻)."""
+    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 그리고 지난 이벤트의 복기."""
     doc = _doc_of(row)
     stocks, coins = ip.price_pairs(doc)
     sq = await _latest_quotes(db, [(c, "s") for c in stocks])
     cq = await _latest_quotes(db, [(c, "c") for c in coins])
     fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
     usdkrw = fx["close"] if fx else None
+    values = ip.valuate(doc, {k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, usdkrw)
+
+    # 복기 — 지난 이벤트마다 그 시각의 종가로 다시 평가한다(같은 시각의 이벤트는 한 번만 읽는다).
+    us_codes = {h.code for h in ip._all_holdings(doc) if h.code and h.market == "US"}
+    then_values, cache = {}, {}
+    for ev in ip.past_events(doc, datetime.now(_KST)):
+        at = ip._kst(ev.at)
+        if at not in cache:
+            px = await _closes_at(db, [(c, "s", c in us_codes) for c in stocks] + [(c, "c", False) for c in coins]
+                                  + [("KRWUSD", "f", False)], at)
+            cache[at] = ip.valuate(doc, {c: px[c] for c in stocks if c in px}, {c: px[c] for c in coins if c in px},
+                                   px.get("KRWUSD"))
+        then_values[ev.id] = cache[at]
     return {
         "rev_id": row.rev_id if row else None,
         "summary": row.summary if row else "",
         "updated_at": row.created_at.isoformat() if row else None,
         "usdkrw": usdkrw,
         "doc": doc.model_dump(mode="json"),
-        "values": ip.valuate(doc, {k: v["close"] for k, v in sq.items()},
-                             {k: v["close"] for k, v in cq.items()}, usdkrw),
+        "values": values,
+        "retro": ip.retrospect(doc, values, then_values),
     }
 
 

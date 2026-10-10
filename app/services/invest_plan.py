@@ -177,6 +177,32 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
 
 
 # ---------------------------------------------------------------------------
+# 복기 — 날짜가 지난 이벤트의 가지마다 "그때(이벤트 시각 시세) → 지금(오늘 시세)" 평가(2026-10-10 사용자 요청)
+# ---------------------------------------------------------------------------
+
+def past_events(doc: PlanDoc, now: datetime) -> list[Node]:
+    return [n for n in doc.nodes if n.kind == "event" and _kst(n.at) <= now]
+
+
+def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> dict[str, dict]:
+    """`then_values` 는 지난 이벤트 id → 그 이벤트 시각의 시세로 낸 `valuate` 결과.
+
+    가지마다 {event, at, then, now, change, pct, missing}. 가지의 보유는 **계획상 수량**이라 실제 체결과 다를 수 있다.
+    `missing` 은 그때 시세가 없어 평가에서 빠진 보유 수(상장 전·환율 데이터 시작 전 등) — 0 이 아니면 값이 덜 잡혔다.
+    """
+    by_id = {n.id: n for n in doc.nodes}
+    out = {}
+    for ev_id, vals in then_values.items():
+        ev = by_id[ev_id]
+        for b in (n for n in doc.nodes if n.kind == "branch" and n.parent == ev_id):
+            then, now = vals[b.id]["total"], now_values[b.id]["total"]
+            out[b.id] = {"event": ev_id, "at": _kst(ev.at).isoformat(), "then": then, "now": now,
+                         "change": now - then, "pct": (now / then - 1) * 100 if then else None,
+                         "missing": sum(1 for r in vals[b.id]["rows"] if r["value"] is None)}
+    return out
+
+
+# ---------------------------------------------------------------------------
 # AI 상담 — 프롬프트와 답 해석
 # ---------------------------------------------------------------------------
 
@@ -192,7 +218,8 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   필요하면 그 아래 다음 이벤트를 이어 붙인다. 일정·결과를 모르면 웹에서 확인할 수 있으면 확인하고, 아니면 묻는다.
 
 ## 블로그 도구(MCP `blog`)
-- 조회: plan_get(지금 계획과 노드별 평가 — 오늘 시세 원화 환산·환율), plan_revisions / plan_revision_get(버전 이력과 그때의 보유),
+- 조회: node_get(노드 하나의 모든 칸과 그 시점 평가·복기), plan_get(지금 계획 전체와 노드별 평가 — 오늘 시세 원화 환산·환율, 그리고 retro: 지난 이벤트의 가지마다
+  그때(이벤트 시각 시세)→지금 평가와 변화 — "지난 대응이 어땠나"는 이걸로 답한다), plan_revisions / plan_revision_get(버전 이력과 그때의 보유),
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
   숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
@@ -221,7 +248,8 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   - 앞을 내다보는 깊이는 이벤트 2~3개 정도로 둔다. 가지가 너무 늘지 않게 한다.
   - about·expect·condition 이 비어 있는 옛 노드를 보면, 계획을 고칠 때 함께 채운다. 모르는 일정·예상은 웹에서 확인하고 출처를 links 에 남긴다.
 
-## 지금 계획 문서
+## 지금 계획(뼈대)
+노드는 id·부모·종류·제목·시각·상태만 싣는다. 개요·예상·조건·액션·보유 같은 칸은 node_get(id) 이나 plan_get 으로 본다.
 ```json
 {doc}
 ```
@@ -231,9 +259,21 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
 """
 
 
+def outline(doc: PlanDoc) -> dict:
+    """프롬프트에 싣는 뼈대 — 지금 보유 + 노드의 id·부모·종류·제목·시각·상태.
+
+    계획 전체를 실으면 노드 160개에서 147KB 였다(깊이 시험 2026-10-10). 상세는 AI 가 MCP(node_get·plan_get)로 꺼낸다.
+    """
+    return {"as_of": doc.as_of and doc.as_of.isoformat(),
+            "holdings": [h.model_dump(mode="json", exclude_none=True) for h in doc.holdings],
+            "nodes": [{k: v for k, v in {"id": n.id, "parent": n.parent, "kind": n.kind, "title": n.title,
+                                         "at": n.at and n.at.isoformat(), "status": n.status}.items() if v is not None}
+                      for n in doc.nodes]}
+
+
 def system_prompt(doc: PlanDoc, now: datetime) -> str:
     return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"),
-                                doc=json.dumps(doc.model_dump(mode="json"), ensure_ascii=False, indent=1))
+                                doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
 
 
 def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
