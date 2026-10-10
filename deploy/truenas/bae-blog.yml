@@ -11,6 +11,7 @@ services:
     user: "1000:3000"
     volumes:
       - /mnt/nvme/90.service/blog_data/uploads:/app/public/uploads
+      - /mnt/nvme/90.service/blog_data/codex:/data/codex
     networks:
       - db_bridge
     restart: unless-stopped
@@ -18,7 +19,7 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 512M
+          memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 30s

@@ -18,6 +18,12 @@ COPY requirements-api.txt /tmp/blog-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/blog-requirements.txt \
     && rm /tmp/blog-requirements.txt
 
+# 투자 계획 AI — codex CLI(2026-10-10). 빌드할 때 그때의 최신을 깐다(배포마다 따라 올라간다 — 실행 중 자체 업데이트는 안 한다).
+# 실행 파일은 이미지(/opt/codex), 로그인(auth.json)은 볼륨(/data/codex — compose 가 blog_data/codex 를 붙인다)에 둔다.
+RUN curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_HOME=/opt/codex CODEX_INSTALL_DIR=/usr/local/bin sh \
+    && /usr/local/bin/codex --version
+ENV CODEX_HOME=/data/codex
+
 COPY --chown=1000:3000 app/ /app/app/
 COPY --chown=1000:3000 public/ /app/public/
 RUN mkdir -p /app/public/uploads && chown 1000:3000 /app/public/uploads
