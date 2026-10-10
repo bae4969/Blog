@@ -256,12 +256,20 @@
         var focus = focusId && (focusId === 'root' || byId[focusId]) ? focusId : defaultFocus(byId, eventsUnder, branchesOf);
         // 경로 위 이벤트의 **다른 가지**(채택되지 않은 쪽)도 크게 — 무엇과 갈렸는지 이름이 보여야 한다(사용자 요청).
         // 그 가지들의 자식은 작은 점 그대로다.
-        var big = { root: true };
+        var big = { root: true }, path = ['root'];
         for (var id = focus; id && id !== 'root'; id = byId[byId[id].parent].parent || 'root') {
+            path.push(id);
             branchesOf[byId[id].parent].forEach(function (b) { big[b.id] = true; });
         }
         big[focus] = true;
         kidsOf(focus).forEach(function (k) { big[k] = true; });
+        // 경로에 걸린 **결과 대기** 이벤트의 가지도 늘 크게 — 다음에 내릴 결정이다. (지난 이벤트를 나중에 따로 붙이면
+        // 기본 초점이 그쪽 채택 가지로 가서, 시작 아래 걸린 다가올 이벤트 가지가 작은 점으로만 보였다 — 처음부터 검증 2026-10-11)
+        path.forEach(function (pid) {
+            eventsUnder[pid].forEach(function (e) {
+                if (e.status === 'pending') branchesOf[e.id].forEach(function (b) { big[b.id] = true; });
+            });
+        });
 
         var rows = [{ key: 'root', at: null, events: [] }], rowOf = {};
         nodes.filter(function (n) { return n.kind === 'event'; })
@@ -318,7 +326,7 @@
         AXIS_W = axisWidth(rows);
         var budget = Math.max(0, treeEl.clientWidth - AXIS_W - 16), dotW = SMALL_W;
         // 필수(초점 경로와 그 형제 + 초점 아래 가지)만으로도 칸을 넘으면 줄여서 맞춘다 — 작은 점 간격부터, 그래도 넘으면 큰 원 칸까지.
-        var FITS = [[SLOT_W, SMALL_W], [SLOT_W, 16], [SLOT_W, 12], [SLOT_W, 8], [120, 8], [104, 8], [104, 6]];
+        var FITS = [[SLOT_W, SMALL_W], [SLOT_W, 16], [SLOT_W, 12], [SLOT_W, 8], [120, 8], [104, 8], [96, 6], [88, 6]];
         for (var f = 0; f < FITS.length; f++) {
             slotW = FITS[f][0];
             dotW = FITS[f][1];
