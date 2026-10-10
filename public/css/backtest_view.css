@@ -39,11 +39,6 @@
     line-height: 1.25;
 }
 
-.bt-sub {
-    margin: 0.125rem 0 0;
-    color: var(--bae-text-dim);
-    font-size: 0.8125rem;
-}
 
 .bt :is(.config-section, .total-score-card, .metric-card, .backtest-chart-section,
         .annual-returns-section, .trade-summary-section) {
