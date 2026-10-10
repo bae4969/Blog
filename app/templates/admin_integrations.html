@@ -1,0 +1,177 @@
+{#
+  외부 연동(2026-10-10) — AI(codex 로그인·모델)·SMTP. 설정 값은 DB `app_setting`, codex 로그인은 `CODEX_HOME/auth.json`.
+  ⚠️ Codex 로그인은 기기 코드 방식이다 — 링크에서 코드를 넣는 동안(최대 15분) 이 화면이 5초마다 새로 고쳐 결과를 본다.
+
+  ⚠️ 키·비밀번호 칸은 **늘 비어서 나간다**(서버가 값을 내보내지 않는다). 옆에 끝 4자리만 보이고,
+     비운 채 저장하면 원래 값을 그대로 둔다 — 바꿀 때만 새로 넣는다.
+  ⚠️ 시험 버튼은 **저장된 값**으로 시험한다. 고친 값은 먼저 저장할 것.
+#}
+{% extends "layout.html" %}
+{% import "_icons.html" as icons %}
+
+{% block title %}외부 연동 · Developer Notes{% endblock %}
+
+{% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+{# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
+    <div class="admin-card">
+        <h2>외부 연동</h2>
+        <form method="post" action="/admin/integrations" class="admin-form" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {# 칸 머리 — 제목 왼쪽, 그 칸의 버튼 오른쪽. 로그인·로그아웃은 상태 바로 위에 둔다(맨 아래 버튼 줄에선 찾기 어려웠다). #}
+            <div class="int-head">
+                <h3>AI (Codex)</h3>
+                <div class="int-actions">
+                    {% if codex.pending %}
+                    <button type="submit" class="btn" form="codexCancel">{{ icons.i('cancel') }}<span>Codex 로그인 취소</span></button>
+                    {% elif codex.logged_in %}
+                    <button type="submit" class="btn" form="codexLogout">{{ icons.i('logout') }}<span>Codex 로그아웃</span></button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary" form="codexLogin">{{ icons.i('login') }}<span>Codex 로그인</span></button>
+                    {% endif %}
+                    <button type="submit" class="btn" form="testAi">{{ icons.i('signal') }}<span>AI 응답 시험</span></button>
+                </div>
+            </div>
+            <div class="stat-row">
+                <div class="stat-item"><span class="stat-label">로그인</span> <span class="stat-value">{{ codex.account }}</span></div>
+                <div class="stat-item"><span class="stat-label">쓰는 모델</span> <span class="stat-value">{{ codex.model or 'codex 기본' }}</span></div>
+                <div class="stat-item"><span class="stat-label">강도</span> <span class="stat-value">{{ codex.effort or '모델 기본' }}</span></div>
+            </div>
+            {% if codex.pending and codex.code %}
+            <p class="codex-device">
+                <a href="{{ codex.url }}" target="_blank" rel="noopener noreferrer">{{ codex.url }}</a> 에서
+                코드 <b>{{ codex.code }}</b> 를 넣어 주세요.
+            </p>
+            {% elif codex.error %}
+            <p class="codex-device">로그인 실패: {{ codex.error }}</p>
+            {% endif %}
+            <div class="admin-form-grid">
+                {#
+                  모델 — 콤보박스(`/js/combobox.js`): 고르거나 직접 쓴다. 맨 위는 계열 이름("sol" — 그 계열의 최신을
+                  자동으로), 그 아래는 정확한 모델. 강도 선택지는 고른 모델이 지원하는 것만 나온다(아래 스크립트).
+                #}
+                <div class="admin-form-field">
+                    <label for="ai_model_search">모델</label>
+                    <div class="combobox" data-combobox id="aiModelBox">
+                        <input type="hidden" name="ai_model" value="{{ values.ai_model }}" data-combobox-value>
+                        <input type="text" id="ai_model_search" class="combobox-search" value="{{ values.ai_model }}"
+                               maxlength="100" autocomplete="off" placeholder="sol" data-combobox-search>
+                        <div class="combobox-dropdown">
+                            <ul class="combobox-list" data-combobox-list>
+                                {% for a in codex.aliases %}
+                                <li class="combobox-item" data-combobox-item data-value="{{ a.alias }}">{{ a.alias }}</li>
+                                {% endfor %}
+                                {% for m in codex.catalog.models %}
+                                <li class="combobox-item" data-combobox-item data-value="{{ m.slug }}">{{ m.slug }}</li>
+                                {% endfor %}
+                            </ul>
+                            <p class="combobox-empty" data-combobox-empty hidden>맞는 모델이 없습니다</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-form-field">
+                    <label for="ai_effort">강도</label>
+                    {% set cur = (codex.catalog.models | selectattr('slug', 'equalto', codex.model) | list | first) if codex.model else none %}
+                    <select id="ai_effort" name="ai_effort" data-selected="{{ values.ai_effort }}">
+                        <option value="">모델 기본{% if cur %} ({{ cur.default }}){% endif %}</option>
+                        {% for e in (cur.efforts if cur else []) %}<option value="{{ e }}"{% if values.ai_effort == e %} selected{% endif %}>{{ e }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <script type="application/json" id="codexCatalog">{{ codex.catalog.models | tojson }}</script>
+            <div class="int-head">
+                <h3>메일 (SMTP)</h3>
+                <div class="int-actions">
+                    <button type="submit" class="btn" form="testSmtp">{{ icons.i('mail') }}<span>SMTP 로그인 시험</span></button>
+                </div>
+            </div>
+            <div class="admin-form-grid">
+                <div class="admin-form-field">
+                    <label for="smtp_host">호스트</label>
+                    <input type="text" id="smtp_host" name="smtp_host" maxlength="200" value="{{ values.smtp_host }}" placeholder="smtp.naver.com">
+                </div>
+                <div class="admin-form-field">
+                    <label for="smtp_port">포트</label>
+                    <input type="text" id="smtp_port" name="smtp_port" required inputmode="numeric" maxlength="5" value="{{ values.smtp_port }}">
+                </div>
+                <div class="admin-form-field">
+                    <label for="smtp_user">계정</label>
+                    <input type="text" id="smtp_user" name="smtp_user" maxlength="200" value="{{ values.smtp_user }}">
+                </div>
+                <div class="admin-form-field">
+                    <label for="smtp_password">비밀번호</label>
+                    <input type="password" id="smtp_password" name="smtp_password" maxlength="200" autocomplete="new-password"
+                           placeholder="{{ ('저장됨 ' ~ saved.smtp_password) if saved.smtp_password else '없음' }}">
+                </div>
+                <div class="admin-form-field">
+                    <label for="plan_mail_to">받는 주소</label>
+                    <input type="email" id="plan_mail_to" name="plan_mail_to" maxlength="200" value="{{ values.plan_mail_to }}">
+                </div>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary">{{ icons.i('save') }}<span>저장</span></button>
+            </div>
+        </form>
+        {# 시험 폼은 저장 폼 밖에 둔다(폼은 겹칠 수 없다) — 버튼의 `form=` 으로 잇는다. #}
+        {% for fid, action in [('codexLogin', 'login'), ('codexCancel', 'cancel'), ('codexLogout', 'logout')] %}
+        <form method="post" action="/admin/integrations/codex" id="{{ fid }}" hidden>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="{{ action }}">
+        </form>
+        {% endfor %}
+        <form method="post" action="/admin/integrations/test" id="testAi" hidden>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="target" value="ai">
+        </form>
+        <form method="post" action="/admin/integrations/test" id="testSmtp" hidden>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="target" value="smtp">
+        </form>
+    </div>
+</div>
+<script src="/js/combobox.js?v={{ static_v }}" defer></script>
+<script>
+// 모델을 고르면 강도 선택지를 그 모델이 지원하는 것으로 바꾼다. 계열 이름("sol")은 서버와 같은 규칙으로 최신을 고른다
+// (app_settings.pick_model — 정확히 같은 이름, 아니면 이름에 품은 것 중 버전 숫자가 가장 큰 것).
+(function () {
+    var models = JSON.parse(document.getElementById('codexCatalog').textContent || '[]');
+    var search = document.getElementById('ai_model_search'), sel = document.getElementById('ai_effort');
+    function ver(slug) { var m = /\d+(?:\.\d+)*/.exec(slug); return m ? m[0].split('.').map(Number) : []; }
+    function newer(a, b) {
+        var x = ver(a), y = ver(b);
+        for (var i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+        return false;
+    }
+    function pick(want) {
+        want = (want || '').trim().toLowerCase();
+        if (!want) return null;
+        var exact = models.filter(function (m) { return m.slug === want; })[0];
+        if (exact) return exact;
+        return models.filter(function (m) { return m.slug.toLowerCase().indexOf(want) >= 0; })
+                     .reduce(function (best, m) { return !best || newer(m.slug, best.slug) ? m : best; }, null);
+    }
+    function refill() {
+        var m = pick(search.value), keep = sel.value || sel.dataset.selected;
+        sel.textContent = '';
+        var base = document.createElement('option');
+        base.value = '';
+        base.textContent = '모델 기본' + (m && m.default ? ' (' + m.default + ')' : '');
+        sel.appendChild(base);
+        (m ? m.efforts : []).forEach(function (e) {
+            var o = document.createElement('option');
+            o.value = e; o.textContent = e; o.selected = e === keep;
+            sel.appendChild(o);
+        });
+        sel.dataset.selected = '';
+    }
+    search.addEventListener('input', refill);
+    search.addEventListener('change', refill);
+})();
+</script>
+{% if codex.pending %}
+{# 기기 코드를 넣는 동안 결과를 보려고 5초마다 새로 고친다(로그인이 끝나면 멈춘다). #}
+<script>setTimeout(function () { location.replace('/admin/integrations'); }, 5000);</script>
+{% endif %}
+{% endblock %}

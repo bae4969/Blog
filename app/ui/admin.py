@@ -27,7 +27,8 @@ from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
-from app.core import blog_user, csrf
+from app.core import app_settings, blog_user, csrf
+from app.services import codex_runner
 from app.db.session import db_session
 from app.ui.routes import _int_arg, _shell_ctx, templates
 
@@ -1016,6 +1017,132 @@ async def quote_subscriptions_update(request: Request):
     # `sync=1` 로 돌아간다 — 화면이 sessionStorage 초안을 방금 저장한 값으로 덮게 하려는 것이다.
     return RedirectResponse(f"{back}&sync=1&msg=" + quote(f"{len(rows)}건으로 저장했습니다"),
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# 외부 연동 — AI(codex 로그인·모델)·SMTP 인증 정보(2026-10-10)
+# ---------------------------------------------------------------------------
+#
+# 값은 DB `app_setting` 한 곳에 있다([app_settings](../core/app_settings.py)). ⚠️ 키·비밀번호는 화면으로
+# 내보내지 않는다 — 끝 4자리만 보이고, 칸을 비워 저장하면 원래 값을 그대로 둔다.
+
+
+def _back(msg: str) -> RedirectResponse:
+    return RedirectResponse(f"/admin/integrations?msg={quote(msg)}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/integrations", response_class=HTMLResponse, include_in_schema=False)
+async def integrations(request: Request):
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin /admin/integrations")
+        cfg = await app_settings.load(db)
+        ctx = await _shell_ctx(request, db, me.level)
+    values = {k: ("" if k in app_settings.SECRETS else v) for k, v in cfg.items()}
+    saved = {k: app_settings.masked(cfg[k]) for k in app_settings.SECRETS}
+    model = codex_runner.resolve_model(cfg["ai_model"])
+    codex = {**codex_runner.login_state(), "logged_in": codex_runner.logged_in(),
+             "account": await codex_runner.account(), "model": model,
+             "effort": codex_runner.resolve_effort(model, cfg["ai_effort"]), "catalog": codex_runner.catalog(),
+             "aliases": codex_runner.aliases()}
+    token = csrf.new_token(request)
+    response = templates.TemplateResponse(
+        request, "admin_integrations.html",
+        {**ctx, "admin_menu": "integrations", "values": values, "saved": saved, "codex": codex,
+         "csrf_token": token, "msg": request.query_params.get("msg")})
+    csrf.attach(response, token)
+    return response
+
+
+@router.post("/integrations", include_in_schema=False)
+async def integrations_save(request: Request):
+    form = await request.form()
+    if not csrf.valid(request, str(form.get("csrf_token", ""))):
+        return _deny("csrf_invalid", "/admin/integrations")
+    values = {k: str(form.get(k, "")).strip() for k in app_settings.DEFAULTS}
+    if not values["smtp_port"].isdigit() or not 0 < int(values["smtp_port"]) < 65536:
+        return _back("SMTP 포트는 1~65535 숫자여야 합니다")
+    if values["ai_effort"] and values["ai_effort"] not in app_settings.EFFORTS:
+        return _back("추론 강도가 올바르지 않습니다")
+    if values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
+        return _back("받는 메일 주소 형식이 아닙니다")
+    async with db_session() as db:
+        me = await _require_admin(request, db)
+        if me is None:
+            return _deny("not_admin integrations.save")
+        await app_settings.save(db, values)
+    logger.info("외부 연동 설정 저장: %s", me.user_id)
+    return _back("외부 연동 설정을 저장했습니다")
+
+
+async def _test_ai(cfg: dict) -> str:
+    """codex 를 실제로 한 번 부른다(10~20초) — 로그인·모델이 맞는지 한 번에 본다."""
+    model = codex_runner.resolve_model(cfg["ai_model"])
+    effort = codex_runner.resolve_effort(model, cfg["ai_effort"])
+    try:
+        out = await codex_runner.run("‘OK’ 라고만 답해.", model, effort=effort)
+    except codex_runner.CodexError as e:
+        return str(e)
+    return f"AI 응답 성공 — {model or 'codex 기본'} · 강도 {effort or '기본'}: {out.strip()[:40]}"
+
+
+def _test_smtp(cfg: dict) -> str:
+    """로그인까지만 한다 — 메일은 보내지 않는다. 465 는 SSL, 그 밖은 STARTTLS."""
+    import smtplib
+    if not (cfg["smtp_host"] and cfg["smtp_user"] and cfg["smtp_password"]):
+        return "SMTP 호스트·계정·비밀번호를 모두 넣어 주세요"
+    try:
+        port = int(cfg["smtp_port"])
+        if port == 465:
+            server = smtplib.SMTP_SSL(cfg["smtp_host"], port, timeout=15)
+        else:
+            server = smtplib.SMTP(cfg["smtp_host"], port, timeout=15)
+            server.starttls()
+        with server:
+            server.login(cfg["smtp_user"], cfg["smtp_password"])
+    except smtplib.SMTPAuthenticationError:
+        return "SMTP 로그인 실패 — 계정·비밀번호(앱 비밀번호)를 확인하세요"
+    except (OSError, smtplib.SMTPException) as e:
+        return f"SMTP 서버에 닿지 못했습니다({type(e).__name__})"
+    return "SMTP 로그인 성공 — 메일은 보내지 않았습니다"
+
+
+@router.post("/integrations/codex", include_in_schema=False)
+async def integrations_codex(request: Request, csrf_token: str = Form(""), action: str = Form("")):
+    """Codex 로그인(기기 코드)·취소·로그아웃. 로그인은 링크·코드를 화면에 띄우고 뒤에서 기다린다(최대 15분)."""
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/integrations")
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin integrations.codex")
+    if action == "login":
+        state = await codex_runner.start_login()
+        return _back("아래 링크에서 코드를 넣어 주세요" if state["code"] else f"로그인을 시작하지 못했습니다 {state['error'] or ''}")
+    if action == "cancel":
+        await codex_runner.cancel_login()
+        return _back("Codex 로그인을 취소했습니다")
+    if action == "logout":
+        await codex_runner.logout()
+        return _back("Codex 에서 로그아웃했습니다")
+    return _back("무엇을 할지 모릅니다")
+
+
+@router.post("/integrations/test", include_in_schema=False)
+async def integrations_test(request: Request, csrf_token: str = Form(""), target: str = Form("")):
+    """저장된 값으로 시험한다(입력 칸의 고치는 중인 값이 아니다)."""
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/integrations")
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin integrations.test")
+        cfg = await app_settings.load(db)
+    if target == "ai":
+        return _back(await _test_ai(cfg))
+    if target == "smtp":
+        import asyncio
+        return _back(await asyncio.to_thread(_test_smtp, cfg))
+    return _back("무엇을 시험할지 모릅니다")
 
 
 @router.get("", include_in_schema=False)
