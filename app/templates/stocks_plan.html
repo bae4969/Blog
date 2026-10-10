@@ -1,0 +1,80 @@
+{#
+  투자 계획(2026-10-10) — root 본인 전용. 껍데기만 그리고 나머지는 `/js/plan.js` 가 `/api/v1/plan/*` 로 채운다.
+
+    왼쪽: 이벤트 분기 트리(날짜축, 아래로 갈수록 미래) — 날짜·원을 누르면 상세 창이 떠오른다(자산군·종목 파이 차트)
+    오른쪽: AI 상담(이미지 첨부 — 보유 자산 화면을 읽혀 갱신한다)
+#}
+{% extends "layout.html" %}
+{% import "_icons.html" as icons %}
+
+{% block title %}투자 계획 · Developer Notes{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/css/plan.css?v={{ static_v }}">
+{% endblock %}
+
+{% block content %}
+<div class="plan">
+<header class="plan-head">
+    <div>
+        <h1 class="plan-title">투자 계획</h1>
+    </div>
+    <button type="button" class="c-btn" id="planHistoryOpen">{{ icons.i('history') }}<span>버전 기록</span></button>
+</header>
+
+<div class="plan-grid">
+    {#
+      트리 — 왼쪽 세로 날짜축(아래가 미래), 날짜마다 가로 점선, 노드는 원("지금"·가지 결과).
+      날짜 라벨이나 원을 누르면 트리 위 오른쪽에 상세 창이 뜬다(좁은 화면에서는 아래에서 올라오는 시트).
+    #}
+    <section class="plan-card plan-stage" aria-label="계획 트리">
+        <div class="plan-tree" id="planTree">
+            <p class="plan-empty">불러오는 중…</p>
+        </div>
+        <aside class="plan-float" id="planFloat" hidden aria-labelledby="planFloatTitle">
+            <header class="plan-float__head">
+                <div>
+                    <h2 id="planFloatTitle"></h2>
+                    <p class="plan-float__sub" id="planFloatSub"></p>
+                </div>
+                <button type="button" class="c-btn" id="planFloatClose">{{ icons.i('cancel') }}<span>닫기</span></button>
+            </header>
+            <div class="plan-float__body" id="planDetail"></div>
+        </aside>
+    </section>
+
+    <section class="plan-card plan-chat" aria-label="AI 상담">
+        <div class="plan-chat__log" id="planChatLog">
+            <p class="plan-empty">불러오는 중…</p>
+        </div>
+        {# 입력 — 30.ai_center 처럼 카드 아래에 떠 있다: 위 줄은 첨부 버튼·첨부 칩, 아래는 입력 상자(보내기는 상자 안 오른쪽 아래). #}
+        <form class="plan-chat__form" id="planChatForm" autocomplete="off">
+            <div class="plan-chat__tools">
+                <input type="file" id="planChatFile" accept="image/*" multiple hidden>
+                <button type="button" class="plan-round" id="planChatAttach" aria-label="이미지 첨부">{{ icons.i('image') }}</button>
+                <div class="plan-chat__thumbs" id="planChatThumbs" hidden></div>
+            </div>
+            <div class="plan-composer">
+                <textarea id="planChatInput" rows="3" maxlength="8000"
+                          placeholder="메시지 입력 (Enter 전송 / Shift+Enter 줄바꿈) — 보유 자산 화면은 붙여 넣어도 됩니다"
+                          aria-label="상담 내용"></textarea>
+                <button type="submit" class="plan-send" id="planChatSend" aria-label="보내기">{{ icons.i('send') }}</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<dialog class="plan-history" id="planHistory" aria-label="계획 버전 기록">
+    <header class="plan-history__head">
+        <h2>버전 기록</h2>
+        <button type="button" class="c-btn" id="planHistoryClose">{{ icons.i('cancel') }}<span>닫기</span></button>
+    </header>
+    <ol class="plan-history__list" id="planHistoryList"></ol>
+</dialog>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/js/plan.js?v={{ static_v }}" defer></script>
+{% endblock %}

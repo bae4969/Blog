@@ -157,7 +157,8 @@
       상단 메뉴가 켜질 자리. 주식 쪽은 한 섹션(`stocks`)이지만 메뉴는 "홈"과 "백테스트"로
       나뉜다 — 경로로 가른다.
     #}
-    {% set nav = 'backtest' if request.url.path.startswith('/stocks/backtest') else section %}
+    {% set nav = 'backtest' if request.url.path.startswith('/stocks/backtest')
+             else 'plan' if request.url.path.startswith('/stocks/plan') else section %}
     <header class="c-topbar">
         <a class="c-brand" href="/stocks" aria-label="Developer Notes 홈">
             <span class="c-brand__lead">DEVELOPER</span><span class="c-brand__tail">NOTES</span>
@@ -171,6 +172,8 @@
             <a href="/stocks"{% if nav == 'stocks' %} aria-current="page"{% endif %}>홈</a>
             <a href="/insights"{% if nav == 'insights' %} aria-current="page"{% endif %}>인사이트</a>
             <a href="/stocks/backtest"{% if nav == 'backtest' %} aria-current="page"{% endif %}>백테스트</a>
+            {# 투자 계획은 root 본인 전용이다(`app/ui/plan.py`) — 다른 사람에게는 메뉴도 없다. #}
+            {% if level == 0 %}<a href="/stocks/plan"{% if nav == 'plan' %} aria-current="page"{% endif %}>투자 계획</a>{% endif %}
             <a href="/blog"{% if nav == 'blog' %} aria-current="page"{% endif %}>블로그</a>
             {% if level <= 1 %}<a href="/admin"{% if nav == 'admin' %} aria-current="page"{% endif %}>관리자</a>{% endif %}
         </nav>

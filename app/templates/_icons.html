@@ -135,6 +135,12 @@
 {%- elif name == 'expand' -%}
     <path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" />
     <path d="M8 21H5a2 2 0 0 1-2-2v-3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+{%- elif name == 'image' -%}
+    <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+{%- elif name == 'send' -%}
+    <path d="M14.5 21.7a.5.5 0 0 0 .9 0L22 3.5a.5.5 0 0 0-.6-.6L3.3 9.5a.5.5 0 0 0 0 .9l7.6 3.1a2 2 0 0 1 1.1 1.1Z" /><path d="m21.9 2.1-10.9 10.9" />
+{%- elif name == 'history' -%}
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.7 2.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" />
 {%- endif -%}
 </svg>
 {%- endmacro -%}

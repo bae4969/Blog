@@ -8,6 +8,7 @@
 등급을 올려 볼 수 있는 글이 늘어나는 구조다.
 """
 
+import asyncio
 import logging
 import mimetypes
 from contextlib import asynccontextmanager
@@ -29,12 +30,16 @@ from app.core.security import (
 )
 from app.api.auth_v1 import router as api_auth_router
 from app.api.backtest_v1 import router as api_backtest_router
+from app.api.plan_mcp import router as plan_mcp_router
+from app.api.plan_v1 import mail_loop as plan_mail_loop
+from app.api.plan_v1 import router as api_plan_router
 from app.api.quotes_v1 import router as api_quotes_router
 from app.api.stocks_v1 import router as api_stocks_router
 from app.api.v1 import router as api_v1_router
 from app.api.watchlist_v1 import router as api_watchlist_router
 from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
+from app.ui.plan import router as plan_router
 from app.ui.quotes import router as quotes_router
 from app.ui.routes import router as ui_router
 from app.ui.stocks import router as stocks_router
@@ -50,7 +55,10 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("auth 공개키를 아직 못 받았다 — 첫 요청에서 다시 시도한다")
     logger.info("blog(api) 기동 — base_domain=%s", settings.base_domain)
+    # 투자 계획 이벤트 시작 메일 — 1분마다 훑는다(SMTP 설정이 비면 아무것도 안 한다). 워커가 하나라 루프도 하나다.
+    mailer = asyncio.create_task(plan_mail_loop())
     yield
+    mailer.cancel()
 
 
 app = FastAPI(
@@ -126,11 +134,14 @@ app.include_router(api_quotes_router)   # /api/v1/quotes — 지수·환율
 app.include_router(api_backtest_router) # /api/v1/backtest/* — 시뮬레이션·프리셋
 app.include_router(api_auth_router)     # /api/v1/auth/token — 화면이 Bearer 를 얻는 창구
 app.include_router(api_watchlist_router) # /api/v1/watchlist — 관심 종목(계정별, Bearer 전용)
+app.include_router(api_plan_router)     # /api/v1/plan — 투자 계획(root 전용, Bearer)
+app.include_router(plan_mcp_router)     # /mcp — 상담 중 codex 가 조회하는 MCP(상담 한 번짜리 토큰)
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트
 app.include_router(quotes_router)   # /quotes — 지수·환율·히트맵
 app.include_router(backtest_router) # /stocks/backtest — 백테스트 화면
+app.include_router(plan_router)     # /stocks/plan — 투자 계획 화면(root 전용)
 
 
 # ── API 문서 — 관리자만 ──────────────────────────────────────────────

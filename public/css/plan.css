@@ -1,0 +1,771 @@
+/* ===========================================
+   투자 계획(`/stocks/plan`) — 2026-10-10
+   ===========================================
+   겉모양은 백테스트(`backtest_view.css`)와 같은 결: 가운데 80rem, 테두리 대신 바탕 한 단계, 모서리 1rem.
+   배치는 사용자 스케치: 왼쪽 날짜축 트리 + 오른쪽 상담. 날짜·원을 누르면 트리 위 오른쪽에 상세 창이 뜬다.
+   상담 생김새는 30.ai_center 대화 화면을 따른다(연보라 내 말풍선 · 전폭 AI 카드 · 떠 있는 입력 상자).
+   차트 색은 자산군·종목의 **정체**를 나타내는 분류 색이다(어두운 바탕용 7색, 색각 검사 통과 —
+   2026-10-10 dataviz 검사기로 #262626 위 인접 쌍 CVD ΔE ≥ 8.4). 순서는 고정이고 순위로 다시 칠하지 않는다.
+*/
+
+.plan {
+    --plan-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
+    --plan-h: calc(100dvh - var(--topbar-h, 3.5rem) - 7.5rem);   /* 두 칸이 화면 높이를 채운다 */
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-other: #6b6b6b;
+    --user-bubble: rgb(176, 162, 226);   /* ai_center 와 같은 값 — accent 88% + #1a1a1a */
+    max-inline-size: 80rem;
+    margin-inline: auto;
+    padding-block: var(--space-3) var(--space-6);
+}
+
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+    .plan { --plan-card: var(--bae-surface); }
+}
+
+.plan::after { content: none; }
+
+.plan-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-block-end: var(--space-4);
+    padding-inline: var(--space-1);
+}
+
+.plan-head > div { flex: 1; min-inline-size: 0; }
+
+.plan-title {
+    margin: 0;
+    color: var(--bae-text-primary);
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+
+.plan-grid { display: grid; gap: var(--space-4); }
+
+.plan-card {
+    min-inline-size: 0;
+    border-radius: 1rem;
+    background: var(--plan-card);
+}
+
+.plan-empty {
+    margin: 0;
+    padding: var(--space-4) 0;
+    color: var(--bae-text-dim);
+    font-size: var(--fs--1);
+    text-align: center;
+}
+
+/* ── 트리 ───────────────────────────────────────────────── */
+
+.plan-stage {
+    position: relative;
+    block-size: 60vh;
+    overflow: hidden;
+}
+
+.plan-tree {
+    block-size: 100%;
+    overflow: auto;
+    cursor: grab;              /* 빈 곳을 끌어 옮긴다(plan.js) — 스크롤바를 숨겨서 */
+}
+
+.plan-tree.is-dragging { cursor: grabbing; user-select: none; }
+
+/* 스크롤바는 보이지 않게(2026-10-10 사용자 요청) — 휠·트랙패드·끌기로 옮긴다. 상담 기록과 같은 처리. */
+.plan-tree,
+.plan-float__body,
+.plan-history__list { scrollbar-width: none; }
+
+.plan-tree::-webkit-scrollbar,
+.plan-float__body::-webkit-scrollbar,
+.plan-history__list::-webkit-scrollbar { display: none; }
+
+/* 트리가 짧아도 칸 높이만큼은 차지한다 — 날짜축 화살표가 칸 맨 아래까지 내려가게. */
+.plan-tree__canvas { position: relative; min-block-size: 100%; }
+
+/* 날짜축 칸 — 가로 스크롤해도 왼쪽에 붙는다. 트리가 그 밑으로 지나가므로 바탕을 깐다. */
+.plan-axis-col {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+    block-size: 100%;
+    background: linear-gradient(to right, var(--plan-card) 88%, transparent);
+}
+
+.plan-axis-col > svg { position: absolute; inset: 0; overflow: visible; }
+
+/* 세로선(x = AXIS_X 14px, 첫 줄 20px 위에서 시작) — 칸 맨 아래까지 늘어난다. 화살표 머리는 두지 않는다(스케치의 화살표는 방향 표시였다). */
+.plan-axis-col::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 13px;
+    inset-block: 20px 12px;
+    inline-size: 2px;
+    border-radius: 1px;
+    background: var(--bae-accent);
+}
+
+.plan-tree__lines {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.plan-axis__dot { fill: var(--bae-accent); }
+.plan-guide { stroke: var(--bae-border-hover); stroke-width: 1; stroke-dasharray: 6 6; }
+
+.plan-edge { fill: none; stroke: var(--bae-text-dim); stroke-width: 1.5; }
+.plan-edge.is-realized { stroke: var(--bae-accent); stroke-width: 2.5; }
+.plan-edge.is-dropped { opacity: 0.25; }
+.plan-edge.is-pending { stroke-dasharray: 3 4; }
+.plan-edge__end { fill: var(--plan-card); stroke: var(--bae-text-dim); stroke-width: 1.5; }
+
+/* 날짜축 라벨 — 날짜 + 그 시각의 이벤트(누르면 이벤트 상세) */
+.plan-axis__label {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+}
+
+.plan-axis__date {
+    color: var(--bae-text-primary);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 18px;
+}
+
+.plan-axis__sub { color: var(--bae-text-dim); font-size: 0.6875rem; }
+
+.plan-axis__ev {
+    max-inline-size: 100%;
+    padding: 0.125rem 0.5rem;
+    overflow: hidden;
+    border: 1px solid var(--bae-border);
+    border-radius: 999px;
+    background: var(--bae-bg);
+    color: var(--bae-text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.plan-axis__ev:hover { border-color: var(--bae-border-hover); color: var(--bae-text-primary); }
+.plan-axis__ev.is-selected { border-color: var(--bae-accent); color: var(--bae-accent); }
+.plan-axis__ev:focus-visible { outline: 2px solid var(--bae-accent); outline-offset: 2px; }
+
+/* 원 노드 — 원이 줄 위에 오고 그 아래 이름·총자산·비중 막대. 칸 전체가 누를 자리다. */
+.plan-dot {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0 0 0.25rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--bae-text-muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.plan-dot__ring {
+    box-sizing: border-box;
+    inline-size: 28px;
+    block-size: 28px;
+    margin-block-end: 0.125rem;
+    border: 5px solid var(--plan-card);          /* 바깥 5px 는 누를 자리 겸 선과의 틈 */
+    border-radius: 50%;
+    background: var(--bae-bg);
+    box-shadow: inset 0 0 0 2.5px var(--bae-text-muted);
+}
+
+.plan-dot--root .plan-dot__ring { box-shadow: inset 0 0 0 3.5px var(--bae-text-primary); }
+.plan-dot.is-realized .plan-dot__ring { box-shadow: inset 0 0 0 3px var(--bae-accent); }
+.plan-dot.is-selected .plan-dot__ring { background: var(--bae-accent); box-shadow: inset 0 0 0 3px var(--bae-accent); }
+.plan-dot.is-dropped { opacity: 0.35; }
+.plan-dot:hover .plan-dot__title { color: var(--bae-text-primary); }
+.plan-dot:focus-visible { outline: 2px solid var(--bae-accent); outline-offset: 2px; }
+
+.plan-dot__title {
+    max-inline-size: 100%;
+    overflow: hidden;
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.plan-dot.is-selected .plan-dot__title { color: var(--bae-accent); }
+
+.plan-dot__total {
+    color: var(--bae-text-dim);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.plan-dot .plan-bar { inline-size: 4.5rem; block-size: 4px; }
+
+/* 선이 원 아래 글자·막대 **뒤로** 지나가게 — 묶음에 카드 바탕을 깐다(막대 조각 사이 틈도 바탕색이 된다). */
+.plan-dot__title,
+.plan-dot__total,
+.plan-dot .plan-bar { position: relative; background: var(--plan-card); }
+.plan-dot__title,
+.plan-dot__total { padding-inline: 0.25rem; }
+
+/* 자산군 비중 막대 — 조각 사이 2px 바탕 틈 */
+.plan-bar {
+    display: flex;
+    gap: 2px;
+    block-size: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.plan-bar > span { display: block; min-inline-size: 2px; }
+
+/* ── 떠 있는 상세 창 ─────────────────────────────────────── */
+
+.plan-float {
+    position: absolute;
+    z-index: 5;
+    inset-block: var(--space-3);
+    inset-inline-end: var(--space-3);
+    inline-size: min(28rem, calc(100% - 2 * var(--space-3)));
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 0.875rem;
+    background: var(--bae-surface);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.plan-float[hidden] { display: none; }
+
+.plan-float__head {
+    display: flex;
+    align-items: center;                 /* 닫기를 제목 묶음과 세로 가운데로 */
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--bae-border);
+}
+
+/* 닫기 — 테두리 없는 32px, 모서리 쪽에 붙인다(테두리 있는 40px 상자는 떠 보였다) */
+.plan-float__head .c-btn {
+    flex: none;
+    min-block-size: 2rem;
+    border-color: transparent;
+}
+
+.plan-float__head .c-btn:hover { border-color: transparent; background: var(--bae-surface-alt); }
+
+.plan-float__head > div { flex: 1; min-inline-size: 0; }
+
+.plan-float__head h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--bae-text-primary);
+    font-size: var(--fs-1);
+}
+
+.plan-float__sub {
+    margin: 0.125rem 0 0;
+    color: var(--bae-text-dim);
+    font-size: var(--fs--1);
+}
+
+.plan-float__body {
+    flex: 1;
+    min-block-size: 0;
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    overflow-y: auto;
+}
+
+/* 상세 창의 덩어리 — 작은 제목 + 글 */
+.plan-sec + .plan-sec,
+.plan-sec + .plan-pies,
+.plan-event + .plan-sec { margin-block-start: var(--space-4); }
+
+.plan-sec__title {
+    margin: 0 0 var(--space-1);
+    color: var(--bae-text-dim);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.plan-sec__text {
+    margin: 0;
+    color: var(--bae-text-primary);
+    font-size: var(--fs--1);
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.plan-sec__list {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    color: var(--bae-text-primary);
+    font-size: var(--fs--1);
+    line-height: 1.6;
+}
+
+.plan-sec__links a { color: var(--bae-accent); text-decoration: underline; }
+.plan-sec__links a:hover { color: var(--bae-accent-hover); }
+
+.plan-total {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.plan-total strong {
+    color: var(--bae-text-primary);
+    font-size: var(--fs-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.plan-total span { color: var(--bae-text-dim); font-size: var(--fs--1); }
+
+.plan-pies {
+    display: grid;
+    gap: var(--space-4);
+    margin-block-start: var(--space-4);
+}
+
+.plan-pie h3 {
+    margin: 0 0 var(--space-2);
+    color: var(--bae-text-muted);
+    font-size: var(--fs--1);
+    font-weight: 700;
+}
+
+.plan-pie__body {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.plan-pie svg { flex: 0 0 6.5rem; inline-size: 6.5rem; block-size: 6.5rem; }
+
+.plan-pie path {
+    stroke: var(--bae-surface);
+    stroke-width: 2;
+    stroke-linejoin: round;
+}
+
+.plan-pie path.is-hot { opacity: 0.75; }
+
+.plan-pie__center {
+    fill: var(--bae-text-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* 범례 겸 표 — 색만으로 구분하지 않게 이름·비중·변화를 글자로 둔다 */
+.plan-legend {
+    flex: 1;
+    min-inline-size: 0;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.plan-legend th,
+.plan-legend td {
+    padding: 0.1875rem 0.25rem;
+    color: var(--bae-text-muted);
+    text-align: end;
+    white-space: nowrap;
+}
+
+.plan-legend th { color: var(--bae-text-dim); font-weight: 600; }
+.plan-legend :is(th, td):first-child { text-align: start; }
+.plan-legend td:first-child { max-inline-size: 7rem; overflow: hidden; color: var(--bae-text-primary); text-overflow: ellipsis; }
+.plan-legend tr.is-hot td { background: var(--bae-surface-alt); }
+
+.plan-swatch {
+    display: inline-block;
+    inline-size: 0.625rem;
+    block-size: 0.625rem;
+    margin-inline-end: 0.375rem;
+    border-radius: 2px;
+    vertical-align: -1px;
+}
+
+.plan-event { margin-block-start: var(--space-4); }
+
+.plan-event + .plan-event {
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--bae-border);
+}
+
+/* 이벤트 상세 — 가지별 비중 막대(누르면 그 가지 상세) */
+.plan-branches {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-branch {
+    display: grid;
+    gap: 0.25rem;
+    inline-size: 100%;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--bae-border);
+    border-radius: 0.5rem;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: var(--fs--1);
+    text-align: start;
+    cursor: pointer;
+}
+
+.plan-branch:hover { border-color: var(--bae-border-hover); background: var(--bae-surface-alt); }
+.plan-branch .plan-bar { block-size: 8px; }
+.plan-branch__head { display: flex; justify-content: space-between; gap: var(--space-3); }
+.plan-branch__head b { overflow: hidden; color: var(--bae-text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.plan-branch__head small { flex: none; color: var(--bae-text-dim); font-variant-numeric: tabular-nums; }
+.plan-branch__cond { color: var(--bae-text-muted); }
+
+.plan-tip {
+    position: fixed;
+    z-index: 300;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 0.375rem;
+    background: var(--bae-bg);
+    color: var(--bae-text-primary);
+    font-size: 0.75rem;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* ── 상담 (30.ai_center 대화 화면을 따른다) ─────────────── */
+
+.plan-chat {
+    position: relative;
+    block-size: 70vh;
+    overflow: hidden;
+    background: var(--bae-bg);
+    border: 1px solid var(--bae-border);
+}
+
+.plan-chat__log {
+    block-size: 100%;
+    padding: var(--space-4) var(--space-4) 10rem;   /* 아래는 떠 있는 입력 상자에 가리지 않게 */
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.plan-chat__log::-webkit-scrollbar { display: none; }
+.plan-chat__log > * + * { margin-block-start: 12px; }
+
+/* 내 말 — 오른쪽 연보라 말풍선, 원문 그대로 */
+.plan-msg--user { display: flex; justify-content: flex-end; }
+
+.plan-bubble {
+    max-inline-size: 85%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--user-bubble);
+    color: #000;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+/* AI — 전폭 카드, 머리에 ASSISTANT · 시각 */
+.plan-msg--ai {
+    padding: 12px 16px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.plan-msg__head {
+    margin-block-end: 8px;
+    color: var(--bae-text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.plan-msg__time {
+    margin-inline-start: 8px;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0;
+    opacity: 0.7;
+}
+
+.plan-msg__body {
+    color: var(--bae-text-primary);
+    font-size: 14px;
+    line-height: 20px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.plan-msg__body a { color: var(--bae-accent); text-decoration: underline; }
+.plan-msg__body a:hover { color: var(--bae-accent-hover); }
+
+.plan-msg__body code {
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--bae-surface-alt);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
+}
+
+.plan-msg__rev {
+    display: inline-block;
+    margin-block-start: 8px;
+    color: var(--bae-accent);
+    font-size: 11px;
+}
+
+/* 대기 — 대화 끝 가운데 작은 글자, 뒤의 점이 1.6초 주기로 늘어난다 */
+.plan-wait {
+    color: var(--bae-text-dim);
+    font-size: 10px;
+    text-align: center;
+}
+
+.plan-wait::before,
+.plan-wait::after { content: ""; display: inline-block; inline-size: 1.5em; }
+.plan-wait::after { text-align: start; animation: plan-dots 1.6s linear infinite; }
+
+@keyframes plan-dots {
+    0%, 24.99% { content: "\00A0"; }
+    25%, 49.99% { content: "\00A0."; }
+    50%, 74.99% { content: "\00A0.."; }
+    75%, 100% { content: "\00A0..."; }
+}
+
+/* 빈 상태 — 가운데 ∅ */
+.plan-chat__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 100%;
+    max-inline-size: 28rem;
+    margin-inline: auto;
+    color: var(--bae-text-dim);
+    font-size: 14px;
+    text-align: center;
+}
+
+.plan-chat__empty p { margin: 0; }
+.plan-chat__empty-mark { margin-block-end: 12px; font-size: 48px; line-height: 1; }
+
+/* 입력 — 카드 아래에 떠 있다. 대화가 뒤로 비친다. */
+.plan-chat__form {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    padding: 0 var(--space-4) var(--space-4);
+    pointer-events: none;
+}
+
+.plan-chat__form > * { pointer-events: auto; }
+
+.plan-chat__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 4px;
+}
+
+.plan-round {
+    display: grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    padding: 0;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 999px;
+    background: var(--bae-surface-alt);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: var(--bae-text-muted);
+    cursor: pointer;
+}
+
+.plan-round:hover { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+.plan-round:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bae-accent); }
+.plan-round .c-ico { inline-size: 16px; block-size: 16px; }
+
+.plan-chat__thumbs { display: contents; }
+.plan-chat__thumbs[hidden] { display: none; }
+
+.plan-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-inline-size: 20rem;
+    padding: 2px 6px;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+    font-size: 12px;
+}
+
+.plan-chip img { inline-size: 20px; block-size: 20px; border-radius: 4px; object-fit: cover; }
+.plan-chip__size { color: var(--bae-text-dim); }
+
+.plan-chip__x {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bae-text-dim);
+    cursor: pointer;
+}
+
+.plan-chip__x:hover { color: var(--bae-danger); }
+.plan-chip__x .c-ico { inline-size: 12px; block-size: 12px; }
+
+.plan-composer {
+    position: relative;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 12px;
+    background: var(--bae-surface-alt);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.plan-composer:focus-within { border-color: var(--bae-accent); }
+
+.plan-composer textarea {
+    display: block;
+    inline-size: 100%;
+    padding: 12px 48px 12px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--bae-text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 20px;
+    resize: none;
+    outline: none;
+}
+
+.plan-composer textarea::placeholder { color: var(--bae-text-dim); }
+
+.plan-send {
+    position: absolute;
+    inset-inline-end: 8px;
+    inset-block-end: 8px;
+    display: grid;
+    place-items: center;
+    inline-size: 32px;
+    block-size: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--bae-accent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: var(--bae-accent-text);
+    cursor: pointer;
+}
+
+.plan-send:hover { background: var(--bae-accent-hover); }
+.plan-send:active { background: var(--bae-accent-press); }
+.plan-send:disabled { background: var(--bae-surface-hover); color: var(--bae-text-dim); cursor: default; }
+.plan-send .c-ico { inline-size: 16px; block-size: 16px; }
+
+/* ── 넓은 화면 — 트리 | 상담, 두 칸이 화면 높이를 채운다 ── */
+
+@media (min-width: 64rem) {
+    .plan-grid { grid-template-columns: minmax(0, 1fr) 26rem; }
+    .plan-stage,
+    .plan-chat { block-size: max(32rem, var(--plan-h)); }
+}
+
+/* ── 좁은 화면 — 상세 창은 아래에서 올라오는 시트 ───────── */
+
+@media (max-width: 63.99rem) {
+    .plan-float {
+        position: fixed;
+        z-index: 150;
+        inset-block: auto 0;
+        inset-inline: 0;
+        inline-size: auto;
+        max-block-size: 80dvh;
+        border-radius: 1rem 1rem 0 0;
+        border-block-end: 0;
+    }
+}
+
+/* ── 버전 기록 ─────────────────────────────────────────── */
+
+.plan-history {
+    inline-size: min(32rem, calc(100% - 2rem));
+    padding: var(--space-4);
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 1rem;
+    background: var(--bae-surface);
+    color: var(--bae-text-muted);
+}
+
+.plan-history::backdrop { background: rgba(0, 0, 0, 0.55); }
+
+.plan-history__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-block-end: var(--space-3);
+}
+
+.plan-history__head h2 { margin: 0; color: var(--bae-text-primary); font-size: var(--fs-1); }
+
+.plan-history__list {
+    display: grid;
+    gap: var(--space-2);
+    max-block-size: 60vh;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.plan-history__list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--fs--1);
+}
+
+.plan-history__list li > div { flex: 1; min-inline-size: 0; }
+.plan-history__list b { color: var(--bae-text-primary); }
+.plan-history__list small { display: block; color: var(--bae-text-dim); }
