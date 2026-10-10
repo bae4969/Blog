@@ -82,7 +82,7 @@
 
 .plan-tree.is-dragging { cursor: grabbing; user-select: none; }
 
-/* 스크롤바는 보이지 않게(2026-10-10 사용자 요청) — 휠·트랙패드·끌기로 옮긴다. 상담 기록과 같은 처리. */
+/* 스크롤바는 보이지 않게(2026-10-10 사용자 요청) — 휠(세로)·shift+휠(가로)·트랙패드·끌기로 옮긴다. 상담 기록과 같은 처리. */
 .plan-tree,
 .plan-float__body,
 .plan-history__list { scrollbar-width: none; }
@@ -90,6 +90,7 @@
 .plan-tree::-webkit-scrollbar,
 .plan-float__body::-webkit-scrollbar,
 .plan-history__list::-webkit-scrollbar { display: none; }
+
 
 /* 트리가 짧아도 칸 높이만큼은 차지한다 — 날짜축 화살표가 칸 맨 아래까지 내려가게. */
 .plan-tree__canvas { position: relative; min-block-size: 100%; }
@@ -125,6 +126,18 @@
 
 .plan-axis__dot { fill: var(--bae-accent); }
 .plan-guide { stroke: var(--bae-border-hover); stroke-width: 1; stroke-dasharray: 6 6; }
+/* 지난 구간의 회색 띠, 그 구간의 축 글자는 흐리게 */
+.plan-past {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    z-index: 3;                       /* 날짜축 칸(z 2) 위로 — 축 칸까지 같은 농도로 덮는다 */
+    background: rgba(255, 255, 255, 0.05);
+    border-block-end: 1px dashed var(--bae-border-hover);
+    pointer-events: none;
+}
+.plan-axis__label.is-past .plan-axis__date { color: var(--bae-text-dim); }
+.plan-axis__label.is-past .plan-axis__ev { color: var(--bae-text-dim); }
 
 .plan-edge { fill: none; stroke: var(--bae-text-dim); stroke-width: 1.5; }
 .plan-edge.is-realized { stroke: var(--bae-accent); stroke-width: 2.5; }
@@ -198,8 +211,14 @@
 }
 
 .plan-dot--root .plan-dot__ring { box-shadow: inset 0 0 0 3.5px var(--bae-text-primary); }
-.plan-dot.is-realized .plan-dot__ring { box-shadow: inset 0 0 0 3px var(--bae-accent); }
-.plan-dot.is-selected .plan-dot__ring { background: var(--bae-accent); box-shadow: inset 0 0 0 3px var(--bae-accent); }
+/* 채택(실현)된 가지 — 원을 연보라로 채우고 은은한 빛, 이름도 연보라(사용자 요청: 하이라이트) */
+.plan-dot.is-realized .plan-dot__ring {
+    background: var(--bae-accent);
+    box-shadow: inset 0 0 0 3px var(--bae-accent), 0 0 0 4px rgba(var(--bae-accent-rgb), 0.25);
+}
+.plan-dot.is-realized .plan-dot__title { color: var(--bae-accent); }
+/* 고른 원 — 채택과 헷갈리지 않게 흰 테두리 */
+.plan-dot.is-selected .plan-dot__ring { box-shadow: inset 0 0 0 3px var(--bae-text-primary), 0 0 0 2px var(--bae-text-primary); }
 .plan-dot.is-dropped { opacity: 0.35; }
 .plan-dot:hover .plan-dot__title { color: var(--bae-text-primary); }
 .plan-dot:focus-visible { outline: 2px solid var(--bae-accent); outline-offset: 2px; }
@@ -214,22 +233,27 @@
     text-overflow: ellipsis;
 }
 
-.plan-dot.is-selected .plan-dot__title { color: var(--bae-accent); }
+.plan-dot.is-selected .plan-dot__title { color: var(--bae-text-primary); }
 
-.plan-dot__total {
-    color: var(--bae-text-dim);
-    font-size: 0.6875rem;
-    font-variant-numeric: tabular-nums;
+
+/* 선이 원 아래 이름 **뒤로** 지나가게 — 이름에 카드 바탕을 깐다 */
+.plan-dot__title { position: relative; padding-inline: 0.25rem; background: var(--plan-card); }
+
+/* 초점 밖의 작은 점 — 이름 없이 22px 칸에 10px 점. 올리면 이름이 뜨고(title), 누르면 초점이 된다 */
+.plan-dot--small { inline-size: 22px; block-size: 22px; padding: 0; justify-content: center; }
+.plan-dot--small .plan-dot__ring {
+    inline-size: 22px;
+    block-size: 22px;
+    margin: 0;
+    border-width: 6px;
+    box-shadow: inset 0 0 0 1.5px var(--bae-text-dim);
 }
-
-.plan-dot .plan-bar { inline-size: 4.5rem; block-size: 4px; }
-
-/* 선이 원 아래 글자·막대 **뒤로** 지나가게 — 묶음에 카드 바탕을 깐다(막대 조각 사이 틈도 바탕색이 된다). */
-.plan-dot__title,
-.plan-dot__total,
-.plan-dot .plan-bar { position: relative; background: var(--plan-card); }
-.plan-dot__title,
-.plan-dot__total { padding-inline: 0.25rem; }
+.plan-dot--small:hover .plan-dot__ring { box-shadow: inset 0 0 0 2px var(--bae-text-primary); }
+.plan-dot--small.is-realized .plan-dot__ring { background: var(--bae-accent); box-shadow: inset 0 0 0 2px var(--bae-accent); }
+.plan-edge.is-small { stroke-width: 1; opacity: 0.6; }
+/* 자기 몫 폭이 점보다 좁을 때 — 테두리 없는 6px 점(겹쳐도 깨진 고리처럼 보이지 않게) */
+.plan-dot--small.is-tiny .plan-dot__ring { inline-size: 6px; block-size: 6px; border: 0; background: var(--bae-text-dim); box-shadow: none; }
+.plan-dot--small.is-tiny.is-realized .plan-dot__ring { background: var(--bae-accent); }
 
 /* 자산군 비중 막대 — 조각 사이 2px 바탕 틈 */
 .plan-bar {
@@ -449,6 +473,14 @@
 .plan-branch__head b { overflow: hidden; color: var(--bae-text-primary); text-overflow: ellipsis; white-space: nowrap; }
 .plan-branch__head small { flex: none; color: var(--bae-text-dim); font-variant-numeric: tabular-nums; }
 .plan-branch__cond { color: var(--bae-text-muted); }
+.plan-branch__retro { color: var(--bae-text-dim); font-variant-numeric: tabular-nums; white-space: pre; }
+
+/* 복기 — 그때 → 지금. 오름·내림 색은 사이트 공용(.q-up·.q-down)을 쓴다 */
+.plan-retro__line { margin: 0; color: var(--bae-text-primary); font-size: var(--fs--1); font-variant-numeric: tabular-nums; white-space: pre-wrap; }
+.plan-retro__line + .plan-retro__line { margin-block-start: 0.25rem; }
+.plan-retro__note { margin: 0.25rem 0 0; color: var(--bae-text-dim); font-size: 0.75rem; }
+.plan-retro .q-up, .plan-branch__retro .q-up { color: var(--chart-up-text, #f04452); }
+.plan-retro .q-down, .plan-branch__retro .q-down { color: var(--chart-down-text, #3182f6); }
 
 .plan-tip {
     position: fixed;
@@ -475,7 +507,7 @@
 
 .plan-chat__log {
     block-size: 100%;
-    padding: var(--space-4) var(--space-4) 10rem;   /* 아래는 떠 있는 입력 상자에 가리지 않게 */
+    padding: var(--space-4) var(--space-4) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — plan.js 가 실제 높이로 맞춘다 */
     overflow-y: auto;
     scrollbar-width: none;
 }
@@ -769,3 +801,6 @@
 .plan-history__list li > div { flex: 1; min-inline-size: 0; }
 .plan-history__list b { color: var(--bae-text-primary); }
 .plan-history__list small { display: block; color: var(--bae-text-dim); }
+
+/* 이벤트에 개요·예상이 없으면 대응 덩어리가 맨 위에 온다 — 그때는 위 여백을 두지 않는다 */
+.plan-float__body > .plan-event:first-child { margin-block-start: 0; }

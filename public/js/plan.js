@@ -1,7 +1,7 @@
 /**
  * 투자 계획(`/stocks/plan`) — 2026-10-10. root 본인 전용.
  *
- * - 트리(2026-10-10 사용자 스케치): 왼쪽 세로 날짜축(아래가 미래), 날짜마다 가로 점선, 노드는 원("지금"·가지 결과).
+ * - 트리(2026-10-10 사용자 스케치): 왼쪽 세로 날짜축(아래가 미래), 날짜마다 가로 점선, 노드는 원("시작"·가지 결과).
  *   이벤트는 원이 아니라 **갈라지는 지점과 축 라벨**이다. 원·라벨은 HTML(포커스·클릭), 선만 SVG 로 그린다.
  * - 상세: 날짜 라벨이나 원을 누르면 트리 위에 떠 있는 창. 원은 자산군 파이 + 주식·채권 종목별 파이와
  *   실행 전 대비 비중 변화(%p), 이벤트는 가지별 비중 막대와 직전 비중.
@@ -23,7 +23,12 @@
     var IMAGE_SIDE = 1600;
 
     // 트리 배치(px) — 날짜축 칸 폭·축 x·원 칸 폭·줄 높이·첫 줄 y·원 반지름
-    var AXIS_W = 168, AXIS_X = 14, SLOT_W = 136, ROW_H = 128, TOP = 40, R = 9;
+    var AXIS_MAX = 168, AXIS_MIN = 96, AXIS_X = 14, SLOT_W = 136, ROW_H = 80, TOP = 40, R = 9;
+    //: 날짜축 칸 폭 — 가장 긴 라벨에 맞춘다(layout). 고정 168px 이면 라벨 오른쪽에 빈 구간이 남았다(사용자 지적).
+    var AXIS_W = AXIS_MAX;
+    var SMALL_W = 22, SMALL_R = 5;   // 초점 밖의 작은 점 — 칸 폭, 반지름
+    //: 지금 배치에서 쓰는 큰 원 칸 폭 — 칸이 좁으면 layout 이 줄인다(SLOT_W 는 넉넉할 때의 값).
+    var slotW = SLOT_W;
 
     var treeEl = document.getElementById('planTree');
     var floatEl = document.getElementById('planFloat');
@@ -207,11 +212,29 @@
     function timeKey(iso) { return String(Date.parse(iso)); }
 
     /**
-     * 배치. 원은 "지금"과 가지뿐이다 — 이벤트는 갈라지는 지점과 날짜축 라벨로만 나타난다.
+     * 배치. 원은 "시작"과 가지뿐이다 — 이벤트는 갈라지는 지점과 날짜축 라벨로만 나타난다.
      * 줄: 0 = 지금, 그 아래로 이벤트 시각을 날짜순으로 **균등하게**(날짜 차이에 비례하지 않는다).
      *     가지 원은 부모 이벤트의 줄에 놓인다. 다른 가지의 같은 시각 이벤트는 한 줄을 함께 쓴다.
      * 칸: 잎 원마다 한 칸, 부모 원은 자식 원들의 가운데.
      */
+    //: 초점 원 — 그 원까지의 경로와 바로 아래 가지는 늘 크게, 나머지는 화면 폭이 허락하는 만큼 크게 하고 넘치면
+    //: 이름 없는 작은 점(2026-10-10 사용자 결정).
+    //: 원을 고르면 그 원으로 옮긴다. 상세 창을 닫아도 그대로 둔다(닫을 때마다 배치가 바뀌면 어지럽다). null = 기본 초점.
+    var focusId = null;
+
+    /** 기본 초점 — 시작에서 채택(realized) 가지를 따라 내려간 끝. 채택이 없으면 시작. */
+    function defaultFocus(byId, eventsUnder, branchesOf) {
+        var id = 'root';
+        for (;;) {
+            var next = null;
+            eventsUnder[id].forEach(function (e) {
+                branchesOf[e.id].forEach(function (b) { if (!next && b.status === 'realized') next = b.id; });
+            });
+            if (!next) return id;
+            id = next;
+        }
+    }
+
     function layout() {
         var nodes = plan.doc.nodes, byId = {}, eventsUnder = { root: [] }, branchesOf = {};
         nodes.forEach(function (n) {
@@ -223,6 +246,22 @@
             if (n.kind === 'event') eventsUnder[n.parent || 'root'].push(n);
             else branchesOf[n.parent].push(n);
         });
+        function kidsOf(id) {
+            var k = [];
+            eventsUnder[id].forEach(function (e) { branchesOf[e.id].forEach(function (b) { k.push(b.id); }); });
+            return k;
+        }
+
+        // 크게 그릴 원 — 초점까지의 경로(조상)와 그 형제 가지 + 초점 + 초점 바로 아래 가지
+        var focus = focusId && (focusId === 'root' || byId[focusId]) ? focusId : defaultFocus(byId, eventsUnder, branchesOf);
+        // 경로 위 이벤트의 **다른 가지**(채택되지 않은 쪽)도 크게 — 무엇과 갈렸는지 이름이 보여야 한다(사용자 요청).
+        // 그 가지들의 자식은 작은 점 그대로다.
+        var big = { root: true };
+        for (var id = focus; id && id !== 'root'; id = byId[byId[id].parent].parent || 'root') {
+            branchesOf[byId[id].parent].forEach(function (b) { big[b.id] = true; });
+        }
+        big[focus] = true;
+        kidsOf(focus).forEach(function (k) { big[k] = true; });
 
         var rows = [{ key: 'root', at: null, events: [] }], rowOf = {};
         nodes.filter(function (n) { return n.kind === 'event'; })
@@ -233,24 +272,133 @@
                 rows[rowOf[k]].events.push(e);
             });
 
-        var pos = {}, leaf = 0;
-        function walk(id, dropped) {
-            var n = byId[id], isDropped = dropped || !!(n && n.status === 'dropped');
-            var kids = [];
-            eventsUnder[id].forEach(function (e) { branchesOf[e.id].forEach(function (b) { kids.push(b.id); }); });
-            kids.forEach(function (k) { walk(k, isDropped); });
-            pos[id] = {
-                slot: kids.length ? (pos[kids[0]].slot + pos[kids[kids.length - 1]].slot) / 2 : leaf++,
-                row: n ? rowOf[timeKey(byId[n.parent].at)] : 0,
-                dropped: isDropped
-            };
+        // 줄별 윤곽으로 붙이는 나무 배치(Reingold–Tilford 식) — 형제 가지는 **실제로 원이 있는 줄에서만** 겹치지 않게
+        // 붙인다. 자식 없는 가지(지난 접힌 가지 등)가 그 아래 모든 줄의 폭을 잡아먹지 않아, 깊은 가지가 그 아래 빈 공간을
+        // 쓴다(전에는 원마다 폭을 통째로 잡아 칸에 빈 폭이 남는데도 먼 단계 점들이 겹쳤다 — 사용자 지적 "너무 컴팩트").
+        // 원 폭: 큰 원 slotW, 작은 점 dotW. 결과: 원마다 뿌리 기준 상대 x, 전체 폭.
+        function rowOfNode(id) { return id === 'root' ? 0 : rowOf[timeKey(byId[byId[id].parent].at)]; }
+        function lay(id) {
+            var half = (big[id] ? slotW : dotW) / 2, rel = {}, contour = {};
+            rel[id] = 0;
+            contour[rowOfNode(id)] = [-half, half];
+            var kids = kidsOf(id), acc = null, xs = [];
+            kids.forEach(function (k) {
+                var sub = lay(k), off = xs.length ? xs[xs.length - 1] + dotW : 0;
+                if (acc) {
+                    Object.keys(sub.contour).forEach(function (r) {
+                        if (acc[r]) off = Math.max(off, acc[r][1] - sub.contour[r][0]);
+                    });
+                }
+                Object.keys(sub.rel).forEach(function (n) { rel[n] = sub.rel[n] + off; });
+                acc = acc || {};
+                Object.keys(sub.contour).forEach(function (r) {
+                    var c = sub.contour[r];
+                    acc[r] = acc[r] ? [Math.min(acc[r][0], c[0] + off), Math.max(acc[r][1], c[1] + off)] : [c[0] + off, c[1] + off];
+                });
+                xs.push(off);
+            });
+            if (kids.length) {
+                var mid = (xs[0] + xs[xs.length - 1]) / 2;   // 부모는 자식 묶음의 가운데 위
+                Object.keys(rel).forEach(function (n) { if (n !== id) rel[n] -= mid; });
+                Object.keys(acc).forEach(function (r) {
+                    var c = [acc[r][0] - mid, acc[r][1] - mid];
+                    contour[r] = contour[r] ? [Math.min(contour[r][0], c[0]), Math.max(contour[r][1], c[1])] : c;
+                });
+            }
+            return { rel: rel, contour: contour };
         }
-        walk('root', false);
+        var tree;
+        function measure() {
+            tree = lay('root');
+            var lo = Infinity, hi = -Infinity;
+            Object.keys(tree.contour).forEach(function (r) { lo = Math.min(lo, tree.contour[r][0]); hi = Math.max(hi, tree.contour[r][1]); });
+            tree.lo = lo;
+            return (tree.width = hi - lo);
+        }
+        AXIS_W = axisWidth(rows);
+        var budget = Math.max(0, treeEl.clientWidth - AXIS_W - 16), dotW = SMALL_W;
+        // 필수(초점 경로와 그 형제 + 초점 아래 가지)만으로도 칸을 넘으면 줄여서 맞춘다 — 작은 점 간격부터, 그래도 넘으면 큰 원 칸까지.
+        var FITS = [[SLOT_W, SMALL_W], [SLOT_W, 16], [SLOT_W, 12], [SLOT_W, 8], [120, 8], [104, 8], [104, 6]];
+        for (var f = 0; f < FITS.length; f++) {
+            slotW = FITS[f][0];
+            dotW = FITS[f][1];
+            if (measure() <= budget) break;
+        }
+
+        // 화면 폭에 맞춰 자세히(사용자 결정 2026-10-10) — 초점 경로 다음으로, 이미 큰 원 아래의 형제 묶음을 얕은 것부터
+        // (접힌 가지 쪽은 마지막에) 크게 바꿔 보고, 트리 폭이 칸 폭을 넘으면 그 묶음은 작은 점으로 되돌린다.
+        // 넓은 화면은 거의 다 크게, 좁은 화면은 초점 주변만 크게 — 창 크기가 바뀌면 다시 맞춘다(아래 resize).
+        var depth = { root: 0 }, gone = {};
+        (function walk(id, d, dropped) {
+            depth[id] = d;
+            kidsOf(id).forEach(function (k) {
+                var isGone = dropped || byId[k].status === 'dropped';
+                if (isGone) gone[k] = true;
+                walk(k, d + 1, isGone);
+            });
+        })('root', 0, false);
+        var tried = {};
+        for (;;) {
+            // 앞으로 볼 가지(접히지 않은 것) 묶음이 먼저, 그 안에서는 얕은 것부터. 접힌 가지 묶음은 마지막에.
+            // ⚠️ 이미 큰 원인 형제(채택 가지)는 빼고, 이번에 키울 원들만 본다 — 같이 보면 지난 접힌 가지가 먼저 커졌다.
+            var allGone = function (id) { return kidsOf(id).filter(function (k) { return !big[k]; }).every(function (k) { return gone[k]; }); };
+            var groups = Object.keys(big).filter(function (id) {
+                return !tried[id] && kidsOf(id).some(function (k) { return !big[k]; });
+            }).sort(function (a, b) { return (allGone(a) - allGone(b)) || (depth[a] - depth[b]); });
+            if (!groups.length) break;
+            var parent = groups[0], add = kidsOf(parent).filter(function (k) { return !big[k]; });
+            tried[parent] = true;
+            add.forEach(function (k) { big[k] = true; });
+            if (measure() > budget) add.forEach(function (k) { delete big[k]; });
+        }
+        measure();
+
+        // 트리가 칸보다 좁으면 남는 폭의 가운데에 — 캔버스는 칸 폭만큼 잡아 회색 띠·점선이 오른쪽 끝까지 가게 한다.
+        var full = Math.max(AXIS_W + tree.width + 16, treeEl.clientWidth);
+        var originX = AXIS_W + (full - (AXIS_W + tree.width + 16)) / 2 - tree.lo;
+        var pos = {};
+        (function setPos(id, dropped) {
+            var n = byId[id], isDropped = dropped || !!(n && n.status === 'dropped');
+            // dotW 가 점보다 좁으면 아주 작은 점으로 — 겹쳐도 깨진 고리처럼 보이지 않게
+            pos[id] = { x: originX + tree.rel[id], row: rowOfNode(id), dropped: isDropped, big: !!big[id], tiny: !big[id] && dotW < SMALL_W,
+                        size: Math.max(8, Math.min(SMALL_W, dotW)) };   // 작은 점 버튼 크기 — 간격보다 크면 옆 점과 겹친다
+            kidsOf(id).forEach(function (k) { setPos(k, isDropped); });
+        })('root', false);
+
+        // 줄 높이는 모두 같다(ROW_H) — 줄마다 다르게 했더니 세대 간격이 들쭉날쭉해 보였다(사용자 지적).
+        // rowBig 은 지난 구간 띠의 아래 끝을 정할 때만 쓴다(큰 원 줄이면 이름 밑까지).
+        var rowBig = rows.map(function () { return false; });
+        Object.keys(pos).forEach(function (k) { if (pos[k].big) rowBig[pos[k].row] = true; });
+        var rowY = rows.map(function (_, r) { return TOP + r * ROW_H; });
         return { byId: byId, rows: rows, rowOf: rowOf, pos: pos, eventsUnder: eventsUnder, branchesOf: branchesOf,
-                 width: AXIS_W + Math.max(1, leaf) * SLOT_W + 16, height: TOP + rows.length * ROW_H + 8 };
+                 rowY: rowY, rowBig: rowBig, focus: focus, width: full,
+                 height: rowY[rows.length - 1] + ROW_H + 8 };
     }
 
-    function px(p) { return { x: AXIS_W + p.slot * SLOT_W + SLOT_W / 2, y: TOP + p.row * ROW_H }; }
+    //: 라벨 글자 폭을 재는 캔버스 — 라벨을 그리기 전에 날짜축 칸 폭을 정해야 해서(트리 배치가 그 폭에서 시작한다).
+    var measureCtx = document.createElement('canvas').getContext('2d');
+
+    /** 날짜축 칸 폭 = 가장 긴 라벨(날짜 또는 이벤트 이름 알약) + 앞뒤 여백. AXIS_MIN~AXIS_MAX 사이로. */
+    function axisWidth(rows) {
+        var family = getComputedStyle(document.body).fontFamily, widest = 0;
+        function w(text, font) { measureCtx.font = font + ' ' + family; return measureCtx.measureText(text).width; }
+        rows.forEach(function (row) {
+            if (!row.at) {
+                widest = Math.max(widest, w('시작', '700 13px'), w(plan.doc.as_of || '', '400 11px'));
+                return;
+            }
+            widest = Math.max(widest, w(shortDate(row.at), '700 13px'));
+            var titles = [];
+            row.events.forEach(function (e) { if (titles.indexOf(e.title) < 0) titles.push(e.title); });
+            (titles.length > 2 ? ['이벤트 ' + titles.length + '개'] : titles).forEach(function (t) {
+                widest = Math.max(widest, w(t, '400 12px') + 18);   // 알약 안쪽 여백(0.5rem×2) + 테두리
+            });
+        });
+        return Math.round(Math.min(AXIS_MAX, Math.max(AXIS_MIN, AXIS_X + 12 + widest + 14)));
+    }
+
+    var curRowY = [TOP];   // 지금 배치의 줄 y(layout 이 정한다)
+    function px(p) { return { x: p.x, y: curRowY[p.row] }; }
 
     function shortDate(iso) {
         var d = new Date(iso);
@@ -262,6 +410,7 @@
 
     function renderTree() {
         var L = layout(), canvas = el('div', 'plan-tree__canvas');
+        curRowY = L.rowY;
         canvas.style.inlineSize = L.width + 'px';
         canvas.style.blockSize = L.height + 'px';
         // 날짜축 칸 — 가로로 스크롤해도 왼쪽에 붙어 있다(sticky). 줄마다 점과 라벨.
@@ -275,12 +424,17 @@
         // 트리 선 — 줄마다 가로 점선, 갈래
         var g = svg('svg', { class: 'plan-tree__lines', width: L.width, height: L.height, 'aria-hidden': 'true' });
         canvas.appendChild(g);
+        // 지난 구간(아래 띠)을 정하려고 마지막으로 날짜가 지난 줄을 찾는다 — 줄은 날짜순이라 지난 줄은 늘 위쪽에 이어 있다.
+        var now = Date.now(), lastPast = -1;
+        L.rows.forEach(function (row, i) { if (row.at && Date.parse(row.at) <= now) lastPast = i; });
         L.rows.forEach(function (row, i) {
-            var y = TOP + i * ROW_H;
+            var y = L.rowY[i];
             g.appendChild(svg('path', { class: 'plan-guide', d: 'M' + AXIS_W + ',' + y + ' H' + L.width }));
             ag.appendChild(svg('path', { class: 'plan-guide', d: 'M' + (AXIS_X + 8) + ',' + y + ' H' + AXIS_W }));
             ag.appendChild(svg('circle', { class: 'plan-axis__dot', cx: AXIS_X, cy: y, r: 4 }));
-            axis.appendChild(axisLabel(row, y));
+            var label = axisLabel(row, y);
+            if (i > 0 && i <= lastPast) label.classList.add('is-past');
+            axis.appendChild(label);
         });
 
         Object.keys(L.pos).forEach(function (id) { canvas.appendChild(dotEl(id, L.byId[id], L.pos[id])); });
@@ -291,13 +445,24 @@
 
         // 원 아래 이름·금액·막대 묶음의 실제 높이 — 갈래 선은 그 밑에서 시작한다(글꼴에 따라 달라 어림값을 쓰지 않는다).
         // 원 버튼은 원 중심보다 14px 위에서 시작한다(dotEl).
-        var labelH = canvas.querySelector('.plan-dot').offsetHeight - 14 + 4;
+        var labelH = canvas.querySelector('.plan-dot:not(.plan-dot--small)').offsetHeight - 14 + 4;
+
+        // 지난 구간 — 맨 위("시작")부터 마지막으로 지난 줄의 원 아래 묶음까지 회색 띠로 덮는다(사용자 요청).
+        // ⚠️ 반투명 층 하나를 날짜축 칸 **위로** 얹는다 — 축 칸 배경 밑에 따로 깔면 두 번 겹쳐 경계가 생겼다.
+        if (lastPast > 0) {
+            var band = el('div', 'plan-past');
+            band.style.width = L.width + 'px';
+            band.style.height = (L.rowY[lastPast] + (L.rowBig[lastPast] ? labelH : SMALL_R + 4) + 6) + 'px';
+            canvas.appendChild(band);
+        }
 
         // 갈래 — 부모 원에서 곧장 내려와 이벤트 줄 위에서 갈라진다
         plan.doc.nodes.forEach(function (n) {
             if (n.kind !== 'event') return;
-            var p = px(L.pos[n.parent || 'root']), rowY = TOP + L.rowOf[timeKey(n.at)] * ROW_H;
-            var start = p.y + labelH, fork = Math.max(start + 8, rowY - ROW_H * 0.45);
+            var row = L.rowOf[timeKey(n.at)], pp = L.pos[n.parent || 'root'], p = px(pp), rowY = L.rowY[row];
+            var gap = rowY - L.rowY[row - 1];
+            // 큰 원은 그 아래 이름·금액·막대 밑에서, 작은 점은 점 바로 밑에서 내려온다
+            var start = p.y + (pp.big ? labelH : SMALL_R + 2), fork = Math.max(start + 6, rowY - gap * 0.45);
             var kids = L.branchesOf[n.id];
             if (!kids.length) {
                 // 가지가 아직 없는 이벤트 — 줄까지 내려와 빈 점으로 끝낸다
@@ -306,9 +471,9 @@
                 return;
             }
             kids.forEach(function (b) {
-                var c = px(L.pos[b.id]), d = (c.y - R - fork) * 0.5;
-                var path = svg('path', { class: 'plan-edge', d: 'M' + p.x + ',' + start + ' V' + fork
-                    + ' C' + p.x + ',' + (fork + d) + ' ' + c.x + ',' + fork + ' ' + c.x + ',' + (fork + d) + ' V' + (c.y - R) });
+                var cp = L.pos[b.id], c = px(cp), r = cp.big ? R : SMALL_R, d = (c.y - r - fork) * 0.5;
+                var path = svg('path', { class: 'plan-edge' + (cp.big ? '' : ' is-small'), d: 'M' + p.x + ',' + start + ' V' + fork
+                    + ' C' + p.x + ',' + (fork + d) + ' ' + c.x + ',' + fork + ' ' + c.x + ',' + (fork + d) + ' V' + (c.y - r) });
                 if (L.pos[b.id].dropped) path.classList.add('is-dropped');
                 else if (b.status === 'realized') path.classList.add('is-realized');
                 g.appendChild(path);
@@ -321,10 +486,9 @@
                     ? '아직 이벤트가 없습니다. 오른쪽 상담에서 다가오는 이벤트와 대응 전략을 이야기해 보세요.'
                     : '보유 자산이 없습니다. 증권사·은행 화면 이미지를 첨부하거나 보유 내역을 적어 보내 주세요.'));
         }
-        // 다시 그릴 때(계획이 바뀜)는 보던 자리를 지킨다. 처음 열 때만 "지금"이 화면 밖이면 **겨우 보일 만큼만** 민다 —
-        // 더 밀면 그만큼 왼쪽 원이 날짜축 칸 밑에 가린다.
-        var root = canvas.querySelector('.plan-dot[data-id="root"]');
-        treeEl.scrollLeft = first ? Math.max(0, root.offsetLeft + root.offsetWidth + 8 - treeEl.clientWidth) : keep;
+        // 다시 그릴 때(계획이 바뀜)는 보던 자리를 지킨다. 처음 열 때는 초점 원(채택 경로의 끝)을 가로 가운데로.
+        var fd = canvas.querySelector('.plan-dot[data-id="' + L.focus + '"]');
+        treeEl.scrollLeft = first && fd ? Math.max(0, fd.offsetLeft + fd.offsetWidth / 2 - (AXIS_W + (treeEl.clientWidth - AXIS_W) / 2)) : keep;
     }
 
     function axisLabel(row, y) {
@@ -333,20 +497,21 @@
         box.style.left = (AXIS_X + 12) + 'px';
         box.style.width = (AXIS_W - AXIS_X - 24) + 'px';
         if (!row.at) {
-            box.appendChild(el('span', 'plan-axis__date', '지금'));
+            box.appendChild(el('span', 'plan-axis__date', '시작'));
             box.appendChild(el('span', 'plan-axis__sub', plan.doc.as_of || ''));
             return box;
         }
         box.appendChild(el('span', 'plan-axis__date', shortDate(row.at)));
-        var seen = [];
-        row.events.forEach(function (e) {
-            if (seen.indexOf(e.title) >= 0) return;
-            seen.push(e.title);
-            var b = el('button', 'plan-axis__ev', e.title);
+        var titles = [];
+        row.events.forEach(function (e) { if (titles.indexOf(e.title) < 0) titles.push(e.title); });
+        // 같은 시각의 이벤트 이름이 셋 이상이면 하나로 묶는다 — 다 늘어놓으면 아래 줄까지 넘쳤다(깊이 시험에서 27개).
+        // 누르면 상세 창에 그 시각의 이벤트 목록이 뜬다.
+        (titles.length > 2 ? [null] : titles).forEach(function (title) {
+            var b = el('button', 'plan-axis__ev', title == null ? '이벤트 ' + titles.length + '개' : title);
             b.type = 'button';
             b.dataset.row = row.key;
-            b.dataset.title = e.title;
-            b.addEventListener('click', function () { openEvent(row.key, e.title); });
+            b.dataset.title = title || '';
+            b.addEventListener('click', function () { openEvent(row.key, title); });
             box.appendChild(b);
         });
         return box;
@@ -356,17 +521,32 @@
         var c = px(p), b = el('button', 'plan-dot' + (n ? '' : ' plan-dot--root'));
         b.type = 'button';
         b.dataset.id = id;
-        b.style.left = (c.x - SLOT_W / 2 + 6) + 'px';
+        if (!p.big) {
+            // 초점 밖 — 이름 없는 작은 점. 올리면 이름(title), 누르면 그쪽이 초점이 된다.
+            b.classList.add('plan-dot--small');
+            if (p.tiny) b.classList.add('is-tiny');
+            b.style.left = (c.x - p.size / 2) + 'px';
+            b.style.top = (c.y - p.size / 2) + 'px';
+            b.style.width = b.style.height = p.size + 'px';
+            if (p.dropped) b.classList.add('is-dropped');
+            else if (n.status === 'realized') b.classList.add('is-realized');
+            if (id === selected) b.classList.add('is-selected');
+            b.appendChild(el('span', 'plan-dot__ring'));
+            b.title = n.title;
+            b.setAttribute('aria-label', n.title);
+            b.addEventListener('click', function () { select(id); });
+            return b;
+        }
+        b.style.left = (c.x - slotW / 2 + 6) + 'px';
         b.style.top = (c.y - 14) + 'px';
-        b.style.width = (SLOT_W - 12) + 'px';
+        b.style.width = (slotW - 12) + 'px';
         if (p.dropped) b.classList.add('is-dropped');
         else if (n && n.status === 'realized') b.classList.add('is-realized');
         if (id === selected) b.classList.add('is-selected');
-        var name = n ? n.title : '지금';
+        var name = n ? n.title : '시작';
+        // 원 아래는 이름만 — 금액·비중 막대는 걷었다(가지끼리 거의 같아 정보가 안 됐다, 사용자 결정). 상세 창에서 본다.
         b.appendChild(el('span', 'plan-dot__ring'));
         b.appendChild(el('span', 'plan-dot__title', name));
-        b.appendChild(el('span', 'plan-dot__total', won(plan.values[id].total)));
-        b.appendChild(bar(plan.values[id]));
         // 줄여 보이는 이름 전체 — `.c-ico` 가 없어 tooltip.js 풍선과 겹치지 않는다.
         b.title = name;
         b.addEventListener('click', function () { select(id); });
@@ -378,7 +558,7 @@
             b.classList.toggle('is-selected', b.dataset.id === selected);
         });
         Array.prototype.forEach.call(treeEl.querySelectorAll('.plan-axis__ev'), function (b) {
-            b.classList.toggle('is-selected', !!openedEvent && b.dataset.row === openedEvent.row && b.dataset.title === openedEvent.title);
+            b.classList.toggle('is-selected', !!openedEvent && b.dataset.row === openedEvent.row && b.dataset.title === (openedEvent.title || ''));
         });
     }
 
@@ -406,6 +586,29 @@
         treeEl.addEventListener('pointercancel', end);
     })();
 
+    /**
+     * 상자 위의 휠은 창(페이지)을 움직이지 않고 그 상자 것만 움직인다(사용자 요청 — 트리·상담·상세 창).
+     * `pick(e)` 가 움직일 요소를 고른다.
+     * ⚠️ preventDefault 를 쓰려면 passive: false 여야 한다. 확대·축소(ctrl+휠, 핀치)는 브라우저에 맡긴다.
+     */
+    function trapWheel(box, pick) {
+        box.addEventListener('wheel', function (e) {
+            if (e.ctrlKey) return;
+            e.preventDefault();
+            var el = pick(e), unit = e.deltaMode === 1 ? 16 : 1;   // 줄 단위로 오는 장치(Firefox 마우스)
+            // 휠은 위아래, shift+휠은 좌우(사용자 지정). 가로 막대는 숨겼다 — 트랙패드 좌우·끌기로도 옮긴다.
+            // ⚠️ shift+휠의 양이 deltaY 로 오는 브라우저(Firefox)와 deltaX 로 오는 브라우저(Chrome)가 있다.
+            if (e.shiftKey) {
+                el.scrollLeft += (e.deltaX || e.deltaY) * unit;
+            } else {
+                el.scrollTop += e.deltaY * unit;
+                el.scrollLeft += e.deltaX * unit;
+            }
+        }, { passive: false });
+    }
+
+    trapWheel(treeEl, function () { return treeEl; });
+
     // ── 떠 있는 상세 창 ─────────────────────────────────────
 
     var openedEvent = null;   // {row, title} — 날짜 라벨로 연 이벤트 상세
@@ -425,9 +628,25 @@
         mark();
     }
 
+    /** 초점을 옮기고 다시 배치한다. `anchor` 원이 화면의 같은 자리에 머물게 스크롤을 맞춘다(배치가 바뀌어 멀리 밀리지 않게). */
+    function refocus(id, anchor) {
+        if (focusId === id) return false;
+        var sel = '.plan-dot[data-id="' + anchor + '"]', d = treeEl.querySelector(sel);
+        var x0 = d ? d.offsetLeft + d.offsetWidth / 2 - treeEl.scrollLeft : null, y0 = d ? d.offsetTop - treeEl.scrollTop : null;
+        focusId = id;
+        renderTree();
+        d = treeEl.querySelector(sel);
+        if (d && x0 != null) {
+            treeEl.scrollLeft = d.offsetLeft + d.offsetWidth / 2 - x0;
+            treeEl.scrollTop = d.offsetTop - y0;
+        }
+        return true;
+    }
+
     function select(id) {
         selected = id;
         openedEvent = null;
+        refocus(id, id);
         mark();
         renderNode();
     }
@@ -435,6 +654,11 @@
     function openEvent(rowKey, title) {
         selected = null;
         openedEvent = { row: rowKey, title: title };
+        // 이름으로 고른 이벤트면 그 가지들이 크게 보이게 — 초점을 이벤트의 부모(가지 또는 시작)로
+        var ev = title != null && plan.doc.nodes.filter(function (n) {
+            return n.kind === 'event' && timeKey(n.at) === rowKey && n.title === title;
+        })[0];
+        if (ev) refocus(ev.parent || 'root', ev.parent || 'root');
         mark();
         renderEvent();
     }
@@ -573,11 +797,11 @@
         (parent || detailEl).appendChild(sec);
     }
 
-    /** 원 — "지금" 또는 가지(대응 방법): 조건 → 실행할 일 → 근거 → 총자산 변화 → 비중 파이. */
+    /** 원 — "시작" 또는 가지(대응 방법): 조건 → 실행할 일 → 근거 → 총자산 변화 → 비중 파이. */
     function renderNode() {
         var byId = nodesById(), n = byId[selected], ev = n && byId[n.parent];
         var state = plan.values[selected], base = baseOf(selected);
-        showFloat(n ? n.title : '지금 보유', n
+        showFloat(n ? n.title : '시작', n
             ? '대응 · ' + ev.title + ' ' + when(ev.at) + ' · ' + STATUS_LABEL[n.status]
             : '기준일 ' + (plan.doc.as_of || '—') + (plan.usdkrw ? ' · 환율 ' + plan.usdkrw.toLocaleString('ko-KR') + '원/달러' : ''));
 
@@ -585,6 +809,7 @@
             section('조건', n.condition);
             section('실행할 일', n.actions.length ? n.actions : (n.holdings ? null : '매매 없이 유지'));
             section('근거', n.note);
+            section('복기', retroBox(n, byId));
         }
         var tot = el('div', 'plan-total');
         tot.appendChild(el('strong', null, won(state.total)));
@@ -594,6 +819,44 @@
         }
         section(n ? '실행 뒤 자산' : '총자산', tot);
         detailEl.appendChild(pies(state, base));
+    }
+
+    function signed(v) { return (v >= 0 ? '+' : '−') + won(Math.abs(v)); }
+
+    function changeEl(change, pct) {
+        var c = el('span', change > 0 ? 'q-up' : change < 0 ? 'q-down' : '', signed(change) + (pct == null ? '' : ' (' + (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(1) + '%)'));
+        return c;
+    }
+
+    /**
+     * 복기 — 이벤트 날짜가 지난 가지: 그때(이벤트 시각 시세) → 지금(오늘 시세). 접힌 가지는 "채택했다면" 실제(채택 가지)와 견준다.
+     * 가지의 보유는 계획상 수량이다(실제 체결과 다를 수 있다).
+     */
+    function retroBox(n, byId) {
+        var r = (plan.retro || {})[n.id];
+        if (!r) return null;
+        var box = el('div', 'plan-retro');
+        var line = el('p', 'plan-retro__line');
+        line.appendChild(document.createTextNode('그때(' + shortDate(r.at) + ') ' + won(r.then) + ' → 지금 ' + won(r.now) + '  '));
+        line.appendChild(changeEl(r.change, r.pct));
+        box.appendChild(line);
+        if (n.status !== 'realized') {
+            var taken = plan.doc.nodes.filter(function (k) {
+                return k.parent === n.parent && k.status === 'realized' && (plan.retro || {})[k.id];
+            })[0];
+            var t = taken && plan.retro[taken.id];
+            if (t && r.pct != null && t.pct != null) {
+                // 가지마다 출발 금액이 다를 수 있어 금액이 아니라 **변화율**로 견준다.
+                var diff = r.pct - t.pct, cmp = el('p', 'plan-retro__line');
+                cmp.appendChild(document.createTextNode('채택했다면 ' + (r.pct >= 0 ? '+' : '−') + Math.abs(r.pct).toFixed(1)
+                    + '% — 실제(‘' + taken.title + '’) ' + (t.pct >= 0 ? '+' : '−') + Math.abs(t.pct).toFixed(1) + '%보다 '));
+                cmp.appendChild(el('span', diff > 0 ? 'q-up' : diff < 0 ? 'q-down' : '',
+                    Math.abs(diff).toFixed(1) + '%p ' + (diff > 0 ? '나음' : diff < 0 ? '못함' : '같음')));
+                box.appendChild(cmp);
+            }
+        }
+        if (r.missing) box.appendChild(el('p', 'plan-retro__note', '보유 ' + r.missing + '개는 그때 시세가 없어 빠졌습니다'));
+        return box;
     }
 
     function linkList(links) {
@@ -616,6 +879,7 @@
      */
     function renderEvent() {
         var byId = nodesById();
+        if (openedEvent.title == null) { renderEventList(); return; }
         var list = plan.doc.nodes.filter(function (n) {
             return n.kind === 'event' && timeKey(n.at) === openedEvent.row && n.title === openedEvent.title;
         });
@@ -629,7 +893,7 @@
 
         list.forEach(function (e) {
             var box = el('div', 'plan-event');
-            var from = list.length > 1 ? ' — ‘' + (e.parent ? byId[e.parent].title : '지금') + '’ 다음' : '';
+            var from = list.length > 1 ? ' — ‘' + (e.parent ? byId[e.parent].title : '시작') + '’ 다음' : '';
             if (e.note) section('메모' + from, e.note, box);
             var kids = plan.doc.nodes.filter(function (k) { return k.parent === e.id; });
             if (!kids.length) {
@@ -644,6 +908,12 @@
                     head.appendChild(el('small', null, won(plan.values[k.id].total)));
                     b.appendChild(head);
                     if (k.condition) b.appendChild(el('span', 'plan-branch__cond', k.condition));
+                    var r = (plan.retro || {})[k.id];
+                    if (r) {
+                        var rl = el('span', 'plan-branch__retro', '그때 ' + won(r.then) + ' → 지금 ' + won(r.now) + '  ');
+                        rl.appendChild(changeEl(r.change, r.pct));
+                        b.appendChild(rl);
+                    }
                     b.appendChild(bar(plan.values[k.id]));
                     b.addEventListener('click', function () { select(k.id); });
                     li.appendChild(b);
@@ -662,6 +932,27 @@
         var links = [];
         list.forEach(function (e) { e.links.forEach(function (l) { if (!links.some(function (x) { return x.url === l.url; })) links.push(l); }); });
         section('출처', linkList(links));
+    }
+
+    /** 날짜축에서 묶인 "이벤트 N개" — 그 시각의 이벤트 이름 목록. 누르면 그 이벤트 상세로 간다. */
+    function renderEventList() {
+        var list = plan.doc.nodes.filter(function (n) { return n.kind === 'event' && timeKey(n.at) === openedEvent.row; });
+        if (!list.length) { closeFloat(); return; }
+        var titles = [];
+        list.forEach(function (e) { if (titles.indexOf(e.title) < 0) titles.push(e.title); });
+        showFloat(when(list[0].at), '이벤트 ' + titles.length + '개');
+        var ul = el('ul', 'plan-branches');
+        titles.forEach(function (t) {
+            var li = el('li'), b = el('button', 'plan-branch');
+            b.type = 'button';
+            var head = el('span', 'plan-branch__head');
+            head.appendChild(el('b', null, t));
+            b.appendChild(head);
+            b.addEventListener('click', function () { openEvent(openedEvent.row, t); });
+            li.appendChild(b);
+            ul.appendChild(li);
+        });
+        detailEl.appendChild(ul);
     }
 
     function render() {
@@ -846,6 +1137,25 @@
         });
     }
 
+    // 대화 기록 아래 여백 = 떠 있는 입력 상자의 실제 높이 + 4px. 고정값(10rem)으로 두면 입력창과
+    // 마지막 말풍선 사이가 너무 벌어졌다(사용자 지적). 첨부 칩이 붙어 상자가 높아지면 따라간다.
+    function fitLogPadding() {
+        var bottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 4;
+        logEl.style.paddingBottom = (form.offsetHeight + 4) + 'px';
+        if (bottom) logEl.scrollTop = logEl.scrollHeight;
+    }
+    if (window.ResizeObserver) new ResizeObserver(fitLogPadding).observe(form);
+    fitLogPadding();
+
+    // 창 크기가 바뀌면 트리를 칸 폭에 다시 맞춘다(큰 원·작은 점 배분이 폭에 달렸다).
+    var resizeTimer = null, lastTreeW = 0;
+    window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            if (plan && treeEl.clientWidth !== lastTreeW) { lastTreeW = treeEl.clientWidth; renderTree(); }
+        }, 150);
+    });
+
     form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
     input.addEventListener('keydown', function (e) {
         // 한글 조합 중 Enter 는 글자 확정이다 — 보내지 않는다.
@@ -859,6 +1169,13 @@
     });
     document.getElementById('planChatAttach').addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function () { addFiles(fileInput.files); fileInput.value = ''; });
+
+    // 상담창은 대화 기록만(넘치는 입력칸 위에서는 입력칸 먼저), 상세 창은 그 본문만 움직인다.
+    trapWheel(document.querySelector('.plan-chat'), function (e) {
+        var t = e.target.closest('textarea');
+        return t && t.scrollHeight > t.clientHeight ? t : logEl;
+    });
+    trapWheel(floatEl, function () { return detailEl; });
 
     // ── 상세 창 닫기 ───────────────────────────────────────
 
