@@ -846,7 +846,43 @@
         (parent || detailEl).appendChild(sec);
     }
 
-    /** 원 — "시작" 또는 가지(대응 방법): 조건 → 실행할 일 → 근거 → 총자산 변화 → 비중 파이. */
+    var FLOW_KINDS = [['income', '수입'], ['fixed', '고정 지출'], ['living', '생활비'], ['saving', '저축·납입']];
+
+    /** 월 현금흐름 표(2026-10-11) — 종류별 합계와 수입 대비 비율, 그 아래 항목, 끝에 여유. */
+    function flowTable() {
+        var sum = plan.cashflow, income = sum.income;
+        var table = el('table', 'plan-legend plan-flow'), tbody = el('tbody');
+        function row(cls, name, amount, share) {
+            var tr = el('tr', cls);
+            tr.appendChild(el('td', null, name));
+            tr.appendChild(el('td', null, won(amount)));
+            tr.appendChild(el('td', null, share == null ? '' : pct(share)));
+            tbody.appendChild(tr);
+        }
+        FLOW_KINDS.forEach(function (k) {
+            var items = plan.doc.cashflow.filter(function (f) { return f.kind === k[0]; });
+            if (!items.length) return;
+            row('plan-flow__kind', k[1], sum[k[0]], k[0] === 'income' || !income ? null : sum[k[0]] / income);
+            items.forEach(function (f) { row('plan-flow__item', f.name + (f.account ? ' · ' + f.account : ''), f.amount, null); });
+        });
+        row('plan-flow__kind', '여유', sum.surplus, income ? sum.surplus / income : null);
+        table.appendChild(tbody);
+        return table;
+    }
+
+    /** 그 노드(가지는 자기 이벤트) 날짜까지 쌓이는 저축·납입 — 보유 평가와 따로 보인다. */
+    function accrualBox(id) {
+        var a = (plan.accrual || {})[id];
+        if (!a) return null;
+        var box = el('div', 'plan-total');
+        box.appendChild(el('strong', null, '+' + won(a.total)));
+        box.appendChild(el('span', null, a.months + '개월 · ' + Object.keys(a.by_account).map(function (k) {
+            return (k || '계좌 미지정') + ' +' + won(a.by_account[k]);
+        }).join(' · ')));
+        return box;
+    }
+
+    /** 원 — "시작" 또는 가지(대응 방법): 조건 → 실행할 일 → 근거 → 총자산 변화 → 예상 적립 → 비중 파이. 시작은 월 현금흐름도. */
     function renderNode() {
         var byId = nodesById(), n = byId[selected], ev = n && byId[n.parent];
         var state = plan.values[selected], base = baseOf(selected);
@@ -867,6 +903,8 @@
             tot.appendChild(el('span', null, '실행 전 ' + won(base.total) + ' 대비 ' + (d >= 0 ? '+' : '') + won(d)));
         }
         section(n ? '실행 뒤 자산' : '총자산', tot);
+        if (n) section('그때까지 예상 적립', accrualBox(n.id));
+        else if (plan.cashflow) section('월 현금흐름', flowTable());
         detailEl.appendChild(pies(state, base));
     }
 
@@ -939,6 +977,7 @@
 
         section('개요', first.about);
         section('시장 예상', first.expect);
+        section('그때까지 예상 적립', accrualBox(list[0].id));
 
         list.forEach(function (e) {
             var box = el('div', 'plan-event');

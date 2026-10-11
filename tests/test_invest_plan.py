@@ -141,6 +141,42 @@ class TestAccount:
         assert ip.outline(_doc(holdings=h, nodes=[]))["holdings"][0]["account"] == "ISA"
 
 
+class TestCashflow:
+    """월 현금흐름(2026-10-11) — 합계·여유, 이벤트까지 지나는 달 수 × 계좌별 납입."""
+
+    FLOW = [{"kind": "income", "name": "월급", "amount": 3_000_000},
+            {"kind": "fixed", "name": "대출 이자", "amount": 300_000},
+            {"kind": "living", "name": "생활비", "amount": 1_000_000},
+            {"kind": "saving", "name": "청년도약", "amount": 700_000, "account": "저축"},
+            {"kind": "saving", "name": "ISA 적립", "amount": 500_000, "account": "ISA"}]
+
+    def test_옛_문서는_빈_목록(self):
+        d = _doc()
+        assert d.cashflow == [] and ip.cashflow_summary(d) is None and ip.accruals(d, datetime(2026, 10, 11).date()) == {}
+
+    def test_합계와_여유(self):
+        s = ip.cashflow_summary(_doc(cashflow=self.FLOW))
+        assert (s["income"], s["saving"], s["surplus"]) == (3_000_000, 1_200_000, 500_000)
+
+    @pytest.mark.parametrize("end, m", [("2026-10-29", 0), ("2026-11-10", 0), ("2026-11-11", 1), ("2026-12-10", 1), ("2027-10-11", 12)])
+    def test_달_수(self, end, m):
+        from datetime import date
+        assert ip.months_between(date(2026, 10, 11), date.fromisoformat(end)) == m
+
+    def test_예상_적립은_계좌별이고_가지는_이벤트_날짜(self):
+        nodes = [{"id": "e", "kind": "event", "title": "12월", "at": "2026-12-12T04:00:00+09:00"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "인하"},
+                 {"id": "soon", "kind": "event", "title": "곧", "at": "2026-10-29T03:00:00+09:00"}]
+        a = ip.accruals(_doc(as_of="2026-10-11", nodes=nodes, cashflow=self.FLOW), datetime(2026, 10, 11).date())
+        assert a["e"] == {"months": 2, "total": 2_400_000, "by_account": {"저축": 1_400_000, "ISA": 1_000_000}}
+        assert a["b"] == a["e"] and "soon" not in a
+
+    def test_프롬프트_뼈대와_변경_요약(self):
+        d = _doc(cashflow=self.FLOW)
+        assert ip.outline(d)["cashflow"][3] == {"kind": "saving", "name": "청년도약", "amount": 700_000, "account": "저축"}
+        assert ip.diff_summary(_doc(), d) == "현금흐름 갱신"
+
+
 def test_대화는_글로_펴고_이미지는_따로():
     from app.api.plan_v1 import _flatten
     prompt, images = _flatten([

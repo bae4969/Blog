@@ -76,10 +76,10 @@ _RO = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "
 _RW = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 _RW_DEL = {**_RW, "destructiveHint": True}
 #: 쓰기 도구 이름 — codex_runner 가 이 목록에만 자동 승인을 건다.
-WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set")
+WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set")
 
 TOOLS = [
-    {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율).",
+    {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율), 월 현금흐름 합계(cashflow)와 이벤트까지의 예상 적립(accrual).",
      "inputSchema": _obj()},
     {"annotations": _RO, "name": "node_get",
      "description": "노드 하나의 모든 칸(개요·예상·조건·액션·보유 등)과 그 시점 평가(오늘 시세), 지난 이벤트면 복기.",
@@ -107,6 +107,9 @@ TOOLS = [
      "description": "지금 보유(holdings) 목록을 통째로 바꾼다(이미지로 잔고를 읽었을 때 등). as_of 는 기준일 YYYY-MM-DD.",
      "inputSchema": _obj({"holdings": {"type": "array", "items": {"type": "object"}}, "as_of": {"type": "string"}},
                          ["holdings"])},
+    {"annotations": _RW, "name": "cashflow_set",
+     "description": "월 현금흐름(cashflow — 수입·고정 지출·생활비·저축·납입) 목록을 통째로 바꾼다. 금액은 한 달 원화.",
+     "inputSchema": _obj({"cashflow": {"type": "array", "items": {"type": "object"}}}, ["cashflow"])},
 ]
 
 
@@ -125,7 +128,8 @@ async def _call(db, user_index: int, name: str, args: dict):
         node = next((n for n in view["doc"]["nodes"] if n["id"] == args.get("id")), None)
         if node is None:
             raise ValueError(f"없는 노드입니다: {args.get('id')}")
-        return {"node": node, "value": view["values"].get(node["id"]), "retro": view["retro"].get(node["id"])}
+        return {"node": node, "value": view["values"].get(node["id"]), "retro": view["retro"].get(node["id"]),
+                "accrual": view["accrual"].get(node["id"])}
     if name == "plan_revisions":
         rows = (await db.execute(text(
             "SELECT rev_id, summary, created_at FROM invest_plan_rev WHERE user_index = :u "
@@ -191,6 +195,9 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
             grew = bool(more)
         data["nodes"] = [n for n in nodes if n["id"] not in gone]
         what = f"노드 삭제: {target}" + (f" 외 {len(gone) - 1}개" if len(gone) > 1 else "")
+    elif name == "cashflow_set":
+        data["cashflow"] = args.get("cashflow") or []
+        what = "현금흐름 갱신"
     else:   # holdings_set
         data["holdings"] = args.get("holdings") or []
         if args.get("as_of"):

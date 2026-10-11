@@ -427,6 +427,13 @@
 .plan-legend td:first-child { max-inline-size: 7rem; overflow: hidden; color: var(--bae-text-primary); text-overflow: ellipsis; }
 .plan-legend tr.is-hot td { background: var(--bae-surface-alt); }
 
+/* 월 현금흐름 — 종류 줄은 굵게, 항목 줄은 들여 쓴다. 항목 이름은 길어서 자르지 않고 칸을 다 쓴다 */
+.plan-flow { inline-size: 100%; }
+.plan-flow td:first-child { max-inline-size: none; white-space: normal; }
+.plan-flow__kind td { color: var(--bae-text-primary); font-weight: 600; }
+.plan-flow__kind:not(:first-child) td { padding-block-start: 0.5rem; }
+.plan-flow__item td:first-child { padding-inline-start: 0.875rem; color: var(--bae-text-muted); }
+
 .plan-swatch {
     display: inline-block;
     inline-size: 0.625rem;

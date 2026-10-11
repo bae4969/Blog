@@ -104,7 +104,7 @@ async def _closes_at(db, items: list[tuple[str, str, bool]], at: datetime) -> di
 
 
 async def plan_view(db, row) -> dict:
-    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 그리고 지난 이벤트의 복기."""
+    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
     doc = _doc_of(row)
     stocks, coins = ip.price_pairs(doc)
     sq = await _latest_quotes(db, [(c, "s") for c in stocks])
@@ -132,6 +132,8 @@ async def plan_view(db, row) -> dict:
         "doc": doc.model_dump(mode="json"),
         "values": values,
         "retro": ip.retrospect(doc, values, then_values),
+        "cashflow": ip.cashflow_summary(doc),
+        "accrual": ip.accruals(doc, datetime.now(_KST).date()),
     }
 
 

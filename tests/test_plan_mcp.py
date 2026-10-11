@@ -1,5 +1,6 @@
 """상담 중 codex 가 조회하는 MCP(`app/api/plan_mcp.py`) — 토큰·JSON-RPC 껍데기. DB 를 건드리지 않는 것만 본다."""
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -35,7 +36,7 @@ def test_초기화와_도구_목록():
     assert init["protocolVersion"] == "2025-06-18" and "tools" in init["capabilities"]
     names = [x["name"] for x in _rpc(t, "tools/list").json()["result"]["tools"]]
     assert names == ["plan_get", "node_get", "plan_revisions", "plan_revision_get", "quotes_get", "stock_search",
-                     "node_add", "node_update", "node_delete", "holdings_set"]
+                     "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set"]
     assert set(plan_mcp.WRITE_TOOLS) == set(names[6:])
     plan_mcp.revoke(t)
 
@@ -99,6 +100,15 @@ class TestWrite:
         run("node_update", {"id": "b", "fields": {"holdings": [{**h[0], "qty": 50}, {**h[0], "qty": 50, "account": "IRP"}]}})
         assert state["doc"].holdings[0].account == "ISA"
         assert [x.account for x in state["doc"].nodes[1].holdings] == ["ISA", "IRP"]
+
+    def test_현금흐름_쓰기(self, monkeypatch):
+        run, state, saved = self._store(monkeypatch, self.BASE)
+        out = run("cashflow_set", {"cashflow": [{"kind": "income", "name": "월급", "amount": 3_000_000},
+                                                {"kind": "saving", "name": "청년도약", "amount": 700_000, "account": "저축"}]})
+        assert out["summary"] == "현금흐름 갱신" and [f.kind for f in state["doc"].cashflow] == ["income", "saving"]
+        with pytest.raises(ValueError):
+            run("cashflow_set", {"cashflow": [{"kind": "bonus", "name": "x", "amount": 1}]})
+        assert len(saved) == 1
 
     def test_검증에_걸리면_저장하지_않는다(self, monkeypatch):
         import pytest

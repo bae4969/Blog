@@ -42,6 +42,20 @@ class Holding(BaseModel):
                                 description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
 
 
+FlowKind = Literal["income", "fixed", "living", "saving"]
+FLOW_LABEL = {"income": "수입", "fixed": "고정 지출", "living": "생활비", "saving": "저축·납입"}
+
+
+class Flow(BaseModel):
+    """월 현금흐름 한 줄(2026-10-11). 금액은 한 달 원화. 저축·납입은 `account` 로 어느 계좌에 쌓이는지 적는다."""
+
+    kind: FlowKind
+    name: str = Field(max_length=100)
+    amount: float = Field(ge=0, description="한 달 금액(원)")
+    account: str | None = Field(default=None, max_length=30, description="저축·납입이 쌓이는 계좌(보유의 account 와 같은 이름)")
+    note: str = Field(default="", max_length=200)
+
+
 class Link(BaseModel):
     title: str = Field(max_length=100)
     url: str = Field(pattern=r"^https?://\S{1,500}$")
@@ -72,6 +86,7 @@ class PlanDoc(BaseModel):
     as_of: date | None = Field(default=None, description="보유 자산 기준일")
     holdings: list[Holding] = Field(default_factory=list, max_length=_MAX_HOLDINGS)
     nodes: list[Node] = Field(default_factory=list, max_length=_MAX_NODES)
+    cashflow: list[Flow] = Field(default_factory=list, max_length=50, description="월 현금흐름 — 2026-10-11 에 더했다(옛 문서는 빈 목록)")
 
     @model_validator(mode="after")
     def _tree(self):
@@ -179,6 +194,44 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
 
 
 # ---------------------------------------------------------------------------
+# 현금흐름 — 월 합계와 이벤트까지의 예상 적립(2026-10-11). 보유 평가에는 섞지 않는다(가지 보유는 "실행 뒤 전체 보유"라서).
+# ---------------------------------------------------------------------------
+
+def cashflow_summary(doc: PlanDoc) -> dict | None:
+    """`{income, fixed, living, saving, surplus}` — 여유 = 수입 − 지출 − 저축·납입. 현금흐름이 비면 None."""
+    if not doc.cashflow:
+        return None
+    sums = {k: sum(f.amount for f in doc.cashflow if f.kind == k) for k in FLOW_LABEL}
+    return {**sums, "surplus": sums["income"] - sums["fixed"] - sums["living"] - sums["saving"]}
+
+
+def months_between(start: date, end: date) -> int:
+    """지나는 달 수(월급일은 따지지 않는다) — 10-11 → 12-10 은 1, 12-11 은 2."""
+    return max(0, (end.year - start.year) * 12 + end.month - start.month - (end.day < start.day))
+
+
+def accruals(doc: PlanDoc, today: date) -> dict[str, dict]:
+    """이벤트·가지 id → `{months, total, by_account}` — 기준일부터 그 이벤트까지 저축·납입이 쌓이는 양. 가지는 자기 이벤트 날짜.
+
+    기준일은 보유 기준일(`as_of`), 없으면 오늘. 한 달도 안 지나는 노드와 저축·납입이 없는 문서는 뺀다.
+    """
+    saving = [f for f in doc.cashflow if f.kind == "saving"]
+    if not saving:
+        return {}
+    start, by_id, out = doc.as_of or today, {n.id: n for n in doc.nodes}, {}
+    for n in doc.nodes:
+        ev = n if n.kind == "event" else by_id.get(n.parent)
+        m = months_between(start, _kst(ev.at).date()) if ev and ev.at else 0
+        if m <= 0:
+            continue
+        by_acc: dict[str, float] = {}
+        for f in saving:
+            by_acc[f.account or ""] = by_acc.get(f.account or "", 0.0) + f.amount * m
+        out[n.id] = {"months": m, "total": sum(by_acc.values()), "by_account": by_acc}
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 복기 — 날짜가 지난 이벤트의 가지마다 "그때(이벤트 시각 시세) → 지금(오늘 시세)" 평가(2026-10-10 사용자 요청)
 # ---------------------------------------------------------------------------
 
@@ -216,6 +269,11 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
 - 금리 결정·실적 발표 같은 **이벤트**마다 결과별 **가지**(인하/동결/인상 등)를 나누고, 가지마다 매수·매도 액션과
   리밸런싱 뒤 보유 자산을 정한다. 사용자의 상황·성향을 물어 가며 함께 짠다.
 - 사용자가 증권사·은행 화면 이미지를 주면 읽어서 **지금 보유(holdings)** 를 갱신한다. 읽기 애매한 값은 추측하지 말고 물어본다.
+- **월 현금흐름(cashflow)** 을 함께 관리한다 — 급여명세·카드 내역·가계부 화면이나 사용자가 말한 숫자로 수입·고정 지출·생활비·
+  저축·납입을 채운다. 분할 매수 금액을 정할 때는 여유(수입 − 지출 − 저축·납입)와 계좌별 납입을 근거로 쓴다.
+- **지출 상담**도 한다: 항목을 고정·생활로 나눠 수입 대비 비율을 보이고, 고정비(대출 이자·보험·통신·구독)를 점검하고,
+  비상금이 생활비 몇 달 치인지 확인하고, 줄일 수 있는 곳과 그 돈을 어느 계좌로 돌릴지 숫자로 제안한다. 훈계하지 말고,
+  모르는 값은 추측하지 말고 묻는다.
 - 이벤트 결과를 사용자가 알려 주거나 네가 확인하면, 실현된 가지를 "realized", 나머지 가지를 "dropped" 로 바꾸고,
   필요하면 그 아래 다음 이벤트를 이어 붙인다. 일정·결과를 모르면 웹에서 확인할 수 있으면 확인하고, 아니면 묻는다.
 
@@ -225,12 +283,16 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
   숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
-  holdings_set(지금 보유 통째로). **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
+  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로). **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
   거부되면 돌려준 이유를 보고 고쳐 다시 부른다. 사용자가 바꾸라고 하지 않았으면 쓰지 않는다.
 - 여러 노드를 만들 때는 부모부터(이벤트 → 그 가지 → 다음 이벤트) 차례로 node_add 한다.
 
 ## 계획 문서 형식(JSON)
-{{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드]}}
+{{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드], "cashflow": [현금흐름]}}
+- 현금흐름: {{"kind": "income|fixed|living|saving", "name": 이름, "amount": 한 달 금액(원), "account": 계좌|null, "note": 메모}}
+  - income 수입(세후 월급 등), fixed 고정 지출(대출 이자·월세·보험·통신·구독), living 생활비(식비·교통·쇼핑 등 변동),
+    saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
+  - 화면은 이벤트마다 "그때까지 예상 적립"(달 수 × 계좌별 납입)을 따로 보인다 — 가지 holdings 에 적립을 미리 더하지 않는다.
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
   "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null}}
   - account 는 계좌 이름이다(예: ISA·IRP·DC·연금저축·일반·입출금·저축). 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
@@ -253,7 +315,7 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   - about·expect·condition 이 비어 있는 옛 노드를 보면, 계획을 고칠 때 함께 채운다. 모르는 일정·예상은 웹에서 확인하고 출처를 links 에 남긴다.
 
 ## 지금 계획(뼈대)
-노드는 id·부모·종류·제목·시각·상태만 싣는다. 개요·예상·조건·액션·보유 같은 칸은 node_get(id) 이나 plan_get 으로 본다.
+지금 보유·현금흐름은 다 싣고, 노드는 id·부모·종류·제목·시각·상태만 싣는다. 개요·예상·조건·액션·보유 같은 칸은 node_get(id) 이나 plan_get 으로 본다.
 ```json
 {doc}
 ```
@@ -270,6 +332,7 @@ def outline(doc: PlanDoc) -> dict:
     """
     return {"as_of": doc.as_of and doc.as_of.isoformat(),
             "holdings": [h.model_dump(mode="json", exclude_none=True) for h in doc.holdings],
+            "cashflow": [f.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for f in doc.cashflow],
             "nodes": [{k: v for k, v in {"id": n.id, "parent": n.parent, "kind": n.kind, "title": n.title,
                                          "at": n.at and n.at.isoformat(), "status": n.status}.items() if v is not None}
                       for n in doc.nodes]}
@@ -292,4 +355,6 @@ def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
         parts.append(f"노드 {changed}개 변경")
     if old.holdings != new.holdings:
         parts.append("보유 자산 갱신")
+    if old.cashflow != new.cashflow:
+        parts.append("현금흐름 갱신")
     return ", ".join(parts) or "변경 없음"
