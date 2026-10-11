@@ -631,7 +631,7 @@
     position: absolute;
     inset-inline: 0;
     inset-block-end: 0;
-    padding: 0 var(--space-4) var(--space-4);
+    padding: 0 var(--space-2) var(--space-2);   /* 좌우·아래 8px — 말풍선과 같은 여백(2026-10-11 사용자) */
     pointer-events: none;
 }
 
@@ -747,7 +747,7 @@
 /* ── 넓은 화면 — 트리 | 상담, 두 칸이 화면 높이를 채운다 ── */
 
 @media (min-width: 64rem) {
-    .plan-grid { grid-template-columns: minmax(0, 1fr) 26rem; }
+    .plan-grid { grid-template-columns: minmax(0, 1fr) 22rem; }   /* 상담 칸 26rem → 22rem(2026-10-11 사용자 "전체 width 줄여") */
     .plan-stage,
     .plan-chat { block-size: max(32rem, var(--plan-h)); }
 }
