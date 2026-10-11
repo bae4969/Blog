@@ -825,3 +825,44 @@
 
 /* 이벤트에 개요·예상이 없으면 대응 덩어리가 맨 위에 온다 — 그때는 위 여백을 두지 않는다 */
 .plan-float__body > .plan-event:first-child { margin-block-start: 0; }
+
+/* 매매표(2026-10-11) — 가지 상세의 "매매"와 "지금 할 일" 카드. 좁은 화면에서는 표만 가로로 넘긴다 */
+.plan-trades { overflow-x: auto; scrollbar-width: none; }
+.plan-trades .plan-legend { inline-size: 100%; max-inline-size: 40rem; }
+.plan-trades .plan-legend td:first-child { max-inline-size: none; color: var(--bae-text-muted); }
+.plan-trades .plan-trades__name { color: var(--bae-text-primary); white-space: normal; }  /* 종목 이름은 줄바꿈 — 좁은 화면에서 금액 칸이 밀려나지 않게 */
+.plan-trades__name small { color: var(--bae-text-dim); }
+.plan-trades .plan-legend :is(th, td):nth-child(2) { text-align: start; }
+.plan-sec__title--act { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+
+/* 지금 할 일 — 트리 위 카드. 가지마다 이벤트·가지 이름(누르면 상세)과 [실행함], 그 아래 매매표 */
+.plan-todo { margin-block-end: var(--space-4); padding: var(--space-3) var(--space-4); }
+.plan-todo[hidden] { display: none; }
+.plan-todo::after,
+.plan-todo__item::after,
+.plan-todo__head::after { content: none; }
+.plan-todo__title {
+    margin: 0 0 var(--space-2);
+    color: var(--bae-text-muted);
+    font-size: var(--fs--1);
+    font-weight: 700;
+}
+.plan-todo__item { padding: 0; }
+.plan-todo__item + .plan-todo__item { margin-block-start: var(--space-3); padding-block-start: var(--space-3); border-block-start: 1px solid var(--bae-border); }
+.plan-todo__head { display: flex; align-items: center; gap: var(--space-2); margin-block-end: var(--space-1); }
+.plan-todo__name {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    min-inline-size: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bae-text-primary);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+.plan-todo__name small { color: var(--bae-text-dim); font-size: 0.75rem; }
+.plan-todo__name:hover b { text-decoration: underline; }

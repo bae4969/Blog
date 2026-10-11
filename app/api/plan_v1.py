@@ -134,6 +134,7 @@ async def plan_view(db, row) -> dict:
         "retro": ip.retrospect(doc, values, then_values),
         "cashflow": ip.cashflow_summary(doc),
         "accrual": ip.accruals(doc, datetime.now(_KST).date()),
+        "trades": ip.trades(doc, values),
     }
 
 
@@ -271,6 +272,22 @@ async def restore(request: Request, rev_id: int):
         await _save_rev(db, me.user_index, ip.PlanDoc.model_validate_json(row.doc), f"{rev_id}번 버전으로 되돌림")
         await db.commit()
         return await plan_view(db, await latest_rev(db, me.user_index))
+
+
+@router.post("/nodes/{node_id}/executed", summary="가지의 매매를 했다고 표시한다(오늘 날짜, 새 버전으로 쌓는다)")
+async def mark_executed(request: Request, node_id: str):
+    async with db_session() as db:
+        me = await owner(db, request)
+        row = await latest_rev(db, me.user_index)
+        doc = _doc_of(row)
+        node = next((n for n in doc.nodes if n.id == node_id), None)
+        if node is None or node.kind != "branch":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 가지입니다")
+        node.executed_at = datetime.now(_KST).date()
+        await _save_rev(db, me.user_index, doc, f"실행함: {node.title}")
+        await db.commit()
+        view = await plan_view(db, await latest_rev(db, me.user_index))
+        return {**view, "prev_rev_id": row.rev_id if row else None}
 
 
 # ---------------------------------------------------------------------------

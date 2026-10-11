@@ -22,6 +22,9 @@
     <button type="button" class="c-btn" id="planHistoryOpen">{{ icons.i('history') }}<span>버전 기록</span></button>
 </header>
 
+{# 지금 할 일 — 실현됐는데 아직 매매하지 않은 가지의 매매표(2026-10-11). 없으면 숨는다. #}
+<section class="plan-card plan-todo" id="planTodo" hidden aria-label="지금 할 일"></section>
+
 <div class="plan-grid">
     {#
       트리 — 왼쪽 세로 날짜축(아래가 미래), 날짜마다 가로 점선, 노드는 원("시작"·가지 결과).

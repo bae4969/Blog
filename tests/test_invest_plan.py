@@ -164,6 +164,55 @@ class TestGroupAndType:
             ip.Holding.model_validate({"kind": "cash", "name": "x", "amount": 1, "type": "주택"})
 
 
+class TestTrades:
+    """매매표(2026-10-11) — 직전 보유 대비 가지 보유의 차이. 계좌별로 매도 → 매수 → 현금 순."""
+
+    def _doc(self, after):
+        base = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 100, "account": "ISA"},
+                {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 37, "account": "IRP"},
+                {"kind": "cash", "name": "ISA 현금", "amount": 5_000_000, "account": "ISA"}]
+        nodes = [{"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "매수", "holdings": after},
+                 {"id": "k", "parent": "e", "kind": "branch", "title": "유지"}]
+        d = _doc(holdings=base, nodes=nodes)
+        return ip.trades(d, ip.valuate(d, {"102110": 10_000.0, "484790": 8_000.0}, {}, None))
+
+    def test_계좌별_매도_매수_현금(self):
+        after = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 80, "account": "ISA"},
+                 {"kind": "bond", "name": "KODEX 미국30년", "code": "484790", "market": "KR", "qty": 300, "account": "ISA"},
+                 {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 37, "account": "IRP"},
+                 {"kind": "cash", "name": "ISA 현금", "amount": 2_800_000, "account": "ISA"}]
+        t = self._doc(after)
+        assert "k" not in t
+        assert [(x["account"], x["code"] or x["name"], x["side"], x["qty"], x["value"]) for x in t["b"]] == [
+            ("ISA", "102110", "sell", 20, 200_000.0),
+            ("ISA", "484790", "buy", 300, 2_400_000.0),
+            ("ISA", "ISA 현금", "sell", None, 2_200_000.0)]
+
+    def test_시세_없는_종목은_직전_단가로(self):
+        h = lambda q: {"kind": "bond", "name": "국채", "code": "999999", "market": "KR", "qty": q, "amount": 800_000, "account": "ISA"}
+        nodes = [{"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "매수", "holdings": [h(300)]}]
+        d = _doc(holdings=[h(100)], nodes=nodes)
+        assert ip.trades(d, ip.valuate(d, {}, {}, None))["b"][0]["value"] == 1_600_000
+
+    def test_보유가_없는_가지는_매매표가_없다(self):
+        t = self._doc(None)
+        assert "b" not in t and "k" not in t
+
+    def test_팔아서_없어진_종목(self):
+        after = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 37, "account": "IRP"},
+                 {"kind": "cash", "name": "ISA 현금", "amount": 6_000_000, "account": "ISA"}]
+        assert [(x["account"], x["side"], x["qty"]) for x in self._doc(after)["b"]] == [("ISA", "sell", 100), ("ISA", "buy", None)]
+
+    def test_실행일_칸은_옛_문서에서_비어_있고_뼈대에_실린다(self):
+        d = _doc()
+        assert all(n.executed_at is None for n in d.nodes)
+        nodes = [{"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "인하", "status": "realized", "executed_at": "2026-10-30"}]
+        assert ip.outline(_doc(nodes=nodes))["nodes"][1]["executed_at"] == "2026-10-30"
+
+
 class TestCashflow:
     """월 현금흐름(2026-10-11) — 합계·여유, 이벤트까지 지나는 달 수 × 계좌별 납입."""
 

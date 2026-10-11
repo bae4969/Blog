@@ -95,6 +95,7 @@ class Node(BaseModel):
     actions: list[str] = Field(default_factory=list, max_length=20)
     holdings: list[Holding] | None = Field(default=None, max_length=_MAX_HOLDINGS)
     status: Literal["pending", "realized", "dropped"] = "pending"
+    executed_at: date | None = Field(default=None, description="가지의 매매를 실제로 한 날(화면 [실행함]) — 2026-10-11")
 
 
 class PlanDoc(BaseModel):
@@ -208,6 +209,58 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
     return out
 
 
+def _by_key(rows: list[dict]) -> dict[tuple, dict]:
+    """평가 줄을 (계좌, 코드|이름) 으로 합친다 — 수량은 수량이 있는 줄만, 평가액은 하나라도 없으면 None."""
+    out: dict[tuple, dict] = {}
+    for r in rows:
+        k = (r.get("account") or "", r.get("code") or r["name"])
+        hit = out.setdefault(k, {**r, "qty": None, "value": 0.0})
+        if r.get("qty") is not None:
+            hit["qty"] = (hit["qty"] or 0.0) + r["qty"]
+        hit["value"] = None if hit["value"] is None or r["value"] is None else hit["value"] + r["value"]
+    return out
+
+
+def trades(doc: PlanDoc, values: dict[str, dict]) -> dict[str, list[dict]]:
+    """가지 id → 매매표(2026-10-11) — 직전(부모 이벤트 시점) 보유와 가지의 실행 뒤 보유를 견준다. 가지 보유가 null 이면 매매가 없다.
+
+    한 줄 = `{account, name, code, kind, side: buy|sell, qty|None, value|None}`. 수량 종목은 수량 차이 × 오늘 단가,
+    평가액으로 적은 것(현금·예금 등)은 금액 차이. 계좌가 나온 순서로, 계좌 안에서는 매도 → 매수 → 현금 순이다(팔아야 살 돈이 생긴다).
+    """
+    out = {}
+    for n in doc.nodes:
+        if n.kind != "branch" or n.holdings is None:
+            continue
+        before, after = _by_key(values[n.parent]["rows"]), _by_key(values[n.id]["rows"])
+        lines = []
+        for k in list(before) + [k for k in after if k not in before]:
+            b, a = before.get(k), after.get(k)
+            ref = a or b
+            if all(x is None or x["qty"] is not None for x in (b, a)):
+                d = (a["qty"] if a else 0.0) - (b["qty"] if b else 0.0)
+                if abs(d) < 1e-9:
+                    continue
+                # 단가 — 시세가 잡힌 줄을 먼저, 없으면 직전 줄. 시세 없는 종목은 평가액으로 떨어지는데 가지에서 수량만 바꾸고
+                # 평가액을 그대로 두면 실행 뒤 줄의 단가가 틀린다(KODEX 미국30년 400→600주에 평가액 그대로).
+                src = next((x for x in (a, b) if x and x.get("price") is not None and x["value"] is not None and x["qty"]), None) \
+                    or next((x for x in (b, a) if x and x["value"] is not None and x["qty"]), None)
+                unit = src["value"] / src["qty"] if src else None
+                qty, value = abs(d), (abs(d) * unit if unit is not None else None)
+            else:
+                if any(x is not None and x["value"] is None for x in (b, a)):
+                    continue
+                d = (a["value"] if a else 0.0) - (b["value"] if b else 0.0)
+                if abs(d) < 1:
+                    continue
+                qty, value = None, abs(d)
+            lines.append({"account": k[0] or None, "name": ref["name"], "code": ref.get("code"), "kind": ref["kind"],
+                          "side": "buy" if d > 0 else "sell", "qty": qty, "value": value})
+        accounts = list(dict.fromkeys(x["account"] for x in lines))
+        lines.sort(key=lambda x: (accounts.index(x["account"]), x["kind"] == "cash", x["side"] == "buy"))
+        out[n.id] = lines
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 현금흐름 — 월 합계와 이벤트까지의 예상 적립(2026-10-11). 보유 평가에는 섞지 않는다(가지 보유는 "실행 뒤 전체 보유"라서).
 # ---------------------------------------------------------------------------
@@ -291,6 +344,13 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   모르는 값은 추측하지 말고 묻는다.
 - 이벤트 결과를 사용자가 알려 주거나 네가 확인하면, 실현된 가지를 "realized", 나머지 가지를 "dropped" 로 바꾸고,
   필요하면 그 아래 다음 이벤트를 이어 붙인다. 일정·결과를 모르면 웹에서 확인할 수 있으면 확인하고, 아니면 묻는다.
+  판정하고 나면 답에 **그 가지의 매매표**(node_get 의 trades — 계좌별로 매도 먼저, 종목·코드·수량·대략 금액)를 그대로 정리해
+  사용자가 증권사 앱에서 바로 주문할 수 있게 하고, 매매한 뒤 잔고 화면을 올려 달라고 한다(그걸로 holdings_set).
+  사용자가 매매를 마쳤다고 하면 그 가지의 executed_at 을 오늘 날짜로 node_update 한다.
+- **가지는 바로 주문할 수 있게** 만든다 — 매매가 있는 가지는 holdings(실행 뒤 전체 보유)를 반드시 채운다(서버가 직전 보유와
+  견줘 매매표를 만든다). actions 는 "ISA · KODEX 미국30년국채액티브(H) 484790 · 200주 매수(약 160만 원)" 처럼
+  계좌·종목·코드·수량(또는 금액)을 적고, "일부"·"적당히" 같은 말은 쓰지 않는다. 수량은 quotes_get 의 종가와 그 계좌의 현금으로 정하고,
+  산 만큼 그 계좌 현금을 줄인다(계좌 사이 이동은 하지 않는다).
 
 ## 블로그 도구(MCP `blog`)
 - 조회: node_get(노드 하나의 모든 칸과 그 시점 평가·복기), plan_get(지금 계획 전체와 노드별 평가 — 오늘 시세 원화 환산·환율, 그리고 retro: 지난 이벤트의 가지마다
@@ -326,7 +386,8 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
     "expect": 시장 예상 — 지금 수준, 컨센서스·확률(예: 금리선물), 놀랄 수 있는 지점(2~4문장, 필수),
     "links": [{{"title": 출처 이름, "url": "https://…"}}] 최대 5개(확인한 출처).
   - 가지 칸: "condition": 이 가지를 타는 조건 한 줄(예: "기준금리 0.25%p 이상 인하"), "actions": ["QQQ 20주 매수" 같은 짧은 액션들],
-    "holdings": 그 가지를 실행한 뒤의 전체 보유|null(null 이면 부모 그대로). 가지의 note 에는 이렇게 대응하는 근거를 쓴다.
+    "holdings": 그 가지를 실행한 뒤의 전체 보유|null(null 이면 매매 없이 부모 그대로), "executed_at": 실제로 매매한 날 "YYYY-MM-DD"|null.
+    가지의 note 에는 이렇게 대응하는 근거를 쓴다.
   - 이벤트의 부모는 null(지금 바로 다음) 또는 가지, 가지의 부모는 이벤트다.
   - 가지 아래에 잇는 다음 이벤트의 at 은 앞 이벤트보다 늦어야 한다(화면이 날짜축으로 그린다).
   - 가지의 holdings 는 액션을 반영한 **전체** 보유 목록이다(바뀐 것만 쓰지 않는다). 수량은 지금 시세로 대략 맞춘다.
@@ -353,7 +414,8 @@ def outline(doc: PlanDoc) -> dict:
             "holdings": [h.model_dump(mode="json", exclude_none=True) for h in doc.holdings],
             "cashflow": [f.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for f in doc.cashflow],
             "nodes": [{k: v for k, v in {"id": n.id, "parent": n.parent, "kind": n.kind, "title": n.title,
-                                         "at": n.at and n.at.isoformat(), "status": n.status}.items() if v is not None}
+                                         "at": n.at and n.at.isoformat(), "status": n.status,
+                                         "executed_at": n.executed_at and n.executed_at.isoformat()}.items() if v is not None}
                       for n in doc.nodes]}
 
 

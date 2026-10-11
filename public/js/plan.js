@@ -34,6 +34,7 @@
     var slotW = SLOT_W;
 
     var treeEl = document.getElementById('planTree');
+    var todoEl = document.getElementById('planTodo');
     var floatEl = document.getElementById('planFloat');
     var floatTitle = document.getElementById('planFloatTitle');
     var floatSub = document.getElementById('planFloatSub');
@@ -219,6 +220,96 @@
         });
         b.setAttribute('aria-hidden', 'true');
         return b;
+    }
+
+    // ── 매매표·지금 할 일(2026-10-11) ───────────────────────
+    //    AI 가 가지를 고른 뒤 실제로 무엇을 몇 주 사고팔지 — 서버가 직전 보유와 가지 보유를 견줘 `trades` 로 준다.
+
+    var CHECK_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"'
+                  + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+    /** 계좌 · 종목 · 매매 · 수량 · 금액. 현금(평가액으로 적은 것)은 수량 없이 증가·감소. 매매가 없으면 null. */
+    function tradeTable(id) {
+        var list = (plan.trades || {})[id];
+        if (!list || !list.length) return null;
+        var wrap = el('div', 'plan-trades');
+        var table = el('table', 'plan-legend');
+        var head = el('tr');
+        ['계좌', '종목', '매매', '수량', '금액'].forEach(function (h) { head.appendChild(el('th', null, h)); });
+        var thead = el('thead'); thead.appendChild(head); table.appendChild(thead);
+        var tbody = el('tbody');
+        list.forEach(function (t) {
+            var row = el('tr'), buy = t.side === 'buy', cash = t.qty == null;
+            row.appendChild(el('td', null, t.account || '—'));
+            var name = el('td', 'plan-trades__name', t.name);
+            if (t.code && t.code !== t.name) name.appendChild(el('small', null, ' ' + t.code));
+            row.appendChild(name);
+            row.appendChild(el('td', buy ? 'q-up' : 'q-down', cash ? (buy ? '증가' : '감소') : (buy ? '매수' : '매도')));
+            row.appendChild(el('td', null, cash ? '' : String(+t.qty.toFixed(4))));
+            row.appendChild(el('td', null, (cash ? '' : '약 ') + won(t.value)));
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        return wrap;
+    }
+
+    /** 실현됐는데 아직 매매하지 않은 가지 — 매매표나 실행할 일이 있는 것만. */
+    function todoBranches() {
+        return plan.doc.nodes.filter(function (n) {
+            return n.kind === 'branch' && n.status === 'realized' && !n.executed_at
+                && (((plan.trades || {})[n.id] || []).length || n.actions.length);
+        });
+    }
+
+    function executedButton(n) {
+        var b = el('button', 'c-btn');
+        b.type = 'button';
+        b.innerHTML = CHECK_SVG;
+        b.appendChild(el('span', null, '실행함'));
+        b.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            b.disabled = true;
+            api('POST', '/api/v1/plan/nodes/' + encodeURIComponent(n.id) + '/executed').then(function (p) {
+                setPlan(p);
+                var opt = p.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id); } }, duration: 8000 } : {};
+                window.toast('‘' + n.title + '’ 매매를 실행함으로 표시했습니다 — 잔고 화면을 상담에 올리면 실제 보유로 갱신합니다', 'success', opt);
+            }).catch(function (e) {
+                b.disabled = false;
+                window.toast('표시하지 못했습니다: ' + e.message, 'error');
+            });
+        });
+        return b;
+    }
+
+    /** 트리 위 "지금 할 일" — 가지마다 이벤트 · 가지 이름(누르면 상세), [실행함], 매매표(없으면 실행할 일). */
+    function renderTodo() {
+        if (!todoEl) return;
+        todoEl.textContent = '';
+        var list = todoBranches(), byId = nodesById();
+        todoEl.hidden = !list.length;
+        if (!list.length) return;
+        todoEl.appendChild(el('h2', 'plan-todo__title', '지금 할 일'));
+        list.forEach(function (n) {
+            var item = el('div', 'plan-todo__item');
+            var head = el('div', 'plan-todo__head');
+            var open = el('button', 'plan-todo__name');
+            open.type = 'button';
+            open.appendChild(el('small', null, byId[n.parent].title + ' · ' + shortDate(byId[n.parent].at)));
+            open.appendChild(el('b', null, n.title));
+            open.addEventListener('click', function () { select(n.id); });
+            head.appendChild(open);
+            head.appendChild(executedButton(n));
+            item.appendChild(head);
+            var table = tradeTable(n.id);
+            if (table) item.appendChild(table);
+            else {
+                var ul = el('ul', 'plan-sec__list');
+                n.actions.forEach(function (a) { ul.appendChild(el('li', null, a)); });
+                item.appendChild(ul);
+            }
+            todoEl.appendChild(item);
+        });
     }
 
     // ── 트리 — 왼쪽 날짜축 + 원 ────────────────────────────
@@ -868,6 +959,7 @@
             sec.appendChild(ul);
         } else sec.appendChild(body);
         (parent || detailEl).appendChild(sec);
+        return sec;
     }
 
     var FLOW_KINDS = [['income', '수입'], ['fixed', '고정 지출'], ['living', '생활비'], ['saving', '저축·납입']];
@@ -906,16 +998,23 @@
         return box;
     }
 
-    /** 원 — "시작" 또는 가지(대응 방법): 조건 → 실행할 일 → 근거 → 총자산 변화 → 예상 적립 → 비중 파이. 시작은 월 현금흐름도. */
+    /** 원 — "시작" 또는 가지(대응 방법): 조건 → 매매표 → 실행할 일 → 근거 → 총자산 변화 → 예상 적립 → 비중 파이. 시작은 월 현금흐름도. */
     function renderNode() {
         var byId = nodesById(), n = byId[selected], ev = n && byId[n.parent];
         var state = plan.values[selected], base = baseOf(selected);
         showFloat(n ? n.title : '시작', n
-            ? '대응 · ' + ev.title + ' ' + when(ev.at) + ' · ' + STATUS_LABEL[n.status]
+            ? '대응 · ' + ev.title + ' ' + when(ev.at) + ' · ' + STATUS_LABEL[n.status] + (n.executed_at ? ' · 실행함 ' + shortDate(n.executed_at) : '')
             : '기준일 ' + (plan.doc.as_of || '—') + (plan.usdkrw ? ' · 환율 ' + plan.usdkrw.toLocaleString('ko-KR') + '원/달러' : ''));
 
         if (n) {
             section('조건', n.condition);
+            var tradeSec = section('매매', tradeTable(n.id));
+            if (tradeSec && n.status === 'realized' && !n.executed_at) {
+                // [실행함] 은 제목 줄 오른쪽에 — 표 위에 따로 두면 버튼 하나가 한 줄을 차지했다
+                var h = tradeSec.firstChild;
+                h.classList.add('plan-sec__title--act');
+                h.appendChild(executedButton(n));
+            }
             section('실행할 일', n.actions.length ? n.actions : (n.holdings ? null : '매매 없이 유지'));
             section('근거', n.note);
             section('복기', retroBox(n, byId));
@@ -1068,6 +1167,7 @@
     }
 
     function render() {
+        renderTodo();
         renderTree();
         refreshFloat();
     }
@@ -1295,14 +1395,14 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !floatEl.hidden && !historyDlg.open) closeFloat();
     });
-    // 바깥을 누르면 닫는다. 다른 원·날짜 라벨은 그 상세로 바꾸는 자리라 빼고, 토스트(되돌리기 등)도 뺀다.
+    // 바깥을 누르면 닫는다. 다른 원·날짜 라벨·할 일의 가지 이름은 그 상세로 바꾸는 자리라 빼고, 토스트(되돌리기 등)도 뺀다.
     document.addEventListener('click', function (e) {
         if (floatEl.hidden || historyDlg.open || dragMoved) { dragMoved = false; return; }
         // ⚠️ 창 안의 가지 버튼은 누르는 순간 창이 다시 그려져 문서에서 빠진다 — `contains` 로는 바깥으로 오판한다.
         //    누른 시점의 경로(composedPath)로 판정한다.
         var path = e.composedPath();
         if (path.indexOf(floatEl) >= 0 || path.some(function (n) {
-            return n.nodeType === 1 && n.matches('.plan-dot, .plan-axis__ev, .c-toast-host');
+            return n.nodeType === 1 && n.matches('.plan-dot, .plan-axis__ev, .plan-todo__name, .c-toast-host');
         })) return;
         closeFloat();
     });
