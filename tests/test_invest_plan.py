@@ -141,6 +141,29 @@ class TestAccount:
         assert ip.outline(_doc(holdings=h, nodes=[]))["holdings"][0]["account"] == "ISA"
 
 
+class TestGroupAndType:
+    """자산군의 국내/해외(`group`)와 유형 칸(2026-10-11) — region 이 비면 미국 시장만 해외로 본다."""
+
+    @pytest.mark.parametrize("h, g", [
+        ({"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1}, "stock_kr"),
+        ({"kind": "bond", "name": "TLT", "code": "TLT", "market": "US", "qty": 1}, "bond_global"),
+        ({"kind": "stock", "name": "TIGER 미국S&P500", "code": "360750", "market": "KR", "qty": 1, "region": "GLOBAL"}, "stock_global"),
+        ({"kind": "bond", "name": "직접 보유 국채", "amount": 1}, "bond_kr"),
+        ({"kind": "cash", "name": "예금", "amount": 1, "region": "GLOBAL"}, "cash"),
+    ])
+    def test_자산군_칸(self, h, g):
+        assert ip.group(ip.Holding.model_validate(h)) == g
+
+    def test_평가_줄에_칸과_유형이_실린다(self):
+        h = [{"kind": "other", "name": "전세보증금 순액", "amount": 10_000_000, "type": "housing"}]
+        row = ip.valuate(_doc(holdings=h, nodes=[]), {}, {}, None)["root"]["rows"][0]
+        assert (row["group"], row["type"]) == ("other", "housing")
+
+    def test_모르는_유형은_거부(self):
+        with pytest.raises(ValidationError):
+            ip.Holding.model_validate({"kind": "cash", "name": "x", "amount": 1, "type": "주택"})
+
+
 class TestCashflow:
     """월 현금흐름(2026-10-11) — 합계·여유, 이벤트까지 지나는 달 수 × 계좌별 납입."""
 

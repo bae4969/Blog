@@ -376,6 +376,17 @@
     margin-block-start: var(--space-4);
 }
 
+/* 제목·도넛은 왼쪽, 표는 오른쪽에서 제목 줄부터 — 표 머리가 도넛 위 끝에 붙으면 아래로 처져 보였다(2026-10-11 사용자 지적) */
+.plan-pie {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: var(--space-3);
+}
+
+.plan-pie::after,
+.plan-pie__body::after { content: none; }
+
 .plan-pie h3 {
     margin: 0 0 var(--space-2);
     color: var(--bae-text-muted);
@@ -383,13 +394,10 @@
     font-weight: 700;
 }
 
-.plan-pie__body {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-}
+.plan-pie__body { display: contents; }
 
-.plan-pie svg { flex: 0 0 6.5rem; inline-size: 6.5rem; block-size: 6.5rem; }
+.plan-pie svg { grid-column: 1; grid-row: 2; inline-size: 6.5rem; block-size: 6.5rem; }
+.plan-pie .plan-legend { grid-column: 2; grid-row: 1 / span 2; align-self: start; inline-size: 100%; }
 
 .plan-pie path {
     stroke: var(--bae-surface);
@@ -407,7 +415,6 @@
 
 /* 범례 겸 표 — 색만으로 구분하지 않게 이름·비중·변화를 글자로 둔다 */
 .plan-legend {
-    flex: 1;
     min-inline-size: 0;
     border-collapse: collapse;
     font-size: 0.75rem;

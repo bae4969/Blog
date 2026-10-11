@@ -22,7 +22,11 @@ from pydantic import BaseModel, Field, model_validator
 
 AssetClass = Literal["stock", "bond", "cash", "crypto", "other"]
 _KST = timezone(timedelta(hours=9))
-CLASS_LABEL = {"stock": "주식", "bond": "채권", "cash": "현금", "crypto": "코인", "other": "기타"}
+#: 화면·메일의 자산군 비중 — 주식·채권은 국내/해외로 나눈다(2026-10-11 사용자 요청). 키는 `group()`.
+GROUP_LABEL = {"stock_kr": "국내주식", "stock_global": "해외주식", "bond_kr": "국내채권", "bond_global": "해외채권",
+               "cash": "현금", "crypto": "코인", "other": "기타"}
+AssetType = Literal["cash", "saving", "invest", "pension", "housing"]
+TYPE_LABEL = {"cash": "현금성", "saving": "저축성", "invest": "투자성", "pension": "연금성", "housing": "주택"}
 
 _MAX_NODES = 200
 _MAX_HOLDINGS = 100
@@ -40,6 +44,17 @@ class Holding(BaseModel):
     currency: Literal["KRW", "USD"] = "KRW"
     account: str | None = Field(default=None, max_length=30,
                                 description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
+    type: AssetType | None = Field(default=None, description="유형(현금성·저축성·투자성·연금성·주택) — 화면 유형별 비중. 2026-10-11")
+    region: Literal["KR", "GLOBAL"] | None = Field(default=None,
+                                                  description="주식·채권의 투자 대상(상장 시장이 아니다 — 국내 상장 미국 ETF 는 GLOBAL). 비면 market 으로 본다")
+
+
+def group(h: Holding) -> str:
+    """자산군 비중의 칸 — 주식·채권은 국내/해외로 나눈다. region 이 비면 미국 시장 종목만 해외로 본다."""
+    if h.kind not in ("stock", "bond"):
+        return h.kind
+    region = h.region or ("GLOBAL" if h.market == "US" else "KR")
+    return f"{h.kind}_{region.lower()}"
 
 
 FlowKind = Literal["income", "fixed", "living", "saving"]
@@ -187,7 +202,7 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
         rows, total = [], 0.0
         for h in hs:
             v, px = _value(h, stock_px, coin_px, usdkrw)
-            rows.append({**h.model_dump(), "value": v, "price": px})
+            rows.append({**h.model_dump(), "group": group(h), "value": v, "price": px})
             total += v or 0.0
         out[key] = {"total": total, "rows": rows}
     return out
@@ -294,9 +309,13 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
     saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
   - 화면은 이벤트마다 "그때까지 예상 적립"(달 수 × 계좌별 납입)을 따로 보인다 — 가지 holdings 에 적립을 미리 더하지 않는다.
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
-  "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null}}
+  "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null,
+  "type": "cash|saving|invest|pension|housing"|null, "region": "KR|GLOBAL"|null}}
   - account 는 계좌 이름이다(예: ISA·IRP·DC·연금저축·일반·입출금·저축). 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
     이름(name)에는 계좌를 붙이지 않는다. 가지의 holdings 에서도 계좌를 그대로 이어 쓰고, 계좌를 옮기는 매매는 하지 않는다.
+  - type 은 유형이다 — cash 현금성(입출금·파킹·외화예금), saving 저축성(적금·청약), invest 투자성(ISA·일반 계좌·금현물),
+    pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — amount 는 대출·차입을 뺀 순액, 내역은 이름에). 줄마다 채운다.
+  - region 은 주식·채권의 투자 대상이다 — 국내 상장이라도 미국·중국·인도 등을 담으면 "GLOBAL"(예: TIGER 미국S&P500). 그 밖의 자산은 비운다.
   - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). 금액은 서버가 시세로 계산하니 amount 는 비운다.
   - 예금·현금·직접 보유 채권처럼 시세가 없는 것만 amount(+currency).
   - 채권 ETF(TLT·IEF 등)는 kind "bond" 로 둔다.

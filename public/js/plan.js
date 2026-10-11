@@ -14,8 +14,11 @@
 (function () {
     'use strict';
 
-    var CLASSES = ['stock', 'bond', 'cash', 'crypto', 'other'];
     var CLASS_LABEL = { stock: '주식', bond: '채권', cash: '현금', crypto: '코인', other: '기타' };
+    //: 자산군 비중의 칸 — 서버가 줄마다 `group` 으로 준다(주식·채권은 국내/해외, 2026-10-11)
+    var GROUPS = [['stock_kr', '국내주식'], ['stock_global', '해외주식'], ['bond_kr', '국내채권'], ['bond_global', '해외채권'],
+                  ['cash', '현금'], ['crypto', '코인'], ['other', '기타']];
+    var TYPES = [['cash', '현금성'], ['saving', '저축성'], ['invest', '투자성'], ['pension', '연금성'], ['housing', '주택']];
     var STATUS_LABEL = { pending: '대기', realized: '실현', dropped: '접힘' };
     //: 분류 색 — plan.css 의 `--series-N`. 순서 고정, 8번째부터는 "기타" 회색으로 접는다.
     var SERIES = 7;
@@ -140,9 +143,9 @@
     /** 자산군별 합계 [{key, label, value, color}] — 값이 없는(시세 없음) 줄은 뺀다. */
     function classMix(state) {
         var sum = {};
-        state.rows.forEach(function (r) { if (r.value != null) sum[r.kind] = (sum[r.kind] || 0) + r.value; });
-        return CLASSES.map(function (k, i) {
-            return { key: k, label: CLASS_LABEL[k], value: sum[k] || 0, color: color(i) };
+        state.rows.forEach(function (r) { if (r.value != null) sum[r.group] = (sum[r.group] || 0) + r.value; });
+        return GROUPS.map(function (g, i) {
+            return { key: g[0], label: g[1], value: sum[g[0]] || 0, color: color(i) };
         });
     }
 
@@ -187,31 +190,13 @@
         return out;
     }
 
-    /**
-     * 계좌별 합계(2026-10-11) — 같은 종목도 계좌마다 따로 센다. 계좌가 하나도 없는 옛 문서는 빈 배열.
-     * 색은 문서 전체에서 처음 나온 계좌 순서로 고정하고, 7개를 넘는 계좌는 "기타 N계좌" 로 묶는다.
-     */
-    function accountMix(state) {
-        var order = [];
-        function see(h) { if (h.account && order.indexOf(h.account) < 0) order.push(h.account); }
-        plan.doc.holdings.forEach(see);
-        plan.doc.nodes.forEach(function (n) { (n.holdings || []).forEach(see); });
-        if (!order.length) return [];
+    /** 유형별 합계(2026-10-11, 계좌별을 대신한다) — 유형이 하나도 없는 옛 문서는 빈 배열. 주택은 문서에 순액으로 적는다. */
+    function typeMix(state) {
+        if (!state.rows.some(function (r) { return r.type; })) return [];
         var sum = {};
-        state.rows.forEach(function (r) {
-            if (r.value != null) { var k = r.account || ''; sum[k] = (sum[k] || 0) + r.value; }
-        });
-        var out = [], other = null;
-        order.forEach(function (k, i) {
-            if (i < SERIES) out.push({ key: 'acc:' + k, label: k, value: sum[k] || 0, color: color(i) });
-            else {
-                other = other || { key: 'acc:__other', label: '기타', value: 0, color: color(SERIES), count: 0 };
-                other.value += sum[k] || 0;
-                other.count += 1;
-            }
-        });
-        if (other) { other.label = '기타 ' + other.count + '계좌'; out.push(other); }
-        if (sum['']) out.push({ key: 'acc:', label: '계좌 미지정', value: sum[''], color: color(SERIES) });
+        state.rows.forEach(function (r) { if (r.value != null) { var k = r.type || ''; sum[k] = (sum[k] || 0) + r.value; } });
+        var out = TYPES.map(function (t, i) { return { key: 'type:' + t[0], label: t[1], value: sum[t[0]] || 0, color: color(i) }; });
+        if (sum['']) out.push({ key: 'type:', label: '유형 미지정', value: sum[''], color: color(SERIES) });
         return out;
     }
 
@@ -823,7 +808,7 @@
         return wrap;
     }
 
-    /** 자산군 파이 + 계좌별 파이 + 주식·채권 종목별 파이. `base` 가 있으면 비중 변화(%p) 칸을 붙인다. */
+    /** 자산군 파이 + 유형별 파이 + 주식·채권 종목별 파이. `base` 가 있으면 비중 변화(%p) 칸을 붙인다. */
     function pies(state, base) {
         var box = el('div', 'plan-pies');
         var positive = function (m) { return m.value > 0; };
@@ -840,15 +825,15 @@
                 return delta(shareOf(mix, it.key) - shareOf(baseMix, it.key));
             } }] : []));
         }
-        var acc = accountMix(state).filter(positive);
-        var baseAcc = base ? accountMix(base).filter(positive) : null;
+        var acc = typeMix(state).filter(positive);
+        var baseAcc = base ? typeMix(base).filter(positive) : null;
         if (baseAcc) {
             baseAcc.forEach(function (ba) {
                 if (!acc.some(function (a) { return a.key === ba.key; })) acc.push(Object.assign({}, ba, { value: 0 }));
             });
         }
         if (acc.length) {
-            box.appendChild(pie('계좌별', acc, baseAcc ? [{ head: '변화(%p)', cell: function (it) {
+            box.appendChild(pie('유형별', acc, baseAcc ? [{ head: '변화(%p)', cell: function (it) {
                 return delta(shareOf(acc, it.key) - shareOf(baseAcc, it.key));
             } }] : []));
         }

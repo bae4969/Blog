@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 
-from app.services.invest_plan import CLASS_LABEL, PlanDoc, _kst
+from app.services.invest_plan import GROUP_LABEL, PlanDoc, _kst
 
 #: 시작 시각이 이만큼 지난 이벤트는 보내지 않는다 — 앱이 오래 꺼져 있다 켜졌을 때 옛 알림이 몰려오지 않게.
 LATE_LIMIT = timedelta(hours=24)
@@ -31,8 +31,8 @@ def _mix(state: dict) -> str:
     sums: dict[str, float] = {}
     for r in state["rows"]:
         if r["value"] is not None:
-            sums[r["kind"]] = sums.get(r["kind"], 0) + r["value"]
-    return " · ".join(f"{CLASS_LABEL[k]} {v / total * 100:.0f}%" for k, v in sums.items() if v > 0)
+            sums[r["group"]] = sums.get(r["group"], 0) + r["value"]
+    return " · ".join(f"{GROUP_LABEL[k]} {v / total * 100:.0f}%" for k, v in sums.items() if v > 0)
 
 
 def compose(doc: PlanDoc, values: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
