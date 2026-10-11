@@ -1317,6 +1317,12 @@
         }).catch(function (e) { historyDlg.close(); window.toast('버전 기록을 불러오지 못했습니다: ' + e.message, 'error'); });
     });
     document.getElementById('planHistoryClose').addEventListener('click', function () { historyDlg.close(); });
+    // 떠 있는 창 규칙 — 바깥(배경)을 누르면 닫는다. 배경 클릭은 dialog 자신이 target 이라 창 안 여백과 좌표로 가른다.
+    historyDlg.addEventListener('click', function (e) {
+        if (e.target !== historyDlg) return;
+        var r = historyDlg.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) historyDlg.close();
+    });
 
     // ── 시작 ───────────────────────────────────────────────
 

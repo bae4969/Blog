@@ -769,6 +769,7 @@
 /* ── 버전 기록 ─────────────────────────────────────────── */
 
 .plan-history {
+    overflow: hidden;   /* 스크롤은 목록만 — 창 자체가 42px 더 스크롤되며 막대가 떴다 */
     inline-size: min(32rem, calc(100% - 2rem));
     padding: var(--space-4);
     border: 1px solid var(--bae-border-hover);
@@ -778,6 +779,11 @@
 }
 
 .plan-history::backdrop { background: rgba(0, 0, 0, 0.55); }
+
+/* ⚠️ blog.css 의 float 해제 `header::after, li::after { display: table }` 가 flex 안에서 보이지 않는 항목이 된다 —
+   space-between 이 셋으로 나눠 닫기 버튼이 가운데로 가고, 되돌리기 버튼은 끝에서 gap 만큼 떨어졌다(2026-10-11 사용자 지적). */
+.plan-history__head::after,
+.plan-history__list li::after { content: none; }
 
 .plan-history__head {
     display: flex;
