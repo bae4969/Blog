@@ -315,34 +315,57 @@
         // 원 폭: 큰 원 slotW, 작은 점 dotW. 결과: 원마다 뿌리 기준 상대 x, 전체 폭.
         function rowOfNode(id) { return id === 'root' ? 0 : rowOf[timeKey(byId[byId[id].parent].at)]; }
         function lay(id) {
-            var half = (big[id] ? slotW : dotW) / 2, rel = {}, contour = {};
+            var half = (big[id] ? slotW : dotW) / 2, rel = {}, contour = {}, r0 = rowOfNode(id);
             rel[id] = 0;
-            contour[rowOfNode(id)] = [-half, half];
-            var kids = kidsOf(id), acc = null, xs = [];
-            kids.forEach(function (k) {
-                var sub = lay(k), off = xs.length ? xs[xs.length - 1] + dotW : 0;
+            contour[r0] = [-half, half];
+            var acc = null, xs = [];
+            eventsUnder[id].forEach(function (e) {
+                var sub = layEvent(e, r0), off = xs.length ? xs[xs.length - 1] + dotW : 0;
                 if (acc) {
                     Object.keys(sub.contour).forEach(function (r) {
                         if (acc[r]) off = Math.max(off, acc[r][1] - sub.contour[r][0]);
                     });
                 }
                 Object.keys(sub.rel).forEach(function (n) { rel[n] = sub.rel[n] + off; });
-                acc = acc || {};
-                Object.keys(sub.contour).forEach(function (r) {
-                    var c = sub.contour[r];
-                    acc[r] = acc[r] ? [Math.min(acc[r][0], c[0] + off), Math.max(acc[r][1], c[1] + off)] : [c[0] + off, c[1] + off];
-                });
+                acc = mergeContour(acc, sub.contour, off);
                 xs.push(off);
             });
-            if (kids.length) {
-                var mid = (xs[0] + xs[xs.length - 1]) / 2;   // 부모는 자식 묶음의 가운데 위
+            if (xs.length) {
+                var mid = (xs[0] + xs[xs.length - 1]) / 2;   // 부모는 이벤트 묶음들의 가운데 위
                 Object.keys(rel).forEach(function (n) { if (n !== id) rel[n] -= mid; });
-                Object.keys(acc).forEach(function (r) {
-                    var c = [acc[r][0] - mid, acc[r][1] - mid];
-                    contour[r] = contour[r] ? [Math.min(contour[r][0], c[0]), Math.max(contour[r][1], c[1])] : c;
-                });
+                contour = mergeContour(contour, acc, -mid);
             }
             return { rel: rel, contour: contour };
+        }
+        /** 이벤트 하나 — 그 가지들을 나란히 붙이고 가운데를 0 으로. 키 `ev:<id>` 가 갈래 줄기의 x 다. */
+        function layEvent(e, r0) {
+            var rE = rowOf[timeKey(e.at)], rel = {}, acc = {}, xs = [];
+            branchesOf[e.id].forEach(function (b) {
+                var sub = lay(b.id), off = xs.length ? xs[xs.length - 1] + dotW : 0;
+                Object.keys(sub.contour).forEach(function (r) {
+                    if (acc[r]) off = Math.max(off, acc[r][1] - sub.contour[r][0]);
+                });
+                Object.keys(sub.rel).forEach(function (n) { rel[n] = sub.rel[n] + off; });
+                acc = mergeContour(acc, sub.contour, off);
+                xs.push(off);
+            });
+            var mid = xs.length ? (xs[0] + xs[xs.length - 1]) / 2 : 0;
+            Object.keys(rel).forEach(function (n) { rel[n] -= mid; });
+            rel['ev:' + e.id] = 0;
+            // 여러 줄을 건너뛰는 갈래(부모 줄과 이벤트 줄 사이에 다른 줄이 있다)는 그 사이 줄에 **줄기 자리**를 잡는다 —
+            // 안 잡으면 다른 가지의 원이 줄기 위에 놓여 선이 그 원을 뚫고 지나갔다(시작 → 2028 청년도약 만기, 2026-10-11 사용자 지적).
+            var contour = mergeContour({}, acc, -mid), t = dotW / 2;
+            for (var r = r0 + 1; r < (xs.length ? rE : rE + 1); r++) contour = mergeContour(contour, (function () { var o = {}; o[r] = [-t, t]; return o; })(), 0);
+            return { rel: rel, contour: contour };
+        }
+        /** 윤곽 합치기 — `into` 의 줄마다 `c` 를 `off` 만큼 옮겨 넓힌다. */
+        function mergeContour(into, c, off) {
+            into = into || {};
+            Object.keys(c).forEach(function (r) {
+                var v = [c[r][0] + off, c[r][1] + off];
+                into[r] = into[r] ? [Math.min(into[r][0], v[0]), Math.max(into[r][1], v[1])] : v;
+            });
+            return into;
         }
         var tree;
         function measure() {
@@ -402,12 +425,15 @@
             kidsOf(id).forEach(function (k) { setPos(k, isDropped); });
         })('root', false);
 
+        var evX = {};   // 이벤트 갈래 줄기의 x — 여러 줄을 건너뛰는 갈래는 부모 밑에서 여기로 옮겨 와 내려간다
+        Object.keys(tree.rel).forEach(function (k) { if (k.indexOf('ev:') === 0) evX[k.slice(3)] = originX + tree.rel[k]; });
+
         // 줄 높이는 모두 같다(ROW_H) — 줄마다 다르게 했더니 세대 간격이 들쭉날쭉해 보였다(사용자 지적).
         // rowBig 은 지난 구간 띠의 아래 끝을 정할 때만 쓴다(큰 원 줄이면 이름 밑까지).
         var rowBig = rows.map(function () { return false; });
         Object.keys(pos).forEach(function (k) { if (pos[k].big) rowBig[pos[k].row] = true; });
         var rowY = rows.map(function (_, r) { return TOP + r * ROW_H; });
-        return { byId: byId, rows: rows, rowOf: rowOf, pos: pos, eventsUnder: eventsUnder, branchesOf: branchesOf,
+        return { byId: byId, rows: rows, rowOf: rowOf, pos: pos, evX: evX, eventsUnder: eventsUnder, branchesOf: branchesOf,
                  rowY: rowY, rowBig: rowBig, focus: focus, width: full,
                  height: rowY[rows.length - 1] + ROW_H + 8 };
     }
@@ -421,7 +447,7 @@
         function w(text, font) { measureCtx.font = font + ' ' + family; return measureCtx.measureText(text).width; }
         rows.forEach(function (row) {
             if (!row.at) {
-                widest = Math.max(widest, w('시작', '700 13px'), w(plan.doc.as_of || '', '400 11px'));
+                widest = Math.max(widest, w('시작', '700 13px'), w(asOfLabel(), '400 11px'));
                 return;
             }
             widest = Math.max(widest, w(shortDate(row.at), '700 13px'));
@@ -442,8 +468,12 @@
         var two = function (v) { return (v < 10 ? '0' : '') + v; };
         // 브라우저 시각대가 아니라 KST 로 읽는다 — 서버가 +09:00 으로 준다.
         var k = new Date(d.getTime() + 9 * 3600 * 1000);
-        return (k.getUTCMonth() + 1) + '.' + two(k.getUTCDate()) + ' ' + two(k.getUTCHours()) + ':' + two(k.getUTCMinutes());
+        // YY.MM.DD — 시각은 보이지 않는다(사용자: 시간 단위로 관리하지 않는다, 2026-10-11)
+        return two(k.getUTCFullYear() % 100) + '.' + two(k.getUTCMonth() + 1) + '.' + two(k.getUTCDate());
     }
+
+    /** 보유 기준일 'YYYY-MM-DD' → 'YY.MM.DD'(날짜축 표기와 같게). */
+    function asOfLabel() { return plan.doc.as_of ? plan.doc.as_of.slice(2).replace(/-/g, '.') : ''; }
 
     function renderTree() {
         var L = layout(), canvas = el('div', 'plan-tree__canvas');
@@ -500,17 +530,24 @@
             var gap = rowY - L.rowY[row - 1];
             // 큰 원은 그 아래 이름·금액·막대 밑에서, 작은 점은 점 바로 밑에서 내려온다
             var start = p.y + (pp.big ? labelH : SMALL_R + 2), fork = Math.max(start + 6, rowY - gap * 0.45);
+            // 여러 줄을 건너뛰는 갈래 — 부모 바로 밑에서 줄기 자리(evX, 배치가 비워 둔 곳)로 옮겨 가 그 줄기로 내려온다
+            var sx = p.x, head = 'M' + p.x + ',' + start;
+            if (row - pp.row > 1) {
+                var g1 = L.rowY[pp.row + 1] - L.rowY[pp.row], f1 = Math.max(start + 6, L.rowY[pp.row + 1] - g1 * 0.45), h = g1 * 0.2;
+                sx = L.evX[n.id];
+                head += ' V' + f1 + ' C' + p.x + ',' + (f1 + h) + ' ' + sx + ',' + (f1 + h) + ' ' + sx + ',' + (f1 + 2 * h);
+            }
             var kids = L.branchesOf[n.id];
             if (!kids.length) {
                 // 가지가 아직 없는 이벤트 — 줄까지 내려와 빈 점으로 끝낸다
-                g.appendChild(svg('path', { class: 'plan-edge is-pending', d: 'M' + p.x + ',' + start + ' V' + (rowY - 5) }));
-                g.appendChild(svg('circle', { class: 'plan-edge__end', cx: p.x, cy: rowY, r: 4 }));
+                g.appendChild(svg('path', { class: 'plan-edge is-pending', d: head + ' V' + (rowY - 5) }));
+                g.appendChild(svg('circle', { class: 'plan-edge__end', cx: sx, cy: rowY, r: 4 }));
                 return;
             }
             kids.forEach(function (b) {
                 var cp = L.pos[b.id], c = px(cp), r = cp.big ? R : SMALL_R, d = (c.y - r - fork) * 0.5;
-                var path = svg('path', { class: 'plan-edge' + (cp.big ? '' : ' is-small'), d: 'M' + p.x + ',' + start + ' V' + fork
-                    + ' C' + p.x + ',' + (fork + d) + ' ' + c.x + ',' + fork + ' ' + c.x + ',' + (fork + d) + ' V' + (c.y - r) });
+                var path = svg('path', { class: 'plan-edge' + (cp.big ? '' : ' is-small'), d: head + ' V' + fork
+                    + ' C' + sx + ',' + (fork + d) + ' ' + c.x + ',' + fork + ' ' + c.x + ',' + (fork + d) + ' V' + (c.y - r) });
                 if (L.pos[b.id].dropped) path.classList.add('is-dropped');
                 else if (b.status === 'realized') path.classList.add('is-realized');
                 g.appendChild(path);
@@ -535,7 +572,7 @@
         box.style.width = (AXIS_W - AXIS_X - 24) + 'px';
         if (!row.at) {
             box.appendChild(el('span', 'plan-axis__date', '시작'));
-            box.appendChild(el('span', 'plan-axis__sub', plan.doc.as_of || ''));
+            box.appendChild(el('span', 'plan-axis__sub', asOfLabel()));
             return box;
         }
         box.appendChild(el('span', 'plan-axis__date', shortDate(row.at)));
