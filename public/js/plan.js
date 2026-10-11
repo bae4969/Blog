@@ -533,9 +533,11 @@
             // 여러 줄을 건너뛰는 갈래 — 부모 바로 밑에서 줄기 자리(evX, 배치가 비워 둔 곳)로 옮겨 가 그 줄기로 내려온다
             var sx = p.x, head = 'M' + p.x + ',' + start;
             if (row - pp.row > 1) {
-                var g1 = L.rowY[pp.row + 1] - L.rowY[pp.row], f1 = Math.max(start + 6, L.rowY[pp.row + 1] - g1 * 0.45), h = g1 * 0.2;
+                // 꺾는 곡선은 바로 아랫줄로 가는 갈래와 **같은 높이·같은 꼴**로 — 따로 잡았더니 옆 가지 선을 가로지르고 원 위를 스쳤다
+                var g1 = L.rowY[pp.row + 1] - L.rowY[pp.row], f1 = Math.max(start + 6, L.rowY[pp.row + 1] - g1 * 0.45);
+                var d1 = (L.rowY[pp.row + 1] - R - f1) * 0.5;
                 sx = L.evX[n.id];
-                head += ' V' + f1 + ' C' + p.x + ',' + (f1 + h) + ' ' + sx + ',' + (f1 + h) + ' ' + sx + ',' + (f1 + 2 * h);
+                head += ' V' + f1 + ' C' + p.x + ',' + (f1 + d1) + ' ' + sx + ',' + f1 + ' ' + sx + ',' + (f1 + d1);
             }
             var kids = L.branchesOf[n.id];
             if (!kids.length) {
