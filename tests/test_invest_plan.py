@@ -124,6 +124,23 @@ class TestDetailFields:
             ip.PlanDoc.model_validate({"nodes": [{**base, "links": [{"title": "x", "url": "javascript:alert(1)"}]}]})
 
 
+class TestAccount:
+    """보유의 계좌 칸(2026-10-11) — 옛 문서는 None, 같은 종목도 계좌마다 따로 평가된다."""
+
+    def test_옛_문서는_계좌_없음(self):
+        assert all(h.account is None for h in _doc().holdings)
+
+    def test_같은_종목_두_계좌는_따로_평가(self):
+        h = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": q, "account": a}
+             for q, a in ((100, "ISA"), (37, "IRP"))]
+        rows = ip.valuate(_doc(holdings=h, nodes=[]), {"102110": 1000.0}, {}, None)["root"]["rows"]
+        assert [(r["account"], r["value"]) for r in rows] == [("ISA", 100_000.0), ("IRP", 37_000.0)]
+
+    def test_프롬프트_뼈대에_계좌가_실린다(self):
+        h = [{"kind": "cash", "name": "현금", "amount": 1, "account": "ISA"}]
+        assert ip.outline(_doc(holdings=h, nodes=[]))["holdings"][0]["account"] == "ISA"
+
+
 def test_대화는_글로_펴고_이미지는_따로():
     from app.api.plan_v1 import _flatten
     prompt, images = _flatten([

@@ -38,6 +38,8 @@ class Holding(BaseModel):
     qty: float | None = Field(default=None, ge=0)
     amount: float | None = Field(default=None, ge=0, description="시세가 없을 때의 평가액(currency 기준)")
     currency: Literal["KRW", "USD"] = "KRW"
+    account: str | None = Field(default=None, max_length=30,
+                                description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
 
 
 class Link(BaseModel):
@@ -230,7 +232,9 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
 ## 계획 문서 형식(JSON)
 {{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드]}}
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
-  "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD"}}
+  "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null}}
+  - account 는 계좌 이름이다(예: ISA·IRP·DC·연금저축·일반·입출금·저축). 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
+    이름(name)에는 계좌를 붙이지 않는다. 가지의 holdings 에서도 계좌를 그대로 이어 쓰고, 계좌를 옮기는 매매는 하지 않는다.
   - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). 금액은 서버가 시세로 계산하니 amount 는 비운다.
   - 예금·현금·직접 보유 채권처럼 시세가 없는 것만 amount(+currency).
   - 채권 ETF(TLT·IEF 등)는 kind "bond" 로 둔다.

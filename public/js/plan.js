@@ -164,9 +164,10 @@
         state.rows.forEach(function (r) {
             if (r.kind !== kind) return;
             var key = r.code || r.name;
-            if (!map[key]) { map[key] = { key: key, label: r.name, value: 0, qty: 0, unpriced: false }; keys.push(key); }
+            if (!map[key]) { map[key] = { key: key, label: r.name, value: 0, qty: null, unpriced: false }; keys.push(key); }
             map[key].value += r.value || 0;
-            map[key].qty += r.qty || 0;
+            // 수량은 수량이 있는 줄만 더한다 — 평가액으로만 넣은 줄(DC 등)이 끼면 "0" 이 아니라 아는 만큼만 보인다
+            if (r.qty != null) map[key].qty = (map[key].qty || 0) + r.qty;
             if (r.value == null) map[key].unpriced = true;
         });
         var list = order[kind] || [];
@@ -183,6 +184,34 @@
         });
         out.sort(function (a, b) { return a.order - b.order; });
         if (other) { other.label = '기타 ' + other.count + '종목'; out.push(other); }
+        return out;
+    }
+
+    /**
+     * 계좌별 합계(2026-10-11) — 같은 종목도 계좌마다 따로 센다. 계좌가 하나도 없는 옛 문서는 빈 배열.
+     * 색은 문서 전체에서 처음 나온 계좌 순서로 고정하고, 7개를 넘는 계좌는 "기타 N계좌" 로 묶는다.
+     */
+    function accountMix(state) {
+        var order = [];
+        function see(h) { if (h.account && order.indexOf(h.account) < 0) order.push(h.account); }
+        plan.doc.holdings.forEach(see);
+        plan.doc.nodes.forEach(function (n) { (n.holdings || []).forEach(see); });
+        if (!order.length) return [];
+        var sum = {};
+        state.rows.forEach(function (r) {
+            if (r.value != null) { var k = r.account || ''; sum[k] = (sum[k] || 0) + r.value; }
+        });
+        var out = [], other = null;
+        order.forEach(function (k, i) {
+            if (i < SERIES) out.push({ key: 'acc:' + k, label: k, value: sum[k] || 0, color: color(i) });
+            else {
+                other = other || { key: 'acc:__other', label: '기타', value: 0, color: color(SERIES), count: 0 };
+                other.value += sum[k] || 0;
+                other.count += 1;
+            }
+        });
+        if (other) { other.label = '기타 ' + other.count + '계좌'; out.push(other); }
+        if (sum['']) out.push({ key: 'acc:', label: '계좌 미지정', value: sum[''], color: color(SERIES) });
         return out;
     }
 
@@ -755,7 +784,7 @@
         return wrap;
     }
 
-    /** 자산군 파이 + 주식·채권 종목별 파이. `base` 가 있으면 비중 변화(%p) 칸을 붙인다. */
+    /** 자산군 파이 + 계좌별 파이 + 주식·채권 종목별 파이. `base` 가 있으면 비중 변화(%p) 칸을 붙인다. */
     function pies(state, base) {
         var box = el('div', 'plan-pies');
         var positive = function (m) { return m.value > 0; };
@@ -770,6 +799,18 @@
         if (mix.length) {
             box.appendChild(pie('자산군 비중', mix, baseMix ? [{ head: '변화(%p)', cell: function (it) {
                 return delta(shareOf(mix, it.key) - shareOf(baseMix, it.key));
+            } }] : []));
+        }
+        var acc = accountMix(state).filter(positive);
+        var baseAcc = base ? accountMix(base).filter(positive) : null;
+        if (baseAcc) {
+            baseAcc.forEach(function (ba) {
+                if (!acc.some(function (a) { return a.key === ba.key; })) acc.push(Object.assign({}, ba, { value: 0 }));
+            });
+        }
+        if (acc.length) {
+            box.appendChild(pie('계좌별', acc, baseAcc ? [{ head: '변화(%p)', cell: function (it) {
+                return delta(shareOf(acc, it.key) - shareOf(baseAcc, it.key));
             } }] : []));
         }
         var order = tickerColors();

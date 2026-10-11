@@ -92,6 +92,14 @@ class TestWrite:
         run("holdings_set", {"holdings": [{"kind": "cash", "name": "예금", "amount": 100}], "as_of": "2026-10-10"})
         assert state["doc"].holdings[0].amount == 100 and len(saved) == 4
 
+    def test_계좌_칸이_쓰기_뒤에도_남는다(self, monkeypatch):
+        run, state, _ = self._store(monkeypatch, self.BASE)
+        h = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 100, "account": "ISA"}]
+        run("holdings_set", {"holdings": h})
+        run("node_update", {"id": "b", "fields": {"holdings": [{**h[0], "qty": 50}, {**h[0], "qty": 50, "account": "IRP"}]}})
+        assert state["doc"].holdings[0].account == "ISA"
+        assert [x.account for x in state["doc"].nodes[1].holdings] == ["ISA", "IRP"]
+
     def test_검증에_걸리면_저장하지_않는다(self, monkeypatch):
         import pytest
         run, state, saved = self._store(monkeypatch, self.BASE)
