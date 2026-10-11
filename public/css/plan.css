@@ -506,6 +506,7 @@
 
 .plan-chat {
     position: relative;
+    padding: 0;   /* blog.css 의 `section { padding: 10px }` 이 말풍선 바깥 여백에 더해졌다 */
     block-size: 70vh;
     overflow: hidden;
     background: var(--bae-bg);
@@ -514,7 +515,7 @@
 
 .plan-chat__log {
     block-size: 100%;
-    padding: var(--space-4) var(--space-4) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — plan.js 가 실제 높이로 맞춘다 */
+    padding: var(--space-4) var(--space-2) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — plan.js 가 실제 높이로 맞춘다. 좌우는 8px(2026-10-11 사용자 "더 줄여") */
     overflow-y: auto;
     scrollbar-width: none;
 }
