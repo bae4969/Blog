@@ -143,7 +143,7 @@
      * 있는지 알 수 없다. 마우스 클릭에는 안 뜨고 키보드에만 뜬다.
      */
     :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-        outline: 2px solid var(--bae-accent);
+        outline: 2px solid var(--bae-accent-fg);
         outline-offset: 2px;
         border-radius: var(--r-ctl);
     }
@@ -230,7 +230,7 @@
     }
 
     .c-brand__lead { color: var(--bae-text-primary); }
-    .c-brand__tail { color: var(--bae-accent); }
+    .c-brand__tail { color: var(--bae-accent-fg); }
 
     /* 좁은 화면(< 48rem)은 **두 줄** — 1줄: 워드마크 · 검색·관심·로그인 / 2줄: 메뉴.
        ⚠️ 한 줄에 다 넣으려고 워드마크를 줄이고 접어 봤지만(2026-09-23 1단계), 메뉴가 넷
@@ -496,7 +496,7 @@
 
     .c-stocksearch input[type="search"]:focus {
         outline: none;
-        border-color: var(--bae-accent);
+        border-color: var(--bae-accent-fg);
         background: var(--bae-surface-alt);
     }
 
@@ -720,7 +720,7 @@
     }
 
     .c-search:focus-within {
-        border-color: var(--bae-accent);
+        border-color: var(--bae-accent-fg);
     }
 
     .c-search input[type="search"] {
@@ -751,7 +751,7 @@
         cursor: pointer;
     }
 
-    .c-search button:hover { color: var(--bae-accent); }
+    .c-search button:hover { color: var(--bae-accent-fg); }
 
     /* ── 관심 종목 레일 ────────────────────────────────────────────────
      * 2026-09-23 토스증권 PC 의 오른쪽 패널(`_watchlist.html` · `/js/watchlist.js`).
@@ -1385,7 +1385,7 @@
         border: 1px solid var(--bae-border-hover);
         border-radius: var(--r-ctl);
         background: none;
-        color: var(--bae-accent);
+        color: var(--bae-accent-fg);
         font-size: var(--fs--1);
         font-weight: 600;
         cursor: pointer;
@@ -1503,7 +1503,7 @@
         transition: color 0.15s var(--ease);
     }
 
-    .c-footer__contact a:hover { color: var(--bae-accent); }
+    .c-footer__contact a:hover { color: var(--bae-accent-fg); }
 
     .c-footer__contact svg {
         inline-size: 1rem;
@@ -1652,7 +1652,7 @@
     #post-detail .post-content blockquote {
         margin: var(--space-5) 0;
         padding: var(--space-3) var(--space-5);
-        border-inline-start: 3px solid var(--bae-accent);
+        border-inline-start: 3px solid var(--bae-accent-fg);
         border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
         background: rgba(var(--bae-accent-rgb), 0.06);
         color: var(--bae-text-muted);
@@ -1680,7 +1680,7 @@
     }
 
     #post-detail .post-content a {
-        color: var(--bae-accent);
+        color: var(--bae-accent-fg);
         text-underline-offset: 0.2em;
     }
 

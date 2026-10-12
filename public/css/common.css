@@ -74,6 +74,15 @@
     --bae-warn:          #FDE047;
     --bae-warn-rgb:      253, 224, 71;
 
+    /* ── 정본(30.ai_center theme.css)에 맞춘 토큰 ────────────────────
+     * 글씨·테두리·outline 자리의 accent 는 --bae-accent-fg 를 쓴다 — 칠하는 자리(버튼 배경·
+     * tint·점)는 계속 --bae-accent. 다크 전용이라 지금은 같은 값이다. */
+    --bae-accent-fg:       var(--bae-accent);
+    --bae-accent-fg-hover: var(--bae-accent-hover);
+    --bae-surface-press:   #272727;
+    --bae-divider:         #2D2D2D;
+    --float-max:           70vh;
+
     /* ── 옛 이름 → 위 토큰의 별칭 ──────────────────────────────────── */
 
     /* 기본 색상 */

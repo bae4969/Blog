@@ -78,7 +78,7 @@
 
 .collapsible-header:hover .collapsible-icon {
     background: var(--primary-bg-subtle);
-    color: var(--primary-color);
+    color: var(--bae-accent-fg);
 }
 
 .collapsible-card:not(.collapsed) .collapsible-icon {
@@ -1184,7 +1184,7 @@
 }
 
 /* 분류 배지 — 주식 화면의 시장·유형 배지와 같은 자리를 쓴다. */
-.type-badge.type-kr_index { background: rgba(var(--bae-accent-rgb), 0.18); color: var(--bae-accent); }
+.type-badge.type-kr_index { background: rgba(var(--bae-accent-rgb), 0.18); color: var(--bae-accent-fg); }
 .type-badge.type-ex_index { background: rgba(147, 197, 253, 0.18); color: var(--bae-info); }
 .type-badge.type-fx { background: rgba(110, 231, 183, 0.18); color: var(--bae-mint); }
 

@@ -183,7 +183,7 @@ li.category:hover {
    대비가 떨어져 오히려 덜 읽힌다. 흰색으로 또렷하게. */
 li.category-selected {
     background: var(--primary-bg-light);
-    border-left: 3px solid var(--primary-color);
+    border-left: 3px solid var(--bae-accent-fg);
     color: var(--text-primary);
     position: relative;
     font-weight: 600;
@@ -192,7 +192,7 @@ li.category-selected {
 li.category-selected:hover {
     background: var(--primary-bg-emphasis);
     color: var(--text-primary);
-    border-left-color: var(--primary-hover);
+    border-left-color: var(--bae-accent-fg-hover);
 }
 
 li.category-selected::before {
@@ -201,7 +201,7 @@ li.category-selected::before {
     top: 50%;
     transform: translateY(-50%);
     font-size: 0.8em;
-    color: var(--primary-color);
+    color: var(--bae-accent-fg);
     opacity: 0.8;
 }
 
@@ -222,7 +222,7 @@ li.category-selected::before {
 }
 
 .search-input-group:focus-within {
-    border-color: var(--primary-color);
+    border-color: var(--bae-accent-fg);
     box-shadow: 0 0 0 1px var(--primary-bg), var(--shadow-subtle);
 }
 
@@ -461,7 +461,7 @@ footer a {
 
 footer a:hover {
     text-decoration: underline;
-    color: var(--primary-hover);
+    color: var(--bae-accent-fg-hover);
 }
 
 /* ===========================================
@@ -564,7 +564,7 @@ footer a:hover {
 
 /* 글 수만큼 반복되는 이름이라 평소엔 중립. 짚을 때만 accent 를 준다. */
 .post-author:hover {
-    color: var(--primary-color);
+    color: var(--bae-accent-fg);
 }
 
 .post-date { 
@@ -753,7 +753,7 @@ footer a:hover {
 
 .form-control:focus {
     outline: none;
-    border-color: var(--primary-color);
+    border-color: var(--bae-accent-fg);
     box-shadow: var(--shadow-focus);
     background: var(--bg-focus);
 }
@@ -856,7 +856,7 @@ footer a:hover {
     
     .sidebar-toggle:hover {
         background: var(--bg-hover);
-        border-color: var(--primary-color);
+        border-color: var(--bae-accent-fg);
     }
     
     .sidebar-toggle::after {
