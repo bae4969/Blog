@@ -528,12 +528,9 @@
     .c-stocksearch__cancel,
     .c-stocksearch__open { display: none; }
 
+    /* popover="manual"(top layer) — 자리·폭은 stock_search.js 가 폼 기준 fixed 좌표로 준다(폼 아래 8px). */
     .c-stocksearch__results {
-        position: absolute;
-        inset-block-start: calc(100% + var(--space-2));
-        inset-inline-end: 0;
-        z-index: 60;
-        inline-size: max(100%, 24rem);
+        position: fixed;
         max-block-size: min(70vh, 36rem);
         overflow-y: auto;
         padding: var(--space-2);
@@ -542,8 +539,6 @@
         background: var(--bae-bg-alt);
         box-shadow: var(--shadow-lg);
     }
-
-    .c-stocksearch__results[hidden] { display: none; }
 
     .c-stocksearch__msg {
         padding: var(--space-4);
@@ -641,10 +636,8 @@
         }
         .c-topbar.is-searching .c-stocksearch__cancel:hover { color: var(--bae-text-primary); }
         .c-topbar.is-searching .c-stocksearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
-        /* 결과는 입력칸 폭 그대로 아래에 — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
+        /* 결과는 입력칸 폭 그대로 아래에(폭은 stock_search.js) — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
         .c-topbar.is-searching .c-stocksearch__results {
-            inset-inline: 0;
-            inline-size: auto;
             max-block-size: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - var(--space-4));
         }
     }

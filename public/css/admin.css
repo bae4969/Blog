@@ -641,23 +641,15 @@
     transform: translateY(-25%) rotate(-135deg);
 }
 
+/* popover="manual"(top layer) — 자리·폭은 combobox.js 가 콤보 기준 fixed 좌표로 준다(아래 4px). */
 .combobox-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    z-index: 20;
+    position: fixed;
     background: var(--bae-surface, var(--bae-surface-alt));
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow-lg);
     max-height: 280px;
     overflow-y: auto;
-}
-
-.combobox.combobox-open .combobox-dropdown {
-    display: block;
 }
 
 .combobox-list {

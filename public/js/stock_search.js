@@ -70,8 +70,18 @@
         } catch (e) { /* 사생활 보호 모드 등 — 무시한다 */ }
     }
 
+    // 결과 상자는 top layer(popover="manual", 2026-10-13) — 자동완성이라 입력칸을 눌러도 닫히면 안 된다(정본 슬래시
+    // 메뉴와 같은 판단). 바깥 클릭·Esc 는 아래에서 직접 닫는다. 자리는 검색 폼 아래 8px — 넓은 화면은 오른쪽 맞춤에
+    // 폭 max(폼, 24rem), 검색으로 펼친 좁은 화면은 폼과 같은 폭(옛 `absolute` 자리 그대로).
+    function place() {
+        if (barEl.classList.contains('is-searching')) return { side: 'below', align: 'stretch', gap: 8 };
+        var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        return { side: 'below', align: 'right', gap: 8, minWidth: 24 * rem };
+    }
+
     function setOpen(open) {
-        resultsEl.hidden = !open;
+        if (open) window.TopLayer.show(resultsEl);
+        else window.TopLayer.hide(resultsEl);
         inputEl.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
@@ -180,6 +190,7 @@
         resultsEl = document.getElementById('stockSearchResults');
         barEl = formEl && formEl.closest('.c-topbar');
         if (!formEl || !inputEl || !resultsEl || !barEl) return;
+        window.TopLayer.follow(resultsEl, formEl, place);
 
         inputEl.addEventListener('input', schedule);
         inputEl.addEventListener('focus', function () {
@@ -194,7 +205,7 @@
         formEl.addEventListener('submit', function (event) {
             event.preventDefault();
             var first = resultsEl.querySelector('a.c-stocksearch__item');
-            if (first && !resultsEl.hidden) first.click();
+            if (first && resultsEl.matches(':popover-open')) first.click();
             else schedule();
         });
         barEl.querySelectorAll('[data-search-open]').forEach(function (b) {

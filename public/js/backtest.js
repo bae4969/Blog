@@ -529,11 +529,13 @@
         var resultsDiv = document.getElementById(resultsId);
         if (!input || !resultsDiv) return;
         var debounce = null;
+        // 목록은 top layer(popover="manual") — 입력칸 줄 바로 아래, 같은 폭(옛 absolute 자리).
+        window.TopLayer.follow(resultsDiv, resultsDiv.parentElement, { side: 'below', align: 'stretch', gap: 0 });
 
         input.addEventListener('input', function () {
             clearTimeout(debounce);
             var q = input.value.trim();
-            if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
+            if (q.length < 1) { window.TopLayer.hide(resultsDiv); return; }
             debounce = setTimeout(function () {
                 // 종목 검색은 `/api/v1/stocks` 의 `q` 로 옮겼다(2026-08-19).
                 // ⚠️ 옛 `/stocks/api/search` 응답에는 `stock_type` 이 아예 없어서
@@ -546,7 +548,7 @@
                     .then(function (json) {
                         if (!json.items || json.items.length === 0) {
                             resultsDiv.innerHTML = '<div class="search-empty">검색 결과 없음</div>';
-                            resultsDiv.style.display = 'block';
+                            window.TopLayer.show(resultsDiv);
                             return;
                         }
                         var html = '';
@@ -567,7 +569,7 @@
                                 '</div>';
                         });
                         resultsDiv.innerHTML = html;
-                        resultsDiv.style.display = 'block';
+                        window.TopLayer.show(resultsDiv);
 
                         resultsDiv.querySelectorAll('.search-result-item').forEach(function (item) {
                             var stock = {
@@ -578,12 +580,12 @@
                             item.querySelector('.sr-add-portfolio').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddPortfolio(stock);
-                                resultsDiv.style.display = 'none';
+                                window.TopLayer.hide(resultsDiv);
                             });
                             item.querySelector('.sr-add-benchmark').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddBenchmark(stock);
-                                resultsDiv.style.display = 'none';
+                                window.TopLayer.hide(resultsDiv);
                             });
                         });
                     });
@@ -592,7 +594,7 @@
 
         document.addEventListener('click', function (e) {
             if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
-                resultsDiv.style.display = 'none';
+                window.TopLayer.hide(resultsDiv);
             }
         });
     }

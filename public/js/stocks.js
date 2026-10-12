@@ -1821,9 +1821,23 @@ function toggleChartSettings(e) {
     e.stopPropagation();
     var panel = document.getElementById('chartSettingsPanel');
     if (!panel) return;
-    panel.classList.toggle('open');
+    // 패널은 top layer(popover="manual", 2026-10-13) — 자리는 설정 버튼 묶음 아래 6px·왼쪽 맞춤(옛 absolute 자리).
+    // 바깥 클릭 닫기는 아래 그대로. `open` 은 나타나는 움직임(투명도) — 뜬 다음 프레임에 붙여야 전환이 걸린다.
+    if (!panel._follow) {
+        panel._follow = true;
+        window.TopLayer.follow(panel, panel.parentElement, { side: 'below', align: 'left', gap: 6 });
+    }
+    var opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    if (opening) {
+        panel.classList.remove('open');
+        window.TopLayer.show(panel);
+        requestAnimationFrame(function () { panel.classList.add('open'); });
+    } else {
+        window.TopLayer.hide(panel);
+    }
 
-    if (panel.classList.contains('open')) {
+    if (opening) {
         setTimeout(function() {
             document.addEventListener('click', closeChartSettingsOnClickOutside);
         }, 0);
@@ -1838,6 +1852,7 @@ function closeChartSettingsOnClickOutside(e) {
     if (!panel || !btn) return;
     if (!panel.contains(e.target) && !btn.contains(e.target)) {
         panel.classList.remove('open');
+        window.TopLayer.hide(panel);
         document.removeEventListener('click', closeChartSettingsOnClickOutside);
     }
 }

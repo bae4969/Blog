@@ -34,10 +34,18 @@
         var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
         var st = pop.style;
         st.left = st.right = st.top = st.bottom = st.width = '';
-        if (place.align === 'right') st.right = (vw - r.right) + 'px';
-        else st.left = r.left + 'px';
+        var w = null;
         if (place.align === 'stretch' || place.minWidth) {
-            st.width = Math.max(r.right - r.left, place.minWidth || 0) + 'px';
+            w = Math.max(r.right - r.left, place.minWidth || 0);
+            st.width = w + 'px';
+        }
+        // ⚠️ 오른쪽 맞춤은 폭을 알면 `left` 로 준다 — fixed 의 `right` 기준은 스크롤바 자리(`scrollbar-gutter: stable`)
+        //    만큼 어긋났다(1600px 에서 15px).
+        if (place.align === 'right') {
+            if (w !== null) st.left = (r.right - w) + 'px';
+            else st.right = (vw - r.right) + 'px';
+        } else {
+            st.left = r.left + 'px';
         }
         var gap = place.gap || 0;
         if (place.side === 'above') st.bottom = (vh - r.top + gap) + 'px';

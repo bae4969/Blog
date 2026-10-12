@@ -187,7 +187,7 @@
                     </div>
                     <div class="chart-settings">
                         <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)" aria-label="차트 설정">{{ icons.i('settings') }}</button>
-                        <div class="chart-settings-panel" id="chartSettingsPanel">
+                        <div class="chart-settings-panel" id="chartSettingsPanel" popover="manual">
                             <strong>차트 설정</strong>
                             <label class="chart-settings-option">
                                 <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">

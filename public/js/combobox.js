@@ -5,6 +5,11 @@
         var hiddenInput = root.querySelector('input[type="hidden"][data-combobox-value]');
         var search = root.querySelector('[data-combobox-search]');
         var list = root.querySelector('[data-combobox-list]');
+        // 목록 상자는 top layer(popover="manual", 2026-10-13) — 입력칸을 눌러도 닫히면 안 되는 자동완성이라 manual.
+        // 자리는 콤보 아래 4px·같은 폭(옛 absolute 자리), 바깥 클릭·Esc·blur 닫기는 아래 그대로.
+        var dropdown = root.querySelector('.combobox-dropdown');
+        dropdown.setAttribute('popover', 'manual');
+        window.TopLayer.follow(dropdown, root, { side: 'below', align: 'stretch', gap: 4 });
         if (!hiddenInput || !search || !list) {
             return;
         }
@@ -14,12 +19,14 @@
 
         function open() {
             root.classList.add('combobox-open');
+            window.TopLayer.show(dropdown);
             filter(search.value);
             scrollToActive();
         }
 
         function close() {
             root.classList.remove('combobox-open');
+            window.TopLayer.hide(dropdown);
             activeIndex = -1;
             updateActiveClass();
         }

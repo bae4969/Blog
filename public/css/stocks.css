@@ -560,11 +560,9 @@
     opacity: 1;
 }
 
+/* popover="manual"(top layer) — 자리는 stocks.js 가 설정 버튼 묶음 기준 fixed 좌표로 준다(아래 6px). */
 .chart-settings-panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 15;
+    position: fixed;
     min-width: 140px;
     padding: 10px 12px;
     border-radius: var(--border-radius-sm);
@@ -1173,13 +1171,9 @@ details[open] > .config-section-title.clickable {
     position: relative;
 }
 
+/* popover="manual"(top layer) — 자리·폭은 backtest.js 가 입력칸 줄 기준 fixed 좌표로 준다. */
 .stock-search-dropdown {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 50;
+    position: fixed;
     background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
