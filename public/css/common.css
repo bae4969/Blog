@@ -174,12 +174,13 @@
     --bg-table-stripe: rgba(255, 255, 255, 0.02);
     --bg-selected: rgba(255, 255, 255, 0.06);
 
-    /* 둥글기 */
+    /* 둥글기 — 정본 단계 4/8/12/9999(2026-10-12 결정 #9). 주식 카드 `--sh-radius`·`--sd-radius`(1rem)는
+       토스증권 모양 변형으로 따로 둔다. */
     --border-radius-xs: 4px;
-    --border-radius-sm: 6px;
+    --border-radius-sm: 4px;
     --border-radius: 8px;
-    --border-radius-md: 10px;
-    --border-radius-lg: 20px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
     --border-radius-pill: 999px;
     --border-radius-circle: 50%;
 
