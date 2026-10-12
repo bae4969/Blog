@@ -1413,7 +1413,8 @@
     document.getElementById('planHistoryOpen').addEventListener('click', function () {
         historyList.textContent = '';
         historyList.appendChild(el('li', 'plan-empty', '불러오는 중…'));
-        historyDlg.showModal();
+        // 정본 openModal — 포커스는 창 자신에(첫 버튼에 주면 강조 테두리·이름 풍선이 뜬다), 떠 있던 토스트는 다시 위로.
+        window.TopLayer.openModal(historyDlg);
         api('GET', '/api/v1/plan/revisions').then(function (revs) {
             historyList.textContent = '';
             if (!revs.length) { historyList.appendChild(el('li', 'plan-empty', '아직 버전이 없습니다.')); return; }
@@ -1442,12 +1443,9 @@
         }).catch(function (e) { historyDlg.close(); window.toast('버전 기록을 불러오지 못했습니다: ' + e.message, 'error'); });
     });
     document.getElementById('planHistoryClose').addEventListener('click', function () { historyDlg.close(); });
-    // 떠 있는 창 규칙 — 바깥(배경)을 누르면 닫는다. 배경 클릭은 dialog 자신이 target 이라 창 안 여백과 좌표로 가른다.
-    historyDlg.addEventListener('click', function (e) {
-        if (e.target !== historyDlg) return;
-        var r = historyDlg.getBoundingClientRect();
-        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) historyDlg.close();
-    });
+    // 떠 있는 창 규칙 — 바깥(막)을 누르면 닫는다. 정본처럼 **누르기 시작과 떼기가 모두 창 밖**일 때만이다
+    // (창 안에서 글자를 끌다 밖에서 떼면 안 닫힌다). Esc 는 dialog 기본(cancel)으로 닫힌다.
+    window.TopLayer.bindModal(historyDlg);
 
     // ── 시작 ───────────────────────────────────────────────
 
