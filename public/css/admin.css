@@ -950,8 +950,10 @@
     }
 }
 
-/* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
-@media (max-width: 1023.98px) {
+/* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드
+   ⚠️ 앞의 두 단계(1200·1120px)는 정본 경계(1024)로 옮기지 않는다 — 8열이 다 들어가려면 표 칸이 약 855px 가
+      있어야 해서, 1024~1200px 에서 다 펼치면 종목명 칸이 0~30px 로 눌린다(2026-10-12 측정). 내용이 정한 경계다. */
+@media (max-width: 1200px) {
     .stocks-table.admin-table th:nth-child(6),
     .stocks-table.admin-table td:nth-child(6) {
         display: none !important;
@@ -970,7 +972,7 @@
 
 }
 
-@media (max-width: 1023.98px) {
+@media (max-width: 1120px) {
     .stocks-table.admin-table th:nth-child(8),
     .stocks-table.admin-table td:nth-child(8) {
         display: none !important;
