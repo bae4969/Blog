@@ -1024,16 +1024,16 @@ footer a:hover {
     
 }
 
-/* 중간 화면 (481px ~ 768px) */
-@media (min-width: 481px) and (max-width: 767.98px) {
+/* 중간 화면 (640px ~ 767px) */
+@media (min-width: 640px) and (max-width: 767.98px) {
     .post-content img {
         max-width: 80%;
         max-height: 50vh;
     }
 }
 
-/* 매우 작은 화면 (480px 이하) */
-@media (max-width: 480px) {
+/* 매우 작은 화면 (640px 미만) */
+@media (max-width: 639.98px) {
     /* 헤더 버튼 마진 조정 */
     #topLeft, #topRight, #topWrite {
         margin-left: 0;

@@ -918,7 +918,7 @@
 }
 
 /* 툴바: 모바일 — 3행 (탭 / 검색 / 액션) */
-@media (max-width: 600px) {
+@media (max-width: 639.98px) {
     .stock-admin-market-tabs {
         flex: 1 0 100%;
         display: grid;
@@ -1009,7 +1009,7 @@
 
 }
 
-@media (max-width: 640px) {
+@media (max-width: 639.98px) {
     .stocks-table.admin-table th:nth-child(3),
     .stocks-table.admin-table td:nth-child(3) {
         display: none !important;
@@ -1135,7 +1135,7 @@
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 639.98px) {
     .admin-card {
         margin: 0;
         padding: 14px 12px;

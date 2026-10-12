@@ -1450,7 +1450,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 border: { color: chartColors.grid },
                 ticks: {
                     color: chartColors.textMuted,
-                    maxTicksLimit: window.innerWidth <= 480 ? 5 : 10,
+                    maxTicksLimit: window.innerWidth < 640 ? 5 : 10,
                     maxRotation: 0,
                     padding: 8,
                     font: { size: 11 }
@@ -1464,7 +1464,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                     if (!useLogScale) return;
                     axis.ticks = buildFixedLogarithmicTicks(
                         axis,
-                        window.innerWidth <= 480 ? 9 : 14
+                        window.innerWidth < 640 ? 9 : 14
                     );
                 },
                 grid: {
@@ -1475,8 +1475,8 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 ticks: {
                     color: chartColors.textMuted,
                     maxTicksLimit: useLogScale ? 14 : 10,
-                    padding: window.innerWidth <= 480 ? 4 : 8,
-                    font: { size: window.innerWidth <= 480 ? 10 : 11 },
+                    padding: window.innerWidth < 640 ? 4 : 8,
+                    font: { size: window.innerWidth < 640 ? 10 : 11 },
                     callback: function(value, index, ticks) {
                         return formatAxisPrice(value, ticks);
                     }

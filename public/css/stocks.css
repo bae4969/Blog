@@ -279,7 +279,7 @@
 /* 각 열의 너비 고정
    ⚠️ **열 순서가 곧 규칙이다.** 2026-09-02 에 등락률이 5번(현재가) 뒤로 들어오면서
       시가총액·상장주식수가 한 칸씩 밀렸다. 열을 또 넣거나 빼면 여기와 아래
-      `@media (768px)`·`@media (480px)` 의 nth-child 를 **함께** 고쳐야 한다.
+      `@media (768px 미만)`·`@media (640px 미만)` 의 nth-child 를 **함께** 고쳐야 한다.
       1 종목명 · 2 종목코드 · 3 시장 · 4 유형 · 5 현재가 · 6 등락률 · 7 시가총액 · 8 상장주식수 */
 .stocks-table th:nth-child(1),
 .stocks-table td:nth-child(1) {
@@ -817,8 +817,8 @@
 
 }
 
-/* ====== 모바일 (480px 이하) ====== */
-@media (max-width: 480px) {
+/* ====== 모바일 (640px 미만) ====== */
+@media (max-width: 639.98px) {
     .stock-page-content {
         padding: 5px !important;
     }
@@ -2125,7 +2125,7 @@ details[open] > .config-section-title.clickable {
     }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 639.98px) {
     .total-score-card {
         flex-direction: column;
         gap: 12px;
@@ -2163,7 +2163,7 @@ details[open] > .config-section-title.clickable {
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 639.98px) {
     .metrics-cards {
         grid-template-columns: 1fr 1fr;
     }
@@ -2242,7 +2242,7 @@ details[open] > .config-section-title.clickable {
    모바일 개편 (2026-09-15) — 회전 카드 · 체결 최신 1건
    =========================================== */
 
-/* ⚠️ 모바일 개편 규칙은 **이 블록 한 곳에** 모은다. 위쪽 768/480px 블록과 겹치는 속성은 여기서
+/* ⚠️ 모바일 개편 규칙은 **이 블록 한 곳에** 모은다. 위쪽 768/640px 블록과 겹치는 속성은 여기서
       선택자를 한 단계 더 구체적으로 써서 이긴다 — quotes.css 가 이 파일 **뒤에** 실리므로
       같은 우선순위로는 지는 규칙이 있다. */
 
@@ -2453,7 +2453,7 @@ details[open] > .config-section-title.clickable {
         padding: 24px 12px;
     }
 
-    /* 펼치면 위쪽 768/480px 블록이 정한 지금의 목록으로 돌아간다 — 여백만 준다. */
+    /* 펼치면 위쪽 768/640px 블록이 정한 지금의 목록으로 돌아간다 — 여백만 준다. */
     .top10-section.rotator-expanded .top10-list {
         padding: 8px 10px 10px;
     }

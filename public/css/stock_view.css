@@ -312,7 +312,7 @@
 }
 
 /* 360px 안팎에서 여덟 개가 한 줄에 들어가게 여백을 줄인다(320px 은 그래도 민다). */
-@media (max-width: 29.99rem) {
+@media (max-width: 39.99rem) {
     .sd-periods button { padding-inline: 0.5rem; }
 }
 
@@ -339,7 +339,7 @@
 }
 
 /* 폰에선 판만 카드 여백을 넘어 넓힌다 — 카드 머리(기간 버튼)의 줄은 그대로 둔다. */
-@media (max-width: 29.99rem) {
+@media (max-width: 39.99rem) {
     .sd .chart-wrapper { width: auto; margin-inline: calc(0.25rem - var(--sd-pad)); }
 }
 
