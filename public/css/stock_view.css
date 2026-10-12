@@ -35,9 +35,11 @@
 /* ⚠️ 옛 `blog.css` 가 모든 div·section 에 clearfix `::after{content:"";display:table}` 를 준다.
       flex·grid 안에서는 그게 **빈 칸 하나**가 되어 `space-between` 이 값을 가운데로 밀고(시세의
       값이 오른쪽에 안 붙었다), 그리드에 빈 줄을 하나 더 만든다. 이 화면의 뼈대(`sd-*`)에서만 끈다
-      — 차트 안쪽의 옛 조각(말풍선·스피너)은 제 가상 요소를 쓸 수 있다. */
+      — 차트 안쪽의 옛 조각(말풍선·스피너)은 제 가상 요소를 쓸 수 있다.
+      버튼은 빼 둔다 — 터치에서 `::after` 가 누르는 자리(44px)를 맡는다(ui.css "터치 히트 영역").
+      `:where` 안이라 특이도는 그대로다. */
 .sd::after,
-.sd :where([class^="sd-"], [class*=" sd-"])::after,
+.sd :where([class^="sd-"]:not(.c-btn, .btn), [class*=" sd-"]:not(.c-btn, .btn))::after,
 .sd-kv > div::after {
     content: none;
 }

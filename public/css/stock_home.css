@@ -28,9 +28,10 @@
 }
 
 /* ⚠️ 옛 `blog.css` 의 clearfix(`div::after{display:table}`)가 flex·grid 에 빈 칸을 끼운다 —
-      이 화면의 새 뼈대에서만 끈다(`stock_view.css` 와 같은 이유). */
+      이 화면의 새 뼈대에서만 끈다(`stock_view.css` 와 같은 이유). 버튼은 빼 둔다 — 터치에서 `::after` 가
+      누르는 자리(44px)를 맡는다(ui.css "터치 히트 영역"). `:where` 안이라 특이도는 그대로다. */
 .sh::after,
-.sh :where([class^="sh-"], [class*=" sh-"])::after {
+.sh :where([class^="sh-"]:not(.c-btn, .btn), [class*=" sh-"]:not(.c-btn, .btn))::after {
     content: none;
 }
 
