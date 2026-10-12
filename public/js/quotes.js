@@ -370,7 +370,8 @@
 
     function openTooltip(evt, html) {
         tooltipEl.innerHTML = '<div class="tip-grid">' + html + '</div>';
-        tooltipEl.hidden = false;
+        // top layer(popover="manual") — 크기를 재려면 먼저 띄운다.
+        if (!tooltipEl.matches(':popover-open')) tooltipEl.showPopover();
         moveTooltip(evt);
     }
 
@@ -417,7 +418,7 @@
     }
 
     function moveTooltip(evt) {
-        if (!tooltipEl || tooltipEl.hidden) return;
+        if (!tooltipEl || !tooltipEl.matches(':popover-open')) return;
         var pad = 14;
         var rect = tooltipEl.getBoundingClientRect();
         var x = evt.clientX + pad;
@@ -429,7 +430,7 @@
     }
 
     function hideTooltip() {
-        if (tooltipEl) tooltipEl.hidden = true;
+        if (tooltipEl && tooltipEl.matches(':popover-open')) tooltipEl.hidePopover();
     }
 
     function escapeHtml(s) {

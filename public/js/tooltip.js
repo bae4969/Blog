@@ -7,8 +7,8 @@
  *
  * ⚠️ 풍선은 `body` 에 붙여 `position: fixed` 로 띄운다. 버튼 옆에 CSS `::after` 로 붙이면
  *    관리자 표처럼 `overflow: auto` 인 상자 안에서 잘리고, 삐져나온 만큼 가로 스크롤이 생긴다.
- * ⚠️ 열린 모달 `<dialog>` 안의 버튼이면 풍선을 **그 dialog 안에** 붙인다 — 모달은 최상위 레이어라 body 의 무엇이든
- *    z-index 와 상관없이 그 뒤로 가린다(투자 계획 버전 기록의 되돌리기 풍선, 2026-10-11).
+ * ⚠️ 풍선은 top layer(`popover="manual"`, 2026-10-13)라 띄울 때마다 다시 연다 — top layer 는 연 순서라
+ *    그래야 열린 모달 `<dialog>`·토스트 위에 뜬다(10-11 에는 dialog 안에 옮겨 붙이는 우회를 썼다).
  * ⚠️ 손가락으로 누를 때는 띄우지 않는다 — 누르면 바로 동작하므로 풍선이 남아 화면만 가린다.
  * ⚠️ 제 풍선이 따로 있는 버튼(차트 지표 설명)은 `data-no-tip` 으로 뺀다.
  */
@@ -38,11 +38,14 @@
             tip.className = 'c-tip';
             // 이름은 버튼이 이미 갖고 있다 — 보조기기가 두 번 읽지 않게 숨긴다.
             tip.setAttribute('aria-hidden', 'true');
+            tip.setAttribute('popover', 'manual');
+            document.body.appendChild(tip);
         }
-        var host = el.closest('dialog[open]') || document.body;
-        if (tip.parentNode !== host) host.appendChild(tip);
         owner = el;
         tip.textContent = text;
+        // 크기를 재려면 먼저 보여야 한다(popover 는 닫힌 동안 display:none).
+        if (tip.matches(':popover-open')) tip.hidePopover();
+        tip.showPopover();
 
         var r = el.getBoundingClientRect();
         var w = tip.offsetWidth;
@@ -56,7 +59,9 @@
 
     function hide() {
         owner = null;
-        if (tip) tip.classList.remove('is-on');
+        if (!tip) return;
+        tip.classList.remove('is-on');
+        if (tip.matches(':popover-open')) tip.hidePopover();
     }
 
     document.addEventListener('pointerover', function (e) {

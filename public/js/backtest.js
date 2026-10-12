@@ -1274,8 +1274,10 @@
                     item.addEventListener('mouseenter', function () {
                         var tip = document.createElement('div');
                         tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
+                        tip.setAttribute('popover', 'manual');   // top layer — 크기를 재려면 먼저 띄운다
                         tip.textContent = item.dataset.info;
                         document.body.appendChild(tip);
+                        tip.showPopover();
                         // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
                         //    이름·삭제(×) 버튼을 덮어 목록을 못 읽는다(2026-08-23 사용자 제보).
                         var rect = item.getBoundingClientRect();

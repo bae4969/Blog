@@ -829,15 +829,15 @@
 
     function showTip(text, ev) {
         // 겉모양은 버튼 이름 풍선(`.c-tip`, ui.css)과 같다 — 자리만 마우스를 따라간다.
-        if (!tip) { tip = el('div', 'c-tip is-on'); document.body.appendChild(tip); }
+        if (!tip) { tip = el('div', 'c-tip is-on'); tip.setAttribute('popover', 'manual'); document.body.appendChild(tip); }
         tip.textContent = text;
-        tip.hidden = false;
+        if (!tip.matches(':popover-open')) tip.showPopover();   // top layer — 크기를 재려면 먼저 띄운다
         var x = Math.min(ev.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
         tip.style.left = x + 'px';
         tip.style.top = (ev.clientY + 14) + 'px';
     }
 
-    function hideTip() { if (tip) tip.hidden = true; }
+    function hideTip() { if (tip && tip.matches(':popover-open')) tip.hidePopover(); }
 
     function arc(cx, cy, r1, r0, a0, a1) {
         // 한 조각이 전부(100%)면 시작·끝이 같아 호가 사라진다 — 살짝 덜 그린다.
