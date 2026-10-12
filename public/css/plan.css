@@ -278,7 +278,7 @@
     border: 1px solid var(--bae-border-hover);
     border-radius: 0.875rem;
     background: var(--bae-surface);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
 }
 
 .plan-float[hidden] { display: none; }
@@ -771,6 +771,7 @@
     border-radius: 1rem;
     background: var(--bae-surface);
     color: var(--bae-text-muted);
+    box-shadow: var(--shadow-xl);
 }
 
 .plan-history::backdrop { background: rgba(0, 0, 0, 0.55); }

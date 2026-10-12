@@ -253,7 +253,7 @@
     border: 1px solid var(--bae-border-hover);
     border-radius: 6px;
     background: var(--bae-surface);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);   /* 툴팁과 같은 값 */
     font-size: 0.75rem;
     color: var(--bae-text-muted);
     pointer-events: none;

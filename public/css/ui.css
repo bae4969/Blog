@@ -519,7 +519,7 @@
         border: 1px solid var(--bae-border);
         border-radius: var(--r-card);
         background: var(--bae-bg-alt);
-        box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
+        box-shadow: var(--shadow-lg);
     }
 
     .c-stocksearch__results[hidden] { display: none; }
@@ -791,7 +791,7 @@
     }
 
     @media (max-width: 89.99rem) {
-        .c-rail { box-shadow: -1rem 0 2.5rem rgb(0 0 0 / 0.45); }
+        .c-rail { box-shadow: var(--shadow-drawer); }
         html.rail-open .c-rail__backdrop { display: block; }
     }
 

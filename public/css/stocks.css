@@ -573,7 +573,7 @@
     color: var(--bae-text-muted);
     font-size: 11px;
     line-height: 1.5;
-    box-shadow: var(--shadow-subtle);
+    box-shadow: var(--shadow-lg);
     opacity: 0;
     transform: translateY(-2px);
     pointer-events: none;
@@ -1000,7 +1000,7 @@
         z-index: 1001;
         background: var(--bae-bg);
         border-radius: 16px 16px 0 0;
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);   /* 정본 서랍 그림자를 위로 */
         flex-direction: column;
         transform: translateY(100%);
         visibility: hidden;
@@ -1185,7 +1185,7 @@ details[open] > .config-section-title.clickable {
     border-radius: var(--border-radius-sm, 4px);
     max-height: 240px;
     overflow-y: auto;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-lg);
 }
 
 .search-result-item {
@@ -1983,7 +1983,7 @@ details[open] > .config-section-title.clickable {
     font-size: 0.6875rem;
     font-weight: 400;
     white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);   /* 툴팁과 같은 값 */
     z-index: 10;
     pointer-events: none;
 }

@@ -176,7 +176,7 @@ li.category {
 li.category:hover { 
     color: var(--bae-text-primary); 
     background: var(--bae-surface-hover); 
-    box-shadow: var(--shadow-medium); 
+    box-shadow: var(--shadow-sm); 
 }
 
 /* 선택된 카테고리 — accent 는 배경 tint 와 좌측 막대가 이미 낸다. 글자까지 accent 면
@@ -218,12 +218,12 @@ li.category-selected::before {
     border-radius: var(--border-radius-sm);
     padding: 1px;
     transition: var(--transition);
-    box-shadow: var(--shadow-light);
+    box-shadow: var(--shadow-sm);
 }
 
 .search-input-group:focus-within {
     border-color: var(--bae-accent-fg);
-    box-shadow: 0 0 0 1px var(--primary-bg), var(--shadow-subtle);
+    box-shadow: 0 0 0 1px var(--primary-bg), var(--shadow-sm);
 }
 
 #search_posting_text, #search_category_list {
@@ -326,17 +326,17 @@ li.category-selected::before {
 
 .posting:hover {
     background: var(--bae-surface-alt);
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-sm);
 }
 
 .posting_ban:hover {
     background: var(--bae-surface-hover);
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-sm);
 }
 
 .posting-disabled:hover {
     background: var(--bae-surface-hover);
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-sm);
 }
 
 .posting:hover .posting_title {
@@ -416,7 +416,7 @@ li.category-selected::before {
     display: block;
     margin: 20px auto;
     border-radius: var(--border-radius);
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-sm);
     image-rendering: -webkit-optimize-contrast;
 }
 

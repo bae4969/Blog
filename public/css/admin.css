@@ -651,7 +651,7 @@
     background: var(--bae-surface, var(--bae-surface-alt));
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-lg);
     max-height: 280px;
     overflow-y: auto;
 }

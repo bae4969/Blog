@@ -141,8 +141,13 @@
     --chart-volume-ma20-color: rgba(255, 224, 130, 0.60);
 
     /* 그림자 */
-    --shadow-light: 0 1px 3px rgba(0,0,0,0.15);
-    --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
+    /* 그림자 — 정본 단계(spacing-radius-shadow.md, 2026-10-12 결정 #9). 툴팁·토스트(`0 4px 12px .35`)는 ui.css 에.
+       sm = 카드·작은 원형 버튼 · lg = 떠 있는 목록·패널(Tailwind 기본 그대로 — 어두운 바탕에서 옅은 것이 정본) ·
+       xl = 모달 · drawer = 옆에서 나오는 서랍(바텀시트는 위로 같은 값). */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    --shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.35);
 
     /* Primary 투명도 계열 */
     --primary-bg-subtle: rgba(var(--bae-accent-rgb), 0.05);
@@ -187,7 +192,6 @@
     /* 그림자 (보조) */
     --shadow-focus: 0 0 0 2px var(--bae-accent-fg);    /* 정본 포커스 링 — 2px, 불투명(form-field.md) */
     --shadow-focus-danger: 0 0 0 2px var(--danger-outline);
-    --shadow-subtle: 0 1px 4px rgba(0, 0, 0, 0.2);
     --shadow-overlay: rgba(0, 0, 0, 0.45);
 
     /* 트랜지션 */
