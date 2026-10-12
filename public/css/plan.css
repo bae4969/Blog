@@ -43,7 +43,7 @@
 .plan-title {
     margin: 0;
     color: var(--bae-text-primary);
-    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
+    font-size: 1.125rem;
     font-weight: 700;
     line-height: 1.25;
 }
@@ -306,7 +306,7 @@
     margin: 0;
     overflow-wrap: anywhere;
     color: var(--bae-text-primary);
-    font-size: var(--fs-1);
+    font-size: 1.125rem;
 }
 
 .plan-float__sub {
@@ -787,7 +787,7 @@
     margin-block-end: var(--space-3);
 }
 
-.plan-history__head h2 { margin: 0; color: var(--bae-text-primary); font-size: var(--fs-1); }
+.plan-history__head h2 { margin: 0; color: var(--bae-text-primary); font-size: 1.125rem; }
 
 .plan-history__list {
     display: grid;

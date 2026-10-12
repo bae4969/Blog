@@ -12,7 +12,7 @@
 }
 
 .admin-content h2 {
-    font-size: 1.8rem;
+    font-size: 1.125rem;
     font-weight: 700;
     color: var(--bae-text-primary);
     margin: 5px;
@@ -41,7 +41,7 @@
 
 .admin-card h3 {
     color: var(--bae-text-primary);
-    font-size: 1.1rem;
+    font-size: 1.125rem;
     font-weight: 700;
     border-bottom: none;
 }
@@ -523,9 +523,9 @@
 
 .wol-edit-row label {
     min-width: 60px;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--bae-text-dim);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .wol-edit-row .inline-input {
@@ -566,9 +566,9 @@
 }
 
 .admin-form-field label {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--bae-text-muted);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .admin-form-field input,
@@ -1032,7 +1032,7 @@
     }
 
     .admin-content h2 {
-        font-size: 1.5rem;
+        font-size: 1.125rem;
         padding: 10px 12px;
     }
 
@@ -1090,7 +1090,7 @@
 @media (max-width: 768px) {
 
     .admin-content h2 {
-        font-size: 1.3rem;
+        font-size: 1.125rem;
         padding: 8px 10px;
     }
 

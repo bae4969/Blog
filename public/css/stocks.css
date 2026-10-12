@@ -674,7 +674,7 @@
 
 .chart-no-data p {
     margin: 0 0 8px 0;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .chart-no-data-sub {
@@ -941,7 +941,7 @@
 
 .execution-overlay-header h3 {
     margin: 0;
-    font-size: 17px;
+    font-size: 18px;
     color: var(--bae-text-primary);
 }
 
@@ -1062,7 +1062,7 @@
 }
 
 .config-section-title {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--bae-text-muted);
     text-transform: uppercase;
@@ -1085,7 +1085,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .config-subsection-title {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--bae-text-dim);
     margin: 0 0 8px 0;
@@ -1093,7 +1093,8 @@ details[open] > .config-section-title.clickable {
 
 .config-label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 500;
     color: var(--bae-text-dim);
     margin-bottom: 4px;
 }
@@ -1114,7 +1115,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .config-hint {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: var(--bae-text-dim);
     margin-top: 6px;
     margin-bottom: -4px;
@@ -1162,7 +1163,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .input-unit {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--bae-text-dim);
     white-space: nowrap;
 }
@@ -1192,7 +1193,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 4px;
     padding: 8px 6px;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
     transition: background 0.15s;
 }
 
@@ -1209,7 +1210,7 @@ details[open] > .config-section-title.clickable {
 
 .sr-add-btn {
     padding: 2px 7px;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     border: 1px solid var(--bae-border);
     border-radius: 3px;
@@ -1245,7 +1246,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .sr-market {
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     font-weight: 600;
     padding: 1px 5px;
     border-radius: 3px;
@@ -1262,14 +1263,14 @@ details[open] > .config-section-title.clickable {
     padding: 12px;
     text-align: center;
     color: var(--bae-text-dim);
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
 }
 
 /* 포트폴리오/벤치마크 소제목 */
 .picker-sub-title {
     display: flex;
     align-items: center;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--bae-text-muted);
     margin: 10px 0 4px;
@@ -1278,7 +1279,7 @@ details[open] > .config-section-title.clickable {
 
 .picker-sub-hint {
     font-weight: 400;
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     color: var(--bae-text-dim);
 }
 
@@ -1295,7 +1296,7 @@ details[open] > .config-section-title.clickable {
 
 .empty-hint {
     color: var(--bae-text-dim);
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     text-align: center;
     padding: 12px 0;
     margin: 0;
@@ -1306,7 +1307,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 6px;
     padding: 6px 0;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
 }
 
 .ps-name {
@@ -1320,11 +1321,11 @@ details[open] > .config-section-title.clickable {
 
 .ps-code {
     color: var(--bae-text-dim);
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 .ps-market {
-    font-size: 0.62rem;
+    font-size: 0.625rem;
     font-weight: 600;
     padding: 1px 4px;
     border-radius: 3px;
@@ -1364,7 +1365,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 8px;
     padding: 8px 0 0;
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--bae-text-muted);
 }
 
@@ -1391,7 +1392,7 @@ details[open] > .config-section-title.clickable {
 .strategy-tab {
     flex: 1;
     padding: 7px 8px;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bae-bg);
@@ -1453,7 +1454,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 6px;
     padding: 4px 0;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
     font-weight: normal;
 }
 
@@ -1492,7 +1493,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .preset-count {
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     color: var(--bae-text-dim);
 }
 
@@ -1520,7 +1521,7 @@ details[open] > .config-section-title.clickable {
     gap: 6px;
     padding: 6px 0;
     border-bottom: 1px solid var(--bae-border);
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
 }
 
 .preset-item:last-child {
@@ -1751,7 +1752,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .progress-text {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--bae-text-dim);
 }
 
@@ -1854,7 +1855,7 @@ details[open] > .config-section-title.clickable {
     border-radius: 50%;
     background: var(--bae-bg);
     color: var(--bae-text-dim);
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1887,7 +1888,7 @@ details[open] > .config-section-title.clickable {
     margin-left: 4px;
     width: 14px;
     height: 14px;
-    font-size: 0.58rem;
+    font-size: 0.625rem;
 }
 
 .config-info[hidden] {
@@ -1948,7 +1949,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .metric-bmk {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: var(--bae-text-dim);
     display: none;
 }
@@ -1979,7 +1980,7 @@ details[open] > .config-section-title.clickable {
     color: var(--bae-text-primary);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius, 6px);
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 400;
     white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -1996,7 +1997,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .result-section-title {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--bae-text-muted);
     margin: 0 0 10px 0;
@@ -2022,7 +2023,7 @@ details[open] > .config-section-title.clickable {
 .annual-returns-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
 }
 
 .annual-returns-table th {
@@ -2072,12 +2073,12 @@ details[open] > .config-section-title.clickable {
 }
 
 .trade-stat-label {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--bae-text-dim);
 }
 
 .trade-stat-value {
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--bae-text-primary);
     text-align: right;

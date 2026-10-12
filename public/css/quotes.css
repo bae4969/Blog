@@ -39,7 +39,7 @@
 .quote-empty {
     padding: 24px 12px;
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--bae-text-dim);
 }
 
@@ -141,21 +141,21 @@
 
 .heat-legend-label {
     margin-right: 2px;
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     color: rgba(255, 255, 255, 0.62);
 }
 
 .heatmap-note {
     margin-right: auto;
     padding-right: 8px;
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     color: rgba(255, 255, 255, 0.48);
 }
 
 .heat-legend-chip {
     padding: 1px 5px;
     border-radius: 2px;
-    font-size: 0.61rem;
+    font-size: 0.625rem;
     color: #fff;
     font-variant-numeric: tabular-nums;
     opacity: 0.66;
@@ -254,14 +254,14 @@
     border-radius: 6px;
     background: var(--bae-surface);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     color: var(--bae-text-muted);
     pointer-events: none;
 }
 
 .heatmap-tooltip .tip-name {
     margin-bottom: 5px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--bae-text-primary);
 }
