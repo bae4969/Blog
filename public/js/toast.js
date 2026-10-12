@@ -39,10 +39,30 @@
             //    가리지 않으려고 `aria-atomic` 은 끄고 새로 들어온 것만 읽게 둔다.
             h.setAttribute('role', 'status');
             h.setAttribute('aria-live', 'polite');
+            // top layer(2026-10-13) — 열린 모달·바텀시트·상단바 위에 z-index 없이 뜬다.
+            h.setAttribute('popover', 'manual');
             document.body.appendChild(h);
         }
         return h;
     }
+
+    // top layer 는 연 순서라 토스트를 띄운 뒤에 모달·목록이 열리면 그 아래로 묻힌다 — 그때만 닫았다 다시 열어
+    // 맨 위로 올린다(매번 다시 열면 떠 있던 토스트의 등장 움직임이 되풀이된다). 순번은 toplayer.js 가 올린다.
+    function raise() {
+        var h = document.getElementById(HOST_ID);
+        if (!h || !h.isConnected) return;
+        var seq = (window.TopLayer && window.TopLayer.seq) || 0;
+        if (h.matches(':popover-open')) {
+            if (h._seq === seq) return;
+            h.hidePopover();
+        }
+        h.showPopover();
+        h._seq = seq;
+    }
+    window.__raiseToasts = function () {
+        var h = document.getElementById(HOST_ID);
+        if (h && h.childElementCount) raise();
+    };
 
     function icon(type) {
         return '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
@@ -105,6 +125,7 @@
         box.appendChild(close);
 
         h.appendChild(box);
+        raise();
         // 들어오는 애니메이션 — 붙인 다음 프레임에 클래스를 줘야 전환이 걸린다.
         requestAnimationFrame(function () { box.classList.add('is-in'); });
 
