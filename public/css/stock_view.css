@@ -72,7 +72,7 @@
     overflow: hidden;
     color: var(--bae-text-primary);
     font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -95,7 +95,7 @@
 .sd-price {
     margin: 0;
     font-size: clamp(1.875rem, 1.45rem + 1.6vw, 2.625rem);
-    font-weight: 800;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
     letter-spacing: -0.01em;
@@ -236,7 +236,7 @@
     margin: 0;
     color: var(--bae-text-primary);
     font-size: 1.0625rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .sd-card__sub {
@@ -411,7 +411,7 @@
 
 .sd-strength__val {
     font-size: 1.0625rem;
-    font-weight: 800;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
@@ -566,7 +566,7 @@
     margin: var(--space-5, 1.5rem) 0 0;
     color: var(--bae-text-primary);
     font-size: 0.9375rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .sd-info__sub span {

@@ -51,7 +51,7 @@
     margin: 0;
     color: var(--bae-text-primary);
     font-size: 1.0625rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 /* 제목 아이콘은 흐리게 — accent 는 상호작용 색이라 장식에 쓰지 않는다(포트폴리오 제목과 같다). */
@@ -359,7 +359,7 @@
     align-self: center;
     color: var(--bae-text-dim);
     font-size: 0.9375rem;
-    font-weight: 800;
+    font-weight: 700;
     text-align: center;
 }
 
@@ -465,7 +465,7 @@
 .sh .top10-section h3 {
     margin-inline: 0;
     font-size: 1.0625rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .sh-portfolio-cta {

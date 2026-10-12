@@ -1786,7 +1786,7 @@ details[open] > .config-section-title.clickable {
 
 .score-number {
     font-size: 2rem;
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.15;
     color: var(--bae-text-primary);
 }
@@ -1797,7 +1797,7 @@ details[open] > .config-section-title.clickable {
 
 .score-grade {
     font-size: 1.5rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--bae-text-dim);
 }
 
