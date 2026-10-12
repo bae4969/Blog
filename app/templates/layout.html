@@ -397,7 +397,8 @@ function toggleSidebar() {
     else { c.classList.add('expanded'); b.classList.remove('collapsed'); }
 }
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.innerWidth <= 1024) {
+    // blog.css 의 (max-width: 1023.98px)·(min-width: 1024px) 와 짝 — 1024px 부터 사이드바를 펼친다.
+    if (window.innerWidth < 1024) {
         const b = document.querySelector('.sidebar-toggle');
         if (b) b.classList.add('collapsed');
     }

@@ -785,8 +785,8 @@ footer a:hover {
    반응형 디자인
    =========================================== */
 
-/* 모바일 크기 (1024px 이하) */
-@media (max-width: 1024px) {
+/* 모바일 크기 (1024px 미만) — layout.html 의 사이드바 접기 판정(innerWidth < 1024)과 짝 */
+@media (max-width: 1023.98px) {
     /* 최상위 폭을 화면에 맞게 제한 */
     html, body {
         width: 100%;
@@ -1154,7 +1154,7 @@ footer a:hover {
 }
 
 /* 데스크톱에서는 토글 버튼 숨김 */
-@media (min-width: 1025px) {
+@media (min-width: 1024px) {
     .sidebar-toggle {
         display: none;
     }

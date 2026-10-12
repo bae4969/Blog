@@ -901,7 +901,7 @@
 }
 
 /* 툴바: 중간 화면 — 2행 (탭+검색 / 액션) */
-@media (max-width: 1200px) {
+@media (max-width: 1023.98px) {
     .stock-admin-market-tabs {
         flex: 0 1 auto;
         min-width: 0;
@@ -951,7 +951,7 @@
 }
 
 /* admin stocks 컬럼 축소 순서: 현재가 -> 이동 -> 시장 -> 유형 -> 코드 */
-@media (max-width: 1200px) {
+@media (max-width: 1023.98px) {
     .stocks-table.admin-table th:nth-child(6),
     .stocks-table.admin-table td:nth-child(6) {
         display: none !important;
@@ -970,7 +970,7 @@
 
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1023.98px) {
     .stocks-table.admin-table th:nth-child(8),
     .stocks-table.admin-table td:nth-child(8) {
         display: none !important;
@@ -983,7 +983,7 @@
 
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1023.98px) {
     .stocks-table.admin-table th:nth-child(4),
     .stocks-table.admin-table td:nth-child(4) {
         display: none !important;
@@ -1025,7 +1025,7 @@
 /* ===========================================
    반응형 (태블릿)
    =========================================== */
-@media (max-width: 1024px) {
+@media (max-width: 1023.98px) {
     .admin-content {
         padding: 5px 0 15px 0;
         gap: 12px;

@@ -710,7 +710,7 @@
 }
 
 /* 반응형 디자인 */
-@media (max-width: 1200px) {
+@media (max-width: 1023.98px) {
     .stocks-container {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto auto auto auto;
@@ -2094,7 +2094,7 @@ details[open] > .config-section-title.clickable {
 }
 
 /* 반응형 */
-@media (max-width: 1024px) {
+@media (max-width: 1023.98px) {
     .backtest-container {
         grid-template-columns: 1fr;
     }
