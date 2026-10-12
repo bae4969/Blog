@@ -259,7 +259,7 @@
     border: none;
     border-radius: var(--border-radius-sm);
     color: var(--bae-text-primary);
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     transition: var(--transition);
 }
@@ -294,7 +294,7 @@
     color: var(--bae-text-primary);
     border: none;
     border-radius: var(--border-radius-sm);
-    font-size: 13px;
+    font-size: 14px;
     transition: var(--transition);
 }
 
@@ -1148,7 +1148,7 @@
     }
 
     .inline-input {
-        font-size: 13px;
+        font-size: 14px;
     }
 }
 

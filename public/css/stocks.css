@@ -1124,7 +1124,7 @@ details[open] > .config-section-title.clickable {
 .backtest-input {
     width: 100%;
     padding: 7px 10px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bae-bg);
@@ -1141,7 +1141,7 @@ details[open] > .config-section-title.clickable {
 .backtest-select {
     width: 100%;
     padding: 7px 10px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bae-bg);
@@ -1340,7 +1340,7 @@ details[open] > .config-section-title.clickable {
     width: 52px;
     text-align: right;
     padding: 3px 6px;
-    font-size: 0.8rem;
+    font-size: 0.875rem;
 }
 
 .picker-remove {
@@ -1432,7 +1432,7 @@ details[open] > .config-section-title.clickable {
 .signal-rule .backtest-select {
     flex: 1;
     min-width: 0;
-    font-size: 0.78rem;
+    font-size: 0.875rem;
     padding: 5px 6px;
 }
 

@@ -128,12 +128,13 @@
     }
 
     /* ── 폼 컨트롤 ────────────────────────────────────────────────────
+     * 정본 입력칸 글자 14px(데스크톱, 2026-10-12 결정 #8).
      * ⚠️ iOS 는 16px 미만 input 에 포커스가 가면 **화면을 자동 확대**한다. 확대된
-     *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다. 검색창이 블로그·
-     *    주식 양쪽에 있으므로 전역으로 하한을 건다(키우기만 하고 줄이지 않는다).
+     *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다 — 손가락·좁은 폭의 16px 하한은
+     *    `common.css` 에 있다(레이어 밖 화면 CSS 가 입력칸 크기를 따로 정해도 이겨야 해서).
      */
     input, select, textarea {
-        font-size: max(1rem, 1em);
+        font-size: 0.875rem;
     }
 
     /* ── 포커스 표시 ──────────────────────────────────────────────────
@@ -484,8 +485,8 @@
         border-radius: var(--r-card);
         background: var(--bae-surface);
         color: var(--bae-text-primary);
-        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
-        font-size: 1rem;
+        /* 데스크톱 14px — 손가락·좁은 폭의 16px 하한(iOS 확대 방지)은 common.css */
+        font-size: 0.875rem;
         transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
     }
 
@@ -729,8 +730,8 @@
         border: 0;
         background: none;
         color: var(--bae-text-primary);
-        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
-        font-size: max(1rem, var(--fs-0));
+        /* 데스크톱 14px — 손가락·좁은 폭의 16px 하한(iOS 확대 방지)은 common.css */
+        font-size: 0.875rem;
     }
 
     .c-search input[type="search"]:focus {
