@@ -1406,11 +1406,13 @@
      * `.alert` 를 끼워 넣어 레이아웃을 밀어내고, 에디터는 오른쪽 위 `.notification`,
      * 관리자는 서버가 그린 `.alert` 가 표 위에 남았다.
      * ⚠️ 로딩·빈 상태는 토스트가 아니다(그 자리를 설명하는 문구라 제자리에 둔다).
+     * 값은 정본 toast.md(2026-10-12) — 이 사이트의 아이콘·`action` 버튼·닫기·호버 정지·중복 제거는
+     * 정본에 없는 확장으로 둔다. ⚠️ 툴팁(`.c-tip` z 10000)이 토스트(1000)보다 위여야 닫기 버튼 이름이 보인다.
      */
     .c-toast-host {
         position: fixed;
-        z-index: 200;                   /* 상단바(50)보다 위 */
-        inset-block-end: max(var(--space-6), env(safe-area-inset-bottom));
+        z-index: 1000;                  /* 상단바(50)·레일(46)·검색 결과(60)보다 위 */
+        inset-block-end: calc(1rem + env(safe-area-inset-bottom, 0px));
         inset-inline: 0;
         display: flex;
         flex-direction: column;
@@ -1426,23 +1428,24 @@
         display: flex;
         align-items: center;
         gap: var(--space-3);
-        max-inline-size: min(100%, 34rem);
-        padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-        border: 1px solid var(--bae-border-hover);
-        border-radius: var(--r-ctl);
-        background: var(--bae-surface);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        max-inline-size: min(100%, 28rem);
+        padding: 0.5rem 0.875rem;
+        border: 1px solid var(--bae-border);
+        border-radius: 0.5rem;
+        background: var(--bae-surface-alt);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
         color: var(--bae-text-primary);
-        font-size: var(--fs-0);
-        line-height: var(--lh-snug);
-        /* 들어올 때 아래에서 살짝 올라온다. `is-in` 은 붙인 다음 프레임에 준다. */
+        font-size: 0.875rem;
+        line-height: 1.35;
+        /* 들어올 때 6px 아래에서 0.15s 로 올라온다. `is-in` 은 붙인 다음 프레임에 준다. */
         opacity: 0;
-        transform: translateY(0.75rem);
-        transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+        transform: translateY(6px);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
     }
 
     .c-toast.is-in { opacity: 1; transform: none; }
-    .c-toast.is-leaving { opacity: 0; transform: translateY(0.5rem); }
+    /* 나갈 때는 제자리에서 흐려지기만 한다(정본 퇴장 0.2s). */
+    .c-toast.is-leaving { opacity: 0; transform: none; transition: opacity 0.2s; }
 
     .c-toast .c-ico { font-size: 1.15em; }
 
@@ -1450,7 +1453,8 @@
     .c-toast--success .c-ico { color: var(--bae-success); }
     .c-toast--error .c-ico   { color: var(--bae-danger); }
 
-    .c-toast--error { border-color: rgba(var(--bae-danger-rgb), 0.45); }
+    /* 위험은 테두리와 글씨를 danger 로(바탕은 그대로) */
+    .c-toast--error { border-color: var(--bae-danger); color: var(--bae-danger); }
 
     .c-toast__msg {
         flex: 1 1 auto;
@@ -1465,7 +1469,7 @@
         border-radius: var(--r-ctl);
         background: none;
         color: var(--bae-accent-fg);
-        font-size: var(--fs--1);
+        font-size: 0.875rem;            /* 토스트 글자와 같은 14px */
         font-weight: 600;
         cursor: pointer;
     }
@@ -1482,7 +1486,7 @@
         border-radius: var(--r-ctl);
         background: none;
         color: var(--bae-text-dim);
-        font-size: var(--fs-0);
+        font-size: 0.875rem;
         cursor: pointer;
     }
 

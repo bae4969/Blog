@@ -17,7 +17,9 @@
     'use strict';
 
     var HOST_ID = 'toastHost';
-    var LIFE = { info: 3200, success: 2600, error: 5200 };
+    // 정본 toast.md — 일반 2200 · 위험 3500ms(2026-10-12). 누를 버튼(action)이 붙으면 읽고 누를 시간을 더 준다.
+    var LIFE = { info: 2200, success: 2200, error: 3500 };
+    var LIFE_ACTION = 5200;
 
     //: 종류별 아이콘. 템플릿의 `_icons.html` 과 같은 선 두께·모서리를 쓴다.
     var PATHS = {
@@ -106,7 +108,7 @@
         // 들어오는 애니메이션 — 붙인 다음 프레임에 클래스를 줘야 전환이 걸린다.
         requestAnimationFrame(function () { box.classList.add('is-in'); });
 
-        var life = opts.duration || LIFE[type];
+        var life = opts.duration || (opts.action ? LIFE_ACTION : LIFE[type]);
         // 오류는 사용자가 읽고 조치해야 하므로 마우스를 올리면 사라지지 않는다.
         var timer = setTimeout(function () { dismiss(box); }, life);
         box.addEventListener('mouseenter', function () { clearTimeout(timer); });
