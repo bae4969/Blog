@@ -1494,7 +1494,8 @@
        초기화
        ========================================= */
     function init() {
-        initStockSearch('stockSearchInput', 'stockSearchResults',
+        // ⚠️ 상단바 종목 검색(layout.html)이 stockSearchInput·stockSearchResults 를 쓴다 — 같은 id 를 쓰면 이쪽이 상단바에 붙는다.
+        initStockSearch('btStockSearchInput', 'btStockSearchResults',
             function (stock) {
                 if (portfolio.length >= MAX_STOCKS) { notify('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
                 if (portfolio.some(function (s) { return s.code === stock.code; })) { notify('이미 추가된 종목입니다.'); return; }
