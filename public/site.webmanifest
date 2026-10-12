@@ -7,8 +7,8 @@
   "start_url": "/stocks",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#1C1C1C",
-  "theme_color": "#1C1C1C",
+  "background_color": "#202020",
+  "theme_color": "#202020",
   "icons": [
     {
       "src": "/res/icon-192.png?v=20261012",

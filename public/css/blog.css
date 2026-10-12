@@ -29,7 +29,7 @@ body {
     min-width: 400px;
     margin: 0;
     padding: 0;
-    background: var(--bg-primary);
+    background: var(--bae-bg);   /* 페이지 배경 — 정본 #202020(2026-10-12, 전엔 #1C1C1C) */
     color: var(--bae-text-muted);
     font-family: "arial", sans-serif;
     box-sizing: border-box;
@@ -115,7 +115,7 @@ body.admin-page #blogTitle {
 section { 
     padding: 10px; 
     border-radius: var(--border-radius-lg); 
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
 }
 
 section.stock-page-section {

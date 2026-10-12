@@ -73,7 +73,7 @@
    거래대금이 11px 회색으로 가장 흐렸다.
    ============================= */
 .top10-section {
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     border-radius: var(--border-radius);
     padding: 14px 12px 6px;
     border: 1px solid var(--bae-border);
@@ -249,7 +249,7 @@
 
 /* 주식 테이블 */
 .stocks-table {
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     border-radius: var(--border-radius);
     overflow-x: auto;
     border: 1px solid var(--bae-border);
@@ -569,7 +569,7 @@
     padding: 10px 12px;
     border-radius: var(--border-radius-sm);
     border: 1px solid var(--bae-border);
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-muted);
     font-size: 11px;
     line-height: 1.5;
@@ -998,7 +998,7 @@
         right: 0;
         max-height: 85vh;
         z-index: 1001;
-        background: var(--bg-secondary);
+        background: var(--bae-bg);
         border-radius: 16px 16px 0 0;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
         flex-direction: column;
@@ -1054,7 +1054,7 @@
 }
 
 .config-section {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
@@ -1127,7 +1127,7 @@ details[open] > .config-section-title.clickable {
     font-size: 0.85rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-primary);
     box-sizing: border-box;
     transition: border-color 0.2s;
@@ -1144,7 +1144,7 @@ details[open] > .config-section-title.clickable {
     font-size: 0.85rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-primary);
     box-sizing: border-box;
     cursor: pointer;
@@ -1179,7 +1179,7 @@ details[open] > .config-section-title.clickable {
     left: 0;
     right: 0;
     z-index: 50;
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     max-height: 240px;
@@ -1213,7 +1213,7 @@ details[open] > .config-section-title.clickable {
     font-weight: 600;
     border: 1px solid var(--bae-border);
     border-radius: 3px;
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-muted);
     cursor: pointer;
     transition: all 0.15s;
@@ -1394,7 +1394,7 @@ details[open] > .config-section-title.clickable {
     font-size: 0.78rem;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-muted);
     cursor: pointer;
     transition: all 0.15s;
@@ -1609,7 +1609,7 @@ details[open] > .config-section-title.clickable {
 /* 포트폴리오 이름 편집 */
 .portfolio-name-section {
     padding: 10px 16px;
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-accent-fg);
     border-radius: var(--border-radius);
     border-left: 3px solid var(--bae-accent-fg);
@@ -1659,7 +1659,7 @@ details[open] > .config-section-title.clickable {
     padding: 4px 8px;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm);
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     color: var(--bae-text-primary);
     font-size: 14px;
     font-weight: 600;
@@ -1736,7 +1736,7 @@ details[open] > .config-section-title.clickable {
 .progress-bar {
     width: 100%;
     height: 6px;
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 8px;
@@ -1757,7 +1757,7 @@ details[open] > .config-section-title.clickable {
 
 /* 총 점수 카드 */
 .total-score-card {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 10px 18px;
@@ -1835,7 +1835,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .metric-card {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
@@ -1852,7 +1852,7 @@ details[open] > .config-section-title.clickable {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--bg-secondary, #f3f4f6);
+    background: var(--bae-bg);
     color: var(--bae-text-dim);
     font-size: 0.65rem;
     display: flex;
@@ -1975,7 +1975,7 @@ details[open] > .config-section-title.clickable {
     left: 50%;
     transform: translateX(-50%);
     padding: 4px 8px;
-    background: var(--bg-primary, #fff);
+    background: var(--bae-bg-alt);
     color: var(--bae-text-primary);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius, 6px);
@@ -1989,7 +1989,7 @@ details[open] > .config-section-title.clickable {
 
 /* 차트 영역 */
 .backtest-chart-section {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
@@ -2009,7 +2009,7 @@ details[open] > .config-section-title.clickable {
 
 /* 연도별 수익률 테이블 */
 .annual-returns-section {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
@@ -2051,7 +2051,7 @@ details[open] > .config-section-title.clickable {
 
 /* 거래 요약 */
 .trade-summary-section {
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;

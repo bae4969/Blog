@@ -46,7 +46,7 @@
          svg   : 최신 브라우저 탭. 해상도에 안 걸린다
          apple : iOS "홈 화면에 추가" 전용. 이게 없으면 스크린샷이 아이콘이 된다
          manifest : 안드로이드·삼성 인터넷 바로가기. 192·512 를 여기서 읽는다
-      ⚠️ theme-color 는 안드로이드 주소창 색이다. 페이지 배경(--bae-bg-alt)과 맞춘다 —
+      ⚠️ theme-color 는 안드로이드 주소창 색이다. 페이지 배경(--bae-bg #202020)과 맞춘다 —
          어긋나면 스크롤할 때 위쪽에 다른 색 띠가 보인다.
       ⚠️ 아이콘 `?v=` 는 서버 재시작마다 바뀌는 `static_v` 가 아니라 **그림을 바꾼 날짜**다 —
          `/res/` 는 서비스워커가 stale-while-revalidate 로 주므로 `?v` 를 안 올리면 한 번은 옛 그림이
@@ -56,7 +56,7 @@
     <link rel="icon" href="/res/favicon.svg?v=20261012" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/res/apple-touch-icon.png?v=20261012">
     <link rel="manifest" href="/site.webmanifest">
-    <meta name="theme-color" content="#1C1C1C">
+    <meta name="theme-color" content="#202020">
     <meta name="apple-mobile-web-app-title" content="Dev Notes">
     {#
       설치형 앱(PWA) — manifest 가 `display: standalone` 이라 안드로이드는 그것만 본다.

@@ -28,11 +28,11 @@ const OFFLINE_HTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1C1C1C">
+<meta name="theme-color" content="#202020">
 <title>오프라인 — Developer Notes</title>
 <style>
   html, body { height: 100%; margin: 0; }
-  body { display: flex; align-items: center; justify-content: center; background: #1C1C1C;
+  body { display: flex; align-items: center; justify-content: center; background: #202020;
          color: #E0E0E0; font-family: system-ui, -apple-system, sans-serif; text-align: center; }
   h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
   p { margin: 0 0 1.5rem; color: #A0A0A0; }
