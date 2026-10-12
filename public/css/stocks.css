@@ -1570,60 +1570,40 @@ details[open] > .config-section-title.clickable {
     width: 100%;
 }
 
+/* 버튼 색·상태(주·보조·위험)는 정본 button.md 대로 `ui.css` 의 `@layer comp` 가 정한다 — 여기는 모양만.
+   ⚠️ 이 파일은 레이어 밖이라 여기서 `background`·`color`·`opacity` 를 주면 hover·active·disabled 가 전부 진다. */
 .btn-primary {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
     border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
     font-weight: 600;
-    transition: opacity 0.2s;
-}
-
-.btn-primary:hover {
-    opacity: 0.9;
 }
 
 .btn-primary:disabled {
-    opacity: 0.5;
     cursor: not-allowed;
 }
 
-.btn-recalc {
+/* 실행 버튼의 상태 색(재계산 초록 · 다시 받기 노랑) — 실행 중(disabled)에는 칠하지 않는다. 레이어 밖이라
+   그대로 두면 disabled 의 회색 바탕을 이겨 실행 중에도 채운 색이 남는다. */
+.btn-recalc:not(:disabled) {
     background: var(--success-color, #22c55e);
 }
 
-.btn-refetch {
+.btn-refetch:not(:disabled) {
     background: var(--warning-color, #f59e0b);
 }
 
 .btn-outline {
-    background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
     font-size: 0.72rem;
     padding: 3px 8px;
-    transition: all 0.15s;
-}
-
-.btn-outline:hover {
-    background: var(--bg-hover);
-    border-color: var(--bae-accent-fg);
+    transition: background-color 0.15s;
 }
 
 .btn-danger {
-    background: var(--danger-color, #ef4444);
-    color: var(--text-on-primary);
-    border: none;
     border-radius: var(--border-radius-sm, 4px);
     cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.btn-danger:hover {
-    opacity: 0.85;
 }
 
 /* 결과 패널 */

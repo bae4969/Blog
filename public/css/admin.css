@@ -484,9 +484,10 @@
     align-items: center;
     justify-content: center;
     padding-block: 10px;
-    background: var(--btn-warning);
-    color: var(--text-on-primary);
-    border: none;
+    /* 정본 위험 버튼과 같은 테두리형 — 상태색(노랑) 테두리·글씨, hover 15% tint */
+    background: transparent;
+    color: var(--bae-warn);
+    border: 1px solid var(--bae-warn);
     border-radius: var(--border-radius);
     font-size: 14px;
     font-weight: 600;
@@ -497,7 +498,7 @@
 }
 
 .btn-wol:hover {
-    background: var(--btn-warning-hover);
+    background: rgba(var(--bae-warn-rgb), 0.15);
 }
 
 .btn-wol.btn-sm {
