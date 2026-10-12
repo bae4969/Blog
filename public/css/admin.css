@@ -319,7 +319,7 @@
    29px) 쓸 수 없으므로 행마다 카드로 쌓는다. 머리글이 사라지니 칸 이름은 `data-label` 로 붙인다.
    ⚠️ 저장 폼이 이름 칸에서 열려 작업 칸에서 닫힌다(템플릿 머리 주석) — 칸의 순서는 그대로 두고
       자리만 격자로 옮긴다. */
-@media (max-width: 48rem) {
+@media (max-width: 47.99rem) {
     .admin-table.category-table thead {
         display: none;
     }
@@ -996,7 +996,7 @@
 
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .stocks-table.admin-table th:nth-child(5),
     .stocks-table.admin-table td:nth-child(5) {
         display: none !important;
@@ -1087,7 +1087,7 @@
 /* ===========================================
    반응형 (모바일)
    =========================================== */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
 
     .admin-content h2 {
         font-size: 1.125rem;

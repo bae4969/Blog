@@ -1,16 +1,16 @@
 /*
-  회전 카드 — 768px 이하에서 목록을 한 장씩 보여주고 자동으로 넘긴다.
+  회전 카드 — 768px 미만에서 목록을 한 장씩 보여주고 자동으로 넘긴다.
   (`/stocks` 의 지수·환율 카드와 거래대금·포트폴리오 TOP10. 넓은 화면의 지수·환율 세트는
-  data-rotator-media 로 769px 이상에서 돈다)
+  data-rotator-media 로 768px 이상에서 돈다)
 
   마크업은 템플릿이 갖는다(stocks_index.html):
     [data-rotator]              섹션. data-rotator-item(슬라이드 선택자) ·
                                 data-rotator-interval · data-rotator-delay (ms) ·
-                                data-rotator-media (도는 화면 폭, 기본 768px 이하)
+                                data-rotator-media (도는 화면 폭, 기본 768px 미만 — CSS 의 (max-width: 767.98px) 와 짝)
       .rotator-count            "n / N"
       [data-rotator-expand]     (있으면) 지금의 목록으로 펼치기
       [data-rotator-prev|next]  (있으면) 앞·뒤 장으로
-      [data-rotator-track]      슬라이드의 부모 — 768px 이하에서 가로 스냅 스크롤(stocks.css)
+      [data-rotator-track]      슬라이드의 부모 — 768px 미만에서 가로 스냅 스크롤(stocks.css)
       .rotator-bar > i          다음 장까지 남은 시간
 
   - 넘기는 동작 자체는 브라우저의 스냅 스크롤이다. 손가락 스와이프를 따로 구현하지 않는다.
@@ -35,7 +35,7 @@
         this.itemSel = root.dataset.rotatorItem || '*';
         this.interval = Number(root.dataset.rotatorInterval) || 4000;
         this.delay = Number(root.dataset.rotatorDelay) || 0;
-        this.media = window.matchMedia(root.dataset.rotatorMedia || '(max-width: 768px)');
+        this.media = window.matchMedia(root.dataset.rotatorMedia || '(max-width: 767.98px)');
         this.index = 0;
         this.timer = null;
         this.visible = true;

@@ -743,8 +743,8 @@
 
 }
 
-/* ====== 태블릿 세로 / 좁은 브라우저 (768px 이하) ====== */
-@media (max-width: 768px) {
+/* ====== 태블릿 세로 / 좁은 브라우저 (768px 미만) ====== */
+@media (max-width: 767.98px) {
     .stocks-container {
         grid-template-columns: minmax(0, 1fr);
         gap: 8px;
@@ -967,8 +967,8 @@
     min-height: 0;
 }
 
-/* ====== 768px 이하: 모바일 체결 축약 + 오버레이 활성화 ====== */
-@media (max-width: 768px) {
+/* ====== 768px 미만: 모바일 체결 축약 + 오버레이 활성화 ====== */
+@media (max-width: 767.98px) {
 
     /* 오버레이: 비활성 상태 (visibility로 숨김 → 트랜지션 가능) */
     .execution-overlay-backdrop {
@@ -2119,7 +2119,7 @@ details[open] > .config-section-title.clickable {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .metrics-cards {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -2259,7 +2259,7 @@ details[open] > .config-section-title.clickable {
     display: contents;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* ── 회전 카드 공통 (`/js/rotator.js`) ─────────────────────────── */
     [data-rotator] {
         position: relative;

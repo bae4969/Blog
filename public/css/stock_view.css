@@ -533,7 +533,7 @@
 
 /* 좁은 화면: 몇 건만 보이고 "체결 전체 보기" 가 바텀시트(`#executionOverlay`)를 연다.
    ⚠️ 시트는 `stocks.css` 가 768px 이하에서만 켠다 — 같은 경계(48rem)를 쓴다. */
-@media (max-width: 48rem) {
+@media (max-width: 47.99rem) {
     .sd-exec .sd-exec__body {
         max-block-size: none;
         overflow: visible;

@@ -1025,7 +1025,7 @@ footer a:hover {
 }
 
 /* 중간 화면 (481px ~ 768px) */
-@media (min-width: 481px) and (max-width: 768px) {
+@media (min-width: 481px) and (max-width: 767.98px) {
     .post-content img {
         max-width: 80%;
         max-height: 50vh;
