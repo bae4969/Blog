@@ -468,29 +468,34 @@
     opacity: 1;
 }
 
+/* 차트 지표 설명 · 백테스트 지표 ⓘ — 안에 줄·색 점이 든 풍선이라 `.c-tip`(글자 한 줄)과 따로 두지만
+   겉모양은 같은 정본 값(tooltip.md)이다. 지연·페이드 없이 바로 뜬다. */
+.chart-indicator-tooltip,
+.metric-tooltip {
+    max-width: 22rem;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--bae-border);
+    border-radius: 0.375rem;
+    background: var(--bae-surface-alt);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
 .chart-indicator-tooltip {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
     z-index: 15;
     min-width: 160px;
-    padding: 10px 12px;
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    font-size: 11px;
-    line-height: 1.5;
-    box-shadow: var(--shadow-subtle);
-    opacity: 0;
-    transform: translateY(-2px);
+    visibility: hidden;
     pointer-events: none;
-    transition: var(--transition);
 }
 
 .chart-indicator-help:hover .chart-indicator-tooltip {
-    opacity: 1;
-    transform: translateY(0);
+    visibility: visible;
     pointer-events: auto;
 }
 
@@ -1538,21 +1543,6 @@ details[open] > .config-section-title.clickable {
     color: var(--bae-accent-fg);
 }
 
-.preset-float-tooltip {
-    position: fixed;
-    padding: 4px 8px;
-    background: var(--bg-primary, #fff);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius, 6px);
-    font-size: 0.68rem;
-    font-weight: 400;
-    white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    z-index: 9999;
-    pointer-events: none;
-}
-
 .config-save-row {
     display: flex;
     align-items: center;
@@ -1909,15 +1899,6 @@ details[open] > .config-section-title.clickable {
     right: 0;
     min-width: 200px;
     max-width: 300px;
-    padding: 10px 12px;
-    background: var(--bg-primary, #fff);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius, 6px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    font-size: 0.75rem;
-    font-weight: 400;
-    line-height: 1.5;
     text-transform: none;
     letter-spacing: normal;
     white-space: normal;

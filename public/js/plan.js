@@ -828,7 +828,8 @@
     var tip = null;
 
     function showTip(text, ev) {
-        if (!tip) { tip = el('div', 'plan-tip'); document.body.appendChild(tip); }
+        // 겉모양은 버튼 이름 풍선(`.c-tip`, ui.css)과 같다 — 자리만 마우스를 따라간다.
+        if (!tip) { tip = el('div', 'c-tip is-on'); document.body.appendChild(tip); }
         tip.textContent = text;
         tip.hidden = false;
         var x = Math.min(ev.clientX + 12, window.innerWidth - tip.offsetWidth - 8);

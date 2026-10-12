@@ -496,19 +496,6 @@
 .plan-retro .q-up, .plan-branch__retro .q-up { color: var(--chart-up-text, #f04452); }
 .plan-retro .q-down, .plan-branch__retro .q-down { color: var(--chart-down-text, #3182f6); }
 
-.plan-tip {
-    position: fixed;
-    z-index: 300;
-    padding: 0.375rem 0.5rem;
-    border: 1px solid var(--bae-border-hover);
-    border-radius: 0.375rem;
-    background: var(--bae-bg);
-    color: var(--bae-text-primary);
-    font-size: 0.75rem;
-    pointer-events: none;
-    white-space: nowrap;
-}
-
 /* ── 상담 (30.ai_center 대화 화면을 따른다) ─────────────── */
 
 .plan-chat {

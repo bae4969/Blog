@@ -1273,7 +1273,7 @@
                     if (!item.dataset.info) return;
                     item.addEventListener('mouseenter', function () {
                         var tip = document.createElement('div');
-                        tip.className = 'preset-float-tooltip';
+                        tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
                         tip.textContent = item.dataset.info;
                         document.body.appendChild(tip);
                         // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
