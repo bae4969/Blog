@@ -154,7 +154,6 @@
     --primary-bg-light: rgba(var(--bae-accent-rgb), 0.12);
     --primary-bg: rgba(var(--bae-accent-rgb), 0.15);
     --primary-bg-emphasis: rgba(var(--bae-accent-rgb), 0.2);
-    --primary-shadow: rgba(var(--bae-accent-rgb), 0.4);
 
     /* Danger 투명도 계열 */
     --danger-outline: rgba(var(--bae-danger-rgb), 0.25);
@@ -209,12 +208,6 @@
     --btn-disable-hover: #7a3030;
     --btn-enable: #3a5a8a;
     --btn-enable-hover: #30407a;
-
-    /* 세션 만료 알림 */
-    --alert-session-bg: #ff4444;
-    --alert-session-text: #ffffff;
-    --alert-session-btn-bg: rgba(255, 255, 255, 0.2);
-    --alert-session-btn-border: rgba(255, 255, 255, 0.3);
 }
 
 /* ===========================================
