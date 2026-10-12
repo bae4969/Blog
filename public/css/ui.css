@@ -1298,7 +1298,7 @@
 
     /* ── 버튼 색·상태 — 정본 button.md (2026-10-12) ──────────────────
      * `.btn-*` 의 원래 색은 legacy(blog.css)에 있고 여기서 덮는다. 주 버튼 hover 는 legacy 의
-     * `--primary-hover` 가 이미 정본 값이다. 크기(14px·40px·아이콘 정사각)는 손대지 않는다.
+     * `--bae-accent-hover` 가 이미 정본 값이다. 크기(14px·40px·아이콘 정사각)는 손대지 않는다.
      * ⚠️ 레이어 밖(stocks.css·admin.css)에 같은 선택자로 `background`·`color` 를 주면 그쪽이 이긴다 —
      *    stocks.css 의 `.btn-primary`·`.btn-outline`·`.btn-danger` 는 모양만 남겼다.
      * ⚠️ `:active` 는 주 버튼에만 — 보조·위험 버튼은 정본에 active 규칙이 없다.

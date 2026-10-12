@@ -304,8 +304,8 @@
         if (scoreRadarChart) { scoreRadarChart.destroy(); scoreRadarChart = null; }
 
         var style = getComputedStyle(document.documentElement);
-        var textColor = style.getPropertyValue('--text-secondary').trim() || '#6b7280';
-        var gridColor = style.getPropertyValue('--border-color').trim() || '#e5e7eb';
+        var textColor = style.getPropertyValue('--bae-text-muted').trim() || '#6b7280';
+        var gridColor = style.getPropertyValue('--bae-border').trim() || '#e5e7eb';
 
         scoreRadarChart = new Chart(canvas, {
             type: 'radar',
@@ -428,8 +428,8 @@
         }
 
         var rootStyle = getComputedStyle(document.documentElement);
-        var textColor = rootStyle.getPropertyValue('--text-secondary').trim() || '#888';
-        var gridColor = rootStyle.getPropertyValue('--border-color').trim() || '#333';
+        var textColor = rootStyle.getPropertyValue('--bae-text-muted').trim() || '#888';
+        var gridColor = rootStyle.getPropertyValue('--bae-border').trim() || '#333';
 
         backtestChart = new Chart(ctx, {
             type: 'line',

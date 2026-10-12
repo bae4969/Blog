@@ -76,7 +76,7 @@
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     padding: 14px 12px 6px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
 }
 
 .top10-section h3 {
@@ -87,7 +87,7 @@
     margin: 2px 4px 8px;
     font-size: 15px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 /* 제목 아이콘은 흐리게 — accent 는 상호작용 색이라 장식에 쓰지 않는다. */
@@ -109,7 +109,7 @@
 .top10-empty {
     text-align: center;
     padding: 40px 20px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 14px;
 }
 
@@ -252,7 +252,7 @@
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     overflow-x: auto;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     -webkit-overflow-scrolling: touch;
 }
 
@@ -264,7 +264,7 @@
 }
 
 .stocks-table thead {
-    background: var(--bg-tertiary);
+    background: var(--bae-surface);
 }
 
 .stocks-table th {
@@ -272,8 +272,8 @@
     text-align: center;
     font-size: 13px;
     font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 2px solid var(--border-color);
+    color: var(--bae-text-muted);
+    border-bottom: 2px solid var(--bae-border);
 }
 
 /* 각 열의 너비 고정
@@ -332,8 +332,8 @@
 .stocks-table td {
     padding: 10px 12px;
     font-size: 14px;
-    color: var(--text-primary);
-    border-bottom: 1px solid var(--border-color);
+    color: var(--bae-text-primary);
+    border-bottom: 1px solid var(--bae-border);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -354,7 +354,7 @@
 
 .stock-name-en {
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -362,12 +362,12 @@
 
 .stock-code {
     font-family: monospace;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
 }
 
 .stock-price {
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 .market-badge,
@@ -389,8 +389,8 @@
  *    admin_stocks). 새 시장이 생기면 여기 한 줄과 그 클래스가 함께 있어야 색이 붙는다 —
  *    없으면 아래 기본값(중립)으로 떨어진다. */
 .market-badge {
-    background: var(--bg-quaternary);
-    color: var(--text-secondary);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
 }
 
 .market-badge.market-kospi   { color: #93C5FD; }
@@ -404,11 +404,11 @@
 .market-badge.market-bithumb { color: var(--color-coin); }
 
 .type-badge {
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
 }
 
 .type-badge.type-stock {
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
 }
 
 .type-badge.type-etf {
@@ -426,7 +426,7 @@
 .no-data {
     text-align: center;
     padding: 40px !important;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 /* ===========================================
@@ -451,9 +451,9 @@
     width: 22px;
     height: 22px;
     border-radius: var(--border-radius-circle);
-    border: 1px solid var(--border-color);
-    background: var(--bg-tertiary);
-    color: var(--text-muted);
+    border: 1px solid var(--bae-border);
+    background: var(--bae-surface);
+    color: var(--bae-text-dim);
     font-size: 11px;
     font-weight: 700;
     line-height: 1;
@@ -463,8 +463,8 @@
 }
 
 .chart-indicator-help:hover .chart-indicator-help-btn {
-    border-color: var(--info-color);
-    color: var(--text-primary);
+    border-color: var(--bae-info);
+    color: var(--bae-text-primary);
     opacity: 1;
 }
 
@@ -501,7 +501,7 @@
 
 .chart-indicator-tooltip strong {
     display: block;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 11px;
     margin-bottom: 4px;
 }
@@ -523,7 +523,7 @@
 
 .chart-indicator-divider {
     border: none;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--bae-border);
     margin: 6px 0;
 }
 
@@ -540,9 +540,9 @@
     width: 22px;
     height: 22px;
     border-radius: var(--border-radius-circle);
-    border: 1px solid var(--border-color);
-    background: var(--bg-tertiary);
-    color: var(--text-muted);
+    border: 1px solid var(--bae-border);
+    background: var(--bae-surface);
+    color: var(--bae-text-dim);
     font-size: 11px;
     line-height: 1;
     cursor: pointer;
@@ -555,8 +555,8 @@
 }
 
 .chart-settings-btn:hover {
-    border-color: var(--info-color);
-    color: var(--text-primary);
+    border-color: var(--bae-info);
+    color: var(--bae-text-primary);
     opacity: 1;
 }
 
@@ -568,9 +568,9 @@
     min-width: 140px;
     padding: 10px 12px;
     border-radius: var(--border-radius-sm);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     background: var(--bg-secondary);
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     font-size: 11px;
     line-height: 1.5;
     box-shadow: var(--shadow-subtle);
@@ -588,7 +588,7 @@
 
 .chart-settings-panel strong {
     display: block;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 11px;
     margin-bottom: 6px;
 }
@@ -599,11 +599,11 @@
     gap: 6px;
     cursor: pointer;
     padding: 2px 0;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
 }
 
 .chart-settings-option input[type="checkbox"] {
-    accent-color: var(--primary-color);
+    accent-color: var(--bae-accent);
     margin: 0;
     cursor: pointer;
 }
@@ -612,10 +612,10 @@
     min-width: 60px;
     text-align: center;
     padding: 8px 12px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
+    background: var(--bae-surface);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     cursor: pointer;
     transition: var(--transition);
     font-size: 13px;
@@ -625,13 +625,13 @@
 }
 
 .chart-type-btn:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .chart-type-btn.active {
-    background: var(--primary-color);
+    background: var(--bae-accent);
     border-color: var(--bae-accent-fg);
-    color: var(--text-on-primary);
+    color: var(--bae-accent-text);
 }
 
 .chart-wrapper {
@@ -640,7 +640,7 @@
     min-height: 400px;
     max-height: 600px;
     flex: 1;
-    background: var(--bg-tertiary);
+    background: var(--bae-surface);
     border-radius: var(--border-radius);
     padding: 10px;
     display: flex;
@@ -665,7 +665,7 @@
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     display: none;
     flex-direction: column;
     align-items: center;
@@ -691,7 +691,7 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 14px;
     z-index: 10;
 }
@@ -699,7 +699,7 @@
 .chart-loading-spinner {
     width: 36px;
     height: 36px;
-    border: 3px solid var(--border-color);
+    border: 3px solid var(--bae-border);
     border-top-color: var(--bae-accent-fg);
     border-radius: var(--border-radius-circle);
     animation: chart-spin 0.8s linear infinite;
@@ -925,7 +925,7 @@
     width: 36px;
     height: 4px;
     border-radius: 2px;
-    background: var(--text-muted);
+    background: var(--bae-text-dim);
     opacity: 0.4;
     margin: 10px auto 0;
     flex-shrink: 0;
@@ -942,7 +942,7 @@
 .execution-overlay-header h3 {
     margin: 0;
     font-size: 17px;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 .execution-overlay-actions {
@@ -1055,7 +1055,7 @@
 
 .config-section {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
     margin-bottom: 10px;
@@ -1064,7 +1064,7 @@
 .config-section-title {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     margin: 0 0 10px 0;
@@ -1087,14 +1087,14 @@ details[open] > .config-section-title.clickable {
 .config-subsection-title {
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     margin: 0 0 8px 0;
 }
 
 .config-label {
     display: block;
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     margin-bottom: 4px;
 }
 
@@ -1115,7 +1115,7 @@ details[open] > .config-section-title.clickable {
 
 .config-hint {
     font-size: 0.72rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     margin-top: 6px;
     margin-bottom: -4px;
 }
@@ -1125,10 +1125,10 @@ details[open] > .config-section-title.clickable {
     width: 100%;
     padding: 7px 10px;
     font-size: 0.85rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bg-secondary);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     box-sizing: border-box;
     transition: border-color 0.2s;
 }
@@ -1142,10 +1142,10 @@ details[open] > .config-section-title.clickable {
     width: 100%;
     padding: 7px 10px;
     font-size: 0.85rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bg-secondary);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     box-sizing: border-box;
     cursor: pointer;
 }
@@ -1163,7 +1163,7 @@ details[open] > .config-section-title.clickable {
 
 .input-unit {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     white-space: nowrap;
 }
 
@@ -1180,7 +1180,7 @@ details[open] > .config-section-title.clickable {
     right: 0;
     z-index: 50;
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     max-height: 240px;
     overflow-y: auto;
@@ -1197,7 +1197,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .search-result-item:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .sr-actions {
@@ -1211,36 +1211,36 @@ details[open] > .config-section-title.clickable {
     padding: 2px 7px;
     font-size: 0.68rem;
     font-weight: 600;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: 3px;
     background: var(--bg-secondary);
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
 }
 
 .sr-add-btn:hover {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
     border-color: var(--bae-accent-fg);
 }
 
 .sr-add-benchmark:hover {
-    background: var(--text-muted);
-    border-color: var(--text-muted);
+    background: var(--bae-text-dim);
+    border-color: var(--bae-text-dim);
 }
 
 .sr-name {
     flex: 1;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .sr-code {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 0.75rem;
 }
 
@@ -1259,7 +1259,7 @@ details[open] > .config-section-title.clickable {
 .search-empty {
     padding: 12px;
     text-align: center;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 0.8rem;
 }
 
@@ -1269,7 +1269,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     font-size: 0.78rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     margin: 10px 0 4px;
     padding: 0;
 }
@@ -1277,12 +1277,12 @@ details[open] > .config-section-title.clickable {
 .picker-sub-hint {
     font-weight: 400;
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 .picker-divider {
     border: none;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--bae-border);
     margin: 10px 0 2px;
 }
 
@@ -1292,7 +1292,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .empty-hint {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 0.8rem;
     text-align: center;
     padding: 12px 0;
@@ -1309,7 +1309,7 @@ details[open] > .config-section-title.clickable {
 
 .ps-name {
     flex: 1;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1317,7 +1317,7 @@ details[open] > .config-section-title.clickable {
 }
 
 .ps-code {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 0.72rem;
 }
 
@@ -1363,7 +1363,7 @@ details[open] > .config-section-title.clickable {
     gap: 8px;
     padding: 8px 0 0;
     font-size: 0.8rem;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
 }
 
 .weight-total-text {
@@ -1372,11 +1372,11 @@ details[open] > .config-section-title.clickable {
 }
 
 .weight-total-text.weight-warning {
-    color: var(--danger-color, #ef4444);
+    color: var(--bae-danger, #ef4444);
 }
 
 .weight-total-text:not(.weight-warning) {
-    color: var(--success-color, #10b981);
+    color: var(--bae-success, #10b981);
 }
 
 /* 전략 탭 */
@@ -1390,22 +1390,22 @@ details[open] > .config-section-title.clickable {
     flex: 1;
     padding: 7px 8px;
     font-size: 0.78rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm, 4px);
     background: var(--bg-secondary);
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     cursor: pointer;
     transition: all 0.15s;
     text-align: center;
 }
 
 .strategy-tab:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .strategy-tab.active {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
     border-color: var(--bae-accent-fg);
 }
 
@@ -1491,7 +1491,7 @@ details[open] > .config-section-title.clickable {
 
 .preset-count {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 .preset-save-row {
@@ -1517,7 +1517,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 6px;
     padding: 6px 0;
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    border-bottom: 1px solid var(--bae-border, #e5e7eb);
     font-size: 0.82rem;
 }
 
@@ -1532,7 +1532,7 @@ details[open] > .config-section-title.clickable {
 .preset-item-name {
     flex: 1;
     min-width: 0;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1576,11 +1576,11 @@ details[open] > .config-section-title.clickable {
 /* 실행 버튼의 상태 색(재계산 초록 · 다시 받기 노랑) — 실행 중(disabled)에는 칠하지 않는다. 레이어 밖이라
    그대로 두면 disabled 의 회색 바탕을 이겨 실행 중에도 채운 색이 남는다. */
 .btn-recalc:not(:disabled) {
-    background: var(--success-color, #22c55e);
+    background: var(--bae-success, #22c55e);
 }
 
 .btn-refetch:not(:disabled) {
-    background: var(--warning-color, #f59e0b);
+    background: var(--bae-warn, #f59e0b);
 }
 
 .btn-outline {
@@ -1616,11 +1616,11 @@ details[open] > .config-section-title.clickable {
 
 /* 실행 전 — 자리만 잡고 안내 문구를 흐리게. accent 테두리는 저장된 결과가 생겨야 켠다. */
 .portfolio-name-section.is-empty {
-    border-color: var(--border-color);
+    border-color: var(--bae-border);
 }
 
 .portfolio-name-section.is-empty .portfolio-name-text {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-weight: 400;
 }
 
@@ -1643,7 +1643,7 @@ details[open] > .config-section-title.clickable {
 .portfolio-name-text {
     font-size: 15px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1655,10 +1655,10 @@ details[open] > .config-section-title.clickable {
     flex: 1;
     min-width: 0;
     padding: 4px 8px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-sm);
     background: var(--bg-secondary);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     font-weight: 600;
     outline: none;
@@ -1672,7 +1672,7 @@ details[open] > .config-section-title.clickable {
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     padding: 4px;
     border-radius: var(--border-radius-sm);
     transition: var(--transition);
@@ -1681,7 +1681,7 @@ details[open] > .config-section-title.clickable {
 
 .portfolio-name-edit-btn:hover {
     color: var(--bae-accent-fg);
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 /* 공개/비공개 토글 — 이름 옆 작은 알약 버튼. 켜짐(공개)은 accent tint 로 표시한다.
@@ -1692,10 +1692,10 @@ details[open] > .config-section-title.clickable {
     gap: 4px;
     margin-left: 8px;
     padding: 3px 10px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-pill);
-    background: var(--bg-quaternary);
-    color: var(--text-muted);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -1704,7 +1704,7 @@ details[open] > .config-section-title.clickable {
 
 .portfolio-public-btn:hover {
     border-color: var(--bae-accent-fg);
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
 }
 
 .portfolio-public-btn.is-public {
@@ -1742,7 +1742,7 @@ details[open] > .config-section-title.clickable {
 
 .progress-fill {
     height: 100%;
-    background: var(--primary-color);
+    background: var(--bae-accent);
     border-radius: 3px;
     transition: width 0.3s;
     width: 0%;
@@ -1750,13 +1750,13 @@ details[open] > .config-section-title.clickable {
 
 .progress-text {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 /* 총 점수 카드 */
 .total-score-card {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 10px 18px;
     display: flex;
@@ -1777,7 +1777,7 @@ details[open] > .config-section-title.clickable {
 
 .score-label {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     text-transform: uppercase;
     letter-spacing: 0.03em;
 }
@@ -1786,22 +1786,22 @@ details[open] > .config-section-title.clickable {
     font-size: 2rem;
     font-weight: 800;
     line-height: 1.15;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
-.score-number.score-high { color: var(--success-color, #10b981); }
-.score-number.score-mid  { color: var(--warning-color, #f59e0b); }
-.score-number.score-low  { color: var(--danger-color, #ef4444); }
+.score-number.score-high { color: var(--bae-success, #10b981); }
+.score-number.score-mid  { color: var(--bae-warn, #f59e0b); }
+.score-number.score-low  { color: var(--bae-danger, #ef4444); }
 
 .score-grade {
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
-.score-grade.score-high { color: var(--success-color, #10b981); }
-.score-grade.score-mid  { color: var(--warning-color, #f59e0b); }
-.score-grade.score-low  { color: var(--danger-color, #ef4444); }
+.score-grade.score-high { color: var(--bae-success, #10b981); }
+.score-grade.score-mid  { color: var(--bae-warn, #f59e0b); }
+.score-grade.score-low  { color: var(--bae-danger, #ef4444); }
 
 .score-info-btn {
     position: absolute;
@@ -1834,7 +1834,7 @@ details[open] > .config-section-title.clickable {
 
 .metric-card {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
     display: flex;
@@ -1851,7 +1851,7 @@ details[open] > .config-section-title.clickable {
     height: 18px;
     border-radius: 50%;
     background: var(--bg-secondary, #f3f4f6);
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 0.65rem;
     display: flex;
     align-items: center;
@@ -1868,8 +1868,8 @@ details[open] > .config-section-title.clickable {
    (2026-08-23 사용자 제보). 아이콘 자체를 올리면 툴팁도 함께 올라간다. */
 .metric-info:hover,
 .metric-info:focus {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
     outline: none;
     z-index: 100;
 }
@@ -1918,7 +1918,7 @@ details[open] > .config-section-title.clickable {
 
 .metric-label {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     text-transform: uppercase;
     letter-spacing: 0.03em;
 }
@@ -1926,15 +1926,15 @@ details[open] > .config-section-title.clickable {
 .metric-value {
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 .metric-value.positive {
-    color: var(--success-color, #10b981);
+    color: var(--bae-success, #10b981);
 }
 
 .metric-value.negative {
-    color: var(--danger-color, #ef4444);
+    color: var(--bae-danger, #ef4444);
 }
 
 .bmk-dot {
@@ -1947,7 +1947,7 @@ details[open] > .config-section-title.clickable {
 
 .metric-bmk {
     font-size: 0.72rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     display: none;
 }
 
@@ -1974,8 +1974,8 @@ details[open] > .config-section-title.clickable {
     transform: translateX(-50%);
     padding: 4px 8px;
     background: var(--bg-primary, #fff);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    color: var(--bae-text-primary);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius, 6px);
     font-size: 0.68rem;
     font-weight: 400;
@@ -1988,7 +1988,7 @@ details[open] > .config-section-title.clickable {
 /* 차트 영역 */
 .backtest-chart-section {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
 }
@@ -1996,7 +1996,7 @@ details[open] > .config-section-title.clickable {
 .result-section-title {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     margin: 0 0 10px 0;
 }
 
@@ -2008,7 +2008,7 @@ details[open] > .config-section-title.clickable {
 /* 연도별 수익률 테이블 */
 .annual-returns-section {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
 }
@@ -2027,30 +2027,30 @@ details[open] > .config-section-title.clickable {
     padding: 8px 10px;
     text-align: left;
     font-weight: 600;
-    color: var(--text-muted);
-    border-bottom: 2px solid var(--border-color);
+    color: var(--bae-text-dim);
+    border-bottom: 2px solid var(--bae-border);
     font-size: 0.75rem;
     text-transform: uppercase;
 }
 
 .annual-returns-table td {
     padding: 8px 10px;
-    border-bottom: 1px solid var(--border-color);
-    color: var(--text-primary);
+    border-bottom: 1px solid var(--bae-border);
+    color: var(--bae-text-primary);
 }
 
 .annual-returns-table .positive {
-    color: var(--success-color, #10b981);
+    color: var(--bae-success, #10b981);
 }
 
 .annual-returns-table .negative {
-    color: var(--danger-color, #ef4444);
+    color: var(--bae-danger, #ef4444);
 }
 
 /* 거래 요약 */
 .trade-summary-section {
     background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     padding: 14px;
 }
@@ -2066,18 +2066,18 @@ details[open] > .config-section-title.clickable {
     grid-template-columns: 2fr 1fr;
     align-items: center;
     padding: 6px 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--bae-border);
 }
 
 .trade-stat-label {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 .trade-stat-value {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     text-align: right;
 }
 
@@ -2211,7 +2211,7 @@ details[open] > .config-section-title.clickable {
       한쪽만 고쳐져 색이 갈라진다. */
 .q-up { color: var(--chart-up-text); }
 .q-down { color: var(--chart-down-text); }
-.q-flat { color: var(--text-muted); }
+.q-flat { color: var(--bae-text-dim); }
 
 .stocks-table .stock-price {
     font-variant-numeric: tabular-nums;
@@ -2221,7 +2221,7 @@ details[open] > .config-section-title.clickable {
    같은 우선순위로 다시 선언해야 현재가와 등락률이 실제 화면에서도 흰색으로 덮이지 않는다. */
 .stocks-table .q-up { color: var(--chart-up-text); }
 .stocks-table .q-down { color: var(--chart-down-text); }
-.stocks-table .q-flat { color: var(--text-muted); }
+.stocks-table .q-flat { color: var(--bae-text-dim); }
 
 /* ⚠️ 좁은 화면에서 어느 열을 접을지는 **위쪽 `@media (768px/480px)` 블록**이 이미
       정하고 있다. 여기서 또 정의하면 브레이크포인트가 둘로 갈린다 — 건드리지 말 것. */
@@ -2286,7 +2286,7 @@ details[open] > .config-section-title.clickable {
     .rotator-title {
         font-size: 11px;
         font-weight: 600;
-        color: var(--text-muted);
+        color: var(--bae-text-dim);
     }
 
     .rotator-count {
@@ -2294,7 +2294,7 @@ details[open] > .config-section-title.clickable {
         margin-left: auto;
         font-size: 11px;
         font-weight: 600;
-        color: var(--text-muted);
+        color: var(--bae-text-dim);
         font-variant-numeric: tabular-nums;
     }
 
@@ -2314,7 +2314,7 @@ details[open] > .config-section-title.clickable {
         display: block;
         width: 0;
         height: 100%;
-        background: var(--primary-color);
+        background: var(--bae-accent);
         opacity: 0.75;
     }
 
@@ -2329,10 +2329,10 @@ details[open] > .config-section-title.clickable {
     .rotator-expand {
         display: inline-block;
         padding: 3px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--bae-border);
         border-radius: 999px;
         background: transparent;
-        color: var(--text-secondary);
+        color: var(--bae-text-muted);
         font-size: 11px;
         font-weight: 600;
         line-height: 1.4;
@@ -2366,9 +2366,9 @@ details[open] > .config-section-title.clickable {
 
     .quote-rotator-row > .quote-section {
         padding: 8px 0 6px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--bae-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--bg-tertiary);
+        background: var(--bae-surface);
     }
 
     .quote-rotator-row .rotator-head {

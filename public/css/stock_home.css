@@ -148,7 +148,7 @@
         display: inline;
         font-size: 0.6875rem;
         font-weight: 600;
-        color: var(--text-muted);
+        color: var(--bae-text-dim);
         font-variant-numeric: tabular-nums;
     }
 
@@ -179,7 +179,7 @@
         display: block;
         inline-size: 0;
         block-size: 100%;
-        background: var(--primary-color);
+        background: var(--bae-accent);
         opacity: 0.75;
     }
 

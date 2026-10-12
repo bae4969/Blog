@@ -14,18 +14,18 @@
 .admin-content h2 {
     font-size: 1.8rem;
     font-weight: 800;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     margin: 5px;
     padding: 5px;
     background: transparent;
 }
 
 .admin-placeholder {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 14px;
     padding: 40px 20px;
     text-align: center;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border-radius: var(--border-radius);
 }
 
@@ -33,14 +33,14 @@
    관리자 카드
    =========================================== */
 .admin-card {
-    background: var(--bg-tertiary);
+    background: var(--bae-surface);
     border: none;
     border-radius: var(--border-radius-lg);
     padding: 25px 30px;
 }
 
 .admin-card h3 {
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 1.1rem;
     font-weight: 700;
     border-bottom: none;
@@ -62,7 +62,7 @@
 }
 
 .collapsible-header:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .collapsible-icon {
@@ -72,8 +72,8 @@
     height: 28px;
     padding: 6px;
     border-radius: var(--border-radius);
-    background: var(--bg-quaternary);
-    color: var(--text-secondary);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
 }
 
 .collapsible-header:hover .collapsible-icon {
@@ -90,7 +90,7 @@
     max-height: 600px;
     opacity: 1;
     transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.3s ease, margin 0.3s ease;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--bae-border);
     padding-bottom: 20px;
     margin-bottom: 20px;
 }
@@ -127,18 +127,18 @@
 
 .stat-row .stat-label {
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-weight: 500;
 }
 
 .stat-row .stat-value {
     font-size: 18px;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 .stat-row .stat-sep {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     opacity: 0.4;
     font-size: 14px;
     user-select: none;
@@ -178,7 +178,7 @@
 .admin-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border-radius: var(--border-radius);
     border: none;
 }
@@ -206,7 +206,7 @@
 
 .admin-table th {
     background: var(--bg-table-header);
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     font-weight: 600;
     font-size: 13px;
     text-transform: uppercase;
@@ -214,7 +214,7 @@
 }
 
 .admin-table td {
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     vertical-align: middle;
     height: auto;
 }
@@ -239,7 +239,7 @@
 }
 
 .admin-table tbody tr:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .admin-table tr.row-disabled {
@@ -255,10 +255,10 @@
 
 .inline-form select {
     padding: 6px 10px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 13px;
     cursor: pointer;
     transition: var(--transition);
@@ -271,10 +271,10 @@
 
 .inline-input {
     padding: 8px 12px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     transition: var(--transition);
 }
@@ -285,13 +285,13 @@
 }
 
 .text-muted {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 .inline-select {
     padding: 6px 10px;
-    background: var(--bg-quaternary);
-    color: var(--text-primary);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
     border: none;
     border-radius: var(--border-radius-sm);
     font-size: 13px;
@@ -363,7 +363,7 @@
         content: attr(data-label);
         display: block;
         margin-bottom: 4px;
-        color: var(--text-muted);
+        color: var(--bae-text-dim);
         font-size: 12px;
         font-weight: 600;
     }
@@ -410,8 +410,8 @@
     width: 28px;
     height: 16px;
     font-size: 10px;
-    background: var(--bg-quaternary);
-    color: var(--text-primary);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
     border: none;
     border-radius: var(--border-radius-xs);
     cursor: pointer;
@@ -421,8 +421,8 @@
 }
 
 .btn-arrow:hover {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
 }
 
 .btn-arrow.disabled {
@@ -437,14 +437,14 @@
 .admin-help {
     margin-top: 16px;
     padding: 12px 16px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border-radius: var(--border-radius);
 }
 
 .admin-help p {
     margin: 5px 0;
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     line-height: 1.6;
 }
 
@@ -462,14 +462,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius);
     transition: var(--transition);
 }
 
 .wol-device:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 .wol-device-info {
@@ -524,7 +524,7 @@
 .wol-edit-row label {
     min-width: 60px;
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-weight: 600;
 }
 
@@ -567,7 +567,7 @@
 
 .admin-form-field label {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--bae-text-muted);
     font-weight: 600;
 }
 
@@ -575,10 +575,10 @@
 .admin-form-field select {
     width: 100%;
     padding: 10px 14px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     transition: var(--transition);
     box-sizing: border-box;
@@ -588,11 +588,11 @@
 .admin-form-field select:focus {
     outline: none;
     box-shadow: var(--shadow-focus);
-    background: var(--bg-focus);
+    background: var(--bae-surface-alt);
 }
 
 .admin-form-field input::placeholder {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-weight: 400;
 }
 
@@ -608,10 +608,10 @@
     width: 100%;
     padding: 10px 14px;
     padding-right: 32px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     transition: var(--transition);
     box-sizing: border-box;
@@ -620,7 +620,7 @@
 .combobox-search:focus {
     outline: none;
     box-shadow: var(--shadow-focus);
-    background: var(--bg-focus);
+    background: var(--bae-surface-alt);
 }
 
 .combobox::after {
@@ -630,8 +630,8 @@
     right: 12px;
     width: 8px;
     height: 8px;
-    border-right: 2px solid var(--text-muted);
-    border-bottom: 2px solid var(--text-muted);
+    border-right: 2px solid var(--bae-text-dim);
+    border-bottom: 2px solid var(--bae-text-dim);
     transform: translateY(-75%) rotate(45deg);
     pointer-events: none;
     transition: transform 0.15s ease;
@@ -648,8 +648,8 @@
     left: 0;
     right: 0;
     z-index: 20;
-    background: var(--bg-tertiary, var(--bg-quaternary));
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    background: var(--bae-surface, var(--bae-surface-alt));
+    border: 1px solid var(--bae-border, rgba(255, 255, 255, 0.1));
     border-radius: var(--border-radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     max-height: 280px;
@@ -669,14 +669,14 @@
 .combobox-item {
     padding: 8px 14px;
     cursor: pointer;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     transition: background 0.1s ease;
 }
 
 .combobox-item:hover,
 .combobox-item.combobox-item-active {
-    background: var(--bg-focus, rgba(255, 255, 255, 0.08));
+    background: var(--bae-surface-alt, rgba(255, 255, 255, 0.08));
 }
 
 .combobox-item[hidden] {
@@ -685,7 +685,7 @@
 
 .combobox-empty {
     padding: 12px 14px;
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-size: 13px;
     font-style: italic;
 }
@@ -717,10 +717,10 @@
 
 .stock-admin-search-form input {
     padding: 10px 14px;
-    background: var(--bg-quaternary);
+    background: var(--bae-surface-alt);
     border: none;
     border-radius: var(--border-radius);
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 14px;
     transition: var(--transition);
     min-width: 190px;
@@ -729,11 +729,11 @@
 .stock-admin-search-form input:focus {
     outline: none;
     box-shadow: var(--shadow-focus);
-    background: var(--bg-focus);
+    background: var(--bae-surface-alt);
 }
 
 .stock-admin-search-form input::placeholder {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
 }
 
 .stock-admin-toolbar {
@@ -762,8 +762,8 @@
     padding: 0px 12px;
     border-radius: var(--border-radius-pill);
     border: none;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
+    background: var(--bae-surface);
+    color: var(--bae-text-muted);
     text-decoration: none;
     font-size: 13px;
     font-weight: 600;
@@ -777,8 +777,8 @@
 
 .stock-admin-market-tab.active,
 .stock-admin-market-tab:hover {
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
 }
 
 .stock-admin-search-form {
@@ -889,15 +889,15 @@
     padding: 6px 10px;
     border-radius: var(--border-radius-sm);
     border: none;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+    background: var(--bae-surface);
+    color: var(--bae-text-primary);
     text-decoration: none;
     font-size: 12px;
     font-weight: 600;
 }
 
 .stock-admin-view-link:hover {
-    background: var(--bg-hover);
+    background: var(--bae-surface-hover);
 }
 
 /* 툴바: 중간 화면 — 2행 (탭+검색 / 액션) */

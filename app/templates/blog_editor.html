@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 p.style.cssText = `
                     margin: 20px 0;
                     height: 2px;
-                    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+                    background: linear-gradient(to right, transparent, var(--bae-border), transparent);
                     border: none;
                     padding: 0;
                     position: relative;
@@ -661,42 +661,42 @@ function showNotification(message, type = 'info') {
 const quillDarkTheme = `
     <style>
     .ql-toolbar {
-        background-color: var(--bg-tertiary) !important;
-        border-color: var(--border-color) !important;
-        color: var(--text-secondary) !important;
+        background-color: var(--bae-surface) !important;
+        border-color: var(--bae-border) !important;
+        color: var(--bae-text-muted) !important;
     }
     
     .ql-toolbar .ql-stroke {
-        stroke: var(--text-secondary) !important;
+        stroke: var(--bae-text-muted) !important;
     }
     
     .ql-toolbar .ql-fill {
-        fill: var(--text-secondary) !important;
+        fill: var(--bae-text-muted) !important;
     }
     
     .ql-toolbar button:hover {
-        background-color: var(--bg-hover) !important;
+        background-color: var(--bae-surface-hover) !important;
     }
     
     .ql-toolbar button.ql-active {
-        background-color: var(--bg-hover) !important;
+        background-color: var(--bae-surface-hover) !important;
         color: white !important;
     }
     
     .ql-container {
         background-color: var(--bg-secondary) !important;
-        color: var(--text-secondary) !important;
-        border-color: var(--border-color) !important;
+        color: var(--bae-text-muted) !important;
+        border-color: var(--bae-border) !important;
     }
     
     .ql-editor {
         background-color: var(--bg-secondary) !important;
-        color: var(--text-secondary) !important;
+        color: var(--bae-text-muted) !important;
         min-height: 300px !important;
     }
     
     .ql-editor.ql-blank::before {
-        color: var(--text-muted) !important;
+        color: var(--bae-text-dim) !important;
     }
     
     .quill-container {
@@ -717,7 +717,7 @@ const quillDarkTheme = `
     /* 구분선 스타일 */
     .ql-editor hr {
         border: none;
-        border-top: 2px solid var(--border-color);
+        border-top: 2px solid var(--bae-border);
         margin: 20px 0;
         background: none;
     }
@@ -726,7 +726,7 @@ const quillDarkTheme = `
         content: '';
         display: block;
         height: 1px;
-        background: linear-gradient(to right, transparent, var(--border-color), transparent);
+        background: linear-gradient(to right, transparent, var(--bae-border), transparent);
         margin-top: 1px;
     }
     
@@ -744,7 +744,7 @@ const quillDarkTheme = `
     .ql-editor p:empty {
         margin: 20px 0;
         height: 2px;
-        background: linear-gradient(to right, transparent, var(--border-color), transparent);
+        background: linear-gradient(to right, transparent, var(--bae-border), transparent);
         border: none;
         padding: 0;
     }
@@ -765,7 +765,7 @@ const quillDarkTheme = `
         display: block;
         width: 100%;
         height: 2px;
-        background: linear-gradient(to right, transparent, var(--border-color), transparent);
+        background: linear-gradient(to right, transparent, var(--bae-border), transparent);
         position: absolute;
         top: 50%;
         left: 0;
@@ -794,7 +794,7 @@ const quillDarkTheme = `
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.55);
         border: none;
-        color: var(--text-muted, #888);
+        color: var(--bae-text-dim, #888);
         font-size: 18px;
         line-height: 28px;
         text-align: center;
@@ -810,7 +810,7 @@ const quillDarkTheme = `
     }
     
     .thumb-overlay .img-thumb-star.active {
-        color: var(--warning-color, #ffc107);
+        color: var(--bae-warn, #ffc107);
         opacity: 1;
     }
     
