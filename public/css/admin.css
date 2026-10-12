@@ -1154,6 +1154,12 @@
 
 /* 반응형 */
 
+/* 관리자 표·통계 숫자는 고정폭으로(정본 typography 결정 #8) — 개수·날짜·비율이 세로로 맞는다. */
+.stat-value,
+.admin-table td {
+    font-variant-numeric: tabular-nums;
+}
+
 /* IP 차단 관리 */
 .ip-badge {
     display: inline-block;

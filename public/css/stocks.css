@@ -1996,6 +1996,15 @@ details[open] > .config-section-title.clickable {
     padding: 14px;
 }
 
+/* 결과 수치는 고정폭 숫자로 — 자리 수가 바뀌어도 흔들리지 않고 세로로 맞는다(정본 typography 결정 #8). */
+.metric-value,
+.trade-stat-value,
+.score-number,
+.portfolio-weight-total,
+.annual-returns-table {
+    font-variant-numeric: tabular-nums;
+}
+
 .result-section-title {
     font-size: 0.875rem;
     font-weight: 600;
