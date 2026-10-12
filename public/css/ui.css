@@ -137,6 +137,11 @@
         font-size: 0.875rem;
     }
 
+    /* 폼 컨트롤은 글꼴을 물려받지 않는 것이 브라우저 기본이다 — 정본(Tailwind preflight)처럼 본문 글꼴을 쓴다. */
+    button, input, select, textarea {
+        font-family: inherit;
+    }
+
     /* ── 포커스 표시 ──────────────────────────────────────────────────
      * 지금 `:focus-visible` 이 0건이고 `outline: none` 이 16곳이라 키보드로 어디에
      * 있는지 알 수 없다. 마우스 클릭에는 안 뜨고 키보드에만 뜬다.
