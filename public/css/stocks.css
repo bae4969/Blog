@@ -1252,9 +1252,11 @@ details[open] > .config-section-title.clickable {
     text-transform: uppercase;
 }
 
-.badge-kr { background: rgba(59, 130, 246, 0.22); color: #3b82f6; }
-.badge-us { background: rgba(16, 185, 129, 0.22); color: #10b981; }
-.badge-coin { background: rgba(249, 115, 22, 0.22); color: #f97316; }
+/* 백테스트 종목 칸의 시장 배지 — 위 `.market-badge.market-*` 와 **같은 시장은 같은 색**(한국 = KOSPI 파랑,
+   미국 = NASDAQ 청록, 코인 = 코인 주황). 예전에는 같은 시장인데 다른 원색이었다. 바탕은 정본 배지 22% tint. */
+.badge-kr { background: rgba(147, 197, 253, 0.22); color: var(--bae-info); }
+.badge-us { background: rgba(94, 234, 212, 0.22); color: #5EEAD4; }
+.badge-coin { background: rgba(253, 186, 116, 0.22); color: var(--color-coin); }
 
 .search-empty {
     padding: 12px;
@@ -1372,11 +1374,11 @@ details[open] > .config-section-title.clickable {
 }
 
 .weight-total-text.weight-warning {
-    color: var(--bae-danger, #ef4444);
+    color: var(--bae-danger);
 }
 
 .weight-total-text:not(.weight-warning) {
-    color: var(--bae-success, #10b981);
+    color: var(--bae-success);
 }
 
 /* 전략 탭 */
@@ -1517,7 +1519,7 @@ details[open] > .config-section-title.clickable {
     align-items: center;
     gap: 6px;
     padding: 6px 0;
-    border-bottom: 1px solid var(--bae-border, #e5e7eb);
+    border-bottom: 1px solid var(--bae-border);
     font-size: 0.82rem;
 }
 
@@ -1576,11 +1578,11 @@ details[open] > .config-section-title.clickable {
 /* 실행 버튼의 상태 색(재계산 초록 · 다시 받기 노랑) — 실행 중(disabled)에는 칠하지 않는다. 레이어 밖이라
    그대로 두면 disabled 의 회색 바탕을 이겨 실행 중에도 채운 색이 남는다. */
 .btn-recalc:not(:disabled) {
-    background: var(--bae-success, #22c55e);
+    background: var(--bae-success);
 }
 
 .btn-refetch:not(:disabled) {
-    background: var(--bae-warn, #f59e0b);
+    background: var(--bae-warn);
 }
 
 .btn-outline {
@@ -1789,9 +1791,9 @@ details[open] > .config-section-title.clickable {
     color: var(--bae-text-primary);
 }
 
-.score-number.score-high { color: var(--bae-success, #10b981); }
-.score-number.score-mid  { color: var(--bae-warn, #f59e0b); }
-.score-number.score-low  { color: var(--bae-danger, #ef4444); }
+.score-number.score-high { color: var(--bae-success); }
+.score-number.score-mid  { color: var(--bae-warn); }
+.score-number.score-low  { color: var(--bae-danger); }
 
 .score-grade {
     font-size: 1.5rem;
@@ -1799,9 +1801,9 @@ details[open] > .config-section-title.clickable {
     color: var(--bae-text-dim);
 }
 
-.score-grade.score-high { color: var(--bae-success, #10b981); }
-.score-grade.score-mid  { color: var(--bae-warn, #f59e0b); }
-.score-grade.score-low  { color: var(--bae-danger, #ef4444); }
+.score-grade.score-high { color: var(--bae-success); }
+.score-grade.score-mid  { color: var(--bae-warn); }
+.score-grade.score-low  { color: var(--bae-danger); }
 
 .score-info-btn {
     position: absolute;
@@ -1930,11 +1932,11 @@ details[open] > .config-section-title.clickable {
 }
 
 .metric-value.positive {
-    color: var(--bae-success, #10b981);
+    color: var(--bae-success);
 }
 
 .metric-value.negative {
-    color: var(--bae-danger, #ef4444);
+    color: var(--bae-danger);
 }
 
 .bmk-dot {
@@ -2040,11 +2042,11 @@ details[open] > .config-section-title.clickable {
 }
 
 .annual-returns-table .positive {
-    color: var(--bae-success, #10b981);
+    color: var(--bae-success);
 }
 
 .annual-returns-table .negative {
-    color: var(--bae-danger, #ef4444);
+    color: var(--bae-danger);
 }
 
 /* 거래 요약 */

@@ -19,7 +19,6 @@
     --series-6: #008300;
     --series-7: #9085e9;
     --series-other: #6b6b6b;
-    --user-bubble: rgb(176, 162, 226);   /* ai_center 와 같은 값 — accent 88% + #1a1a1a */
     max-inline-size: 80rem;
     margin-inline: auto;
     padding-block: var(--space-3) var(--space-6);
@@ -493,8 +492,8 @@
 .plan-retro__line { margin: 0; color: var(--bae-text-primary); font-size: var(--fs--1); font-variant-numeric: tabular-nums; white-space: pre-wrap; }
 .plan-retro__line + .plan-retro__line { margin-block-start: 0.25rem; }
 .plan-retro__note { margin: 0.25rem 0 0; color: var(--bae-text-dim); font-size: 0.75rem; }
-.plan-retro .q-up, .plan-branch__retro .q-up { color: var(--chart-up-text, #f04452); }
-.plan-retro .q-down, .plan-branch__retro .q-down { color: var(--chart-down-text, #3182f6); }
+.plan-retro .q-up, .plan-branch__retro .q-up { color: var(--chart-up-text); }
+.plan-retro .q-down, .plan-branch__retro .q-down { color: var(--chart-down-text); }
 
 /* ── 상담 (30.ai_center 대화 화면을 따른다) ─────────────── */
 
@@ -524,8 +523,8 @@
     max-inline-size: 85%;
     padding: 8px 12px;
     border-radius: 8px;
-    background: var(--user-bubble);
-    color: #000;
+    background: var(--user-bubble-bg);
+    color: var(--bae-accent-text);
     font-size: 14px;
     font-weight: 500;
     line-height: 20px;

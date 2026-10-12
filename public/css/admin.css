@@ -649,7 +649,7 @@
     right: 0;
     z-index: 20;
     background: var(--bae-surface, var(--bae-surface-alt));
-    border: 1px solid var(--bae-border, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     max-height: 280px;
@@ -676,7 +676,7 @@
 
 .combobox-item:hover,
 .combobox-item.combobox-item-active {
-    background: var(--bae-surface-alt, rgba(255, 255, 255, 0.08));
+    background: var(--bae-surface-alt);
 }
 
 .combobox-item[hidden] {

@@ -87,6 +87,8 @@
     --bae-surface-press:   #272727;
     --bae-divider:         #2D2D2D;
     --float-max:           70vh;
+    /* 내 말풍선(투자 계획 상담) — accent 88% + #1a1a1a 를 미리 계산한 정본 값. accent 를 바꾸면 같이 바꾼다. */
+    --user-bubble-bg:      rgb(176, 162, 226);
 
     /* ── 옛 이름 ────────────────────────────────────────────────────
      * 값이 `--bae-*` 하나와 같던 1:1 별칭(`--primary-color`·`--bg-tertiary`·`--text-muted`·
