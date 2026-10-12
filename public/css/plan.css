@@ -707,7 +707,7 @@
     border-radius: 12px;
     background: transparent;
     color: var(--bae-text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 14px;
     line-height: 20px;
     resize: none;

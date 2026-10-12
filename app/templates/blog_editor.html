@@ -683,6 +683,17 @@ const quillDarkTheme = `
         color: white !important;
     }
     
+    /* 글꼴 — Quill 기본(Helvetica·Arial)은 한글이 없다. 사이트 정본 스택을 물려받고, 코드는 정본 mono 스택. */
+    .ql-toolbar.ql-snow,
+    .ql-container.ql-snow {
+        font-family: inherit;
+    }
+
+    .ql-snow .ql-editor :is(code, .ql-code-block-container),
+    .ql-snow .ql-editor .ql-font-monospace {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
     .ql-container {
         background-color: var(--bae-bg) !important;
         color: var(--bae-text-muted) !important;

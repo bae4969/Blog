@@ -102,15 +102,13 @@
     }
 
     /* ── 글꼴 ─────────────────────────────────────────────────────────
-     * 지금 `font-family: "arial", sans-serif` 인데 arial 에는 **한글이 없다** — 결국
-     * OS 기본 폴백으로 떨어져 기기마다 다르게 뜬다. 파일은 넣지 않고(0바이트) 스택만
-     * 바로잡아도 macOS·iOS 는 Apple SD Gothic Neo, Windows 는 맑은 고딕으로 결정된다.
-     * `Pretendard` 는 설치돼 있으면 쓰고 없으면 조용히 넘어간다.
+     * 정본 스택(typography.md, 2026-10-12 결정 #8) — 글꼴 파일은 넣지 않는다(0바이트).
+     * ⚠️ 한글 서체 이름(`Apple SD Gothic Neo`·`Noto Sans KR`·`Malgun Gothic`·`Pretendard`)을 적지 않는다 —
+     *    `system-ui` 에서 OS 가 고른다(macOS·iOS 는 Apple SD Gothic Neo, Windows 는 맑은 고딕).
+     *    옛 `blog.css` 의 `"arial", sans-serif` 는 한글이 없어 기기마다 다르게 떴다 — 이 규칙이 덮는다.
      */
     body {
-        font-family: Pretendard, -apple-system, BlinkMacSystemFont,
-                     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
-                     system-ui, "Segoe UI", Roboto, sans-serif;
+        font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
         min-inline-size: 0;              /* blog.css:29 의 min-width:400px 대체 */
     }
 
@@ -1739,6 +1737,11 @@
         border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
         background: rgba(var(--bae-accent-rgb), 0.06);
         color: var(--bae-text-muted);
+    }
+
+    /* 코드 — 정본 마크다운 mono 스택(typography.md) */
+    #post-detail .post-content :is(pre, code) {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
 
     #post-detail .post-content pre {
