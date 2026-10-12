@@ -219,12 +219,12 @@
 
     /* IP 뱃지 색상 — 라이트 테마 시절의 파스텔 칩(밝은 배경 + 진한 글씨)이 어두운
        관리자 표에 그대로 남아 있던 것. 다크 tint 로 바꾼다. */
-    --ip-badge-auto-bg: rgba(var(--bae-warn-rgb), 0.18);
+    --ip-badge-auto-bg: rgba(133, 77, 14, 0.40);        /* 정본 .badge-warn 바탕(badge-status.md) */
     --ip-badge-auto-color: var(--bae-warn);
     /* 수동 차단은 분류 라벨이지 강조가 아니다 — accent 를 주면 표에서 그것만 튄다.
        (주식 액면분할 화면이 시장 라벨 KR/US 에 이 클래스를 재사용한다.) */
-    --ip-badge-manual-bg: var(--bg-quaternary);
-    --ip-badge-manual-color: var(--text-secondary);
+    --ip-badge-manual-bg: var(--bae-border-hover);      /* 정본 .badge-neutral */
+    --ip-badge-manual-color: var(--bae-text-muted);
 
     /* 테이블 배경 */
     --bg-table-header: rgba(255, 255, 255, 0.03);
@@ -241,7 +241,7 @@
     --border-radius-circle: 50%;
 
     /* 그림자 (보조) */
-    --shadow-focus: 0 0 0 2px var(--primary-outline);
+    --shadow-focus: 0 0 0 2px var(--bae-accent-fg);    /* 정본 포커스 링 — 2px, 불투명(form-field.md) */
     --shadow-focus-danger: 0 0 0 2px var(--danger-outline);
     --shadow-btn-sm: 0 1px 2px var(--primary-shadow-sm);
     --shadow-btn-hover: 0 2px 4px var(--primary-shadow);

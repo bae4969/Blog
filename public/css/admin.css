@@ -874,7 +874,7 @@
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: var(--text-muted);
+    accent-color: var(--bae-accent);   /* 정본: 네이티브 체크박스 선택 표시는 accent */
 }
 
 .admin-table-row.is-selected {
@@ -1185,9 +1185,9 @@
 }
 
 /* 분류 배지 — 주식 화면의 시장·유형 배지와 같은 자리를 쓴다. */
-.type-badge.type-kr_index { background: rgba(var(--bae-accent-rgb), 0.18); color: var(--bae-accent-fg); }
-.type-badge.type-ex_index { background: rgba(147, 197, 253, 0.18); color: var(--bae-info); }
-.type-badge.type-fx { background: rgba(110, 231, 183, 0.18); color: var(--bae-mint); }
+.type-badge.type-kr_index { background: rgba(var(--bae-accent-rgb), 0.22); color: var(--bae-accent-fg); }
+.type-badge.type-ex_index { background: rgba(147, 197, 253, 0.22); color: var(--bae-info); }
+.type-badge.type-fx { background: rgba(110, 231, 183, 0.22); color: var(--bae-mint); }
 
 /* 외부 연동 — 칸 머리: 제목 왼쪽, 그 칸의 버튼(Codex 로그인·로그아웃·시험) 오른쪽 */
 .int-head { display: flex; flex: 1 1 100%; inline-size: 100%; align-items: center; justify-content: space-between; gap: 12px; margin-block: 20px 4px; }

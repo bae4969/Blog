@@ -1252,9 +1252,9 @@ details[open] > .config-section-title.clickable {
     text-transform: uppercase;
 }
 
-.badge-kr { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-.badge-us { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-.badge-coin { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+.badge-kr { background: rgba(59, 130, 246, 0.22); color: #3b82f6; }
+.badge-us { background: rgba(16, 185, 129, 0.22); color: #10b981; }
+.badge-coin { background: rgba(249, 115, 22, 0.22); color: #f97316; }
 
 .search-empty {
     padding: 12px;

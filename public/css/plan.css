@@ -654,7 +654,8 @@
 }
 
 .plan-round:hover { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
-.plan-round:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bae-accent); }
+/* 입력 상자 위 원형 버튼은 정본의 1px 예외(button.md 포커스 링 — `#attach-btn`): 링 1px + 테두리 accent-fg */
+.plan-round:focus-visible { outline: none; border-color: var(--bae-accent-fg); box-shadow: 0 0 0 1px var(--bae-accent-fg); }
 .plan-round .c-ico { inline-size: 16px; block-size: 16px; }
 
 .plan-chat__thumbs { display: contents; }
