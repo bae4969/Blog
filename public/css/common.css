@@ -26,6 +26,11 @@
      * ⚠️ --bae-accent-rgb 는 --bae-accent 와 반드시 같은 색의 R,G,B 채널값.
      * ⚠️ CSS 밖은 이 토큰이 닿지 않아 함께 갱신해야 한다:
      *    ① public/favicon.ico — 파비콘. 색이 이미지에 구워져 있다.
+     *    ② public/res/favicon.svg · icon-192/512(-maskable).png · apple-touch-icon.png — 같은 그림
+     *    ③ layout.html 아이콘 링크 셋과 site.webmanifest `icons[].src` 의 `?v=` 날짜를 올린다
+     *       — 안 올리면 설치된 PWA·서비스워커가 옛 아이콘을 한 번 더 쓴다.
+     *    (배경색을 바꿀 때는 layout.html `theme-color` · site.webmanifest `theme_color`·`background_color` ·
+     *     sw.js 오프라인 화면 색도 — 이건 accent 가 아니다.)
      *    (2026-09-22) `public/res/title.png` 는 목록에서 빠졌다 — 상단바 워드마크가
      *    텍스트라 accent 를 CSS 토큰에서 그대로 받는다. 그 파일은 이제 안 쓰인다.
      */

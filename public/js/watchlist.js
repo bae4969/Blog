@@ -95,7 +95,7 @@
         svg.setAttribute('viewBox', '0 0 24 24');
         svg.setAttribute('fill', 'none');
         svg.setAttribute('stroke', 'currentColor');
-        svg.setAttribute('stroke-width', '1.75');
+        svg.setAttribute('stroke-width', '2');
         svg.setAttribute('stroke-linecap', 'round');
         svg.setAttribute('aria-hidden', 'true');
         ['M18 6 6 18', 'm6 6 12 12'].forEach(function (d) {

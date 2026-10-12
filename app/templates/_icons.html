@@ -14,14 +14,14 @@
 
   ⚠️ `aria-hidden="true"` 를 반드시 붙인다 — 이름은 버튼이 갖고 있으므로 보조기기가 두 번
      읽을 이유가 없다.
-  ⚠️ 선 두께·모서리는 `stocks_index.html` 의 시장 아이콘과 맞춘다(stroke 1.75, round).
+  ⚠️ 선 두께·모서리는 `stocks_index.html` 의 시장 아이콘과 맞춘다(stroke 2, round — 정본 lucide 규격, 2026-10-06).
      `currentColor` 라 버튼 글자색을 그대로 따라간다.
   ⚠️ jinja2 는 `import` 를 **컴파일 때 해석하지 않는다** — 파일명을 틀려도 CI 를 통과하고
      렌더에서야 500 이 난다. 이 파일 이름을 바꾸면 쓰는 쪽을 함께 고칠 것.
 #}
 
 {%- macro i(name) -%}
-<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 {%- if name == 'write' -%}
     <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />

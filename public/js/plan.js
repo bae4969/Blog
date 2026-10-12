@@ -225,7 +225,7 @@
     // ── 매매표·지금 할 일(2026-10-11) ───────────────────────
     //    AI 가 가지를 고른 뒤 실제로 무엇을 몇 주 사고팔지 — 서버가 직전 보유와 가지 보유를 견줘 `trades` 로 준다.
 
-    var CHECK_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"'
+    var CHECK_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
                   + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
     /** 계좌 · 종목 · 매매 · 수량 · 금액. 현금(평가액으로 적은 것)은 수량 없이 증가·감소. 매매가 없으면 null. */
@@ -1251,7 +1251,7 @@
             var x = el('button', 'plan-chip__x');
             x.type = 'button';
             x.setAttribute('aria-label', '이미지 ' + (i + 1) + ' 빼기');
-            x.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"'
+            x.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
                         + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
             x.addEventListener('click', function () { images.splice(i, 1); renderChips(); });
             chip.appendChild(x);
@@ -1426,7 +1426,7 @@
                 if (i > 0) {
                     var b = el('button', 'c-btn');
                     b.type = 'button';
-                    b.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"'
+                    b.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
                                 + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
                                 + '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/></svg>';
                     b.appendChild(el('span', null, '이 버전으로 되돌리기'));

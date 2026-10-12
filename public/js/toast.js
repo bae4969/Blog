@@ -44,7 +44,7 @@
 
     function icon(type) {
         return '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-             + ' stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+             + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
              + (PATHS[type] || PATHS.info) + '</svg>';
     }
 
@@ -97,7 +97,7 @@
         close.className = 'c-toast__close';
         close.setAttribute('aria-label', '알림 닫기');
         close.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-                        + ' stroke-width="1.75" stroke-linecap="round" aria-hidden="true">'
+                        + ' stroke-width="2" stroke-linecap="round" aria-hidden="true">'
                         + '<path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
         close.addEventListener('click', function () { dismiss(box); });
         box.appendChild(close);

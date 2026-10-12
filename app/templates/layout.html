@@ -48,10 +48,13 @@
          manifest : 안드로이드·삼성 인터넷 바로가기. 192·512 를 여기서 읽는다
       ⚠️ theme-color 는 안드로이드 주소창 색이다. 페이지 배경(--bae-bg-alt)과 맞춘다 —
          어긋나면 스크롤할 때 위쪽에 다른 색 띠가 보인다.
+      ⚠️ 아이콘 `?v=` 는 서버 재시작마다 바뀌는 `static_v` 가 아니라 **그림을 바꾼 날짜**다 —
+         `/res/` 는 서비스워커가 stale-while-revalidate 로 주므로 `?v` 를 안 올리면 한 번은 옛 그림이
+         나온다. 그림을 바꾸면 여기 셋과 `site.webmanifest` 의 `icons[].src` 를 함께 올린다.
     #}
-    <link rel="icon" href="/favicon.ico" sizes="32x32">
-    <link rel="icon" href="/res/favicon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/res/apple-touch-icon.png">
+    <link rel="icon" href="/favicon.ico?v=20261012" sizes="32x32">
+    <link rel="icon" href="/res/favicon.svg?v=20261012" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/res/apple-touch-icon.png?v=20261012">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#1C1C1C">
     <meta name="apple-mobile-web-app-title" content="Dev Notes">
