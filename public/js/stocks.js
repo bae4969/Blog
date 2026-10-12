@@ -1965,8 +1965,13 @@ function openExecutionOverlay() {
     var overlayList = document.getElementById('executionOverlayList');
     if (inlineList && overlayList) overlayList.innerHTML = inlineList.innerHTML;
 
+    // 시트는 top layer(popover="manual", 2026-10-13) — 상단바·레일 위에 z-index 없이 뜨고, 뒤에 뜬 토스트가 그 위에
+    // 온다. 막(backdrop)·바깥 클릭·Esc 닫기·올라오는 움직임은 그대로 — `active` 는 뜬 다음 프레임에 붙여야 전환이 걸린다.
+    clearTimeout(overlay._hideTimer);
+    window.TopLayer.show(overlay);
+    window.TopLayer.changed();
     backdrop.classList.add('active');
-    overlay.classList.add('active');
+    requestAnimationFrame(function () { overlay.classList.add('active'); });
     document.body.style.overflow = 'hidden';
 }
 
@@ -1977,6 +1982,11 @@ function closeExecutionOverlay() {
     overlay.classList.remove('active');
     backdrop.classList.remove('active');
     document.body.style.overflow = '';
+    // 내려가는 움직임(0.3s)이 끝난 뒤 top layer 에서 내린다.
+    clearTimeout(overlay._hideTimer);
+    overlay._hideTimer = setTimeout(function () {
+        if (!overlay.classList.contains('active')) window.TopLayer.hide(overlay);
+    }, 300);
 }
 
 function formatTime(datetime) {

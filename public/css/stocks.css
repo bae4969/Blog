@@ -995,7 +995,7 @@
         left: 0;
         right: 0;
         max-height: 85vh;
-        z-index: 1001;
+        /* popover="manual"(top layer, stocks.js) — z-index 없이 막(1000)·상단바 위에 뜬다. */
         background: var(--bae-bg);
         border-radius: 16px 16px 0 0;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);   /* 정본 서랍 그림자를 위로 */
