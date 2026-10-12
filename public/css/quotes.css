@@ -128,40 +128,6 @@
 
 /* ── 히트맵 ─────────────────────────────────────────────────────────── */
 
-.heatmap-tabs {
-    display: flex;
-    justify-self: end;
-    gap: 6px;
-}
-
-.heatmap-tabs-standalone {
-    justify-content: flex-end;
-    margin-bottom: 6px;
-}
-
-.heatmap-tab {
-    padding: 5px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.heatmap-tab:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-}
-
-.heatmap-tab.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--bae-accent-text, #000);
-    font-weight: 600;
-}
-
 .heatmap-legend {
     display: flex;
     align-items: center;
