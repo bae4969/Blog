@@ -9,6 +9,7 @@
 (`iKOSPI`·`fKRWUSD`). 그래서 등락률·스파크라인 계산은 종목과 같은 모양이다.
 """
 
+import json
 import logging
 import re
 
@@ -83,6 +84,89 @@ _QUOTE_DISPLAY_ORDER = {
     "FX": ("KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR",
            "KRWAUD", "KRWCAD", "KRWCHF", "KRWHKD", "KRWSGD", "KRWTWD"),
 }
+
+
+# ── 주식 홈 지수·환율 카드 구성(2026-10-13) ──────────────────────────────
+#
+# 넓은 화면은 6장 한 줄이 세트 단위로 넘어가고, 모바일은 **앞 두 세트를 지수로, 마지막 세트를 환율로**
+# 한 장씩 넘긴다(`quotes.js` renderQuotes). 그래서 세트는 셋, 한 세트 6장, 앞 둘은 지수·셋째는 환율이어야 한다.
+# 관리자 화면(`/admin/quotes`)에서 고르고 순서를 바꾸며, `app_setting` 의 `quote_card_sets`(JSON)에 둔다.
+# 설정이 없거나 깨졌으면 아래 기본값 — 예전 `quotes.js` 의 `CARD_SETS` 그대로다(동작 불변).
+# 여기 없는 것은 수집만 하고 카드로는 안 띄운다.
+
+CARD_SETS_DEFAULT: list[list[str]] = [
+    ["KOSPI", "KOSDAQ", "SPX", "NDX", "JPNI225", "SX5E"],
+    ["SHANG", "HKHS", "TWWT", "INBOMBAY", "GRDAX", "GBFTSE"],
+    ["KRWUSD", "KRWEUR", "KRWGBP", "KRWJPY", "KRWCNY", "KRWINR"],
+]
+CARD_SET_SIZE = 6
+#: 세트마다 고를 수 있는 분류 — 모바일 제약(앞 둘 지수, 마지막 환율).
+CARD_SET_KINDS: list[tuple[str, ...]] = [("INDEX_KR", "INDEX_EX", "INDEX_WORLD")] * 2 + [("FX",)]
+_CARD_KEY = "quote_card_sets"
+
+
+def _card_shape_ok(sets) -> bool:
+    return (isinstance(sets, list) and len(sets) == len(CARD_SETS_DEFAULT)
+            and all(isinstance(s, list) and all(isinstance(c, str) and _SAFE_QUERY.fullmatch(c) for c in s)
+                    for s in sets))
+
+
+async def card_sets(db) -> list[list[str]]:
+    """저장된 카드 구성. 없거나 모양이 깨졌으면 기본값. (구독이 끊긴 코드는 화면이 시세 없음으로 건너뛴다.)"""
+    raw = (await db.execute(text("SELECT setting_value FROM app_setting WHERE setting_key = :k"),
+                            {"k": _CARD_KEY})).scalar()
+    try:
+        sets = json.loads(raw) if raw else None
+    except ValueError:
+        sets = None
+    return sets if _card_shape_ok(sets) else [list(s) for s in CARD_SETS_DEFAULT]
+
+
+async def save_card_sets(db, sets: list[list[str]]) -> None:
+    await db.execute(text(
+        "INSERT INTO app_setting (setting_key, setting_value) VALUES (:k, :v) "
+        "ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"),
+        {"k": _CARD_KEY, "v": json.dumps(sets)})
+    await db.commit()
+
+
+async def subscribed_quotes(db) -> list[dict]:
+    """구독 중인(수집 대상) 지수·환율 — 카드로 고를 수 있는 것. 코드·이름·분류."""
+    rows = (await db.execute(text(
+        "SELECT L.quote_query, L.query_type, I.quote_name_kr "
+        "FROM KoreaInvest.quote_last_rest_query L "
+        "JOIN KoreaInvest.quote_info I ON L.quote_code = I.quote_code"))).all()
+    out = [{"code": q, "name": _quote_label(q, t, n), "category": t}
+           for q, t, n in rows if q and _SAFE_QUERY.fullmatch(q)]
+    out.sort(key=_quote_sort_key)
+    return out
+
+
+def card_set_errors(sets, subscribed: dict[str, str]) -> dict[int, str]:
+    """세트 번호 → 오류(화면이 그 세트 아래에 띄운다). 비면 저장해도 된다.
+    `subscribed` = 코드 → 분류. 화면(`quote_cards_admin.js`)도 같은 규칙으로 먼저 검사한다."""
+    if not _card_shape_ok(sets):
+        return {0: "카드 구성 형식이 아닙니다"}
+    errors: dict[int, str] = {}
+    seen: set[str] = set()
+    for i, codes in enumerate(sets):
+        kinds = CARD_SET_KINDS[i]
+        if len(codes) != CARD_SET_SIZE:
+            errors[i] = f"카드를 {CARD_SET_SIZE}장 골라야 합니다(지금 {len(codes)}장)"
+            continue
+        for c in codes:
+            if c not in subscribed:
+                errors[i] = f"구독하지 않은 항목은 고를 수 없습니다: {c}"
+                break
+            if subscribed[c] not in kinds:
+                errors[i] = ("이 세트는 환율만 고를 수 있습니다" if kinds == ("FX",)
+                             else "이 세트는 지수만 고를 수 있습니다") + f": {c}"
+                break
+            if c in seen:
+                errors[i] = f"다른 세트에 이미 있습니다: {c}"
+                break
+            seen.add(c)
+    return errors
 
 
 def _quote_sort_key(item: dict) -> tuple[int, int, str]:

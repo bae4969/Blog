@@ -39,8 +39,8 @@
 .quote-empty {
     padding: 24px 12px;
     text-align: center;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-size: 0.875rem;
+    color: var(--bae-text-dim);
 }
 
 /* ── 지수·환율 카드 ─────────────────────────────────────────────────── */
@@ -54,17 +54,17 @@
 .quote-card {
     display: block;
     padding: 10px 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-lg, 8px);
-    background: var(--bg-tertiary);
+    background: var(--bae-surface);
     text-decoration: none;
     transition: background 0.15s, border-color 0.15s;
 }
 
 .quote-card:hover,
 .quote-card:focus-visible {
-    border-color: var(--border-hover);
-    background: var(--bg-hover);
+    border-color: var(--bae-border-hover);
+    background: var(--bae-surface-hover);
 }
 
 .quote-card-head {
@@ -78,7 +78,7 @@
 .quote-card-name {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -102,7 +102,7 @@
 .quote-card-price {
     font-size: 1.15rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -128,40 +128,6 @@
 
 /* ── 히트맵 ─────────────────────────────────────────────────────────── */
 
-.heatmap-tabs {
-    display: flex;
-    justify-self: end;
-    gap: 6px;
-}
-
-.heatmap-tabs-standalone {
-    justify-content: flex-end;
-    margin-bottom: 6px;
-}
-
-.heatmap-tab {
-    padding: 5px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.heatmap-tab:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-}
-
-.heatmap-tab.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--bae-accent-text, #000);
-    font-weight: 600;
-}
-
 .heatmap-legend {
     display: flex;
     align-items: center;
@@ -175,21 +141,21 @@
 
 .heat-legend-label {
     margin-right: 2px;
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     color: rgba(255, 255, 255, 0.62);
 }
 
 .heatmap-note {
     margin-right: auto;
     padding-right: 8px;
-    font-size: 0.65rem;
+    font-size: 0.625rem;
     color: rgba(255, 255, 255, 0.48);
 }
 
 .heat-legend-chip {
     padding: 1px 5px;
     border-radius: 2px;
-    font-size: 0.61rem;
+    font-size: 0.625rem;
     color: #fff;
     font-variant-numeric: tabular-nums;
     opacity: 0.66;
@@ -202,9 +168,9 @@
     position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--bae-border);
     border-radius: 6px;
-    background: var(--bg-primary);
+    background: var(--bae-bg-alt);
     overflow: hidden;
 }
 
@@ -214,7 +180,7 @@
     box-sizing: border-box;
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 5px;
-    background: var(--bg-secondary);
+    background: var(--bae-bg);
 }
 
 .heat-group:hover {
@@ -229,7 +195,7 @@
     right: 3px;
     height: 19px;
     overflow: hidden;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-size: 0.69rem;
     font-weight: 700;
     line-height: 18px;
@@ -279,25 +245,17 @@
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
+/* 겉모양은 공용 툴팁 `.c-tip`(ui.css, 정본 tooltip.md)과 같다 — 템플릿이 두 클래스를 함께 단다.
+   여기는 안쪽 표(이름·분류·현재가·등락 격자)만 정한다. 자리는 quotes.js 가 마우스를 따라 잡는다. */
 .heatmap-tooltip {
-    position: fixed;
-    z-index: 100;
     min-width: 168px;
-    padding: 8px 10px;
-    border: 1px solid var(--border-hover);
-    border-radius: 6px;
-    background: var(--bg-tertiary);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    pointer-events: none;
 }
 
 .heatmap-tooltip .tip-name {
     margin-bottom: 5px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
 }
 
 .heatmap-tooltip .tip-grid {
@@ -316,7 +274,7 @@
 .heatmap-tooltip .tip-value {
     grid-column: 3;
     justify-self: end;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -324,13 +282,13 @@
 
 .heatmap-tooltip .tip-side,
 .heatmap-tooltip .tip-diff {
-    color: var(--text-muted);
+    color: var(--bae-text-dim);
     font-weight: 400;
 }
 
 .heatmap-tooltip .tip-stock {
     overflow: hidden;
-    color: var(--text-primary);
+    color: var(--bae-text-primary);
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -338,23 +296,23 @@
 .heatmap-tooltip .tip-sep {
     grid-column: 1 / -1;
     margin: 4px 0;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--bae-border);
 }
 
 /* `.tip-value` 의 글자색보다 뒤에 둬야 등락색이 이긴다. */
 .heatmap-tooltip .q-up { color: var(--chart-up-text); }
 .heatmap-tooltip .q-down { color: var(--chart-down-text); }
-.heatmap-tooltip .q-flat { color: var(--text-muted); }
+.heatmap-tooltip .q-flat { color: var(--bae-text-dim); }
 
 /* ── 좁은 화면 ──────────────────────────────────────────────────────── */
 
-@media (max-width: 1399px) {
+@media (max-width: 1023.98px) {
     .quote-card-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023.98px) {
     .stocks-dashboard-container {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto auto;
@@ -372,7 +330,7 @@
 
 }
 
-@media (max-width: 600px) {
+@media (max-width: 639.98px) {
     .quote-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }

@@ -304,8 +304,8 @@
         if (scoreRadarChart) { scoreRadarChart.destroy(); scoreRadarChart = null; }
 
         var style = getComputedStyle(document.documentElement);
-        var textColor = style.getPropertyValue('--text-secondary').trim() || '#6b7280';
-        var gridColor = style.getPropertyValue('--border-color').trim() || '#e5e7eb';
+        var textColor = style.getPropertyValue('--bae-text-muted').trim() || '#6b7280';
+        var gridColor = style.getPropertyValue('--bae-border').trim() || '#e5e7eb';
 
         scoreRadarChart = new Chart(canvas, {
             type: 'radar',
@@ -428,8 +428,8 @@
         }
 
         var rootStyle = getComputedStyle(document.documentElement);
-        var textColor = rootStyle.getPropertyValue('--text-secondary').trim() || '#888';
-        var gridColor = rootStyle.getPropertyValue('--border-color').trim() || '#333';
+        var textColor = rootStyle.getPropertyValue('--bae-text-muted').trim() || '#888';
+        var gridColor = rootStyle.getPropertyValue('--bae-border').trim() || '#333';
 
         backtestChart = new Chart(ctx, {
             type: 'line',
@@ -529,11 +529,18 @@
         var resultsDiv = document.getElementById(resultsId);
         if (!input || !resultsDiv) return;
         var debounce = null;
+        // 목록은 top layer(popover="manual") — 입력칸 줄 바로 아래, 같은 폭(옛 absolute 자리).
+        window.TopLayer.follow(resultsDiv, resultsDiv.parentElement, { side: 'below', align: 'stretch', gap: 0 });
+
+        // Esc 는 목록만 닫는다(입력칸 글자는 그대로).
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && resultsDiv.matches(':popover-open')) { e.preventDefault(); window.TopLayer.hide(resultsDiv); }
+        });
 
         input.addEventListener('input', function () {
             clearTimeout(debounce);
             var q = input.value.trim();
-            if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
+            if (q.length < 1) { window.TopLayer.hide(resultsDiv); return; }
             debounce = setTimeout(function () {
                 // 종목 검색은 `/api/v1/stocks` 의 `q` 로 옮겼다(2026-08-19).
                 // ⚠️ 옛 `/stocks/api/search` 응답에는 `stock_type` 이 아예 없어서
@@ -546,7 +553,7 @@
                     .then(function (json) {
                         if (!json.items || json.items.length === 0) {
                             resultsDiv.innerHTML = '<div class="search-empty">검색 결과 없음</div>';
-                            resultsDiv.style.display = 'block';
+                            window.TopLayer.show(resultsDiv);
                             return;
                         }
                         var html = '';
@@ -567,7 +574,7 @@
                                 '</div>';
                         });
                         resultsDiv.innerHTML = html;
-                        resultsDiv.style.display = 'block';
+                        window.TopLayer.show(resultsDiv);
 
                         resultsDiv.querySelectorAll('.search-result-item').forEach(function (item) {
                             var stock = {
@@ -578,21 +585,23 @@
                             item.querySelector('.sr-add-portfolio').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddPortfolio(stock);
-                                resultsDiv.style.display = 'none';
+                                window.TopLayer.hide(resultsDiv);
                             });
                             item.querySelector('.sr-add-benchmark').addEventListener('click', function (e) {
                                 e.stopPropagation();
                                 onAddBenchmark(stock);
-                                resultsDiv.style.display = 'none';
+                                window.TopLayer.hide(resultsDiv);
                             });
                         });
                     });
             }, 300);
         });
 
-        document.addEventListener('click', function (e) {
+        // 바깥은 누르는 순간(pointerdown)에 판정한다 — click 이면 목록 안에서 글자·스크롤바를 끌다 밖에서 뗄 때
+        // click 이 공통 조상에서 일어나 닫혔다(2026-10-13 점검).
+        document.addEventListener('pointerdown', function (e) {
             if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
-                resultsDiv.style.display = 'none';
+                window.TopLayer.hide(resultsDiv);
             }
         });
     }
@@ -601,6 +610,7 @@
     function renderPortfolio() {
         var container = document.getElementById('selectedStocks');
         if (!container) return;
+        fieldError('btStocksError', '');
         if (portfolio.length === 0) {
             container.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
             return;
@@ -716,7 +726,7 @@
 
     function updateDcaDeferHint() {
         var sel = document.getElementById('dcaDeferIndicator');
-        var hint = document.getElementById('dcaDeferHint');
+        var hint = document.querySelector('#dcaDeferHint .metric-tooltip');
         if (!sel || !hint) return;
         hint.textContent = DCA_DEFER_HINTS[sel.value] || '';
     }
@@ -927,21 +937,38 @@
         };
     }
 
-    // 설정 수집 + 유효성 검사 (사용자 알림 포함)
+    /**
+     * 칸 옆 검증 오류 — 폼 검증은 토스트가 아니라 그 칸 옆에 보인다(정본 toast.md D2, 2026-10-13).
+     * 글자를 주면 보이고 화면에 들어오게 하며, 빈 글자면 숨긴다.
+     */
+    function fieldError(id, message) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = message || '';
+        el.hidden = !message;
+        if (message) el.scrollIntoView({ block: 'nearest' });
+    }
+
+    function clearRunErrors() {
+        ['btStocksError', 'btDateError', 'btRulesError'].forEach(function (id) { fieldError(id, ''); });
+    }
+
+    // 설정 수집 + 유효성 검사 (오류는 칸 옆에)
     function collectConfigWithAlert() {
+        clearRunErrors();
         if (portfolio.length === 0) {
-            notify('종목을 1개 이상 추가하세요.');
+            fieldError('btStocksError', '종목을 1개 이상 추가하세요.');
             return null;
         }
         var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
         if (Math.abs(totalWeight - 100) > 0.5) {
-            notify('종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
+            fieldError('btStocksError', '종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
             return null;
         }
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
         if (!startDate || !endDate || startDate >= endDate) {
-            notify('유효한 기간을 설정하세요.');
+            fieldError('btDateError', '시작일이 종료일보다 앞서야 합니다.');
             return null;
         }
         var activeTab = document.querySelector('.strategy-tab.active');
@@ -949,7 +976,7 @@
         if (strategy === 'signal') {
             var rules = document.querySelectorAll('.signal-rule');
             if (rules.length === 0) {
-                notify('시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
+                fieldError('btRulesError', '시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
                 return null;
             }
         }
@@ -1035,6 +1062,9 @@
         if (!section || !nameEl) return;
         nameEl.textContent = name || '';
         section.classList.remove('is-empty');
+        // 이름 연필도 **내 것일 때만** — 남의 것·주인 없는 것은 저장하면 404 다(2026-10-13 점검).
+        var editBtn = document.getElementById('portfolioNameEdit');
+        if (editBtn) editBtn.hidden = !mine;
         // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
         // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
         renderPublicToggle(!!mine, !!isPublic);
@@ -1046,15 +1076,14 @@
     function renderPublicToggle(mine, isPublic) {
         var btn = document.getElementById('portfolioPublicToggle');
         var label = document.getElementById('portfolioPublicLabel');
+        var info = document.getElementById('portfolioPublicInfo');
         if (!btn || !label) return;
+        if (info) info.hidden = !mine;
         if (!mine) { btn.style.display = 'none'; return; }
         btn.style.display = '';
         btn.setAttribute('aria-pressed', isPublic ? 'true' : 'false');
         btn.classList.toggle('is-public', isPublic);
         label.textContent = isPublic ? '공개' : '비공개';
-        btn.title = isPublic
-            ? '주식 화면 랭킹에 보입니다. 누르면 비공개로 바꿉니다.'
-            : '나만 봅니다. 누르면 랭킹에 공개합니다.';
     }
 
     /**
@@ -1082,8 +1111,9 @@
     /**
      * 포트폴리오 이름 서버 저장
      */
-    function savePortfolioName(name) {
+    function savePortfolioName(name, prevName) {
         if (!currentPortfolioId || !name) return;
+        var id = currentPortfolioId;
         apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(currentPortfolioId), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -1093,7 +1123,12 @@
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 notify('포트폴리오 이름을 바꿨습니다.', 'success');
             })
-            .catch(function (err) { notify(err.message || '포트폴리오 이름을 바꾸지 못했습니다.'); });
+            .catch(function (err) {
+                // 먼저 바꿔 보인 이름을 되돌린다(그사이 다른 포트폴리오로 바뀌었으면 그대로 둔다).
+                var nameEl = document.getElementById('portfolioNameText');
+                if (nameEl && currentPortfolioId === id && nameEl.textContent === name) nameEl.textContent = prevName;
+                notify(err.message || '포트폴리오 이름을 바꾸지 못했습니다.');
+            });
     }
 
     /**
@@ -1238,6 +1273,14 @@
         return copy;
     }
 
+    // 프리셋 요약 풍선 — 마우스를 올린 항목 옆에 하나만 뜬다. 스크롤하면 항목만 움직이고 풍선은 남으므로 거둔다
+    // (2026-10-13 점검, capture 라 목록·문서 어느 스크롤이든).
+    var presetTip = null;
+    function removePresetTip() {
+        if (presetTip) { presetTip.remove(); presetTip = null; }
+    }
+    document.addEventListener('scroll', removePresetTip, true);
+
     function loadPresetList() {
         if (!window.__BACKTEST_USER_LOGGED_IN) return;
         var listEl = document.getElementById('presetList');
@@ -1262,6 +1305,7 @@
                     var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
                     html += '<div class="preset-item" data-id="' + p.id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
                         '<span class="preset-item-name preset-load-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</span>' +
+                        '<button type="button" class="preset-rename-btn" aria-label="이름 바꾸기">' + PENCIL_SVG + '</button>' +
                         '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
                         '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.id + '">&times;</button>' +
                         '</div>';
@@ -1272,10 +1316,13 @@
                 listEl.querySelectorAll('.preset-item[data-info]').forEach(function (item) {
                     if (!item.dataset.info) return;
                     item.addEventListener('mouseenter', function () {
+                        removePresetTip();
                         var tip = document.createElement('div');
-                        tip.className = 'preset-float-tooltip';
+                        tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
+                        tip.setAttribute('popover', 'manual');   // top layer — 크기를 재려면 먼저 띄운다
                         tip.textContent = item.dataset.info;
                         document.body.appendChild(tip);
+                        tip.showPopover();
                         // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
                         //    이름·삭제(×) 버튼을 덮어 목록을 못 읽는다(2026-08-23 사용자 제보).
                         var rect = item.getBoundingClientRect();
@@ -1285,13 +1332,14 @@
                         top = Math.max(8, Math.min(top, window.innerHeight - tip.offsetHeight - 8));
                         tip.style.left = left + 'px';
                         tip.style.top = top + 'px';
-                        item._floatTip = tip;
+                        presetTip = tip;
                     });
-                    item.addEventListener('mouseleave', function () {
-                        if (item._floatTip) { item._floatTip.remove(); item._floatTip = null; }
-                    });
+                    item.addEventListener('mouseleave', removePresetTip);
                 });
 
+                listEl.querySelectorAll('.preset-rename-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () { startPresetRename(btn.closest('.preset-item')); });
+                });
                 listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {
                     btn.addEventListener('click', function () {
                         loadPreset(parseInt(btn.dataset.id));
@@ -1308,11 +1356,71 @@
             .catch(function () { /* 무시 */ });
     }
 
+    // 연필 — `_icons.html` 의 'edit' 과 같은 그림.
+    var PENCIL_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>' +
+        '<path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
+
+    /**
+     * 프리셋 이름 인라인 편집(정본 inline-edit.md, 2026-10-13 — 예전엔 지우고 다시 만들어야 했다).
+     * 연필로 연다(이름을 누르면 불러오기라 더블클릭 편집은 두지 않는다). Enter·blur = 저장, Esc = 취소,
+     * 빈 이름은 저장하지 않는다. 실패하면 원래 이름으로 되돌리고 오류 토스트.
+     */
+    function startPresetRename(item) {
+        if (!item || item.querySelector('.preset-rename-input')) return;
+        var nameEl = item.querySelector('.preset-item-name');
+        var btn = item.querySelector('.preset-rename-btn');
+        var prev = nameEl.textContent;
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'backtest-input preset-rename-input';
+        input.maxLength = 100;
+        input.value = prev;
+        input.setAttribute('aria-label', '프리셋 이름');
+        nameEl.hidden = true;
+        btn.hidden = true;
+        nameEl.after(input);
+        input.focus();
+        input.select();
+
+        var done = false;
+        function end(save) {
+            if (done) return;
+            done = true;
+            var next = input.value.trim();
+            input.remove();
+            nameEl.hidden = false;
+            btn.hidden = false;
+            if (!save || !next || next === prev) return;
+            nameEl.textContent = next;
+            apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(item.dataset.id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: next })
+            })
+                .then(function (r) {
+                    if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                    notify('프리셋 이름을 바꿨습니다.', 'success');
+                })
+                .catch(function (err) {
+                    if (nameEl.textContent === next) nameEl.textContent = prev;
+                    notify(err.message || '프리셋 이름을 바꾸지 못했습니다.');
+                });
+        }
+        input.addEventListener('blur', function () { end(true); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); end(true); }
+            if (e.key === 'Escape') { e.preventDefault(); end(false); }
+        });
+    }
+
     function savePreset() {
         var nameInput = document.getElementById('presetNameInput');
         if (!nameInput) return;
         var name = nameInput.value.trim();
-        if (!name) { notify('프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+        if (!name) { fieldError('presetNameError', '프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+        fieldError('presetNameError', '');
 
         var config = collectConfig();
         if (!config) {
@@ -1492,7 +1600,8 @@
        초기화
        ========================================= */
     function init() {
-        initStockSearch('stockSearchInput', 'stockSearchResults',
+        // ⚠️ 상단바 종목 검색(layout.html)이 stockSearchInput·stockSearchResults 를 쓴다 — 같은 id 를 쓰면 이쪽이 상단바에 붙는다.
+        initStockSearch('btStockSearchInput', 'btStockSearchResults',
             function (stock) {
                 if (portfolio.length >= MAX_STOCKS) { notify('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
                 if (portfolio.some(function (s) { return s.code === stock.code; })) { notify('이미 추가된 종목입니다.'); return; }
@@ -1525,7 +1634,15 @@
         if (dcaDeferSel) dcaDeferSel.addEventListener('change', updateDcaDeferHint);
 
         var addBtn = document.getElementById('addSignalRule');
-        if (addBtn) addBtn.addEventListener('click', addSignalRule);
+        if (addBtn) addBtn.addEventListener('click', function () { addSignalRule(); fieldError('btRulesError', ''); });
+
+        // 칸 옆 검증 오류는 그 칸을 고치면 걷는다.
+        ['startDate', 'endDate'].forEach(function (id) {
+            var d = document.getElementById(id);
+            if (d) d.addEventListener('change', function () { fieldError('btDateError', ''); });
+        });
+        var stocksBox = document.getElementById('selectedStocks');
+        if (stocksBox) stocksBox.addEventListener('input', function () { fieldError('btStocksError', ''); });
 
         var runBtn = document.getElementById('runBacktest');
         if (runBtn) runBtn.addEventListener('click', function () { runBacktest(false); });
@@ -1547,6 +1664,7 @@
             presetNameInput.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') { e.preventDefault(); savePreset(); }
             });
+            presetNameInput.addEventListener('input', function () { fieldError('presetNameError', ''); });
         }
         if (window.__BACKTEST_USER_LOGGED_IN) loadPresetList();
 
@@ -1579,32 +1697,39 @@
         var nameEditBtn = document.getElementById('portfolioNameEdit');
         var nameText = document.getElementById('portfolioNameText');
         var nameInput = document.getElementById('portfolioNameInput');
+        // 연필이 기본, 이름 더블클릭이 보조. Enter·blur = 저장, Esc = 취소, 빈 이름은 저장하지 않는다.
+        // ⚠️ 입력칸을 숨기면 blur 가 따라온다 — `editing` 으로 한 번만 끝낸다(예전에는 Esc 뒤 blur 가 저장했다).
         if (nameEditBtn && nameText && nameInput) {
-            nameEditBtn.addEventListener('click', function () {
+            var editing = false;
+            var startNameEdit = function () {
+                if (nameEditBtn.hidden || editing) return;
+                editing = true;
                 nameInput.value = nameText.textContent;
                 nameText.style.display = 'none';
                 nameEditBtn.style.display = 'none';
                 nameInput.style.display = '';
                 nameInput.focus();
                 nameInput.select();
-            });
-            nameInput.addEventListener('blur', function () {
+            };
+            var endNameEdit = function (save) {
+                if (!editing) return;
+                editing = false;
+                var prevName = nameText.textContent;
                 var newName = nameInput.value.trim();
-                if (newName && newName !== nameText.textContent) {
-                    nameText.textContent = newName;
-                    savePortfolioName(newName);
-                }
                 nameInput.style.display = 'none';
                 nameText.style.display = '';
                 nameEditBtn.style.display = '';
-            });
-            nameInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
-                if (e.key === 'Escape') {
-                    nameInput.style.display = 'none';
-                    nameText.style.display = '';
-                    nameEditBtn.style.display = '';
+                if (save && newName && newName !== prevName) {
+                    nameText.textContent = newName;
+                    savePortfolioName(newName, prevName);
                 }
+            };
+            nameEditBtn.addEventListener('click', startNameEdit);
+            nameText.addEventListener('dblclick', startNameEdit);
+            nameInput.addEventListener('blur', function () { endNameEdit(true); });
+            nameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); endNameEdit(true); }
+                if (e.key === 'Escape') { e.preventDefault(); endNameEdit(false); }
             });
         }
 

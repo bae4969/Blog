@@ -79,7 +79,7 @@
             <div class="chart-wrapper">
                 <div class="chart-top-buttons">
                     <div class="chart-indicator-help">
-                        <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명" data-no-tip>{{ icons.i('help') }}</button>
+                        <button type="button" class="chart-indicator-help-btn" aria-label="지표 설명" data-no-tip>{{ icons.i('info') }}</button>
                         <div class="chart-indicator-tooltip">
                             <div class="chart-indicator-tooltip-section">
                                 <strong>보조지표</strong>
@@ -100,8 +100,8 @@
                         </div>
                     </div>
                     <div class="chart-settings">
-                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)" aria-label="차트 설정">{{ icons.i('settings') }}</button>
-                        <div class="chart-settings-panel" id="chartSettingsPanel">
+                        <button type="button" class="chart-settings-btn" onclick="toggleChartSettings(event)" aria-label="차트 설정" aria-controls="chartSettingsPanel" aria-expanded="false">{{ icons.i('settings') }}</button>
+                        <div class="chart-settings-panel" id="chartSettingsPanel" popover="manual">
                             <strong>차트 설정</strong>
                             <label class="chart-settings-option">
                                 <input type="checkbox" id="logScaleToggle" onchange="toggleLogScale(this.checked)">

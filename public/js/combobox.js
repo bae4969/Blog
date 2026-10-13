@@ -5,6 +5,15 @@
         var hiddenInput = root.querySelector('input[type="hidden"][data-combobox-value]');
         var search = root.querySelector('[data-combobox-search]');
         var list = root.querySelector('[data-combobox-list]');
+        // 목록 상자는 top layer(popover="manual", 2026-10-13) — 입력칸을 눌러도 닫히면 안 되는 자동완성이라 manual.
+        // 자리는 콤보 아래 4px·같은 폭(옛 absolute 자리), 바깥 클릭·Esc·blur 닫기는 아래 그대로.
+        var dropdown = root.querySelector('.combobox-dropdown');
+        dropdown.setAttribute('popover', 'manual');
+        window.TopLayer.follow(dropdown, root, { side: 'below', align: 'stretch', gap: 4 });
+        // 콤보가 상단바 뒤로 스크롤돼 toplayer.js 가 목록을 닫으면 열림 표시도 맞춘다.
+        dropdown.addEventListener('toggle', function (e) {
+            if (e.newState === 'closed') root.classList.remove('combobox-open');
+        });
         if (!hiddenInput || !search || !list) {
             return;
         }
@@ -14,12 +23,14 @@
 
         function open() {
             root.classList.add('combobox-open');
+            window.TopLayer.show(dropdown);
             filter(search.value);
             scrollToActive();
         }
 
         function close() {
             root.classList.remove('combobox-open');
+            window.TopLayer.hide(dropdown);
             activeIndex = -1;
             updateActiveClass();
         }
@@ -141,26 +152,27 @@
             }
         });
 
-        list.addEventListener('mousedown', function (e) {
+        // 목록 상자(스크롤바·빈 곳 포함)를 눌러도 포커스가 입력칸에 남게 한다.
+        dropdown.addEventListener('mousedown', function (e) {
+            e.preventDefault();
             var target = e.target.closest('[data-combobox-item]');
             if (target) {
-                e.preventDefault();
                 selectItem(target);
             }
         });
 
-        document.addEventListener('mousedown', function (e) {
+        document.addEventListener('pointerdown', function (e) {
             if (!root.contains(e.target)) {
                 close();
             }
         });
 
-        search.addEventListener('blur', function () {
-            setTimeout(function () {
-                if (!root.contains(document.activeElement)) {
-                    close();
-                }
-            }, 100);
+        // 키보드(Tab)로 포커스가 다른 칸으로 옮겨 갈 때만 닫는다 — 마우스로 바깥을 누른 것은 위 pointerdown 이 닫는다.
+        // ⚠️ 예전에는 blur 뒤 100ms 에 닫아 스크롤바를 누르면 닫힐 수 있었다(2026-10-13 점검).
+        search.addEventListener('blur', function (e) {
+            if (e.relatedTarget && !root.contains(e.relatedTarget)) {
+                close();
+            }
         });
     }
 

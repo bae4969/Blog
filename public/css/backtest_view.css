@@ -34,16 +34,11 @@
 .bt-title {
     margin: 0;
     color: var(--bae-text-primary);
-    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
-    font-weight: 800;
+    font-size: 1.125rem;
+    font-weight: 700;
     line-height: 1.25;
 }
 
-.bt-sub {
-    margin: 0.125rem 0 0;
-    color: var(--bae-text-dim);
-    font-size: 0.8125rem;
-}
 
 .bt :is(.config-section, .total-score-card, .metric-card, .backtest-chart-section,
         .annual-returns-section, .trade-summary-section) {

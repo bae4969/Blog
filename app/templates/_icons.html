@@ -14,14 +14,14 @@
 
   ⚠️ `aria-hidden="true"` 를 반드시 붙인다 — 이름은 버튼이 갖고 있으므로 보조기기가 두 번
      읽을 이유가 없다.
-  ⚠️ 선 두께·모서리는 `stocks_index.html` 의 시장 아이콘과 맞춘다(stroke 1.75, round).
+  ⚠️ 선 두께·모서리는 `stocks_index.html` 의 시장 아이콘과 맞춘다(stroke 2, round — 정본 lucide 규격, 2026-10-06).
      `currentColor` 라 버튼 글자색을 그대로 따라간다.
   ⚠️ jinja2 는 `import` 를 **컴파일 때 해석하지 않는다** — 파일명을 틀려도 CI 를 통과하고
      렌더에서야 500 이 난다. 이 파일 이름을 바꾸면 쓰는 쪽을 함께 고칠 것.
 #}
 
 {%- macro i(name) -%}
-<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 {%- if name == 'write' -%}
     <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -56,6 +56,8 @@
 {%- elif name == 'save' -%}
     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
     <path d="M17 21v-8H7v8" /><path d="M7 3v5h8" />
+{%- elif name == 'check' -%}
+    <path d="M20 6 9 17l-5-5" />
 {%- elif name == 'cancel' -%}
     <path d="M18 6 6 18" /><path d="m6 6 12 12" />
 {%- elif name == 'up' -%}
@@ -68,9 +70,11 @@
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z" />
 {%- elif name == 'reset' -%}
     <path d="M3 2v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L3 8" />
-{%- elif name == 'help' -%}
-    <circle cx="12" cy="12" r="9" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4" />
-    <path d="M12 17h.01" />
+{%- elif name == 'grip' -%}
+    <circle cx="9" cy="5" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="9" cy="12" r="1" />
+    <circle cx="15" cy="12" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="19" r="1" />
+{%- elif name == 'info' -%}
+    <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
 {%- elif name == 'candle' -%}
     <path d="M7 4v16" /><rect x="4.5" y="8" width="5" height="8" rx="1" />
     <path d="M17 4v16" /><rect x="14.5" y="6" width="5" height="6" rx="1" />
@@ -135,6 +139,12 @@
 {%- elif name == 'expand' -%}
     <path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" />
     <path d="M8 21H5a2 2 0 0 1-2-2v-3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+{%- elif name == 'image' -%}
+    <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+{%- elif name == 'send' -%}
+    <path d="M14.5 21.7a.5.5 0 0 0 .9 0L22 3.5a.5.5 0 0 0-.6-.6L3.3 9.5a.5.5 0 0 0 0 .9l7.6 3.1a2 2 0 0 1 1.1 1.1Z" /><path d="m21.9 2.1-10.9 10.9" />
+{%- elif name == 'history' -%}
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.7 2.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" />
 {%- endif -%}
 </svg>
 {%- endmacro -%}

@@ -35,9 +35,11 @@
 /* ⚠️ 옛 `blog.css` 가 모든 div·section 에 clearfix `::after{content:"";display:table}` 를 준다.
       flex·grid 안에서는 그게 **빈 칸 하나**가 되어 `space-between` 이 값을 가운데로 밀고(시세의
       값이 오른쪽에 안 붙었다), 그리드에 빈 줄을 하나 더 만든다. 이 화면의 뼈대(`sd-*`)에서만 끈다
-      — 차트 안쪽의 옛 조각(말풍선·스피너)은 제 가상 요소를 쓸 수 있다. */
+      — 차트 안쪽의 옛 조각(말풍선·스피너)은 제 가상 요소를 쓸 수 있다.
+      버튼은 빼 둔다 — 터치에서 `::after` 가 누르는 자리(44px)를 맡는다(ui.css "터치 히트 영역").
+      `:where` 안이라 특이도는 그대로다. */
 .sd::after,
-.sd :where([class^="sd-"], [class*=" sd-"])::after,
+.sd :where([class^="sd-"]:not(.c-btn, .btn), [class*=" sd-"]:not(.c-btn, .btn))::after,
 .sd-kv > div::after {
     content: none;
 }
@@ -70,7 +72,7 @@
     overflow: hidden;
     color: var(--bae-text-primary);
     font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -93,7 +95,7 @@
 .sd-price {
     margin: 0;
     font-size: clamp(1.875rem, 1.45rem + 1.6vw, 2.625rem);
-    font-weight: 800;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
     letter-spacing: -0.01em;
@@ -233,8 +235,8 @@
 .sd-card__title {
     margin: 0;
     color: var(--bae-text-primary);
-    font-size: 1.0625rem;
-    font-weight: 800;
+    font-size: 1.125rem;
+    font-weight: 700;
 }
 
 .sd-card__sub {
@@ -310,7 +312,7 @@
 }
 
 /* 360px 안팎에서 여덟 개가 한 줄에 들어가게 여백을 줄인다(320px 은 그래도 민다). */
-@media (max-width: 29.99rem) {
+@media (max-width: 39.99rem) {
     .sd-periods button { padding-inline: 0.5rem; }
 }
 
@@ -337,7 +339,7 @@
 }
 
 /* 폰에선 판만 카드 여백을 넘어 넓힌다 — 카드 머리(기간 버튼)의 줄은 그대로 둔다. */
-@media (max-width: 29.99rem) {
+@media (max-width: 39.99rem) {
     .sd .chart-wrapper { width: auto; margin-inline: calc(0.25rem - var(--sd-pad)); }
 }
 
@@ -409,7 +411,7 @@
 
 .sd-strength__val {
     font-size: 1.0625rem;
-    font-weight: 800;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
@@ -531,7 +533,7 @@
 
 /* 좁은 화면: 몇 건만 보이고 "체결 전체 보기" 가 바텀시트(`#executionOverlay`)를 연다.
    ⚠️ 시트는 `stocks.css` 가 768px 이하에서만 켠다 — 같은 경계(48rem)를 쓴다. */
-@media (max-width: 48rem) {
+@media (max-width: 47.99rem) {
     .sd-exec .sd-exec__body {
         max-block-size: none;
         overflow: visible;
@@ -552,6 +554,7 @@
         flex: 1;
         max-block-size: none;
         overflow-y: auto;
+        overscroll-behavior: contain;   /* 끝에서 당겨도 뒤 문서·새로고침으로 넘어가지 않게 */
         -webkit-overflow-scrolling: touch;
     }
 }
@@ -564,7 +567,7 @@
     margin: var(--space-5, 1.5rem) 0 0;
     color: var(--bae-text-primary);
     font-size: 0.9375rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .sd-info__sub span {
@@ -631,9 +634,9 @@
 .sd-disc__ai {
     margin-inline-end: 0.375rem;
     padding: 0.0625rem 0.375rem;
-    border: 1px solid color-mix(in srgb, var(--bae-accent) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bae-accent-fg) 45%, transparent);
     border-radius: 0.25rem;
-    color: var(--bae-accent);
+    color: var(--bae-accent-fg);
     font-size: 0.6875rem;
     font-weight: 700;
     white-space: nowrap;
@@ -685,7 +688,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-.sd-disc__pairs--ai { border-color: color-mix(in srgb, var(--bae-accent) 35%, transparent); }
+.sd-disc__pairs--ai { border-color: color-mix(in srgb, var(--bae-accent-fg) 35%, transparent); }
 
 .sd-disc__pairs del { color: var(--bae-text-dim); }
 .sd-disc__pairs ins { font-weight: 700; text-decoration: none; }
@@ -705,7 +708,7 @@
 
 .sd-disc__origin {
     justify-self: start;
-    color: var(--bae-accent);
+    color: var(--bae-accent-fg);
     font-weight: 700;
 }
 
@@ -740,7 +743,7 @@
 .sd-disc__cat--earnings, .sd-disc__cat--periodic, .sd-disc__cat--dividend, .sd-disc__cat--buyback,
 .sd-disc__cat--financing, .sd-disc__cat--contract, .sd-disc__cat--mna {
     background: rgba(var(--bae-accent-rgb), 0.16);
-    color: var(--bae-accent);
+    color: var(--bae-accent-fg);
 }
 
 .sd-disc__cat--risk {

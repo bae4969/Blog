@@ -17,7 +17,9 @@
     'use strict';
 
     var HOST_ID = 'toastHost';
-    var LIFE = { info: 3200, success: 2600, error: 5200 };
+    // 정본 toast.md — 일반 2200 · 위험 3500ms(2026-10-12). 누를 버튼(action)이 붙으면 읽고 누를 시간을 더 준다.
+    var LIFE = { info: 2200, success: 2200, error: 3500 };
+    var LIFE_ACTION = 5200;
 
     //: 종류별 아이콘. 템플릿의 `_icons.html` 과 같은 선 두께·모서리를 쓴다.
     var PATHS = {
@@ -37,14 +39,34 @@
             //    가리지 않으려고 `aria-atomic` 은 끄고 새로 들어온 것만 읽게 둔다.
             h.setAttribute('role', 'status');
             h.setAttribute('aria-live', 'polite');
+            // top layer(2026-10-13) — 열린 모달·바텀시트·상단바 위에 z-index 없이 뜬다.
+            h.setAttribute('popover', 'manual');
             document.body.appendChild(h);
         }
         return h;
     }
 
+    // top layer 는 연 순서라 토스트를 띄운 뒤에 모달·목록이 열리면 그 아래로 묻힌다 — 그때만 닫았다 다시 열어
+    // 맨 위로 올린다(매번 다시 열면 떠 있던 토스트의 등장 움직임이 되풀이된다). 순번은 toplayer.js 가 올린다.
+    function raise() {
+        var h = document.getElementById(HOST_ID);
+        if (!h || !h.isConnected) return;
+        var seq = (window.TopLayer && window.TopLayer.seq) || 0;
+        if (h.matches(':popover-open')) {
+            if (h._seq === seq) return;
+            h.hidePopover();
+        }
+        h.showPopover();
+        h._seq = seq;
+    }
+    window.__raiseToasts = function () {
+        var h = document.getElementById(HOST_ID);
+        if (h && h.childElementCount) raise();
+    };
+
     function icon(type) {
         return '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-             + ' stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+             + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
              + (PATHS[type] || PATHS.info) + '</svg>';
     }
 
@@ -97,16 +119,17 @@
         close.className = 'c-toast__close';
         close.setAttribute('aria-label', '알림 닫기');
         close.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-                        + ' stroke-width="1.75" stroke-linecap="round" aria-hidden="true">'
+                        + ' stroke-width="2" stroke-linecap="round" aria-hidden="true">'
                         + '<path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
         close.addEventListener('click', function () { dismiss(box); });
         box.appendChild(close);
 
         h.appendChild(box);
+        raise();
         // 들어오는 애니메이션 — 붙인 다음 프레임에 클래스를 줘야 전환이 걸린다.
         requestAnimationFrame(function () { box.classList.add('is-in'); });
 
-        var life = opts.duration || LIFE[type];
+        var life = opts.duration || (opts.action ? LIFE_ACTION : LIFE[type]);
         // 오류는 사용자가 읽고 조치해야 하므로 마우스를 올리면 사라지지 않는다.
         var timer = setTimeout(function () { dismiss(box); }, life);
         box.addEventListener('mouseenter', function () { clearTimeout(timer); });

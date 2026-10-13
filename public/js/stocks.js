@@ -70,11 +70,11 @@ const chartColors = {
     get tooltipBg()   { return getCSSVar('--chart-tooltip-bg')     || 'rgba(20,20,20,0.92)'; },
     get zoomDragBg()  { return getCSSVar('--chart-zoom-drag-bg')   || 'rgba(33,150,243,0.15)'; },
     get zoomDragBorder() { return getCSSVar('--chart-zoom-drag-border') || 'rgba(33,150,243,0.6)'; },
-    get textPrimary() { return getCSSVar('--text-primary')         || '#fff';    },
-    get textMuted()   { return getCSSVar('--text-muted')           || '#9A9A9A'; },
-    get textSecondary() { return getCSSVar('--text-secondary')     || '#C7C7C7'; },
-    get border()      { return getCSSVar('--border-color')         || '#3A3A3A'; },
-    get primary()     { return getCSSVar('--primary-color')        || '#C4B5FD'; },
+    get textPrimary() { return getCSSVar('--bae-text-primary')         || '#fff';    },
+    get textMuted()   { return getCSSVar('--bae-text-dim')           || '#9A9A9A'; },
+    get textSecondary() { return getCSSVar('--bae-text-muted')     || '#C7C7C7'; },
+    get border()      { return getCSSVar('--bae-border')         || '#3A3A3A'; },
+    get primary()     { return getCSSVar('--bae-accent')        || '#C4B5FD'; },
     get sma5()        { return getCSSVar('--chart-sma5-color'); },
     get sma20()       { return getCSSVar('--chart-sma20-color'); },
     get sma60()       { return getCSSVar('--chart-sma60-color'); },
@@ -1450,7 +1450,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 border: { color: chartColors.grid },
                 ticks: {
                     color: chartColors.textMuted,
-                    maxTicksLimit: window.innerWidth <= 480 ? 5 : 10,
+                    maxTicksLimit: window.innerWidth < 640 ? 5 : 10,
                     maxRotation: 0,
                     padding: 8,
                     font: { size: 11 }
@@ -1464,7 +1464,7 @@ function getChartOptions(chartType, dataRange, initialRange) {
                     if (!useLogScale) return;
                     axis.ticks = buildFixedLogarithmicTicks(
                         axis,
-                        window.innerWidth <= 480 ? 9 : 14
+                        window.innerWidth < 640 ? 9 : 14
                     );
                 },
                 grid: {
@@ -1475,8 +1475,8 @@ function getChartOptions(chartType, dataRange, initialRange) {
                 ticks: {
                     color: chartColors.textMuted,
                     maxTicksLimit: useLogScale ? 14 : 10,
-                    padding: window.innerWidth <= 480 ? 4 : 8,
-                    font: { size: window.innerWidth <= 480 ? 10 : 11 },
+                    padding: window.innerWidth < 640 ? 4 : 8,
+                    font: { size: window.innerWidth < 640 ? 10 : 11 },
                     callback: function(value, index, ticks) {
                         return formatAxisPrice(value, ticks);
                     }
@@ -1821,25 +1821,51 @@ function toggleChartSettings(e) {
     e.stopPropagation();
     var panel = document.getElementById('chartSettingsPanel');
     if (!panel) return;
-    panel.classList.toggle('open');
-
-    if (panel.classList.contains('open')) {
-        setTimeout(function() {
-            document.addEventListener('click', closeChartSettingsOnClickOutside);
-        }, 0);
-    } else {
-        document.removeEventListener('click', closeChartSettingsOnClickOutside);
+    // 패널은 top layer(popover="manual", 2026-10-13) — 자리는 설정 버튼 묶음 아래 6px·왼쪽 맞춤(옛 absolute 자리).
+    // 바깥 닫기는 누르는 순간(pointerdown)에 판정한다 — click 이면 패널 안에서 끌다 밖에서 뗄 때 닫혔다(2026-10-13).
+    // `open` 은 나타나는 움직임(투명도) — 뜬 다음 프레임에 붙여야 전환이 걸린다.
+    if (!panel._follow) {
+        panel._follow = true;
+        window.TopLayer.follow(panel, panel.parentElement, { side: 'below', align: 'left', gap: 6 });
+        // 어디서 닫히든(같은 버튼·바깥·Esc·버튼이 상단바에 가려짐 — toplayer.js) 정리는 여기 한 곳에서.
+        panel.addEventListener('toggle', function (ev) {
+            var open = ev.newState === 'open';
+            var btn = document.querySelector('.chart-settings-btn');
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (!open) {
+                panel.classList.remove('open');
+                document.removeEventListener('pointerdown', closeChartSettingsOnClickOutside);
+                document.removeEventListener('keydown', closeChartSettingsOnEsc);
+            }
+        });
     }
+    if (panel.matches(':popover-open')) {
+        window.TopLayer.hide(panel);
+        return;
+    }
+    window.TopLayer.show(panel);
+    requestAnimationFrame(function () { panel.classList.add('open'); });
+    setTimeout(function() {
+        document.addEventListener('pointerdown', closeChartSettingsOnClickOutside);
+        document.addEventListener('keydown', closeChartSettingsOnEsc);
+    }, 0);
 }
 
 function closeChartSettingsOnClickOutside(e) {
     var panel = document.getElementById('chartSettingsPanel');
     var btn = document.querySelector('.chart-settings-btn');
     if (!panel || !btn) return;
-    if (!panel.contains(e.target) && !btn.contains(e.target)) {
-        panel.classList.remove('open');
-        document.removeEventListener('click', closeChartSettingsOnClickOutside);
-    }
+    if (!panel.contains(e.target) && !btn.contains(e.target)) window.TopLayer.hide(panel);
+}
+
+// Esc 는 패널만 닫고 포커스를 설정 버튼으로 돌린다.
+function closeChartSettingsOnEsc(e) {
+    if (e.key !== 'Escape') return;
+    var panel = document.getElementById('chartSettingsPanel');
+    if (!panel || !panel.matches(':popover-open')) return;
+    window.TopLayer.hide(panel);
+    var btn = document.querySelector('.chart-settings-btn');
+    if (btn) btn.focus();
 }
 
 function toggleLogScale(enabled) {
@@ -1950,9 +1976,14 @@ function openExecutionOverlay() {
     var overlayList = document.getElementById('executionOverlayList');
     if (inlineList && overlayList) overlayList.innerHTML = inlineList.innerHTML;
 
+    // 시트는 top layer(popover="manual", 2026-10-13) — 상단바·레일 위에 z-index 없이 뜨고, 뒤에 뜬 토스트가 그 위에
+    // 온다. 막(backdrop)·바깥 클릭·Esc 닫기·올라오는 움직임은 그대로 — `active` 는 뜬 다음 프레임에 붙여야 전환이 걸린다.
+    // 뒤 스크롤은 `active` 를 보고 ui.css 가 html 에서 잠근다(body 에 걸면 무효였다 — 2026-10-13).
+    clearTimeout(overlay._hideTimer);
+    window.TopLayer.show(overlay);
+    window.TopLayer.changed();
     backdrop.classList.add('active');
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(function () { overlay.classList.add('active'); });
 }
 
 function closeExecutionOverlay() {
@@ -1961,7 +1992,11 @@ function closeExecutionOverlay() {
     if (!backdrop || !overlay) return;
     overlay.classList.remove('active');
     backdrop.classList.remove('active');
-    document.body.style.overflow = '';
+    // 내려가는 움직임(0.3s)이 끝난 뒤 top layer 에서 내린다.
+    clearTimeout(overlay._hideTimer);
+    overlay._hideTimer = setTimeout(function () {
+        if (!overlay.classList.contains('active')) window.TopLayer.hide(overlay);
+    }, 300);
 }
 
 function formatTime(datetime) {

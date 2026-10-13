@@ -144,7 +144,8 @@ expected = {
     "container_name": "bae-blog",
     "env_file": ["/mnt/nvme/90.service/blog_data/.env.api"],
     "user": "1000:3000",
-    "volumes": ["/mnt/nvme/90.service/blog_data/uploads:/app/public/uploads"],
+    "volumes": ["/mnt/nvme/90.service/blog_data/uploads:/app/public/uploads",
+                "/mnt/nvme/90.service/blog_data/codex:/data/codex"],
     "networks": ["db_bridge"],
     "restart": "unless-stopped",
 }
@@ -161,7 +162,8 @@ expected_healthcheck = {
 }
 if service.get("healthcheck") != expected_healthcheck:
     raise SystemExit("허용되지 않은 healthcheck 설정")
-expected_deploy = {"resources": {"limits": {"cpus": "1.0", "memory": "512M"}}}
+# 1G — 투자 계획 상담이 codex CLI 를 띄운다(한 번에 약 400MB, 2026-10-10).
+expected_deploy = {"resources": {"limits": {"cpus": "1.0", "memory": "1G"}}}
 if service.get("deploy") != expected_deploy:
     raise SystemExit("허용되지 않은 자원 제한")
 expected_logging = {
@@ -230,6 +232,9 @@ if [[ -n "${LEGACY_APP_DIR:-}" ]] && ! sudo -n test -f "$cutover_marker"; then
     fi
     first_cutover=true
 fi
+
+# codex 로그인 보관 폴더(2026-10-10) — 없으면 도커가 root 소유로 만들어 앱(1000)이 auth.json 을 못 쓴다.
+sudo -n install -d -o 1000 -g 3000 -m 700 "$DATA_DIR/codex"
 
 sudo -n install -o 1000 -g 3000 -m 640 "$rendered_file" "$COMPOSE_FILE"
 

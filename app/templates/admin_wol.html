@@ -19,10 +19,21 @@
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
+{#
+  서버 검증 실패(`form`)는 토스트가 아니라 그 칸 아래에, 입력값을 채운 채 보인다(정본 toast.md D2, 2026-10-13).
+  `form` = { field, error, values, where? } — admin.py 가 화면을 다시 그릴 때 넘긴다.
+#}
+{%- macro ferr(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where -%}<p class="field-error" role="alert">{{ form.error }}</p>{%- endif -%}
+{%- endmacro -%}
+{%- macro finvalid(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where %} aria-invalid="true" autofocus{% endif -%}
+{%- endmacro -%}
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
-    <div class="admin-card collapsible-card collapsed">
-        <h2>WOL (Wake-on-LAN)</h2>
+    <div class="admin-card collapsible-card{% if not (form and form.where == 'create') %} collapsed{% endif %}">
+        <h2>WOL (Wake-on-LAN)<button type="button" class="admin-info" data-tip-tap
+            aria-label="· 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다&#10;· 대상 장치의 BIOS/UEFI 에서 WOL 이 켜져 있어야 합니다&#10;· 패킷을 보냈다고 장치가 켜진다는 보장은 없습니다&#10;· MAC 주소 형식: AA-BB-CC-DD-EE-FF 또는 AA:BB:CC:DD:EE:FF">{{ icons.i('info') }}</button></h2>
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value">{{ rows | length }}</span></div>
         </div>
@@ -37,15 +48,21 @@
             <div class="admin-form-grid">
                 <div class="admin-form-field">
                     <label>장치 이름</label>
-                    <input type="text" name="device_name" required maxlength="100" placeholder="예: 메인 PC">
+                    <input type="text" name="device_name" required maxlength="100" placeholder="예: 메인 PC"
+                           value="{{ form['values'].device_name if form and form.where == 'create' else '' }}"{{ finvalid('device_name', 'create') }}>
+                    {{ ferr('device_name', 'create') }}
                 </div>
                 <div class="admin-form-field">
                     <label>IP 대역</label>
-                    <input type="text" name="ip_range" required maxlength="100" placeholder="예: 192.168.0.10 또는 192.168.0.0/24">
+                    <input type="text" name="ip_range" required maxlength="100" placeholder="예: 192.168.0.10 또는 192.168.0.0/24"
+                           value="{{ form['values'].ip_range if form and form.where == 'create' else '' }}"{{ finvalid('ip_range', 'create') }}>
+                    {{ ferr('ip_range', 'create') }}
                 </div>
                 <div class="admin-form-field">
                     <label>MAC 주소</label>
-                    <input type="text" name="mac_address" required maxlength="17" placeholder="예: AA-BB-CC-DD-EE-FF">
+                    <input type="text" name="mac_address" required maxlength="17" placeholder="예: AA-BB-CC-DD-EE-FF"
+                           value="{{ form['values'].mac_address if form and form.where == 'create' else '' }}"{{ finvalid('mac_address', 'create') }}>
+                    {{ ferr('mac_address', 'create') }}
                 </div>
             </div>
             <div class="admin-form-actions">
@@ -66,16 +83,26 @@
                                 <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
                                 <div class="wol-edit-row">
                                     <label>이름</label>
-                                    <input type="text" name="device_name" value="{{ d.wol_device_name }}" required maxlength="100" class="inline-input">
+                                    <input type="hidden" name="device_name" value="{{ d.wol_device_name }}">
+                                    {# 이름은 글자 + 연필(더블클릭도) 인라인 편집 — `/js/inline_name.js`. IP·MAC 은 함께 고치는 설정 칸이라 입력칸 + [저장] 그대로. #}
+                                    <div class="inline-name" data-form="wol-edit-{{ d.wol_device_id }}" data-field="device_name">
+                                        <span class="inline-name__text">{{ d.wol_device_name }}</span>
+                                        <input type="text" class="inline-input inline-name__input" maxlength="100" aria-label="장치 이름" hidden>
+                                        <button type="button" class="inline-name__pencil" aria-label="이름 바꾸기">{{ icons.i('edit') }}</button>
+                                    </div>
                                 </div>
                                 <div class="wol-edit-row">
                                     <label>IP 대역</label>
-                                    <input type="text" name="ip_range" value="{{ d.wol_device_ip_range }}" required maxlength="100" class="inline-input">
+                                    <input type="text" name="ip_range" value="{{ d.wol_device_ip_range }}" required maxlength="100" class="inline-input"
+                                           {%- if form and form.where == d.wol_device_id %} data-retry="{{ form['values'].ip_range }}"{% endif %}{{ finvalid('ip_range', d.wol_device_id) }}>
                                 </div>
+                                {{ ferr('ip_range', d.wol_device_id) }}
                                 <div class="wol-edit-row">
                                     <label>MAC</label>
-                                    <input type="text" name="mac_address" value="{{ d.wol_device_mac_address }}" required maxlength="17" class="inline-input">
+                                    <input type="text" name="mac_address" value="{{ d.wol_device_mac_address }}" required maxlength="17" class="inline-input"
+                                           {%- if form and form.where == d.wol_device_id %} data-retry="{{ form['values'].mac_address }}"{% endif %}{{ finvalid('mac_address', d.wol_device_id) }}>
                                 </div>
+                                {{ ferr('mac_address', d.wol_device_id) }}
                             </form>
                             <form method="post" action="/admin/wol/execute" id="wol-exec-{{ d.wol_device_id }}" class="wol-hidden-form"
                                   onsubmit="return confirm('{{ d.wol_device_name }}에 WOL 패킷을 전송하시겠습니까?');">
@@ -98,25 +125,19 @@
             </div>
         {% endif %}
     </div>
-
-    <div class="admin-card">
-        <h3>WOL 안내</h3>
-        <div class="admin-help">
-            <p>* WOL은 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다</p>
-            <p>* 대상 장치의 BIOS/UEFI에서 WOL이 활성화되어 있어야 합니다</p>
-            <p>* 패킷 전송 성공이 장치 부팅을 보장하지는 않습니다</p>
-            <p>* MAC 주소 형식: <code>AA-BB-CC-DD-EE-FF</code> 또는 <code>AA:BB:CC:DD:EE:FF</code></p>
-        </div>
-    </div>
 </div>
 
+<script src="/js/inline_name.js?v={{ static_v }}" defer></script>
 <script>
-// 값을 고치기 전에는 저장 버튼을 눌러도 의미가 없어 비활성으로 둔다(원본과 같다).
+// 값을 고치기 전에는 저장 버튼을 눌러도 의미가 없어 비활성으로 둔다(원본과 같다). 이름 편집 칸은 따로 저장하므로 뺀다.
 document.querySelectorAll('.wol-edit-form').forEach(function (form) {
     var btn = document.querySelector('button[form="' + form.id + '"]');
     if (!btn) return;
-    form.querySelectorAll('.inline-input').forEach(function (input) {
+    form.querySelectorAll('.inline-input:not(.inline-name__input)').forEach(function (input) {
         input.addEventListener('input', function () { btn.disabled = false; });
+        // 서버 검증에 걸려 다시 그린 카드 — 고치던 값을 되살린다. value 속성(= 저장된 값)은 그대로 둬야
+        // 이름 인라인 편집이 저장 안 된 IP·MAC 을 싣지 않는다(inline_name.js).
+        if (input.dataset.retry !== undefined) { input.value = input.dataset.retry; btn.disabled = false; }
     });
 });
 </script>

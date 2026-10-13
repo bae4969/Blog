@@ -102,15 +102,13 @@
     }
 
     /* ── 글꼴 ─────────────────────────────────────────────────────────
-     * 지금 `font-family: "arial", sans-serif` 인데 arial 에는 **한글이 없다** — 결국
-     * OS 기본 폴백으로 떨어져 기기마다 다르게 뜬다. 파일은 넣지 않고(0바이트) 스택만
-     * 바로잡아도 macOS·iOS 는 Apple SD Gothic Neo, Windows 는 맑은 고딕으로 결정된다.
-     * `Pretendard` 는 설치돼 있으면 쓰고 없으면 조용히 넘어간다.
+     * 정본 스택(typography.md, 2026-10-12 결정 #8) — 글꼴 파일은 넣지 않는다(0바이트).
+     * ⚠️ 한글 서체 이름(`Apple SD Gothic Neo`·`Noto Sans KR`·`Malgun Gothic`·`Pretendard`)을 적지 않는다 —
+     *    `system-ui` 에서 OS 가 고른다(macOS·iOS 는 Apple SD Gothic Neo, Windows 는 맑은 고딕).
+     *    옛 `blog.css` 의 `"arial", sans-serif` 는 한글이 없어 기기마다 다르게 떴다 — 이 규칙이 덮는다.
      */
     body {
-        font-family: Pretendard, -apple-system, BlinkMacSystemFont,
-                     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
-                     system-ui, "Segoe UI", Roboto, sans-serif;
+        font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
         min-inline-size: 0;              /* blog.css:29 의 min-width:400px 대체 */
     }
 
@@ -130,12 +128,18 @@
     }
 
     /* ── 폼 컨트롤 ────────────────────────────────────────────────────
+     * 정본 입력칸 글자 14px(데스크톱, 2026-10-12 결정 #8).
      * ⚠️ iOS 는 16px 미만 input 에 포커스가 가면 **화면을 자동 확대**한다. 확대된
-     *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다. 검색창이 블로그·
-     *    주식 양쪽에 있으므로 전역으로 하한을 건다(키우기만 하고 줄이지 않는다).
+     *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다 — 손가락·좁은 폭의 16px 하한은
+     *    `common.css` 에 있다(레이어 밖 화면 CSS 가 입력칸 크기를 따로 정해도 이겨야 해서).
      */
     input, select, textarea {
-        font-size: max(1rem, 1em);
+        font-size: 0.875rem;
+    }
+
+    /* 폼 컨트롤은 글꼴을 물려받지 않는 것이 브라우저 기본이다 — 정본(Tailwind preflight)처럼 본문 글꼴을 쓴다. */
+    button, input, select, textarea {
+        font-family: inherit;
     }
 
     /* ── 포커스 표시 ──────────────────────────────────────────────────
@@ -143,7 +147,7 @@
      * 있는지 알 수 없다. 마우스 클릭에는 안 뜨고 키보드에만 뜬다.
      */
     :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-        outline: 2px solid var(--bae-accent);
+        outline: 2px solid var(--bae-accent-fg);
         outline-offset: 2px;
         border-radius: var(--r-ctl);
     }
@@ -223,14 +227,14 @@
         gap: 0.4em;
         flex: 0 0 auto;
         font-size: clamp(0.8125rem, 0.6rem + 0.7vw, 1.125rem);
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: 0.14em;
         text-decoration: none;
         white-space: nowrap;
     }
 
     .c-brand__lead { color: var(--bae-text-primary); }
-    .c-brand__tail { color: var(--bae-accent); }
+    .c-brand__tail { color: var(--bae-accent-fg); }
 
     /* 좁은 화면(< 48rem)은 **두 줄** — 1줄: 워드마크 · 검색·관심·로그인 / 2줄: 메뉴.
        ⚠️ 한 줄에 다 넣으려고 워드마크를 줄이고 접어 봤지만(2026-09-23 1단계), 메뉴가 넷
@@ -290,7 +294,7 @@
 
     .c-nav a[aria-current="page"] {
         color: var(--bae-text-primary);
-        font-weight: 800;
+        font-weight: 700;
     }
 
     .c-topbar__end {
@@ -453,6 +457,40 @@
 }
 
 @layer comp {
+    /* ── top layer(popover · dialog) UA 리셋 — 2026-10-13 현대화 D ─────────
+     * UA 기본(`inset: 0`·`margin: auto`·`width/height: fit-content`·테두리·패딩·`overflow: auto`·글자색·배경)을 지운다.
+     * `:where` 라 명시도 0 — 각 부품 규칙이 이긴다. 자리는 JS 가 fixed 좌표로 준다(toplayer.js — top layer 엔
+     * `absolute` 의 기준이 없다). popover 는 z-index 를 쓰지 않는다(겹침은 연 순서).
+     */
+    :where([popover]) {
+        inset: auto;
+        inline-size: auto;
+        block-size: auto;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        overflow: visible;
+        color: inherit;
+        background: transparent;
+    }
+
+    :where(dialog) {
+        color: inherit;
+    }
+
+    /* ── 뒤 스크롤 잠금 — 2026-10-13 UI 기본 동작 점검 ─────────────────
+     * 모달 dialog(`showModal()` 은 스크롤을 막지 않는다)·체결 바텀시트·좁은 화면 관심 종목 서랍이 열린 동안
+     * 문서를 잠근다. 스크롤바 자리는 `scrollbar-gutter: stable` 이 지켜 폭이 움찔하지 않는다.
+     * ⚠️ `html` 에 건다 — 예전 체결 시트는 `body.style.overflow` 만 바꿨는데 `html { overflow-x: hidden }`(blog.css)
+     *    때문에 body 의 overflow 가 뷰포트로 전파되지 않아 잠기지 않았다.
+     */
+    html:has(dialog:modal),
+    html:has(.execution-overlay.active) { overflow: hidden; }
+
+    @media (max-width: 89.99rem) {
+        html.rail-open { overflow: hidden; }
+    }
+
     /* ── 상단바 종목 검색 ─────────────────────────────────────────────
      * 2026-09-23 주식이 메인이 되며 `/stocks` 오른쪽 열에서 상단바로 올라왔다
      * (`/js/stock_search.js`). 토스증권 PC 처럼 테두리 없는 둥근 칸 하나.
@@ -486,8 +524,8 @@
         border-radius: var(--r-card);
         background: var(--bae-surface);
         color: var(--bae-text-primary);
-        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
-        font-size: 1rem;
+        /* 데스크톱 14px — 손가락·좁은 폭의 16px 하한(iOS 확대 방지)은 common.css */
+        font-size: 0.875rem;
         transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
     }
 
@@ -496,29 +534,25 @@
 
     .c-stocksearch input[type="search"]:focus {
         outline: none;
-        border-color: var(--bae-accent);
+        border-color: var(--bae-accent-fg);
         background: var(--bae-surface-alt);
     }
 
     .c-stocksearch__cancel,
     .c-stocksearch__open { display: none; }
 
+    /* popover="manual"(top layer) — 자리·폭은 stock_search.js 가 폼 기준 fixed 좌표로 준다(폼 아래 8px). */
     .c-stocksearch__results {
-        position: absolute;
-        inset-block-start: calc(100% + var(--space-2));
-        inset-inline-end: 0;
-        z-index: 60;
-        inline-size: max(100%, 24rem);
+        position: fixed;
         max-block-size: min(70vh, 36rem);
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding: var(--space-2);
         border: 1px solid var(--bae-border);
         border-radius: var(--r-card);
         background: var(--bae-bg-alt);
-        box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
+        box-shadow: var(--shadow-lg);
     }
-
-    .c-stocksearch__results[hidden] { display: none; }
 
     .c-stocksearch__msg {
         padding: var(--space-4);
@@ -616,10 +650,8 @@
         }
         .c-topbar.is-searching .c-stocksearch__cancel:hover { color: var(--bae-text-primary); }
         .c-topbar.is-searching .c-stocksearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
-        /* 결과는 입력칸 폭 그대로 아래에 — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
+        /* 결과는 입력칸 폭 그대로 아래에(폭은 stock_search.js) — 넓은 화면의 24rem 하한을 풀어야 320px 에서 안 넘친다. */
         .c-topbar.is-searching .c-stocksearch__results {
-            inset-inline: 0;
-            inline-size: auto;
             max-block-size: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - var(--space-4));
         }
     }
@@ -670,8 +702,8 @@
 
     .c-subbar__title strong {
         color: var(--bae-text-primary);
-        font-size: var(--fs-2);
-        font-weight: 800;
+        font-size: 1.125rem;
+        font-weight: 700;
     }
 
     .c-subbar__title span {
@@ -720,7 +752,7 @@
     }
 
     .c-search:focus-within {
-        border-color: var(--bae-accent);
+        border-color: var(--bae-accent-fg);
     }
 
     .c-search input[type="search"] {
@@ -731,8 +763,8 @@
         border: 0;
         background: none;
         color: var(--bae-text-primary);
-        /* ⚠️ 16px 하한 — iOS 는 그보다 작으면 포커스 때 화면을 자동 확대한다. */
-        font-size: max(1rem, var(--fs-0));
+        /* 데스크톱 14px — 손가락·좁은 폭의 16px 하한(iOS 확대 방지)은 common.css */
+        font-size: 0.875rem;
     }
 
     .c-search input[type="search"]:focus {
@@ -751,7 +783,7 @@
         cursor: pointer;
     }
 
-    .c-search button:hover { color: var(--bae-accent); }
+    .c-search button:hover { color: var(--bae-accent-fg); }
 
     /* ── 관심 종목 레일 ────────────────────────────────────────────────
      * 2026-09-23 토스증권 PC 의 오른쪽 패널(`_watchlist.html` · `/js/watchlist.js`).
@@ -783,11 +815,11 @@
         inset: calc(var(--topbar-h) + env(safe-area-inset-top)) 0 0;
         z-index: 45;
         display: none;
-        background: rgb(0 0 0 / 0.5);
+        background: var(--shadow-overlay);
     }
 
     @media (max-width: 89.99rem) {
-        .c-rail { box-shadow: -1rem 0 2.5rem rgb(0 0 0 / 0.45); }
+        .c-rail { box-shadow: var(--shadow-drawer); }
         html.rail-open .c-rail__backdrop { display: block; }
     }
 
@@ -809,8 +841,8 @@
         gap: var(--space-2);
         margin: 0 auto 0 0;
         color: var(--bae-text-primary);
-        font-size: 1rem;
-        font-weight: 800;
+        font-size: 0.9375rem;
+        font-weight: 700;
     }
 
     .c-rail__title .c-ico {
@@ -917,6 +949,83 @@
     .c-watch__rm:hover,
     .c-watch__rm:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
     .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
+
+    /* 순서(2026-10-13, 정본 drag-reorder.md 정렬 표준) — 행 왼쪽 손잡이(점 2×3, 16×20)만 끈다(행은 링크다).
+       주 포인터가 손가락인 기기(폰·태블릿)는 끌 수 없어 손잡이를 숨기고, 터치가 있는 기기(any-pointer: coarse —
+       터치 노트북 포함)는 오른쪽에 ↑↓ 를 둔다. 끄는 행은 흐리게, 놓을 자리는 accent 가로선(`.c-watch__drop`). */
+    .c-watch__grip {
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: var(--space-1);
+        display: grid;
+        place-items: center;
+        inline-size: 1rem;
+        block-size: 1.25rem;
+        border-radius: var(--r-ctl);
+        color: var(--bae-text-dim);
+        cursor: grab;
+        transform: translateY(-50%);
+    }
+
+    .c-watch__grip:active { cursor: grabbing; }
+    .c-watch__grip .c-ico { inline-size: 1rem; block-size: 1rem; }
+    .c-watch__row { padding-inline-start: 1.75rem; }
+    .c-watch__item.is-dragging { opacity: 0.45; }
+
+    .c-watch__drop {
+        position: fixed;
+        z-index: 60;
+        block-size: 2px;
+        border-radius: 1px;
+        background: var(--bae-accent);
+        box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
+        pointer-events: none;
+    }
+
+    .c-watch__drop[hidden] { display: none; }
+
+    .c-watch__mv {
+        position: absolute;
+        inset-block-start: 50%;
+        display: none;
+        place-items: center;
+        inline-size: 2rem;
+        block-size: 2rem;
+        border: 0;
+        border-radius: var(--r-ctl);
+        background: none;
+        color: var(--bae-text-dim);
+        cursor: pointer;
+        transform: translateY(-50%);
+    }
+
+    .c-watch__mv--down { inset-inline-end: calc(var(--space-1) + 2.125rem); }
+    .c-watch__mv--up   { inset-inline-end: calc(var(--space-1) + 4.25rem); }
+    .c-watch__mv:disabled { opacity: 0.3; cursor: default; }
+    .c-watch__mv .c-ico { inline-size: 1rem; block-size: 1rem; }
+
+    .c-watch__mv:not(:disabled):hover,
+    .c-watch__mv:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
+
+    @media (any-pointer: coarse) {
+        .c-watch__mv { display: grid; }
+        .c-watch__row { padding-inline-end: 6.75rem; }
+        /* 누르는 자리 44px — 보이는 크기는 32px(정본 button.md 터치 타깃 보정) */
+        .c-watch__mv::after {
+            content: "";
+            position: absolute;
+            inset-block-start: 50%;
+            inset-inline-start: 50%;
+            min-inline-size: 44px;
+            min-block-size: 44px;
+            transform: translate(-50%, -50%);
+        }
+    }
+
+    @media (pointer: coarse) {
+        .c-watch__grip { display: none; }
+        .c-watch__row { padding-inline-start: var(--space-3); }
+    }
 
     /* ☆ — 켜지면(레일이 열림 · 관심에 담김) 별을 채운다. 노랑은 "즐겨찾기" 관례이고 등락 색과 겹치지 않는다. */
     /* ⚠️ 레일 버튼은 `aria-expanded`(스크립트가 나중에 맞춘다)가 아니라 `html.rail-open` 을 본다 —
@@ -1296,30 +1405,109 @@
         aspect-ratio: 1;
     }
 
+    /* ── 버튼 색·상태 — 정본 button.md (2026-10-12) ──────────────────
+     * `.btn-*` 의 원래 색은 legacy(blog.css)에 있고 여기서 덮는다. 주 버튼 hover 는 legacy 의
+     * `--bae-accent-hover` 가 이미 정본 값이다. 크기(14px·40px·아이콘 정사각)는 손대지 않는다.
+     * ⚠️ 레이어 밖(stocks.css·admin.css)에 같은 선택자로 `background`·`color` 를 주면 그쪽이 이긴다 —
+     *    stocks.css 의 `.btn-primary`·`.btn-outline`·`.btn-danger` 는 모양만 남겼다.
+     * ⚠️ `:active` 는 주 버튼에만 — 보조·위험 버튼은 정본에 active 규칙이 없다.
+     */
+    .btn-primary:active:not(:disabled) { background: var(--bae-accent-press); }
+
+    .btn-primary:disabled {
+        background: var(--bae-surface-hover);
+        color: var(--bae-text-dim);
+        opacity: 1;                     /* legacy `.btn:disabled{opacity:.5}` 를 끊는다 — 흐림은 색이 맡는다 */
+    }
+
+    /* 보조(정본 ghost) — 테두리만, hover 는 바탕만 바뀐다 */
+    .btn-secondary,
+    .btn-outline {
+        border: 1px solid var(--bae-border-hover);
+        background: transparent;
+        color: var(--bae-text-muted);
+    }
+
+    .btn-secondary:hover:not(:disabled),
+    .btn-outline:hover:not(:disabled) {
+        border-color: var(--bae-border-hover);
+        background: var(--bae-surface-hover);
+        color: var(--bae-text-muted);
+    }
+
+    /* 위험 — 채우지 않는다. 테두리·글씨 danger, hover 15% tint */
+    .btn-danger {
+        border: 1px solid var(--bae-danger);
+        background: transparent;
+        color: var(--bae-danger);
+    }
+
+    .btn-danger:hover:not(:disabled) { background: rgba(var(--bae-danger-rgb), 0.15); }
+
+    /* 아이콘 버튼은 hover 에 바탕도 한 단 밝힌다(정본 아이콘 버튼), 강조 버튼은 누를 때 press 색 */
+    .c-btn:not(.c-btn--accent):hover { background: var(--bae-surface-hover); }
+    .c-btn--accent:active { background: var(--bae-accent-press); }
+
+    /* ── 터치 히트 영역 — 정본 button.md "터치 타깃 보정"(2026-10-12) ─────
+     * 터치가 있는 기기(`any-pointer: coarse` — 주 포인터가 마우스인 터치 노트북 포함, 2026-10-13 정본 결정)면
+     * 작은 아이콘 버튼의 **누르는 자리만** 44px 로 넓힌다 — 보이는 크기는 그대로다(버튼 크기 결정은 따로).
+     * 가운데 맞춘 빈 `::after` 가 판정을 맡는다.
+     * ⚠️ 마우스 기기에서 hover 때만 보이는 버튼(연필)은 여기 넣지 않는다 — 안 보이는 판정 영역이 옆을 가로챈다.
+     * ⚠️ 이미 `position: absolute` 인 버튼(`.c-watch__rm`)에는 `relative` 를 덮지 않는다 — 자리가 흘러내린다.
+     * ⚠️ 칩(`.c-chip`)은 넣지 않는다 — 가로 스크롤 띠 안이라 바깥으로 나온 `::after` 가 띠에 세로 스크롤을 만든다.
+     * ⚠️ 이웃 버튼과 틈이 좁으면(4px 등) 두 영역이 몇 px 겹친다 — 겹친 곳은 뒤 버튼이 받는다.
+     */
+    @media (any-pointer: coarse) {
+        :where(.c-btn, .btn, .c-search button, .plan-round, .c-toast__close) { position: relative; }
+
+        :where(.c-btn, .btn, .c-search button, .c-watch__rm, .plan-round, .c-toast__close)::after {
+            content: "";
+            position: absolute;
+            inset-block-start: 50%;
+            inset-inline-start: 50%;
+            inline-size: 100%;
+            block-size: 100%;
+            min-inline-size: 44px;
+            min-block-size: 44px;
+            transform: translate(-50%, -50%);
+        }
+    }
+
+    /* ── 입력칸 라벨 — 정본 form-field.md(12px · 500 · muted, 필드 위 4px) ── */
+    .form-label {
+        margin-block-end: var(--space-1);
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--bae-text-muted);
+    }
+
     /* ── 툴팁 (`/js/tooltip.js`) ──────────────────────────────────────
      * 아이콘만 있는 버튼의 이름. `body` 에 붙는 풍선 하나를 버튼 위(자리가 없으면 아래)로 옮긴다.
+     * 값은 정본 tooltip.md(`.tv-tip`) — 지연·페이드 없이 바로 뜬다. 글자만 띄우는 다른 풍선(백테스트
+     * 프리셋 요약 `backtest.js`, 투자 계획 파이 `plan.js`)도 이 클래스를 쓴다.
+     * 노드는 `popover="manual"`(top layer) — z-index 없이 모달·토스트·바텀시트 위에 뜬다(띄울 때마다 다시 연다).
      */
     .c-tip {
         position: fixed;
-        z-index: 10000;                 /* 관리자 모달·백테스트 떠 있는 창(9999) 위 */
         inset-block-start: 0;
         inset-inline-start: 0;
-        padding: var(--space-1) var(--space-2);
-        border: 1px solid var(--bae-border-hover);
+        max-inline-size: 22rem;
+        padding: 0.375rem 0.5rem;
+        border: 1px solid var(--bae-border);
         border-radius: 0.375rem;
-        background: var(--bae-surface);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-        color: var(--bae-text-primary);
-        font-size: var(--fs--1);
-        font-weight: 600;
-        line-height: var(--lh-snug);
-        white-space: nowrap;
+        background: var(--bae-surface-alt);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        color: var(--bae-text-muted);
+        font-size: 0.75rem;
+        font-weight: 400;
+        line-height: 1.35;
+        white-space: pre-line;
         pointer-events: none;
         opacity: 0;
-        transition: opacity 0.12s var(--ease);
+        visibility: hidden;
     }
 
-    .c-tip.is-on { opacity: 1; }
+    .c-tip.is-on { opacity: 1; visibility: visible; }
 
     /* ── 토스트 ───────────────────────────────────────────────────────
      * 프로젝트 디자인 규칙: **안내 메시지는 화면 아래 가운데 토스트**로 띄운다
@@ -1327,11 +1515,13 @@
      * `.alert` 를 끼워 넣어 레이아웃을 밀어내고, 에디터는 오른쪽 위 `.notification`,
      * 관리자는 서버가 그린 `.alert` 가 표 위에 남았다.
      * ⚠️ 로딩·빈 상태는 토스트가 아니다(그 자리를 설명하는 문구라 제자리에 둔다).
+     * 값은 정본 toast.md(2026-10-12) — 이 사이트의 아이콘·`action` 버튼·닫기·호버 정지·중복 제거는
+     * 정본에 없는 확장으로 둔다. ⚠️ 툴팁이 토스트보다 위여야 닫기 버튼 이름이 보인다 — 툴팁은 띄울 때마다 다시 연다(연 순서).
      */
     .c-toast-host {
+        /* popover="manual"(toast.js) — top layer 라 z-index 없이 상단바·바텀시트·모달 위에 뜬다. */
         position: fixed;
-        z-index: 200;                   /* 상단바(50)보다 위 */
-        inset-block-end: max(var(--space-6), env(safe-area-inset-bottom));
+        inset-block-end: calc(1rem + env(safe-area-inset-bottom, 0px));
         inset-inline: 0;
         display: flex;
         flex-direction: column;
@@ -1347,23 +1537,24 @@
         display: flex;
         align-items: center;
         gap: var(--space-3);
-        max-inline-size: min(100%, 34rem);
-        padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-        border: 1px solid var(--bae-border-hover);
-        border-radius: var(--r-ctl);
-        background: var(--bae-surface);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        max-inline-size: min(100%, 28rem);
+        padding: 0.5rem 0.875rem;
+        border: 1px solid var(--bae-border);
+        border-radius: 0.5rem;
+        background: var(--bae-surface-alt);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
         color: var(--bae-text-primary);
-        font-size: var(--fs-0);
-        line-height: var(--lh-snug);
-        /* 들어올 때 아래에서 살짝 올라온다. `is-in` 은 붙인 다음 프레임에 준다. */
+        font-size: 0.875rem;
+        line-height: 1.35;
+        /* 들어올 때 6px 아래에서 0.15s 로 올라온다. `is-in` 은 붙인 다음 프레임에 준다. */
         opacity: 0;
-        transform: translateY(0.75rem);
-        transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+        transform: translateY(6px);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
     }
 
     .c-toast.is-in { opacity: 1; transform: none; }
-    .c-toast.is-leaving { opacity: 0; transform: translateY(0.5rem); }
+    /* 나갈 때는 제자리에서 흐려지기만 한다(정본 퇴장 0.2s). */
+    .c-toast.is-leaving { opacity: 0; transform: none; transition: opacity 0.2s; }
 
     .c-toast .c-ico { font-size: 1.15em; }
 
@@ -1371,7 +1562,8 @@
     .c-toast--success .c-ico { color: var(--bae-success); }
     .c-toast--error .c-ico   { color: var(--bae-danger); }
 
-    .c-toast--error { border-color: rgba(var(--bae-danger-rgb), 0.45); }
+    /* 위험은 테두리와 글씨를 danger 로(바탕은 그대로) */
+    .c-toast--error { border-color: var(--bae-danger); color: var(--bae-danger); }
 
     .c-toast__msg {
         flex: 1 1 auto;
@@ -1385,8 +1577,8 @@
         border: 1px solid var(--bae-border-hover);
         border-radius: var(--r-ctl);
         background: none;
-        color: var(--bae-accent);
-        font-size: var(--fs--1);
+        color: var(--bae-accent-fg);
+        font-size: 0.875rem;            /* 토스트 글자와 같은 14px */
         font-weight: 600;
         cursor: pointer;
     }
@@ -1403,7 +1595,7 @@
         border-radius: var(--r-ctl);
         background: none;
         color: var(--bae-text-dim);
-        font-size: var(--fs-0);
+        font-size: 0.875rem;
         cursor: pointer;
     }
 
@@ -1474,7 +1666,7 @@
         display: inline-flex;
         gap: 0.4em;
         font-size: var(--fs--1);
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: 0.14em;
         white-space: nowrap;
         text-decoration: none;
@@ -1503,7 +1695,7 @@
         transition: color 0.15s var(--ease);
     }
 
-    .c-footer__contact a:hover { color: var(--bae-accent); }
+    .c-footer__contact a:hover { color: var(--bae-accent-fg); }
 
     .c-footer__contact svg {
         inline-size: 1rem;
@@ -1577,7 +1769,7 @@
         overflow: visible;
         text-overflow: clip;
         font-size: var(--fs-3);
-        font-weight: 800;
+        font-weight: 700;
         line-height: var(--lh-tight);
         /* 한글 제목이 어절 중간에서 끊기지 않게. */
         word-break: keep-all;
@@ -1652,10 +1844,15 @@
     #post-detail .post-content blockquote {
         margin: var(--space-5) 0;
         padding: var(--space-3) var(--space-5);
-        border-inline-start: 3px solid var(--bae-accent);
+        border-inline-start: 3px solid var(--bae-accent-fg);
         border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
         background: rgba(var(--bae-accent-rgb), 0.06);
         color: var(--bae-text-muted);
+    }
+
+    /* 코드 — 정본 마크다운 mono 스택(typography.md) */
+    #post-detail .post-content :is(pre, code) {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
 
     #post-detail .post-content pre {
@@ -1680,7 +1877,7 @@
     }
 
     #post-detail .post-content a {
-        color: var(--bae-accent);
+        color: var(--bae-accent-fg);
         text-underline-offset: 0.2em;
     }
 

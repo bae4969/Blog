@@ -269,6 +269,41 @@ async def save_preset(request: Request, body: PresetSave):
                          strategy=params["st"])
 
 
+class PresetRename(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+@router.patch("/presets/{preset_id}", response_model=PresetSummary, summary="프리셋 이름 바꾸기")
+async def rename_preset(request: Request, preset_id: int, body: PresetRename):
+    """이름만 바꾼다(2026-10-13 — 예전엔 지우고 다시 만들어야 했다). 설정·순서(`updated_at`)는 그대로.
+
+    ⚠️ 이름은 계정 안에서 UNIQUE 다 — 다른 프리셋이 쓰는 이름이면 409. 남의 것은 404(삭제와 같다).
+    """
+    name = body.name.strip()[:100]
+    if not name:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이름을 입력하세요")
+    async with db_session() as db:
+        me = await _me(db, request)
+        taken = (await db.execute(text(
+            "SELECT preset_id FROM backtest_preset WHERE user_index = :u AND preset_name = :n AND preset_id <> :p"),
+            {"u": me.user_index, "n": name, "p": preset_id})).first()
+        if taken:
+            raise HTTPException(status.HTTP_409_CONFLICT, "같은 이름의 프리셋이 있습니다")
+        # 이름을 바꿨다고 목록 맨 위로 오지 않게 updated_at 은 그대로 둔다(ON UPDATE 를 막는다).
+        res = await db.execute(text(
+            "UPDATE backtest_preset SET preset_name = :n, updated_at = updated_at "
+            "WHERE preset_id = :p AND user_index = :u"),
+            {"n": name, "p": preset_id, "u": me.user_index})
+        row = (await db.execute(text(
+            "SELECT preset_id, preset_name, stock_summary, strategy FROM backtest_preset "
+            "WHERE preset_id = :p AND user_index = :u"), {"p": preset_id, "u": me.user_index})).first()
+        await db.commit()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "프리셋을 찾을 수 없습니다")
+    logger.info("프리셋 이름 변경: user=%s id=%s name=%s (rows=%s)", me.user_id, preset_id, name, res.rowcount)
+    return PresetSummary(id=row[0], name=row[1], stock_summary=row[2], strategy=row[3])
+
+
 @router.delete("/presets/{preset_id}", status_code=status.HTTP_204_NO_CONTENT,
                summary="프리셋 삭제")
 async def delete_preset(request: Request, preset_id: int):

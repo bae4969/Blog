@@ -28,7 +28,6 @@
 <header class="bt-head">
     <div>
         <h1 class="bt-title">포트폴리오 백테스팅</h1>
-        <p class="bt-sub">종목과 전략을 정해 과거 수익률을 돌려 봅니다.</p>
     </div>
 </header>
 
@@ -43,8 +42,8 @@
         </svg>
         <span class="portfolio-name-text" id="portfolioNameText">실행하면 자동 저장됩니다</span>
         <input type="text" class="portfolio-name-input" id="portfolioNameInput" style="display:none" maxlength="100" placeholder="포트폴리오 이름">
-        <button class="portfolio-name-edit-btn" id="portfolioNameEdit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="portfolio-name-edit-btn" id="portfolioNameEdit" aria-label="이름 바꾸기" hidden>
+            <svg class="c-ico" width="12" height="12" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
@@ -65,6 +64,9 @@
             </svg>
             <span id="portfolioPublicLabel">비공개</span>
         </button>
+        {# 공개가 무엇인지는 버튼 title 이 아니라 옆 ⓘ 에(2026-10-13 점검 — title 은 터치에서 안 보인다). 토글과 함께 보인다. #}
+        <span class="metric-info config-info" id="portfolioPublicInfo" tabindex="0" hidden
+            >ⓘ<span class="metric-tooltip">공개하면 주식 화면 랭킹에 보입니다.<br>비공개는 나만 봅니다.</span></span>
     </div>
 </div>
 
@@ -197,13 +199,15 @@
             <h3 class="config-section-title">종목 구성</h3>
             <div class="stock-picker">
                 <div class="stock-search-row">
-                    <input type="text" id="stockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
-                    <div id="stockSearchResults" class="stock-search-dropdown"></div>
+                    <input type="text" id="btStockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
+                    <div id="btStockSearchResults" class="stock-search-dropdown" popover="manual"></div>
                 </div>
                 <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span><button type="button" class="btn btn-sm btn-outline equalize-btn" id="equalizeWeights" style="display:none">{{ icons.i('balance') }}<span>균등 배분</span></button></h4>
                 <div id="selectedStocks" class="selected-stocks-list">
                     <p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>
                 </div>
+                {# 실행할 때 검증 오류는 그 칸 옆에(정본 toast.md D2 — 폼 검증은 토스트가 아니다). backtest.js `fieldError`. #}
+                <p class="field-error" id="btStocksError" role="alert" hidden></p>
                 <hr class="picker-divider">
                 <h4 class="picker-sub-title">벤치마크 <span class="picker-sub-hint">(선택, 최대 5개)</span></h4>
                 <div id="selectedBenchmark" class="selected-benchmark"></div>
@@ -251,6 +255,7 @@
                     <input type="date" id="endDate" class="backtest-input">
                 </div>
             </div>
+            <p class="field-error" id="btDateError" role="alert" hidden></p>
         </div>
 
         <!-- 전략 선택 -->
@@ -278,6 +283,7 @@
                 <div class="signal-rules" id="signalRules">
                     <!-- 동적으로 추가 -->
                 </div>
+                <p class="field-error" id="btRulesError" role="alert" hidden></p>
                 <button type="button" class="btn btn-sm btn-outline" id="addSignalRule">{{ icons.i('add') }}<span>규칙 추가</span></button>
                 <div class="signal-combine">
                     <label class="config-label">조건 결합</label>
@@ -290,7 +296,10 @@
 
             <!-- DCA 유예 조건 -->
             <div class="config-field" style="margin-top:10px">
-                <label class="config-label" for="dcaDeferIndicator">적립 유예 조건</label>
+                {# 고른 조건의 설명은 본문 문단이 아니라 라벨 옆 ⓘ 에(2026-10-13 점검) — backtest.js `updateDcaDeferHint` 가 채운다. #}
+                <label class="config-label" for="dcaDeferIndicator">적립 유예 조건<span
+                    class="metric-info config-info" id="dcaDeferHint" tabindex="0"
+                    >ⓘ<span class="metric-tooltip">매월 적립금을 즉시 투입합니다.</span></span></label>
                 <select id="dcaDeferIndicator" class="backtest-select">
                     <option value="none">사용 안 함</option>
                     <option value="macd_death">MACD 데스크로스 시 유예</option>
@@ -298,7 +307,6 @@
                     <option value="bb_upper">BB 상단 돌파 시 유예</option>
                     <option value="sma_death">SMA 데스크로스 시 유예</option>
                 </select>
-                <p class="config-hint" id="dcaDeferHint">매월 적립금을 즉시 투입합니다.</p>
             </div>
         </div>
 
@@ -357,6 +365,7 @@
                     <input type="text" id="presetNameInput" class="backtest-input preset-name-input" placeholder="프리셋 이름" maxlength="100">
                     <button type="button" class="btn btn-sm btn-primary" id="savePresetBtn">{{ icons.i('save') }}<span>저장</span></button>
                 </div>
+                <p class="field-error" id="presetNameError" role="alert" hidden></p>
                 <div class="preset-list" id="presetList">
                     <!-- JS에서 동적 렌더링 -->
                 </div>

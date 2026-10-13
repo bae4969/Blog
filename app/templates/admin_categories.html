@@ -16,6 +16,16 @@
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
+{#
+  서버 검증 실패(`form`)는 토스트가 아니라 그 칸 아래에, 입력값을 채운 채 보인다(정본 toast.md D2, 2026-10-13).
+  `form` = { field, error, values, where? } — admin.py 가 화면을 다시 그릴 때 넘긴다.
+#}
+{%- macro ferr(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where -%}<p class="field-error" role="alert">{{ form.error }}</p>{%- endif -%}
+{%- endmacro -%}
+{%- macro finvalid(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where %} aria-invalid="true" autofocus{% endif -%}
+{%- endmacro -%}
 {% set level_options = {0: '슈퍼관리자', 1: '관리자', 2: '에디터', 3: '작성자', 4: '구독자'} %}
 {#
   묶음 — 2026-09-23 블로그를 금융(인사이트 `/insights`)·일반(블로그 `/blog`)으로 나눴다.
@@ -24,7 +34,7 @@
 {% set group_options = {'general': '일반 · 블로그', 'finance': '금융 · 인사이트'} %}
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
-    <div class="admin-card collapsible-card collapsed">
+    <div class="admin-card collapsible-card{% if not form %} collapsed{% endif %}">
         <h2>블로그 카테고리 관리</h2>
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">전체 카테고리</span> <span class="stat-value">{{ rows | length }}</span></div>
@@ -43,13 +53,15 @@
             <div class="admin-form-grid">
                 <div class="admin-form-field">
                     <label>이름</label>
-                    <input type="text" name="category_name" required maxlength="50" placeholder="카테고리 이름">
+                    <input type="text" name="category_name" required maxlength="50" placeholder="카테고리 이름"
+                           value="{{ form['values'].category_name if form else '' }}"{{ finvalid('category_name') }}>
+                    {{ ferr('category_name') }}
                 </div>
                 <div class="admin-form-field">
                     <label>읽기 권한</label>
                     <select name="category_read_level">
                         {% for lv, label in level_options.items() %}
-                            <option value="{{ lv }}" {% if lv == 4 %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ lv }}" {% if (form['values'].category_read_level if form else 4) == lv %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -57,7 +69,7 @@
                     <label>쓰기 권한</label>
                     <select name="category_write_level">
                         {% for lv, label in level_options.items() %}
-                            <option value="{{ lv }}" {% if lv == 1 %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ lv }}" {% if (form['values'].category_write_level if form else 1) == lv %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -65,9 +77,10 @@
                     <label>묶음</label>
                     <select name="category_group">
                         {% for g, label in group_options.items() %}
-                            <option value="{{ g }}">{{ label }}</option>
+                            <option value="{{ g }}" {% if form and form['values'].category_group == g %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    {{ ferr('category_group') }}
                 </div>
             </div>
             <div class="admin-form-actions">
@@ -94,8 +107,10 @@
                     </thead>
                     <tbody>
                         {% for cat in rows %}
-                            <tr>
+                            <tr data-id="{{ cat.category_index }}">
                                 <td class="order-cell">
+                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 터치가 있는 기기(any-pointer: coarse)는 끌기가 없어 ↑↓ 도 보인다(admin.css). #}
+                                    <span class="cat-grip" draggable="true" tabindex="0" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
                                     <div class="order-buttons">
                                         {% if not loop.first %}
                                             <form method="post" action="/admin/categories/reorder" class="inline-form">
@@ -120,27 +135,34 @@
                                     </div>
                                 </td>
                                 <td data-label="이름">
-                                    <form method="post" action="/admin/categories/update" class="inline-form">
+                                    {# 행을 끌어 옮기면 칸을 가로지른 폼 소속이 풀린다 — 다른 칸의 선택·저장 버튼은 `form=` 으로 묶는다. #}
+                                    <form method="post" action="/admin/categories/update" class="inline-form" id="cat-edit-{{ cat.category_index }}">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                        <input type="text" name="category_name" value="{{ cat.category_name }}" required maxlength="50" class="inline-input">
+                                        <input type="hidden" name="category_name" value="{{ cat.category_name }}">
+                                    {# 이름은 글자 + 연필(더블클릭도) 인라인 편집 — `/js/inline_name.js`. 권한·묶음은 행의 선택 + [저장] 그대로. #}
+                                    <div class="inline-name" data-form="cat-edit-{{ cat.category_index }}" data-field="category_name">
+                                        <span class="inline-name__text">{{ cat.category_name }}</span>
+                                        <input type="text" class="inline-input inline-name__input" maxlength="50" aria-label="카테고리 이름" hidden>
+                                        <button type="button" class="inline-name__pencil" aria-label="이름 바꾸기">{{ icons.i('edit') }}</button>
+                                    </div>
                                 </td>
                                 <td data-label="읽기 권한">
-                                    <select name="category_read_level" class="inline-select" aria-label="{{ cat.category_name }} 읽기 권한">
+                                    <select name="category_read_level" form="cat-edit-{{ cat.category_index }}" class="inline-select" aria-label="{{ cat.category_name }} 읽기 권한">
                                         {% for lv, label in level_options.items() %}
                                             <option value="{{ lv }}" {% if cat.category_read_level == lv %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
                                 <td data-label="쓰기 권한">
-                                    <select name="category_write_level" class="inline-select" aria-label="{{ cat.category_name }} 쓰기 권한">
+                                    <select name="category_write_level" form="cat-edit-{{ cat.category_index }}" class="inline-select" aria-label="{{ cat.category_name }} 쓰기 권한">
                                         {% for lv, label in level_options.items() %}
                                             <option value="{{ lv }}" {% if cat.category_write_level == lv %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
                                 <td data-label="묶음">
-                                    <select name="category_group" class="inline-select" aria-label="{{ cat.category_name }} 묶음">
+                                    <select name="category_group" form="cat-edit-{{ cat.category_index }}" class="inline-select" aria-label="{{ cat.category_name }} 묶음">
                                         {% for g, label in group_options.items() %}
                                             <option value="{{ g }}" {% if cat.category_group == g %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
@@ -149,14 +171,18 @@
                                 <td data-label="게시글">{{ cat.post_count }}</td>
                                 <td class="action-cell">
                                     <div class="action-buttons">
-                                        <button type="submit" class="btn btn-sm btn-primary">{{ icons.i('save') }}<span>저장</span></button>
+                                        <button type="submit" form="cat-edit-{{ cat.category_index }}" class="btn btn-sm btn-primary category-save-btn" disabled>{{ icons.i('save') }}<span>저장</span></button>
                                         </form>
                                         <form method="post" action="/admin/categories/delete" class="inline-form"
-                                            onsubmit="return confirm('카테고리 \'{{ cat.category_name }}\'을(를) 삭제하시겠습니까?{% if cat.post_count > 0 %} (게시글 {{ cat.post_count }}개 존재){% endif %}');">
+                                            onsubmit="return confirm('카테고리 \'{{ cat.category_name }}\'을(를) 삭제하시겠습니까?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                            <button type="submit" class="btn btn-sm btn-danger">{{ icons.i('trash') }}<span>삭제</span></button>
+                                            <button type="submit" class="btn btn-sm btn-danger" {% if cat.post_count > 0 %}disabled{% endif %}>{{ icons.i('trash') }}<span>삭제</span></button>
                                         </form>
+                                        {% if cat.post_count > 0 %}
+                                            <button type="button" class="admin-info" data-tip-tap
+                                                aria-label="게시글이 있는 카테고리는 지울 수 없습니다 — 글을 먼저 옮기거나 지우세요">{{ icons.i('info') }}</button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -164,10 +190,114 @@
                     </tbody>
                 </table>
             </div>
-            <div class="admin-help">
-                <p>* 게시글이 존재하는 카테고리는 삭제할 수 없습니다</p>
-            </div>
         {% endif %}
     </div>
 </div>
+
+<script src="/js/inline_name.js?v={{ static_v }}" defer></script>
+<script>
+// 값을 고치기 전에는 저장 버튼을 꺼 둔다(WOL 화면과 같은 규칙, 2026-10-13 점검).
+// ⚠️ 행의 수정 폼은 이름 칸에서 열려 작업 칸에서 닫힌다 — 다른 칸의 select 도 그 폼 소속이라 `form.elements` 로 찾는다.
+document.querySelectorAll('.category-save-btn').forEach(function (btn) {
+    if (!btn.form) return;
+    Array.prototype.forEach.call(btn.form.elements, function (el) {
+        if (el !== btn && el.name && el.type !== 'hidden') el.addEventListener('input', function () { btn.disabled = false; });
+    });
+});
+
+// 순서 — 손잡이(점 2×3)만 끌 수 있고 놓으면 전체 순서를 한 번에 저장한다(2026-10-13 점검, 정본 drag-reorder.md
+// "목록 정렬 표준"). 놓을 자리는 커서 Y 가 넘은 행 중앙선 수로 정하고, 표시선과 놓기가 같은 계산을 쓴다.
+// 키보드는 손잡이에 포커스를 두고 ↑/↓ 로 한 칸씩 옮긴다(같은 저장 경로). 연달아 옮겨도 마지막 순서 한 번만
+// 보내도록 400ms 모아 저장한다. 저장이 실패해도 화면 순서는 두고 오류 토스트로 알린다.
+(function () {
+    var tbody = document.querySelector('.category-table tbody');
+    if (!tbody) return;
+    var dragRow = null;
+    var line = null;
+    var saveTimer = null;
+
+    function rows() { return Array.prototype.slice.call(tbody.children); }
+
+    function computeDrop(y) {
+        var others = rows().filter(function (r) { return r !== dragRow; });
+        var idx = 0;
+        others.forEach(function (r) {
+            var b = r.getBoundingClientRect();
+            if (y > b.top + b.height / 2) idx++;
+        });
+        if (idx === rows().indexOf(dragRow)) return null;   // 제자리 — 옮길 곳이 없다
+        return idx < others.length ? { anchor: others[idx], before: true } : { anchor: others[others.length - 1], before: false };
+    }
+
+    function showLine(drop) {
+        if (!line) { line = document.createElement('div'); line.className = 'cat-drop-line'; document.body.appendChild(line); }
+        var r = drop.anchor.getBoundingClientRect();
+        line.style.left = r.left + 'px';
+        line.style.width = r.width + 'px';
+        line.style.top = (drop.before ? r.top : r.bottom) - 1 + 'px';
+        line.hidden = false;
+    }
+
+    function hideLine() { if (line) line.hidden = true; }
+
+    function saveOrder() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(postOrder, 400);
+    }
+
+    function postOrder() {
+        var fd = new FormData();
+        fd.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+        fd.append('order', rows().map(function (r) { return r.dataset.id; }).join(','));
+        fetch('/admin/categories/order', { method: 'POST', body: fd })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                window.toast('카테고리 순서를 바꿨습니다', 'success');
+            })
+            .catch(function () { window.toast('카테고리 순서를 저장하지 못했습니다 — 새로고침해 확인하세요', 'error'); });
+    }
+
+    tbody.addEventListener('dragstart', function (e) {
+        var grip = e.target.closest && e.target.closest('.cat-grip');
+        if (!grip) return;
+        dragRow = grip.closest('tr');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragRow.dataset.id);   // Firefox 는 데이터가 없으면 끌기를 시작하지 않는다
+        e.dataTransfer.setDragImage(dragRow, 8, 16);
+        dragRow.classList.add('is-dragging');
+    });
+    tbody.addEventListener('dragover', function (e) {
+        if (!dragRow) return;
+        var drop = computeDrop(e.clientY);
+        if (!drop) { hideLine(); e.dataTransfer.dropEffect = 'none'; return; }   // preventDefault 없음 → 금지 커서
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        showLine(drop);
+    });
+    tbody.addEventListener('drop', function (e) {
+        if (!dragRow) return;
+        var drop = computeDrop(e.clientY);
+        if (!drop) return;
+        e.preventDefault();
+        tbody.insertBefore(dragRow, drop.before ? drop.anchor : drop.anchor.nextSibling);
+        saveOrder();
+    });
+    tbody.addEventListener('keydown', function (e) {
+        var grip = e.target.closest && e.target.closest('.cat-grip');
+        if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();   // 문서가 스크롤되지 않게
+        var row = grip.closest('tr');
+        var to = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+        if (!to) return;
+        tbody.insertBefore(row, e.key === 'ArrowUp' ? to : to.nextSibling);
+        grip.focus();   // 행을 옮기면 문서에서 잠깐 빠져 포커스가 풀린다 — 같은 손잡이로 되돌린다
+        saveOrder();
+    });
+    tbody.addEventListener('dragend', function () {
+        if (dragRow) dragRow.classList.remove('is-dragging');
+        dragRow = null;
+        hideLine();
+    });
+})();
+</script>
 {% endblock %}
