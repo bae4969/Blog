@@ -10,7 +10,9 @@
  * ⚠️ 풍선은 top layer(`popover="manual"`, 2026-10-13)라 띄울 때마다 다시 연다 — top layer 는 연 순서라
  *    그래야 열린 모달 `<dialog>`·토스트 위에 뜬다(10-11 에는 dialog 안에 옮겨 붙이는 우회를 썼다).
  * ⚠️ 손가락으로 누를 때는 띄우지 않는다 — 누르면 바로 동작하므로 풍선이 남아 화면만 가린다.
- *    단 부가 설명 ⓘ(`data-tip-tap`)는 누를 동작이 없으니 눌러도 띄운다.
+ *    단 부가 설명 ⓘ 는 누를 동작이 없으니 **탭으로 열고 다시 탭하면 닫는다**(아래 "ⓘ 탭 토글").
+ *    ⓘ 는 두 가지다 — 관리자 `data-tip-tap`(이 풍선)과 백테스트 `.metric-info`(제 CSS 풍선 `.metric-tooltip`,
+ *    `.is-open`). 동작은 같게 여기서 함께 다룬다.
  * ⚠️ 제 풍선이 따로 있는 버튼(차트 지표 설명)은 `data-no-tip` 으로 뺀다.
  */
 (function () {
@@ -83,15 +85,64 @@
         if (owner && owner.contains(e.target)) hide();
     });
 
-    // 부가 설명 ⓘ(`data-tip-tap`)는 손가락으로 눌러도 띄운다 — 누를 동작이 없는 표식이라 풍선이 곧 내용이다
-    // (2026-10-13 점검, 정본 tooltip.md "부가 설명" — 터치 탭). 다음에 어디든 누르면 아래 pointerdown 이 거둔다.
-    document.addEventListener('click', function (e) {
-        var el = e.target.closest && e.target.closest('[data-tip-tap]');
-        if (el) show(el);
-    });
+    // ── ⓘ 탭 토글(정본 tooltip.md "부가 설명", 2026-10-13 통일) ─────────────
+    // 마우스는 올리면(관리자: pointerover, 백테스트: CSS :hover), 키보드는 포커스로 뜬다. 손가락은 탭으로 열고
+    // **같은 ⓘ 를 다시 탭하면 닫는다**. 바깥을 누르거나 스크롤하면 닫히고, 한 번에 하나만 열린다.
+    // 클릭은 부모로 새지 않는다 — 라벨 안 ⓘ 를 눌러 옆 입력칸이 포커스되거나 카드가 눌리지 않게 capture 에서 끊는다.
+    var MARK = '[data-tip-tap], .metric-info';
+    var openInfo = null;     // 탭으로 연 `.metric-info`
+    var tapped = null;       // 누르기 직전에 이미 열려 있던 ⓘ — 이어지는 click 은 닫기로 끝낸다
+    var pointer = '';        // 마지막으로 누른 포인터 종류(click 에는 없는 브라우저가 있다)
 
-    // 누르면 화면이 바뀌거나 버튼이 사라질 수 있고, 스크롤하면 버튼만 움직인다 — 풍선을 거둔다.
-    document.addEventListener('pointerdown', hide, true);
-    window.addEventListener('scroll', hide, true);
-    window.addEventListener('resize', hide);
+    function closeInfo() {
+        if (!openInfo) return;
+        openInfo.classList.remove('is-open');
+        openInfo.querySelector('.metric-tooltip').style.transform = '';
+        openInfo = null;
+    }
+
+    // `.metric-tooltip` 은 ⓘ 오른쪽 끝에 맞춰 왼쪽으로 펼쳐진다 — 좁은 화면 왼쪽 칸의 카드에서는 화면 밖으로
+    // 나간다(390px 에서 -19px). 탭으로 열 때 화면 안으로 민다.
+    function openMetricInfo(mark) {
+        openInfo = mark;
+        mark.classList.add('is-open');
+        var t = mark.querySelector('.metric-tooltip');
+        var r = t.getBoundingClientRect();
+        var vw = document.documentElement.clientWidth;
+        var dx = r.left < EDGE ? EDGE - r.left : (r.right > vw - EDGE ? vw - EDGE - r.right : 0);
+        if (dx) t.style.transform = 'translateX(' + Math.round(dx) + 'px)';
+    }
+
+    function hideAll() { hide(); closeInfo(); }
+
+    // 누르면 화면이 바뀌거나 버튼이 사라질 수 있다 — 어디를 누르든 먼저 거둔다.
+    document.addEventListener('pointerdown', function (e) {
+        pointer = e.pointerType;
+        var mark = e.target.closest && e.target.closest(MARK);
+        tapped = mark && (mark === owner || mark === openInfo) ? mark : null;
+        hideAll();
+    }, true);
+    document.addEventListener('keydown', function () { pointer = ''; }, true);
+
+    document.addEventListener('click', function (e) {
+        var mark = e.target.closest && e.target.closest(MARK);
+        if (!mark) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var wasOpen = tapped === mark;
+        tapped = null;
+        var touch = pointer === 'touch' || pointer === 'pen';
+        if (!touch) {
+            // 마우스·키보드는 올림·포커스가 띄운다 — 누를 때 거둔 관리자 풍선만 되살린다.
+            if (mark.matches('[data-tip-tap]')) show(mark);
+            return;
+        }
+        if (wasOpen) return;
+        if (mark.matches('[data-tip-tap]')) show(mark);
+        else openMetricInfo(mark);
+    }, true);
+
+    // 스크롤하면 표식만 움직인다 — 풍선을 거둔다.
+    window.addEventListener('scroll', hideAll, true);
+    window.addEventListener('resize', hideAll);
 })();

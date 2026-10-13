@@ -1859,13 +1859,31 @@ details[open] > .config-section-title.clickable {
 /* ⚠️ z-index 를 여기서 올려야 한다. `.metric-info` 는 위치가 잡힌 채 z-index 를 가져
    **스택 컨텍스트**를 만드는데, 그러면 안에 있는 툴팁의 z-index: 100 은 그 안에서만
    통한다 — 밖에서는 아이콘의 1 로 취급돼 뒤에 있는 다른 카드의 ⓘ 가 툴팁 위로 올라온다
-   (2026-08-23 사용자 제보). 아이콘 자체를 올리면 툴팁도 함께 올라간다. */
-.metric-info:hover,
-.metric-info:focus {
+   (2026-08-23 사용자 제보). 아이콘 자체를 올리면 툴팁도 함께 올라간다.
+   ⓘ 동작은 관리자 ⓘ 와 같다(2026-10-13 통일) — 마우스는 올리면, 키보드는 포커스로 뜨고, 손가락은 tooltip.js 가
+   탭마다 `.is-open` 을 여닫는다. ⚠️ hover 는 마우스 기기에서만, 포커스는 :focus-visible 만 본다 — 손가락으로 누른
+   자리에 남는 hover·focus 가 풍선을 붙잡아 다시 탭해도 닫히지 않았다. */
+.metric-info.is-open,
+.metric-info:focus-visible {
     background: var(--bae-accent);
     color: var(--bae-accent-text);
     outline: none;
     z-index: 100;
+}
+
+@media (hover: hover) {
+    .metric-info:hover {
+        background: var(--bae-accent);
+        color: var(--bae-accent-text);
+        z-index: 100;
+    }
+
+    .metric-info:hover .metric-tooltip { display: block; }
+}
+
+/* iOS Safari 는 누를 수 있어 보이는 요소(cursor: pointer)에서만 문서로 click 을 올려 보낸다 — 탭 토글이 그걸 받는다. */
+@media (hover: none) {
+    .metric-info { cursor: pointer; }
 }
 
 /* 설정 폼 안에서 쓰는 ⓘ — 카드용 `.metric-info` 는 카드 모서리에 절대배치되므로
@@ -1910,8 +1928,8 @@ details[open] > .config-section-title.clickable {
     pointer-events: none;
 }
 
-.metric-info:hover .metric-tooltip,
-.metric-info:focus .metric-tooltip {
+.metric-info.is-open .metric-tooltip,
+.metric-info:focus-visible .metric-tooltip {
     display: block;
 }
 
