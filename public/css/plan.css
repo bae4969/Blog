@@ -76,6 +76,7 @@
 .plan-tree {
     block-size: 100%;
     overflow: auto;
+    overscroll-behavior: contain;   /* 끝에서 손가락으로 당겨도 페이지로 넘어가지 않게(휠은 trapWheel) */
     cursor: grab;              /* 빈 곳을 끌어 옮긴다(plan.js) — 스크롤바를 숨겨서 */
 }
 
@@ -511,6 +512,7 @@
     block-size: 100%;
     padding: var(--space-4) var(--space-2) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — plan.js 가 실제 높이로 맞춘다. 좌우는 8px(2026-10-11 사용자 "더 줄여") */
     overflow-y: auto;
+    overscroll-behavior: contain;   /* 끝에서 손가락으로 당겨도 페이지로 넘어가지 않게(휠은 trapWheel) */
     scrollbar-width: none;
 }
 
