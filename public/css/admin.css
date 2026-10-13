@@ -522,6 +522,118 @@
     }
 }
 
+/* 주식 홈 카드 구성(`/js/quote_cards_admin.js`, 지수·환율 구독 화면) — 세트 셋을 나란히(좁으면 한 줄씩).
+   손잡이·↑↓ 보이는 조건은 카테고리 순서와 같다. 놓을 자리 선은 `.cat-drop-line` 을 같이 쓴다. */
+.qc-sets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.qc-set__title {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.qc-set__count {
+    margin-left: 4px;
+    color: var(--bae-text-dim);
+    font-weight: 400;
+}
+
+.qc-list {
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+}
+
+.qc-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 2px 4px;
+    border-bottom: 1px solid var(--bae-border);
+    font-size: 13px;
+}
+
+.qc-item.is-dragging { opacity: 0.45; }
+.qc-item.is-off .qc-name { color: var(--bae-text-dim); }
+
+.qc-grip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 20px;
+    color: var(--bae-text-dim);
+    font-size: 16px;
+    cursor: grab;
+}
+
+.qc-grip:active { cursor: grabbing; }
+
+.qc-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.qc-code { color: var(--bae-text-dim); font-size: 12px; }
+.qc-off { color: var(--bae-danger); font-size: 12px; }
+
+.qc-mv,
+.qc-rm {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.qc-mv:not(:disabled):hover,
+.qc-rm:hover { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
+.qc-mv:disabled { opacity: 0.3; cursor: default; }
+
+.qc-add { width: 100%; }
+
+@media not all and (any-pointer: coarse) {
+    .qc-mv { display: none; }
+}
+
+@media (any-pointer: coarse) {
+    /* 누르는 자리 44px — 보이는 크기는 28px(정본 button.md 터치 타깃 보정) */
+    .qc-mv, .qc-rm { position: relative; }
+
+    .qc-mv::after,
+    .qc-rm::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        min-width: 44px;
+        min-height: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (pointer: coarse) {
+    .qc-grip { display: none; }
+}
+
 /* ===========================================
    부가 설명 ⓘ — 회색 설명 문단 대신(2026-10-13 점검, 정본 tooltip.md "부가 설명").
    내용은 `aria-label`, 풍선은 tooltip.js(`.c-tip`, 줄바꿈 `&#10;`)가 띄우고 `data-tip-tap` 이라 터치로 눌러도 뜬다.

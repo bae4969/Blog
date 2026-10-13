@@ -164,10 +164,36 @@
             {% endif %}
         </form>
     </div>
+
+    {#
+      주식 홈 지수·환율 카드 구성(2026-10-13) — `/js/quote_cards_admin.js` 가 그린다.
+      세트 셋 · 6장씩 · 앞 둘은 지수 · 마지막은 환율(모바일이 그렇게 넘긴다) · 구독 중인 것만.
+      순서는 손잡이 끌기(마우스)·↑/↓ 키(손잡이 포커스)·↑↓ 버튼(터치가 있는 기기) — 정본 drag-reorder.md 정렬 표준.
+      [저장]으로 한 번에 저장하고, 규칙에 어긋나면 그 세트 아래에 오류를 띄운다(정본 toast.md D2).
+    #}
+    <div class="admin-card" id="quoteCards">
+        <h2>주식 홈 카드 구성<button type="button" class="admin-info" data-tip-tap
+            aria-label="넓은 화면은 6장 한 줄이 세트 단위로 넘어가고, 모바일은 앞 두 세트를 지수로·마지막 세트를 환율로 한 장씩 넘깁니다.&#10;위 구독 목록에서 수집 중인 것만 고를 수 있습니다.">{{ icons.i('info') }}</button></h2>
+        <div class="qc-sets">
+            {% for title in ['지수 1', '지수 2', '환율'] %}
+            <section class="qc-set" data-set="{{ loop.index0 }}" aria-labelledby="qcTitle{{ loop.index0 }}">
+                <h3 class="qc-set__title" id="qcTitle{{ loop.index0 }}">{{ title }} <span class="qc-set__count"></span></h3>
+                <ol class="qc-list"></ol>
+                <select class="qc-add" aria-label="{{ title }} 세트에 카드 추가"></select>
+                <p class="field-error" role="alert" hidden></p>
+            </section>
+            {% endfor %}
+        </div>
+        <div class="admin-form-actions">
+            <button type="button" class="btn btn-primary" id="quoteCardsSave" disabled>{{ icons.i('save') }}<span>카드 구성 저장</span></button>
+        </div>
+        <script type="application/json" id="quoteCardsData">{{ {'sets': card_sets, 'options': card_options, 'rules': card_rules, 'csrf': csrf_token} | tojson }}</script>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="/js/quote_cards_admin.js?v={{ static_v }}" defer></script>
 <script>
 // 저장 전 검증 오류는 토스트가 아니라 폼 안(저장 버튼 줄 아래)에 보인다(정본 toast.md D2, 2026-10-13).
 // ⚠️ 예전에는 네이티브 `alert()`, 그다음엔 토스트였다. 호출부의 `return`/`preventDefault()` 는 그대로 둔다(가드절).
