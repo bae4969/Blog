@@ -316,7 +316,6 @@
           blog.css 에 이미 준비된 `stock-page-content`(width:100%)를 붙여 푼다.
         #}
         <div id="content" {% if hide_sidebar %}class="stock-page-content"{% endif %}>
-            <div class="content-alert-container"></div>
             {% block content %}{% endblock %}
         </div>
     </section>
@@ -436,11 +435,18 @@ document.addEventListener('DOMContentLoaded', function () {
      **표 위에** 그렸다 — 레이아웃이 밀리고 메시지가 그 자리에 계속 남았다.
   ⚠️ `| tojson` 으로 내보낸다. 문자열 리터럴에 그냥 박으면 따옴표 하나로 스크립트가 깨진다.
   ⚠️ `toast.js` 는 `defer` 라 DOMContentLoaded 전에 실행이 끝난다 — 여기서 바로 불러도 된다.
+  실패는 서버가 `&kind=error` 를 붙인다(admin.py `_deny`·`_back`) — 오류 모양으로 띄운다. 띄운 뒤 주소에서
+  `msg`·`kind` 를 지운다 — 새로고침하면 같은 안내가 또 떴다(2026-10-13 점검).
 #}
 {% if msg %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.toast) window.toast({{ msg | tojson }}, 'info');
+    var url = new URL(location.href);
+    var kind = url.searchParams.get('kind') === 'error' ? 'error' : 'info';
+    if (window.toast) window.toast({{ msg | tojson }}, kind);
+    url.searchParams.delete('msg');
+    url.searchParams.delete('kind');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
 });
 </script>
 {% endif %}

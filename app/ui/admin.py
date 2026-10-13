@@ -49,7 +49,10 @@ async def _require_admin(request: Request, db):
 
 def _deny(reason: str, to: str = "/stocks") -> RedirectResponse:
     # 사이트 메인(주식)으로 돌려보낸다 — 2026-09-23 전에는 /blog 였다.
+    # 안내(`msg`)를 달고 돌려보내면 실패라고 표시한다 — layout.html 이 오류 토스트로 띄운다.
     logger.warning("관리자 거부: %s", reason)
+    if "msg=" in to:
+        to += "&kind=error"
     return RedirectResponse(to, status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -744,7 +747,7 @@ async def wol_execute(request: Request, csrf_token: str = Form(""), device_id: i
         return RedirectResponse(f"/admin/wol?msg={name}+에+패킷을+보냈습니다",
                                 status_code=status.HTTP_303_SEE_OTHER)
     logger.error("WOL 전송 실패: %s → %s (%s)", name, bcast, " | ".join(errors))
-    return RedirectResponse("/admin/wol?msg=패킷+전송에+실패했습니다",
+    return RedirectResponse("/admin/wol?msg=패킷+전송에+실패했습니다&kind=error",
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -1027,8 +1030,9 @@ async def quote_subscriptions_update(request: Request):
 # 내보내지 않는다 — 끝 4자리만 보이고, 칸을 비워 저장하면 원래 값을 그대로 둔다.
 
 
-def _back(msg: str) -> RedirectResponse:
-    return RedirectResponse(f"/admin/integrations?msg={quote(msg)}", status_code=status.HTTP_303_SEE_OTHER)
+def _back(msg: str, error: bool = False) -> RedirectResponse:
+    kind = "&kind=error" if error else ""
+    return RedirectResponse(f"/admin/integrations?msg={quote(msg)}{kind}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/integrations", response_class=HTMLResponse, include_in_schema=False)
@@ -1062,11 +1066,11 @@ async def integrations_save(request: Request):
         return _deny("csrf_invalid", "/admin/integrations")
     values = {k: str(form.get(k, "")).strip() for k in app_settings.DEFAULTS}
     if not values["smtp_port"].isdigit() or not 0 < int(values["smtp_port"]) < 65536:
-        return _back("SMTP 포트는 1~65535 숫자여야 합니다")
+        return _back("SMTP 포트는 1~65535 숫자여야 합니다", error=True)
     if values["ai_effort"] and values["ai_effort"] not in app_settings.EFFORTS:
-        return _back("추론 강도가 올바르지 않습니다")
+        return _back("추론 강도가 올바르지 않습니다", error=True)
     if values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
-        return _back("받는 메일 주소 형식이 아닙니다")
+        return _back("받는 메일 주소 형식이 아닙니다", error=True)
     async with db_session() as db:
         me = await _require_admin(request, db)
         if me is None:
@@ -1118,14 +1122,15 @@ async def integrations_codex(request: Request, csrf_token: str = Form(""), actio
             return _deny("not_admin integrations.codex")
     if action == "login":
         state = await codex_runner.start_login()
-        return _back("아래 링크에서 코드를 넣어 주세요" if state["code"] else f"로그인을 시작하지 못했습니다 {state['error'] or ''}")
+        return _back("아래 링크에서 코드를 넣어 주세요" if state["code"] else f"로그인을 시작하지 못했습니다 {state['error'] or ''}",
+                     error=not state["code"])
     if action == "cancel":
         await codex_runner.cancel_login()
         return _back("Codex 로그인을 취소했습니다")
     if action == "logout":
         await codex_runner.logout()
         return _back("Codex 에서 로그아웃했습니다")
-    return _back("무엇을 할지 모릅니다")
+    return _back("무엇을 할지 모릅니다", error=True)
 
 
 @router.post("/integrations/test", include_in_schema=False)
@@ -1142,7 +1147,7 @@ async def integrations_test(request: Request, csrf_token: str = Form(""), target
     if target == "smtp":
         import asyncio
         return _back(await asyncio.to_thread(_test_smtp, cfg))
-    return _back("무엇을 시험할지 모릅니다")
+    return _back("무엇을 시험할지 모릅니다", error=True)
 
 
 @router.get("", include_in_schema=False)
