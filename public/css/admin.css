@@ -476,8 +476,9 @@
     pointer-events: none;
 }
 
-/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 손잡이(점 2×3)는 마우스 기기에서만,
-   ↑↓ 는 손가락(pointer: coarse)에서만 보이고 누르는 자리는 44px 다(HTML5 끌기가 터치에 없다). */
+/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 손잡이(점 2×3)는 주 포인터가 손가락인
+   기기(폰·태블릿)에서만 숨기고, ↑↓ 는 터치가 있는 기기(any-pointer: coarse — 터치 노트북 포함, D7)에서 보이며
+   누르는 자리는 44px 다(HTML5 끌기가 터치에 없다). */
 .cat-grip {
     display: inline-flex;
     align-items: center;
@@ -505,12 +506,15 @@
 
 .cat-drop-line[hidden] { display: none; }
 
-@media (pointer: fine), (pointer: none) {
+@media not all and (any-pointer: coarse) {
     .order-buttons { display: none; }
 }
 
 @media (pointer: coarse) {
     .cat-grip { display: none; }
+}
+
+@media (any-pointer: coarse) {
     .btn-arrow {
         width: 44px;
         height: 44px;

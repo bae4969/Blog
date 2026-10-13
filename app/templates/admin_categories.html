@@ -96,7 +96,7 @@
                         {% for cat in rows %}
                             <tr data-id="{{ cat.category_index }}">
                                 <td class="order-cell">
-                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 손가락(pointer: coarse)은 끌기가 없어 ↑↓ — CSS 가 둘 중 하나만 보인다. #}
+                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 터치가 있는 기기(any-pointer: coarse)는 끌기가 없어 ↑↓ 도 보인다(admin.css). #}
                                     <span class="cat-grip" draggable="true" tabindex="0" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
                                     <div class="order-buttons">
                                         {% if not loop.first %}

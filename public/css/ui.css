@@ -1372,13 +1372,15 @@
     .c-btn--accent:active { background: var(--bae-accent-press); }
 
     /* ── 터치 히트 영역 — 정본 button.md "터치 타깃 보정"(2026-10-12) ─────
-     * 손가락(`pointer: coarse`)이면 작은 아이콘 버튼의 **누르는 자리만** 44px 로 넓힌다 — 보이는 크기는
-     * 그대로다(버튼 크기 결정은 따로). 가운데 맞춘 빈 `::after` 가 판정을 맡는다.
+     * 터치가 있는 기기(`any-pointer: coarse` — 주 포인터가 마우스인 터치 노트북 포함, 2026-10-13 정본 결정)면
+     * 작은 아이콘 버튼의 **누르는 자리만** 44px 로 넓힌다 — 보이는 크기는 그대로다(버튼 크기 결정은 따로).
+     * 가운데 맞춘 빈 `::after` 가 판정을 맡는다.
+     * ⚠️ 마우스 기기에서 hover 때만 보이는 버튼(연필)은 여기 넣지 않는다 — 안 보이는 판정 영역이 옆을 가로챈다.
      * ⚠️ 이미 `position: absolute` 인 버튼(`.c-watch__rm`)에는 `relative` 를 덮지 않는다 — 자리가 흘러내린다.
      * ⚠️ 칩(`.c-chip`)은 넣지 않는다 — 가로 스크롤 띠 안이라 바깥으로 나온 `::after` 가 띠에 세로 스크롤을 만든다.
      * ⚠️ 이웃 버튼과 틈이 좁으면(4px 등) 두 영역이 몇 px 겹친다 — 겹친 곳은 뒤 버튼이 받는다.
      */
-    @media (pointer: coarse) {
+    @media (any-pointer: coarse) {
         :where(.c-btn, .btn, .c-search button, .plan-round, .c-toast__close) { position: relative; }
 
         :where(.c-btn, .btn, .c-search button, .c-watch__rm, .plan-round, .c-toast__close)::after {
