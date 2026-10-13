@@ -109,7 +109,7 @@
                         {% for cat in rows %}
                             <tr data-id="{{ cat.category_index }}">
                                 <td class="order-cell">
-                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 터치가 있는 기기(any-pointer: coarse)는 끌기가 없어 ↑↓ 도 보인다(admin.css). #}
+                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 주 포인터가 손가락인 기기(pointer: coarse)는 끌기가 없어 손잡이 대신 ↑↓ 를 보인다(admin.css). #}
                                     <span class="cat-grip" draggable="true" tabindex="0" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
                                     <div class="order-buttons">
                                         {% if not loop.first %}
@@ -182,6 +182,9 @@
                                         {% if cat.post_count > 0 %}
                                             <button type="button" class="admin-info" data-tip-tap
                                                 aria-label="게시글이 있는 카테고리는 지울 수 없습니다 — 글을 먼저 옮기거나 지우세요">{{ icons.i('info') }}</button>
+                                        {% else %}
+                                            {# ⓘ 가 없는 줄도 같은 자리를 비워 둔다 — 줄마다 저장·삭제 위치가 어긋났다(정본 button.md 작업 칸). #}
+                                            <span class="admin-info admin-info--blank" aria-hidden="true">{{ icons.i('info') }}</span>
                                         {% endif %}
                                     </div>
                                 </td>

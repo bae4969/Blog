@@ -476,9 +476,10 @@
     pointer-events: none;
 }
 
-/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 손잡이(점 2×3)는 주 포인터가 손가락인
-   기기(폰·태블릿)에서만 숨기고, ↑↓ 는 터치가 있는 기기(any-pointer: coarse — 터치 노트북 포함, D7)에서 보이며
-   누르는 자리는 44px 다(HTML5 끌기가 터치에 없다). */
+/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 주 포인터가 손가락인 기기(pointer: coarse —
+   폰·태블릿)만 손잡이 대신 ↑↓ 를 쓴다(HTML5 끌기가 터치에 없다). 마우스가 주 포인터면 손잡이와 키보드뿐이다.
+   ⚠️ any-pointer: coarse 로 판정했더니 터치스크린이 없는 Windows PC 에서도 참이라 손잡이와 ↑↓ 가 함께 떴다
+   (2026-10-13 사용자 스크린샷 — 정본 D7 되돌림). */
 .cat-grip {
     display: inline-flex;
     align-items: center;
@@ -506,19 +507,38 @@
 
 .cat-drop-line[hidden] { display: none; }
 
-@media not all and (any-pointer: coarse) {
+@media not all and (pointer: coarse) {
     .order-buttons { display: none; }
 }
 
+/* ↑↓ 는 가로로, 보이는 크기는 28px 이고 누르는 자리만 44px 다(정본 button.md 터치 타깃 보정).
+   ⚠️ 보이는 크기를 44px 로 키워 위아래로 쌓았더니 행이 43→125px 로 커졌다(2026-10-13). */
 @media (pointer: coarse) {
     .cat-grip { display: none; }
-}
+    .order-cell { width: 1%; white-space: nowrap; }   /* 내용 폭만큼만 */
 
-@media (any-pointer: coarse) {
+    .order-cell .order-buttons {
+        display: inline-flex;
+        flex-direction: row;
+        gap: 2px;
+        vertical-align: middle;
+    }
+
     .btn-arrow {
-        width: 44px;
-        height: 44px;
+        position: relative;
+        width: 28px;
+        height: 28px;
         font-size: 16px;
+    }
+
+    .btn-arrow::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        min-width: 44px;
+        min-height: 44px;
+        transform: translate(-50%, -50%);
     }
 }
 
@@ -610,8 +630,8 @@
 
 .qc-add { width: 100%; }
 
-@media not all and (any-pointer: coarse) {
-    .qc-mv { display: none; }
+@media not all and (pointer: coarse) {
+    .qc-mv { display: none; }   /* ↑↓ 는 주 포인터가 손가락인 기기에서만(카테고리 순서와 같다) */
 }
 
 @media (any-pointer: coarse) {
@@ -655,6 +675,9 @@
 .admin-info:focus-visible {
     color: var(--bae-text-primary);
 }
+
+/* 자리만 차지하는 빈 ⓘ — 표의 작업 칸에서 ⓘ 가 없는 줄도 버튼 위치가 같게 */
+.admin-info--blank { visibility: hidden; }
 
 /* ===========================================
    WOL 장치 목록

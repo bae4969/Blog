@@ -173,7 +173,7 @@
             rm.addEventListener('click', function () { setWatched(item, false); });
             li.appendChild(rm);
 
-            // 터치가 있는 기기에서는 끌기가 없어 ↑↓ 도 둔다(CSS 가 any-pointer: coarse 에서만 보인다).
+            // 주 포인터가 손가락인 기기는 끌기가 없어 ↑↓ 를 둔다(CSS 가 pointer: coarse 에서만 보인다).
             var up = iconButton('c-watch__mv c-watch__mv--up', '위로', 'up', function () { move(li, -1, up); });
             var down = iconButton('c-watch__mv c-watch__mv--down', '아래로', 'down', function () { move(li, 1, down); });
             up.disabled = idx === 0;
