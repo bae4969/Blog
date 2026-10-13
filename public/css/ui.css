@@ -815,7 +815,7 @@
         inset: calc(var(--topbar-h) + env(safe-area-inset-top)) 0 0;
         z-index: 45;
         display: none;
-        background: rgb(0 0 0 / 0.5);
+        background: var(--shadow-overlay);
     }
 
     @media (max-width: 89.99rem) {

@@ -775,7 +775,7 @@
     box-shadow: var(--shadow-xl);
 }
 
-.plan-history::backdrop { background: rgba(0, 0, 0, 0.55); }
+.plan-history::backdrop { background: var(--shadow-overlay); }
 /* 열 때 포커스는 창 자신(toplayer.js openModal) — 키보드로 열어도 창 둘레에 링을 그리지 않는다(정본 dialog.modal:focus). */
 .plan-history:focus { outline: none; }
 

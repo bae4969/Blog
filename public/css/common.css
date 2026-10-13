@@ -191,7 +191,7 @@
     /* 그림자 (보조) */
     --shadow-focus: 0 0 0 2px var(--bae-accent-fg);    /* 정본 포커스 링 — 2px, 불투명(form-field.md) */
     --shadow-focus-danger: 0 0 0 2px var(--danger-outline);
-    --shadow-overlay: rgba(0, 0, 0, 0.45);
+    --shadow-overlay: rgba(0, 0, 0, 0.60);   /* 막 — 정본 modal.md 가벼운 창(.60). 체결 시트·계획 버전 기록·관심 종목 서랍 */
 
     /* 트랜지션 */
     --transition: all 0.2s ease;
