@@ -610,6 +610,7 @@
     function renderPortfolio() {
         var container = document.getElementById('selectedStocks');
         if (!container) return;
+        fieldError('btStocksError', '');
         if (portfolio.length === 0) {
             container.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
             return;
@@ -936,21 +937,38 @@
         };
     }
 
-    // 설정 수집 + 유효성 검사 (사용자 알림 포함)
+    /**
+     * 칸 옆 검증 오류 — 폼 검증은 토스트가 아니라 그 칸 옆에 보인다(정본 toast.md D2, 2026-10-13).
+     * 글자를 주면 보이고 화면에 들어오게 하며, 빈 글자면 숨긴다.
+     */
+    function fieldError(id, message) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = message || '';
+        el.hidden = !message;
+        if (message) el.scrollIntoView({ block: 'nearest' });
+    }
+
+    function clearRunErrors() {
+        ['btStocksError', 'btDateError', 'btRulesError'].forEach(function (id) { fieldError(id, ''); });
+    }
+
+    // 설정 수집 + 유효성 검사 (오류는 칸 옆에)
     function collectConfigWithAlert() {
+        clearRunErrors();
         if (portfolio.length === 0) {
-            notify('종목을 1개 이상 추가하세요.');
+            fieldError('btStocksError', '종목을 1개 이상 추가하세요.');
             return null;
         }
         var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
         if (Math.abs(totalWeight - 100) > 0.5) {
-            notify('종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
+            fieldError('btStocksError', '종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
             return null;
         }
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
         if (!startDate || !endDate || startDate >= endDate) {
-            notify('유효한 기간을 설정하세요.');
+            fieldError('btDateError', '시작일이 종료일보다 앞서야 합니다.');
             return null;
         }
         var activeTab = document.querySelector('.strategy-tab.active');
@@ -958,7 +976,7 @@
         if (strategy === 'signal') {
             var rules = document.querySelectorAll('.signal-rule');
             if (rules.length === 0) {
-                notify('시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
+                fieldError('btRulesError', '시그널 기반 전략에는 최소 1개의 규칙이 필요합니다.');
                 return null;
             }
         }
@@ -1338,7 +1356,8 @@
         var nameInput = document.getElementById('presetNameInput');
         if (!nameInput) return;
         var name = nameInput.value.trim();
-        if (!name) { notify('프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+        if (!name) { fieldError('presetNameError', '프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
+        fieldError('presetNameError', '');
 
         var config = collectConfig();
         if (!config) {
@@ -1552,7 +1571,15 @@
         if (dcaDeferSel) dcaDeferSel.addEventListener('change', updateDcaDeferHint);
 
         var addBtn = document.getElementById('addSignalRule');
-        if (addBtn) addBtn.addEventListener('click', addSignalRule);
+        if (addBtn) addBtn.addEventListener('click', function () { addSignalRule(); fieldError('btRulesError', ''); });
+
+        // 칸 옆 검증 오류는 그 칸을 고치면 걷는다.
+        ['startDate', 'endDate'].forEach(function (id) {
+            var d = document.getElementById(id);
+            if (d) d.addEventListener('change', function () { fieldError('btDateError', ''); });
+        });
+        var stocksBox = document.getElementById('selectedStocks');
+        if (stocksBox) stocksBox.addEventListener('input', function () { fieldError('btStocksError', ''); });
 
         var runBtn = document.getElementById('runBacktest');
         if (runBtn) runBtn.addEventListener('click', function () { runBacktest(false); });
@@ -1574,6 +1601,7 @@
             presetNameInput.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') { e.preventDefault(); savePreset(); }
             });
+            presetNameInput.addEventListener('input', function () { fieldError('presetNameError', ''); });
         }
         if (window.__BACKTEST_USER_LOGGED_IN) loadPresetList();
 

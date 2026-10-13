@@ -792,6 +792,12 @@
     flex: 0 0 auto;
 }
 
+.stock-admin-error {
+    flex: 1 0 100%;
+    margin: 0;
+    text-align: right;
+}
+
 .stock-admin-action {
     margin-right: 8px;
 }

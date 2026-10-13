@@ -699,6 +699,8 @@ footer a:hover {
     box-shadow: var(--shadow-focus-danger);
 }
 
+.field-error[hidden] { display: none; }
+
 .field-error {
     margin-top: 6px;
     font-size: 0.9rem;

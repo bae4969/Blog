@@ -206,6 +206,8 @@
                 <div id="selectedStocks" class="selected-stocks-list">
                     <p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>
                 </div>
+                {# 실행할 때 검증 오류는 그 칸 옆에(정본 toast.md D2 — 폼 검증은 토스트가 아니다). backtest.js `fieldError`. #}
+                <p class="field-error" id="btStocksError" role="alert" hidden></p>
                 <hr class="picker-divider">
                 <h4 class="picker-sub-title">벤치마크 <span class="picker-sub-hint">(선택, 최대 5개)</span></h4>
                 <div id="selectedBenchmark" class="selected-benchmark"></div>
@@ -253,6 +255,7 @@
                     <input type="date" id="endDate" class="backtest-input">
                 </div>
             </div>
+            <p class="field-error" id="btDateError" role="alert" hidden></p>
         </div>
 
         <!-- 전략 선택 -->
@@ -280,6 +283,7 @@
                 <div class="signal-rules" id="signalRules">
                     <!-- 동적으로 추가 -->
                 </div>
+                <p class="field-error" id="btRulesError" role="alert" hidden></p>
                 <button type="button" class="btn btn-sm btn-outline" id="addSignalRule">{{ icons.i('add') }}<span>규칙 추가</span></button>
                 <div class="signal-combine">
                     <label class="config-label">조건 결합</label>
@@ -361,6 +365,7 @@
                     <input type="text" id="presetNameInput" class="backtest-input preset-name-input" placeholder="프리셋 이름" maxlength="100">
                     <button type="button" class="btn btn-sm btn-primary" id="savePresetBtn">{{ icons.i('save') }}<span>저장</span></button>
                 </div>
+                <p class="field-error" id="presetNameError" role="alert" hidden></p>
                 <div class="preset-list" id="presetList">
                     <!-- JS에서 동적 렌더링 -->
                 </div>
