@@ -24,7 +24,7 @@ from ipaddress import ip_address as ip_address_obj
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import bindparam, text
 
 from app.core import app_settings, blog_user, csrf
@@ -273,6 +273,44 @@ async def category_reorder(
     logger.info("카테고리 순서 변경: id=%s %s", category_index, direction)
     return RedirectResponse("/admin/categories",
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/categories/order", include_in_schema=False)
+async def category_order(request: Request, csrf_token: str = Form(""), order: str = Form("")):
+    """순서를 한 번에 — 화면에서 손잡이로 끌어 놓은 순서(`category_index` 를 쉼표로)를 그대로 저장한다.
+
+    화면이 `fetch` 로 부르므로 JSON 으로 답한다(실패하면 화면이 오류 토스트를 띄운다).
+    목록은 **지금 있는 카테고리 전부**여야 한다 — 그사이 누가 더하거나 지웠으면 거부한다.
+    쓰던 번호들을 새 순서대로 다시 나눠 준다(빈 번호도 그대로 남는다).
+    ⚠️ `category_order` 는 **UNIQUE**(tinyint) 라 곧바로 바꾸면 중간에 겹친다 — 아무도 안 쓰는 번호로
+       모두 비켜 놓은 뒤 제자리에 놓는다(`category_reorder` 의 임시 번호와 같은 까닭).
+    """
+    if not csrf.valid(request, csrf_token):
+        return JSONResponse({"detail": "csrf"}, status_code=status.HTTP_403_FORBIDDEN)
+    try:
+        ids = [int(x) for x in order.split(",") if x.strip()]
+    except ValueError:
+        return JSONResponse({"detail": "order"}, status_code=status.HTTP_400_BAD_REQUEST)
+
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return JSONResponse({"detail": "not_admin"}, status_code=status.HTTP_403_FORBIDDEN)
+        rows = (await db.execute(text("SELECT category_index, category_order FROM category_list"))).all()
+        if len(ids) != len(rows) or set(ids) != {int(r[0]) for r in rows}:
+            return JSONResponse({"detail": "stale"}, status_code=status.HTTP_409_CONFLICT)
+
+        used = sorted(int(r[1]) for r in rows)
+        taken = set(used)
+        free = [v for v in range(255, -1, -1) if v not in taken][:len(ids)]
+        upd = text("UPDATE category_list SET category_order = :o WHERE category_index = :i")
+        for i, tmp in zip(ids, free):
+            await db.execute(upd, {"o": tmp, "i": i})
+        for i, o in zip(ids, used):
+            await db.execute(upd, {"o": o, "i": i})
+        await db.commit()
+
+    logger.info("카테고리 순서 일괄 변경: %s", ids)
+    return JSONResponse({"ok": True})
 
 
 # ── 주식 구독 관리 ──────────────────────────────────────────────────

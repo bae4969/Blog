@@ -431,6 +431,48 @@
     pointer-events: none;
 }
 
+/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 손잡이(점 2×3)는 마우스 기기에서만,
+   ↑↓ 는 손가락(pointer: coarse)에서만 보이고 누르는 자리는 44px 다(HTML5 끌기가 터치에 없다). */
+.cat-grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 20px;
+    color: var(--bae-text-dim);
+    font-size: 16px;
+    cursor: grab;
+}
+
+.cat-grip:active { cursor: grabbing; }
+
+.category-table tr.is-dragging { opacity: 0.45; }
+
+.cat-drop-line {
+    position: fixed;
+    z-index: 60;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--bae-accent);
+    box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
+    pointer-events: none;
+}
+
+.cat-drop-line[hidden] { display: none; }
+
+@media (pointer: fine), (pointer: none) {
+    .order-buttons { display: none; }
+}
+
+@media (pointer: coarse) {
+    .cat-grip { display: none; }
+    .btn-arrow {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+}
+
 /* ===========================================
    부가 설명 ⓘ — 회색 설명 문단 대신(2026-10-13 점검, 정본 tooltip.md "부가 설명").
    내용은 `aria-label`, 풍선은 tooltip.js(`.c-tip`, 줄바꿈 `&#10;`)가 띄우고 `data-tip-tap` 이라 터치로 눌러도 뜬다.
