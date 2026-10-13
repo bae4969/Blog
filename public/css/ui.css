@@ -1414,6 +1414,15 @@
      */
     .btn-primary:active:not(:disabled) { background: var(--bae-accent-press); }
 
+    /* 꺼진 버튼은 흐리게(정본 button.md "꺼진 버튼", 2026-10-13). 위험 버튼도 꺼지면 빨간 테두리·글자를 버리고
+       일반 색으로 — 켜진 삭제 버튼과 구분이 안 됐다(카테고리 표, 사용자 스크린샷). 주 버튼은 아래 색 규칙이 맡는다. */
+    .btn:disabled { opacity: 0.4; }
+
+    .btn-danger:disabled {
+        border-color: var(--bae-border-hover);
+        color: var(--bae-text-muted);
+    }
+
     .btn-primary:disabled {
         background: var(--bae-surface-hover);
         color: var(--bae-text-dim);
