@@ -152,20 +152,21 @@
                                         <button type="submit" class="btn btn-sm btn-primary">{{ icons.i('save') }}<span>저장</span></button>
                                         </form>
                                         <form method="post" action="/admin/categories/delete" class="inline-form"
-                                            onsubmit="return confirm('카테고리 \'{{ cat.category_name }}\'을(를) 삭제하시겠습니까?{% if cat.post_count > 0 %} (게시글 {{ cat.post_count }}개 존재){% endif %}');">
+                                            onsubmit="return confirm('카테고리 \'{{ cat.category_name }}\'을(를) 삭제하시겠습니까?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                            <button type="submit" class="btn btn-sm btn-danger">{{ icons.i('trash') }}<span>삭제</span></button>
+                                            <button type="submit" class="btn btn-sm btn-danger" {% if cat.post_count > 0 %}disabled{% endif %}>{{ icons.i('trash') }}<span>삭제</span></button>
                                         </form>
+                                        {% if cat.post_count > 0 %}
+                                            <button type="button" class="admin-info" data-tip-tap
+                                                aria-label="게시글이 있는 카테고리는 지울 수 없습니다 — 글을 먼저 옮기거나 지우세요">{{ icons.i('info') }}</button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            <div class="admin-help">
-                <p>* 게시글이 존재하는 카테고리는 삭제할 수 없습니다</p>
             </div>
         {% endif %}
     </div>

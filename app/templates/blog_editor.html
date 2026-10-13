@@ -393,8 +393,13 @@ function updateStarOverlay() {
         if (selectedThumbnailSrc && img.src === selectedThumbnailSrc) {
             star.classList.add('active');
         }
-        star.innerHTML = '&#9733;';
-        star.title = '썸네일로 선택';
+        // 이름은 title 이 아니라 aria-label — tooltip.js 가 풍선으로 띄운다(아이콘 버튼 규칙, 2026-10-13 점검).
+        // 그림은 _icons.html 의 'star' 와 같다. 고른 것은 채운다(CSS).
+        star.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+            + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.85 6.75 19.6l1-5.8L3.5 9.7l5.9-.9Z" /></svg>';
+        star.setAttribute('aria-label', '썸네일로 선택');
+        star.setAttribute('aria-pressed', star.classList.contains('active') ? 'true' : 'false');
 
         // wrapper에 상대적인 위치 계산
         star.style.top = (imgRect.top - wrapperRect.top + 6) + 'px';
@@ -800,15 +805,16 @@ const quillDarkTheme = `
     
     .thumb-overlay .img-thumb-star {
         position: absolute;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         width: 28px;
         height: 28px;
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.55);
         border: none;
         color: var(--bae-text-dim);
-        font-size: 18px;
-        line-height: 28px;
-        text-align: center;
+        font-size: 16px;
         cursor: pointer;
         padding: 0;
         opacity: 0;
@@ -824,6 +830,8 @@ const quillDarkTheme = `
         color: var(--bae-warn);
         opacity: 1;
     }
+
+    .thumb-overlay .img-thumb-star.active .c-ico { fill: currentColor; }
     
     #quill-wrapper:hover .thumb-overlay .img-thumb-star {
         opacity: 0.7;

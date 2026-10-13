@@ -64,6 +64,9 @@
             </svg>
             <span id="portfolioPublicLabel">비공개</span>
         </button>
+        {# 공개가 무엇인지는 버튼 title 이 아니라 옆 ⓘ 에(2026-10-13 점검 — title 은 터치에서 안 보인다). 토글과 함께 보인다. #}
+        <span class="metric-info config-info" id="portfolioPublicInfo" tabindex="0" hidden
+            >ⓘ<span class="metric-tooltip">공개하면 주식 화면 랭킹에 보입니다.<br>비공개는 나만 봅니다.</span></span>
     </div>
 </div>
 
@@ -289,7 +292,10 @@
 
             <!-- DCA 유예 조건 -->
             <div class="config-field" style="margin-top:10px">
-                <label class="config-label" for="dcaDeferIndicator">적립 유예 조건</label>
+                {# 고른 조건의 설명은 본문 문단이 아니라 라벨 옆 ⓘ 에(2026-10-13 점검) — backtest.js `updateDcaDeferHint` 가 채운다. #}
+                <label class="config-label" for="dcaDeferIndicator">적립 유예 조건<span
+                    class="metric-info config-info" id="dcaDeferHint" tabindex="0"
+                    >ⓘ<span class="metric-tooltip">매월 적립금을 즉시 투입합니다.</span></span></label>
                 <select id="dcaDeferIndicator" class="backtest-select">
                     <option value="none">사용 안 함</option>
                     <option value="macd_death">MACD 데스크로스 시 유예</option>
@@ -297,7 +303,6 @@
                     <option value="bb_upper">BB 상단 돌파 시 유예</option>
                     <option value="sma_death">SMA 데스크로스 시 유예</option>
                 </select>
-                <p class="config-hint" id="dcaDeferHint">매월 적립금을 즉시 투입합니다.</p>
             </div>
         </div>
 

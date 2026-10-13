@@ -22,7 +22,8 @@
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card collapsed">
-        <h2>WOL (Wake-on-LAN)</h2>
+        <h2>WOL (Wake-on-LAN)<button type="button" class="admin-info" data-tip-tap
+            aria-label="· 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다&#10;· 대상 장치의 BIOS/UEFI 에서 WOL 이 켜져 있어야 합니다&#10;· 패킷을 보냈다고 장치가 켜진다는 보장은 없습니다&#10;· MAC 주소 형식: AA-BB-CC-DD-EE-FF 또는 AA:BB:CC:DD:EE:FF">{{ icons.i('info') }}</button></h2>
         <div class="stat-row">
             <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value">{{ rows | length }}</span></div>
         </div>
@@ -97,16 +98,6 @@
                 {% endfor %}
             </div>
         {% endif %}
-    </div>
-
-    <div class="admin-card">
-        <h3>WOL 안내</h3>
-        <div class="admin-help">
-            <p>* WOL은 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다</p>
-            <p>* 대상 장치의 BIOS/UEFI에서 WOL이 활성화되어 있어야 합니다</p>
-            <p>* 패킷 전송 성공이 장치 부팅을 보장하지는 않습니다</p>
-            <p>* MAC 주소 형식: <code>AA-BB-CC-DD-EE-FF</code> 또는 <code>AA:BB:CC:DD:EE:FF</code></p>
-        </div>
     </div>
 </div>
 

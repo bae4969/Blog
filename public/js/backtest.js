@@ -720,7 +720,7 @@
 
     function updateDcaDeferHint() {
         var sel = document.getElementById('dcaDeferIndicator');
-        var hint = document.getElementById('dcaDeferHint');
+        var hint = document.querySelector('#dcaDeferHint .metric-tooltip');
         if (!sel || !hint) return;
         hint.textContent = DCA_DEFER_HINTS[sel.value] || '';
     }
@@ -1053,15 +1053,14 @@
     function renderPublicToggle(mine, isPublic) {
         var btn = document.getElementById('portfolioPublicToggle');
         var label = document.getElementById('portfolioPublicLabel');
+        var info = document.getElementById('portfolioPublicInfo');
         if (!btn || !label) return;
+        if (info) info.hidden = !mine;
         if (!mine) { btn.style.display = 'none'; return; }
         btn.style.display = '';
         btn.setAttribute('aria-pressed', isPublic ? 'true' : 'false');
         btn.classList.toggle('is-public', isPublic);
         label.textContent = isPublic ? '공개' : '비공개';
-        btn.title = isPublic
-            ? '주식 화면 랭킹에 보입니다. 누르면 비공개로 바꿉니다.'
-            : '나만 봅니다. 누르면 랭킹에 공개합니다.';
     }
 
     /**

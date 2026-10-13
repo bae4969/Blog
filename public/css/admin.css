@@ -432,20 +432,25 @@
 }
 
 /* ===========================================
-   도움말
+   부가 설명 ⓘ — 회색 설명 문단 대신(2026-10-13 점검, 정본 tooltip.md "부가 설명").
+   내용은 `aria-label`, 풍선은 tooltip.js(`.c-tip`, 줄바꿈 `&#10;`)가 띄우고 `data-tip-tap` 이라 터치로 눌러도 뜬다.
    =========================================== */
-.admin-help {
-    margin-top: 16px;
-    padding: 12px 16px;
-    background: var(--bae-surface-alt);
-    border-radius: var(--border-radius);
+.admin-info {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-left: 6px;
+    padding: 2px;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 14px;
+    cursor: help;
 }
 
-.admin-help p {
-    margin: 5px 0;
-    font-size: 13px;
-    color: var(--bae-text-dim);
-    line-height: 1.6;
+.admin-info:hover,
+.admin-info:focus-visible {
+    color: var(--bae-text-primary);
 }
 
 /* ===========================================

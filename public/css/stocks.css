@@ -462,7 +462,8 @@
     opacity: 0.7;
 }
 
-.chart-indicator-help:hover .chart-indicator-help-btn {
+.chart-indicator-help:hover .chart-indicator-help-btn,
+.chart-indicator-help:focus-within .chart-indicator-help-btn {
     border-color: var(--bae-info);
     color: var(--bae-text-primary);
     opacity: 1;
@@ -494,7 +495,9 @@
     pointer-events: none;
 }
 
-.chart-indicator-help:hover .chart-indicator-tooltip {
+/* 키보드로 옮겨 오거나 손가락으로 눌러도(버튼에 포커스가 간다) 뜬다 — 예전엔 :hover 뿐이었다(2026-10-13 점검). */
+.chart-indicator-help:hover .chart-indicator-tooltip,
+.chart-indicator-help:focus-within .chart-indicator-tooltip {
     visibility: visible;
     pointer-events: auto;
 }
@@ -1110,13 +1113,6 @@ details[open] > .config-section-title.clickable {
 .config-field {
     display: flex;
     flex-direction: column;
-}
-
-.config-hint {
-    font-size: 0.75rem;
-    color: var(--bae-text-dim);
-    margin-top: 6px;
-    margin-bottom: -4px;
 }
 
 /* 입력 요소 */
@@ -1888,6 +1884,16 @@ details[open] > .config-section-title.clickable {
 
 .config-info[hidden] {
     display: none;
+}
+
+/* 적립 유예 ⓘ 는 설명이 길다 — 풍선을 ⓘ 가 아니라 칸 기준(select 아래·오른쪽 끝 맞춤)으로 띄워
+   좁은 화면에서 왼쪽 밖으로 나가지 않게 한다(390px 에서 -91px 로 잘렸다, 2026-10-13). */
+.config-field:has(> label > #dcaDeferHint) {
+    position: relative;
+}
+
+#dcaDeferHint {
+    position: static;
 }
 
 .metric-tooltip {
