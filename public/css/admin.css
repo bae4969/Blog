@@ -288,6 +288,51 @@
     color: var(--bae-text-dim);
 }
 
+/* 이름 인라인 편집(`/js/inline_name.js`, 정본 inline-edit.md) — 글자 바로 오른쪽에 14px 연필.
+   마우스 기기에서는 그 줄(표 행·WOL 이름 줄)에 올렸을 때·키보드 포커스 때만, 손가락은 늘 보인다. */
+.inline-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.inline-name__text {
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    font-size: 14px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.inline-name__input {
+    flex: 1;
+    min-width: 6rem;
+    padding: 2px 8px;
+}
+
+.inline-name__pencil {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 4px;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.inline-name__pencil:hover { color: var(--bae-text-primary); }
+.inline-name__pencil[hidden], .inline-name__text[hidden] { display: none; }
+
+@media (hover: hover) {
+    .inline-name__pencil { opacity: 0; }
+
+    :is(tr, .wol-edit-row):hover .inline-name__pencil,
+    .inline-name__pencil:focus-visible { opacity: 1; }
+}
+
 .inline-select {
     padding: 6px 10px;
     background: var(--bae-surface-alt);

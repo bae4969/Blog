@@ -126,7 +126,13 @@
                                     <form method="post" action="/admin/categories/update" class="inline-form" id="cat-edit-{{ cat.category_index }}">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                        <input type="text" name="category_name" value="{{ cat.category_name }}" required maxlength="50" class="inline-input">
+                                        <input type="hidden" name="category_name" value="{{ cat.category_name }}">
+                                    {# 이름은 글자 + 연필(더블클릭도) 인라인 편집 — `/js/inline_name.js`. 권한·묶음은 행의 선택 + [저장] 그대로. #}
+                                    <div class="inline-name" data-form="cat-edit-{{ cat.category_index }}" data-field="category_name">
+                                        <span class="inline-name__text">{{ cat.category_name }}</span>
+                                        <input type="text" class="inline-input inline-name__input" maxlength="50" aria-label="카테고리 이름" hidden>
+                                        <button type="button" class="inline-name__pencil" aria-label="이름 바꾸기">{{ icons.i('edit') }}</button>
+                                    </div>
                                 </td>
                                 <td data-label="읽기 권한">
                                     <select name="category_read_level" form="cat-edit-{{ cat.category_index }}" class="inline-select" aria-label="{{ cat.category_name }} 읽기 권한">
@@ -175,13 +181,14 @@
     </div>
 </div>
 
+<script src="/js/inline_name.js?v={{ static_v }}" defer></script>
 <script>
 // 값을 고치기 전에는 저장 버튼을 꺼 둔다(WOL 화면과 같은 규칙, 2026-10-13 점검).
 // ⚠️ 행의 수정 폼은 이름 칸에서 열려 작업 칸에서 닫힌다 — 다른 칸의 select 도 그 폼 소속이라 `form.elements` 로 찾는다.
 document.querySelectorAll('.category-save-btn').forEach(function (btn) {
     if (!btn.form) return;
     Array.prototype.forEach.call(btn.form.elements, function (el) {
-        if (el !== btn && el.type !== 'hidden') el.addEventListener('input', function () { btn.disabled = false; });
+        if (el !== btn && el.name && el.type !== 'hidden') el.addEventListener('input', function () { btn.disabled = false; });
     });
 });
 

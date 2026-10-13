@@ -26,6 +26,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import bindparam, text
+from sqlalchemy.exc import IntegrityError
 
 from app.core import app_settings, blog_user, csrf
 from app.services import codex_runner
@@ -45,6 +46,20 @@ async def _require_admin(request: Request, db):
     if me is None or me.level > _ADMIN_MAX_LEVEL:
         return None
     return me
+
+
+def _wants_json(request: Request) -> bool:
+    """화면이 `fetch` 로 부른 요청(Accept: application/json)인가 — 이름 인라인 편집이 이렇게 부른다."""
+    return "application/json" in request.headers.get("accept", "")
+
+
+def _fail(request: Request, reason: str, back: str, msg: str | None = None,
+          code: int = status.HTTP_400_BAD_REQUEST):
+    """수정 실패 — `fetch` 면 JSON(`detail`), 폼 제출이면 지금처럼 안내를 달아 돌려보낸다."""
+    if _wants_json(request):
+        logger.warning("관리자 거부: %s", reason)
+        return JSONResponse({"detail": msg or "요청을 처리하지 못했습니다"}, status_code=code)
+    return _deny(reason, f"{back}?msg={quote(msg)}" if msg else back)
 
 
 def _deny(reason: str, to: str = "/stocks") -> RedirectResponse:
@@ -145,28 +160,40 @@ async def category_update(
     write_level: int = Form(0, alias="category_write_level"),
     group: str = Form("general", alias="category_group"),
 ):
-    """이름·권한·묶음 수정. 순서는 여기서 건드리지 않는다(교환 전용 경로가 따로 있다)."""
+    """이름·권한·묶음 수정. 순서는 여기서 건드리지 않는다(교환 전용 경로가 따로 있다).
+
+    표의 [저장](폼 제출)과 이름 인라인 편집(`fetch`, JSON 응답 — `_wants_json`)이 함께 쓴다.
+    이름 편집은 권한·묶음을 서버에 저장된 값 그대로 실어 보낸다(`inline_name.js`).
+    """
+    back = "/admin/categories"
     if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/categories")
+        return _fail(request, "csrf_invalid", back, None, status.HTTP_403_FORBIDDEN)
 
     name = name.strip()
     if category_index <= 0 or not name or group not in _CATEGORY_GROUPS:
-        return _deny("invalid_input", "/admin/categories?msg=값을+확인하세요")
+        return _fail(request, "invalid_input", back, "값을 확인하세요")
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
-            return _deny("not_admin update")
-        await db.execute(
-            text(
-                "UPDATE category_list SET category_name = :n, "
-                "  category_read_level = :r, category_write_level = :w, category_group = :g "
-                "WHERE category_index = :i"
-            ),
-            {"n": name, "r": read_level, "w": write_level, "g": group, "i": category_index},
-        )
-        await db.commit()
+            return _fail(request, "not_admin update", "/stocks", None, status.HTTP_403_FORBIDDEN)
+        try:
+            await db.execute(
+                text(
+                    "UPDATE category_list SET category_name = :n, "
+                    "  category_read_level = :r, category_write_level = :w, category_group = :g "
+                    "WHERE category_index = :i"
+                ),
+                {"n": name, "r": read_level, "w": write_level, "g": group, "i": category_index},
+            )
+            await db.commit()
+        except IntegrityError:
+            # 이름은 UNIQUE — 예전엔 500 이었다.
+            return _fail(request, f"duplicate_name {name}", back, "같은 이름의 카테고리가 있습니다",
+                         status.HTTP_409_CONFLICT)
 
     logger.info("카테고리 수정: id=%s name=%s group=%s", category_index, name, group)
+    if _wants_json(request):
+        return JSONResponse({"ok": True, "name": name})
     return RedirectResponse("/admin/categories?msg=수정했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 
@@ -833,18 +860,20 @@ async def wol_update(
     ip_range: str = Form(""),
     mac_address: str = Form(""),
 ):
+    """이름·IP 대역·MAC 수정. 카드의 [저장](폼 제출)과 이름 인라인 편집(`fetch`, JSON 응답)이 함께 쓴다."""
+    back = "/admin/wol"
     if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/wol")
+        return _fail(request, "csrf_invalid", back, None, status.HTTP_403_FORBIDDEN)
     if not device_name.strip() or _magic_packet(mac_address) is None:
-        return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
+        return _fail(request, "invalid_input", back, "이름과 MAC 주소를 확인하세요")
     try:
         ip_address_obj(ip_range.strip())
     except ValueError:
-        return _deny("bad_broadcast", "/admin/wol?msg=브로드캐스트+IP+가+올바르지+않습니다")
+        return _fail(request, "bad_broadcast", back, "브로드캐스트 IP 가 올바르지 않습니다")
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
-            return _deny("not_admin wol.update")
+            return _fail(request, "not_admin wol.update", "/stocks", None, status.HTTP_403_FORBIDDEN)
         await db.execute(
             text("UPDATE wol_device_list SET wol_device_name = :n, "
                  "  wol_device_ip_range = :ip, wol_device_mac_address = :m "
@@ -854,6 +883,8 @@ async def wol_update(
         await db.commit()
 
     logger.info("WOL 장치 수정: id=%s", device_id)
+    if _wants_json(request):
+        return JSONResponse({"ok": True, "name": device_name.strip()})
     return RedirectResponse("/admin/wol?msg=수정했습니다",
                             status_code=status.HTTP_303_SEE_OTHER)
 

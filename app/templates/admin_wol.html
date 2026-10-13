@@ -67,7 +67,13 @@
                                 <input type="hidden" name="device_id" value="{{ d.wol_device_id }}">
                                 <div class="wol-edit-row">
                                     <label>이름</label>
-                                    <input type="text" name="device_name" value="{{ d.wol_device_name }}" required maxlength="100" class="inline-input">
+                                    <input type="hidden" name="device_name" value="{{ d.wol_device_name }}">
+                                    {# 이름은 글자 + 연필(더블클릭도) 인라인 편집 — `/js/inline_name.js`. IP·MAC 은 함께 고치는 설정 칸이라 입력칸 + [저장] 그대로. #}
+                                    <div class="inline-name" data-form="wol-edit-{{ d.wol_device_id }}" data-field="device_name">
+                                        <span class="inline-name__text">{{ d.wol_device_name }}</span>
+                                        <input type="text" class="inline-input inline-name__input" maxlength="100" aria-label="장치 이름" hidden>
+                                        <button type="button" class="inline-name__pencil" aria-label="이름 바꾸기">{{ icons.i('edit') }}</button>
+                                    </div>
                                 </div>
                                 <div class="wol-edit-row">
                                     <label>IP 대역</label>
@@ -101,12 +107,13 @@
     </div>
 </div>
 
+<script src="/js/inline_name.js?v={{ static_v }}" defer></script>
 <script>
-// 값을 고치기 전에는 저장 버튼을 눌러도 의미가 없어 비활성으로 둔다(원본과 같다).
+// 값을 고치기 전에는 저장 버튼을 눌러도 의미가 없어 비활성으로 둔다(원본과 같다). 이름 편집 칸은 따로 저장하므로 뺀다.
 document.querySelectorAll('.wol-edit-form').forEach(function (form) {
     var btn = document.querySelector('button[form="' + form.id + '"]');
     if (!btn) return;
-    form.querySelectorAll('.inline-input').forEach(function (input) {
+    form.querySelectorAll('.inline-input:not(.inline-name__input)').forEach(function (input) {
         input.addEventListener('input', function () { btn.disabled = false; });
     });
 });
