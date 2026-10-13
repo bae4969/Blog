@@ -951,8 +951,8 @@
     .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
 
     /* 순서(2026-10-13, 정본 drag-reorder.md 정렬 표준) — 행 왼쪽 손잡이(점 2×3, 16×20)만 끈다(행은 링크다).
-       주 포인터가 손가락인 기기(폰·태블릿)는 끌 수 없어 손잡이를 숨기고, 터치가 있는 기기(any-pointer: coarse —
-       터치 노트북 포함)는 오른쪽에 ↑↓ 를 둔다. 끄는 행은 흐리게, 놓을 자리는 accent 가로선(`.c-watch__drop`). */
+       주 포인터가 손가락인 기기(pointer: coarse — 폰·태블릿)는 끌 수 없어 손잡이 대신 오른쪽에 ↑↓ 를 둔다.
+       마우스가 주 포인터면 손잡이와 키보드뿐(any-pointer 로 판정하면 터치스크린 없는 Windows PC 도 참이었다). 끄는 행은 흐리게, 놓을 자리는 accent 가로선(`.c-watch__drop`). */
     .c-watch__grip {
         position: absolute;
         inset-block-start: 50%;
@@ -1007,7 +1007,7 @@
     .c-watch__mv:not(:disabled):hover,
     .c-watch__mv:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
 
-    @media (any-pointer: coarse) {
+    @media (pointer: coarse) {
         .c-watch__mv { display: grid; }
         .c-watch__row { padding-inline-end: 6.75rem; }
         /* 누르는 자리 44px — 보이는 크기는 32px(정본 button.md 터치 타깃 보정) */
