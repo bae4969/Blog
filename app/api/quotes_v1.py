@@ -9,10 +9,11 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.db.session import db_session
 from app.schemas.stock import Candle, QuoteOut
-from app.ui.quotes import _quote_meta, _quote_rows
+from app.ui.quotes import _quote_meta, _quote_rows, card_sets
 from app.ui.stocks import _fetch_candles, _KST, _TIMEFRAMES
 
 router = APIRouter(prefix="/api/v1/quotes", tags=["stock"])
@@ -31,6 +32,17 @@ async def quotes():
     async with db_session() as db:
         rows = await _quote_rows(db)
     return [QuoteOut(**r) for r in rows]
+
+
+class QuoteCards(BaseModel):
+    sets: list[list[str]] = Field(description="카드 세트 셋(6장씩) — 앞 둘은 지수, 마지막은 환율. 세트 안 순서가 카드 순서")
+
+
+@router.get("/cards", response_model=QuoteCards, summary="주식 홈 지수·환율 카드 구성")
+async def cards():
+    """관리자가 정한 카드 구성(`/admin/quotes`). 정하지 않았으면 기본 구성. 공개 데이터라 토큰이 없다."""
+    async with db_session() as db:
+        return QuoteCards(sets=await card_sets(db))
 
 
 def _kst_naive(v: datetime) -> datetime:

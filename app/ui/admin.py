@@ -17,6 +17,7 @@ PHP `AdminController` 에서 옮겨 온 7개 중 셋을 2026-08-18 에 걷어냈
 **모든 라우트가 다시 검사한다.**
 """
 
+import json
 import logging
 import re
 import socket
@@ -31,6 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core import app_settings, blog_user, csrf
 from app.services import codex_runner
 from app.db.session import db_session
+from app.ui import quotes as quote_cards
 from app.ui.routes import _int_arg, _shell_ctx, templates
 
 logger = logging.getLogger(__name__)
@@ -1034,6 +1036,9 @@ async def quote_subscriptions(request: Request):
         # 주식 화면처럼 조각내 보낼 필요 없이 통째로 보낸다(~15KB).
         category_map = {r[0]: r[1] for r in (await db.execute(text(
             "SELECT quote_code, quote_category FROM KoreaInvest.quote_info"))).all()}
+        # 주식 홈 카드 구성 — 지금 구성과 고를 수 있는 것(구독 중인 것만).
+        card_sets = await quote_cards.card_sets(db)
+        card_options = await quote_cards.subscribed_quotes(db)
         ctx = await _shell_ctx(request, db, me.level)
 
     on_page = {r.code for r in rows}
@@ -1052,11 +1057,40 @@ async def quote_subscriptions(request: Request):
             "page": page, "total": total,
             "total_pages": max(1, -(-total // _QUOTE_PER_PAGE)),
             "counts": counts, "limit": _QUOTE_LIMIT,
+            "card_sets": card_sets, "card_options": card_options,
+            "card_rules": {"size": quote_cards.CARD_SET_SIZE, "kinds": quote_cards.CARD_SET_KINDS},
             "csrf_token": token, "msg": request.query_params.get("msg"),
         },
     )
     csrf.attach(response, token)
     return response
+
+
+@router.post("/quotes/cards", include_in_schema=False)
+async def quote_cards_save(request: Request, csrf_token: str = Form(""), sets: str = Form("")):
+    """주식 홈 지수·환율 카드 구성 저장(2026-10-13). 화면이 `fetch` 로 부르고 JSON 으로 답한다.
+
+    세트 셋 · 6장씩 · 앞 둘은 지수 · 마지막은 환율 · 구독 중인 것만 · 겹치지 않게 — 화면도 먼저 검사하지만
+    여기서 다시 본다. 어긋나면 400 + 세트별 오류(`errors`, 화면이 그 세트 아래에 띄운다).
+    """
+    if not csrf.valid(request, csrf_token):
+        return JSONResponse({"detail": "csrf"}, status_code=status.HTTP_403_FORBIDDEN)
+    try:
+        parsed = json.loads(sets)
+    except ValueError:
+        parsed = None
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return JSONResponse({"detail": "not_admin"}, status_code=status.HTTP_403_FORBIDDEN)
+        subscribed = {q["code"]: q["category"] for q in await quote_cards.subscribed_quotes(db)}
+        errors = quote_cards.card_set_errors(parsed, subscribed)
+        if errors:
+            logger.warning("관리자 거부: quote_cards %s", errors)
+            return JSONResponse({"detail": "카드 구성을 확인하세요", "errors": errors},
+                                status_code=status.HTTP_400_BAD_REQUEST)
+        await quote_cards.save_card_sets(db, parsed)
+    logger.info("지수·환율 카드 구성 저장: %s", parsed)
+    return JSONResponse({"ok": True, "sets": parsed})
 
 
 @router.post("/quotes/subscriptions", include_in_schema=False)

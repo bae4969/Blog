@@ -477,19 +477,22 @@
     }
 
     // 카드로 띄우는 것과 그 묶음. 넓은 화면은 6장 한 줄이 세트 단위로 넘어가고, 모바일은
-    // 앞 두 세트를 지수로, 마지막 세트를 환율로 한 장씩 넘긴다. 여기 없는 것은 수집만 하고
-    // 카드로는 안 띄운다(나스닥 종합·코스피 200 과 새로 구독한 환율 6종 — 2026-10-03).
+    // 앞 두 세트를 지수로, 마지막 세트를 환율로 한 장씩 넘긴다. 구성은 관리자가 정한다
+    // (`/admin/quotes` → `/api/v1/quotes/cards`, 2026-10-13). 받지 못하면 아래 기본 구성 —
+    // 서버의 `CARD_SETS_DEFAULT`(app/ui/quotes.py)와 같다.
     var CARD_SETS = [
         ['KOSPI', 'KOSDAQ', 'SPX', 'NDX', 'JPNI225', 'SX5E'],
         ['SHANG', 'HKHS', 'TWWT', 'INBOMBAY', 'GRDAX', 'GBFTSE'],
         ['KRWUSD', 'KRWEUR', 'KRWGBP', 'KRWJPY', 'KRWCNY', 'KRWINR']
     ];
 
+    var cardSets = null;   // 받은 구성(한 번만 받는다)
+
     function renderQuotes(rows) {
         var byCode = {};
         rows.forEach(function (r) { byCode[r.code] = r; });
         // 아직 수집 전이라 API 에 없는 코드는 빠진다 — 세트가 통째로 비면 그 세트를 건너뛴다.
-        var sets = CARD_SETS.map(function (codes) {
+        var sets = (cardSets || CARD_SETS).map(function (codes) {
             return codes.map(function (c) { return byCode[c]; }).filter(Boolean);
         });
         var idx = sets[0].concat(sets[1]);
@@ -529,11 +532,23 @@
 
     /* ── 로딩 ──────────────────────────────────────────────────────────── */
 
+    function loadCardSets() {
+        if (cardSets) return Promise.resolve();
+        return fetch('/api/v1/quotes/cards', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (j && Array.isArray(j.sets) && j.sets.length === CARD_SETS.length) cardSets = j.sets;
+            })
+            .catch(function () { /* 기본 구성으로 그린다 */ });
+    }
+
     function loadQuotes() {
-        fetch('/api/v1/quotes', { credentials: 'same-origin' })
-            .then(function (r) { return r.ok ? r.json() : []; })
-            .then(renderQuotes)
-            .catch(function () { renderQuotes([]); });
+        Promise.all([
+            fetch('/api/v1/quotes', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .catch(function () { return []; }),
+            loadCardSets()
+        ]).then(function (res) { renderQuotes(res[0]); });
     }
 
     /** `quiet` 이면 "불러오는 중" 으로 비우지 않는다 — 앱으로 돌아와 다시 받을 때 깜빡이지 않게. */
