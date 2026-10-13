@@ -1039,6 +1039,9 @@
         if (!section || !nameEl) return;
         nameEl.textContent = name || '';
         section.classList.remove('is-empty');
+        // 이름 연필도 **내 것일 때만** — 남의 것·주인 없는 것은 저장하면 404 다(2026-10-13 점검).
+        var editBtn = document.getElementById('portfolioNameEdit');
+        if (editBtn) editBtn.hidden = !mine;
         // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
         // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
         renderPublicToggle(!!mine, !!isPublic);
@@ -1086,8 +1089,9 @@
     /**
      * 포트폴리오 이름 서버 저장
      */
-    function savePortfolioName(name) {
+    function savePortfolioName(name, prevName) {
         if (!currentPortfolioId || !name) return;
+        var id = currentPortfolioId;
         apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(currentPortfolioId), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -1097,7 +1101,12 @@
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 notify('포트폴리오 이름을 바꿨습니다.', 'success');
             })
-            .catch(function (err) { notify(err.message || '포트폴리오 이름을 바꾸지 못했습니다.'); });
+            .catch(function (err) {
+                // 먼저 바꿔 보인 이름을 되돌린다(그사이 다른 포트폴리오로 바뀌었으면 그대로 둔다).
+                var nameEl = document.getElementById('portfolioNameText');
+                if (nameEl && currentPortfolioId === id && nameEl.textContent === name) nameEl.textContent = prevName;
+                notify(err.message || '포트폴리오 이름을 바꾸지 못했습니다.');
+            });
     }
 
     /**
@@ -1593,32 +1602,39 @@
         var nameEditBtn = document.getElementById('portfolioNameEdit');
         var nameText = document.getElementById('portfolioNameText');
         var nameInput = document.getElementById('portfolioNameInput');
+        // 연필이 기본, 이름 더블클릭이 보조. Enter·blur = 저장, Esc = 취소, 빈 이름은 저장하지 않는다.
+        // ⚠️ 입력칸을 숨기면 blur 가 따라온다 — `editing` 으로 한 번만 끝낸다(예전에는 Esc 뒤 blur 가 저장했다).
         if (nameEditBtn && nameText && nameInput) {
-            nameEditBtn.addEventListener('click', function () {
+            var editing = false;
+            var startNameEdit = function () {
+                if (nameEditBtn.hidden || editing) return;
+                editing = true;
                 nameInput.value = nameText.textContent;
                 nameText.style.display = 'none';
                 nameEditBtn.style.display = 'none';
                 nameInput.style.display = '';
                 nameInput.focus();
                 nameInput.select();
-            });
-            nameInput.addEventListener('blur', function () {
+            };
+            var endNameEdit = function (save) {
+                if (!editing) return;
+                editing = false;
+                var prevName = nameText.textContent;
                 var newName = nameInput.value.trim();
-                if (newName && newName !== nameText.textContent) {
-                    nameText.textContent = newName;
-                    savePortfolioName(newName);
-                }
                 nameInput.style.display = 'none';
                 nameText.style.display = '';
                 nameEditBtn.style.display = '';
-            });
-            nameInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
-                if (e.key === 'Escape') {
-                    nameInput.style.display = 'none';
-                    nameText.style.display = '';
-                    nameEditBtn.style.display = '';
+                if (save && newName && newName !== prevName) {
+                    nameText.textContent = newName;
+                    savePortfolioName(newName, prevName);
                 }
+            };
+            nameEditBtn.addEventListener('click', startNameEdit);
+            nameText.addEventListener('dblclick', startNameEdit);
+            nameInput.addEventListener('blur', function () { endNameEdit(true); });
+            nameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); endNameEdit(true); }
+                if (e.key === 'Escape') { e.preventDefault(); endNameEdit(false); }
             });
         }
 
