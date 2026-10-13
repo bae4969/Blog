@@ -97,7 +97,7 @@
                             <tr data-id="{{ cat.category_index }}">
                                 <td class="order-cell">
                                     {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 손가락(pointer: coarse)은 끌기가 없어 ↑↓ — CSS 가 둘 중 하나만 보인다. #}
-                                    <span class="cat-grip" draggable="true" title="끌어서 순서 변경">{{ icons.i('grip') }}</span>
+                                    <span class="cat-grip" draggable="true" tabindex="0" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
                                     <div class="order-buttons">
                                         {% if not loop.first %}
                                             <form method="post" action="/admin/categories/reorder" class="inline-form">
@@ -187,12 +187,14 @@ document.querySelectorAll('.category-save-btn').forEach(function (btn) {
 
 // 순서 — 손잡이(점 2×3)만 끌 수 있고 놓으면 전체 순서를 한 번에 저장한다(2026-10-13 점검, 정본 drag-reorder.md
 // "목록 정렬 표준"). 놓을 자리는 커서 Y 가 넘은 행 중앙선 수로 정하고, 표시선과 놓기가 같은 계산을 쓴다.
-// 저장이 실패해도 화면 순서는 두고 오류 토스트로 알린다.
+// 키보드는 손잡이에 포커스를 두고 ↑/↓ 로 한 칸씩 옮긴다(같은 저장 경로). 연달아 옮겨도 마지막 순서 한 번만
+// 보내도록 400ms 모아 저장한다. 저장이 실패해도 화면 순서는 두고 오류 토스트로 알린다.
 (function () {
     var tbody = document.querySelector('.category-table tbody');
     if (!tbody) return;
     var dragRow = null;
     var line = null;
+    var saveTimer = null;
 
     function rows() { return Array.prototype.slice.call(tbody.children); }
 
@@ -219,6 +221,11 @@ document.querySelectorAll('.category-save-btn').forEach(function (btn) {
     function hideLine() { if (line) line.hidden = true; }
 
     function saveOrder() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(postOrder, 400);
+    }
+
+    function postOrder() {
         var fd = new FormData();
         fd.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
         fd.append('order', rows().map(function (r) { return r.dataset.id; }).join(','));
@@ -253,6 +260,17 @@ document.querySelectorAll('.category-save-btn').forEach(function (btn) {
         if (!drop) return;
         e.preventDefault();
         tbody.insertBefore(dragRow, drop.before ? drop.anchor : drop.anchor.nextSibling);
+        saveOrder();
+    });
+    tbody.addEventListener('keydown', function (e) {
+        var grip = e.target.closest && e.target.closest('.cat-grip');
+        if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();   // 문서가 스크롤되지 않게
+        var row = grip.closest('tr');
+        var to = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+        if (!to) return;
+        tbody.insertBefore(row, e.key === 'ArrowUp' ? to : to.nextSibling);
+        grip.focus();   // 행을 옮기면 문서에서 잠깐 빠져 포커스가 풀린다 — 같은 손잡이로 되돌린다
         saveOrder();
     });
     tbody.addEventListener('dragend', function () {
