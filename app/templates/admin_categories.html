@@ -182,6 +182,9 @@
                                         {% if cat.post_count > 0 %}
                                             <button type="button" class="admin-info" data-tip-tap
                                                 aria-label="게시글이 있는 카테고리는 지울 수 없습니다 — 글을 먼저 옮기거나 지우세요">{{ icons.i('info') }}</button>
+                                        {% else %}
+                                            {# ⓘ 가 없는 줄도 같은 자리를 비워 둔다 — 줄마다 저장·삭제 위치가 어긋났다(정본 button.md 작업 칸). #}
+                                            <span class="admin-info admin-info--blank" aria-hidden="true">{{ icons.i('info') }}</span>
                                         {% endif %}
                                     </div>
                                 </td>
