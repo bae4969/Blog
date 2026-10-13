@@ -1827,35 +1827,45 @@ function toggleChartSettings(e) {
     if (!panel._follow) {
         panel._follow = true;
         window.TopLayer.follow(panel, panel.parentElement, { side: 'below', align: 'left', gap: 6 });
+        // 어디서 닫히든(같은 버튼·바깥·Esc·버튼이 상단바에 가려짐 — toplayer.js) 정리는 여기 한 곳에서.
+        panel.addEventListener('toggle', function (ev) {
+            var open = ev.newState === 'open';
+            var btn = document.querySelector('.chart-settings-btn');
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (!open) {
+                panel.classList.remove('open');
+                document.removeEventListener('pointerdown', closeChartSettingsOnClickOutside);
+                document.removeEventListener('keydown', closeChartSettingsOnEsc);
+            }
+        });
     }
-    var opening = !panel.classList.contains('open');
-    panel.classList.toggle('open', opening);
-    if (opening) {
-        panel.classList.remove('open');
-        window.TopLayer.show(panel);
-        requestAnimationFrame(function () { panel.classList.add('open'); });
-    } else {
+    if (panel.matches(':popover-open')) {
         window.TopLayer.hide(panel);
+        return;
     }
-
-    if (opening) {
-        setTimeout(function() {
-            document.addEventListener('pointerdown', closeChartSettingsOnClickOutside);
-        }, 0);
-    } else {
-        document.removeEventListener('pointerdown', closeChartSettingsOnClickOutside);
-    }
+    window.TopLayer.show(panel);
+    requestAnimationFrame(function () { panel.classList.add('open'); });
+    setTimeout(function() {
+        document.addEventListener('pointerdown', closeChartSettingsOnClickOutside);
+        document.addEventListener('keydown', closeChartSettingsOnEsc);
+    }, 0);
 }
 
 function closeChartSettingsOnClickOutside(e) {
     var panel = document.getElementById('chartSettingsPanel');
     var btn = document.querySelector('.chart-settings-btn');
     if (!panel || !btn) return;
-    if (!panel.contains(e.target) && !btn.contains(e.target)) {
-        panel.classList.remove('open');
-        window.TopLayer.hide(panel);
-        document.removeEventListener('pointerdown', closeChartSettingsOnClickOutside);
-    }
+    if (!panel.contains(e.target) && !btn.contains(e.target)) window.TopLayer.hide(panel);
+}
+
+// Esc 는 패널만 닫고 포커스를 설정 버튼으로 돌린다.
+function closeChartSettingsOnEsc(e) {
+    if (e.key !== 'Escape') return;
+    var panel = document.getElementById('chartSettingsPanel');
+    if (!panel || !panel.matches(':popover-open')) return;
+    window.TopLayer.hide(panel);
+    var btn = document.querySelector('.chart-settings-btn');
+    if (btn) btn.focus();
 }
 
 function toggleLogScale(enabled) {

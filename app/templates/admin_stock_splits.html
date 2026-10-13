@@ -180,6 +180,10 @@ function notifyToast(message) {
         if (!searchInput.contains(e.target) && !resultsBox.contains(e.target)) hideResults();
     });
     resultsBox.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    // Esc 는 목록만 닫는다(입력칸 글자는 그대로).
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && resultsBox.matches(':popover-open')) { e.preventDefault(); hideResults(); }
+    });
     searchInput.addEventListener('blur', function (e) {
         if (e.relatedTarget && !resultsBox.contains(e.relatedTarget)) hideResults();
     });

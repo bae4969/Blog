@@ -532,6 +532,11 @@
         // 목록은 top layer(popover="manual") — 입력칸 줄 바로 아래, 같은 폭(옛 absolute 자리).
         window.TopLayer.follow(resultsDiv, resultsDiv.parentElement, { side: 'below', align: 'stretch', gap: 0 });
 
+        // Esc 는 목록만 닫는다(입력칸 글자는 그대로).
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && resultsDiv.matches(':popover-open')) { e.preventDefault(); window.TopLayer.hide(resultsDiv); }
+        });
+
         input.addEventListener('input', function () {
             clearTimeout(debounce);
             var q = input.value.trim();
