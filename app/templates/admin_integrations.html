@@ -14,6 +14,16 @@
 {% block extra_css %}<link rel="stylesheet" href="/css/admin.css?v={{ static_v }}">{% endblock %}
 
 {% block content %}
+{#
+  서버 검증 실패(`form`)는 토스트가 아니라 그 칸 아래에, 입력값을 채운 채 보인다(정본 toast.md D2, 2026-10-13).
+  `form` = { field, error, values, where? } — admin.py 가 화면을 다시 그릴 때 넘긴다.
+#}
+{%- macro ferr(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where -%}<p class="field-error" role="alert">{{ form.error }}</p>{%- endif -%}
+{%- endmacro -%}
+{%- macro finvalid(field, where=none) -%}
+{%- if form and form.field == field and form.get('where') == where %} aria-invalid="true" autofocus{% endif -%}
+{%- endmacro -%}
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card">
@@ -78,6 +88,7 @@
                         <option value="">모델 기본{% if cur %} ({{ cur.default }}){% endif %}</option>
                         {% for e in (cur.efforts if cur else []) %}<option value="{{ e }}"{% if values.ai_effort == e %} selected{% endif %}>{{ e }}</option>{% endfor %}
                     </select>
+                    {{ ferr('ai_effort') }}
                 </div>
             </div>
             <script type="application/json" id="codexCatalog">{{ codex.catalog.models | tojson }}</script>
@@ -94,7 +105,8 @@
                 </div>
                 <div class="admin-form-field">
                     <label for="smtp_port">포트</label>
-                    <input type="text" id="smtp_port" name="smtp_port" required inputmode="numeric" maxlength="5" value="{{ values.smtp_port }}">
+                    <input type="text" id="smtp_port" name="smtp_port" required inputmode="numeric" maxlength="5" value="{{ values.smtp_port }}"{{ finvalid('smtp_port') }}>
+                    {{ ferr('smtp_port') }}
                 </div>
                 <div class="admin-form-field">
                     <label for="smtp_user">계정</label>
@@ -107,7 +119,8 @@
                 </div>
                 <div class="admin-form-field">
                     <label for="plan_mail_to">받는 주소</label>
-                    <input type="email" id="plan_mail_to" name="plan_mail_to" maxlength="200" value="{{ values.plan_mail_to }}">
+                    <input type="email" id="plan_mail_to" name="plan_mail_to" maxlength="200" value="{{ values.plan_mail_to }}"{{ finvalid('plan_mail_to') }}>
+                    {{ ferr('plan_mail_to') }}
                 </div>
             </div>
             <div class="admin-form-actions">

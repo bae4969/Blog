@@ -442,7 +442,12 @@ document.addEventListener('DOMContentLoaded', function () {
 document.addEventListener('DOMContentLoaded', function () {
     var url = new URL(location.href);
     var kind = url.searchParams.get('kind') === 'error' ? 'error' : 'info';
-    if (window.toast) window.toast({{ msg | tojson }}, kind);
+    // 화면에 폼 오류 칸(`data-form-error`)이 있으면 실패는 거기에 — 폼 검증은 토스트가 아니다(정본 toast.md D2).
+    // 종목·지수 구독처럼 고르던 값이 초안으로 남는 폼이 쓴다(리다이렉트해도 입력값이 그대로다).
+    // ⚠️ 화면 스크립트가 처음 그리며 오류 칸을 비우므로 그 뒤(setTimeout 0)에 채운다.
+    var formError = kind === 'error' && document.querySelector('[data-form-error]');
+    if (formError) setTimeout(function () { formError.textContent = {{ msg | tojson }}; formError.hidden = false; }, 0);
+    else if (window.toast) window.toast({{ msg | tojson }}, kind);
     url.searchParams.delete('msg');
     url.searchParams.delete('kind');
     history.replaceState(history.state, '', url.pathname + url.search + url.hash);

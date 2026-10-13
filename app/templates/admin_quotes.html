@@ -69,7 +69,7 @@
                 <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">{{ icons.i('reset') }}<span>원래 상태로 되돌리기</span></button>
                 <button type="submit" form="quoteAdminForm" class="btn btn-primary stock-admin-action">{{ icons.i('save') }}<span>구독 목록 저장</span></button>
             </div>
-            <p class="field-error stock-admin-error" id="selectionError" role="alert" hidden></p>
+            <p class="field-error stock-admin-error" id="selectionError" role="alert" data-form-error hidden></p>
         </div>
 
         <form class="stock-admin-table-form" method="post" action="/admin/quotes/subscriptions" id="quoteAdminForm">

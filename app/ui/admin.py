@@ -74,6 +74,12 @@ def _deny(reason: str, to: str = "/stocks") -> RedirectResponse:
 @router.get("/categories", response_class=HTMLResponse, include_in_schema=False)
 async def categories(request: Request):
     """카테고리 목록. 글 수를 함께 보여준다 — 글이 있으면 삭제할 수 없어서다."""
+    return await _categories_page(request)
+
+
+async def _categories_page(request: Request, form: dict | None = None, status_code: int = 200):
+    """목록 화면. `form` 이 있으면 만들기 폼의 서버 검증 실패다 — 입력값을 채우고 그 칸 아래에 오류를 보인다
+    (정본 toast.md D2: 폼 검증은 토스트가 아니라 폼 안에, 입력값을 지킨다)."""
     async with db_session() as db:
         me = await _require_admin(request, db)
         if me is None:
@@ -96,7 +102,9 @@ async def categories(request: Request):
     response = templates.TemplateResponse(
         request,
         "admin_categories.html",
-        {**ctx, "admin_menu": "categories", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "categories", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg"),
+         "form": form},
+        status_code=status_code,
     )
     csrf.attach(response, token)
     return response
@@ -120,19 +128,29 @@ async def category_create(
     write_level: int = Form(0, alias="category_write_level"),
     group: str = Form("general", alias="category_group"),
 ):
-    """카테고리 추가. 순서는 맨 뒤에 붙인다."""
+    """카테고리 추가. 순서는 맨 뒤에 붙인다. 검증 실패는 화면을 다시 그려 폼 안에 보인다(입력값 유지)."""
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/categories")
 
     name = name.strip()
+    values = {"category_name": name, "category_read_level": read_level,
+              "category_write_level": write_level, "category_group": group}
+
+    def invalid(field: str, msg: str):
+        logger.warning("관리자 거부: category_create %s", field)
+        return _categories_page(request, {"error": msg, "field": field, "values": values},
+                                status.HTTP_400_BAD_REQUEST)
+
     if not name:
-        return _deny("empty_name", "/admin/categories?msg=이름을+입력하세요")
+        return await invalid("category_name", "이름을 입력하세요")
     if group not in _CATEGORY_GROUPS:
-        return _deny("invalid_group", "/admin/categories?msg=묶음을+확인하세요")
+        return await invalid("category_group", "묶음을 확인하세요")
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
             return _deny("not_admin create")
+        if (await db.execute(text("SELECT 1 FROM category_list WHERE category_name = :n"), {"n": name})).first():
+            return await invalid("category_name", "같은 이름의 카테고리가 있습니다")   # 이름은 UNIQUE — 예전엔 500
         # `category_order` 가 UNIQUE 라 빈 자리를 찾지 않고 최대값+1 로 붙인다.
         nxt = (await db.execute(text("SELECT IFNULL(MAX(category_order), 0) + 1 FROM category_list"))).scalar()
         await db.execute(
@@ -738,6 +756,12 @@ def _magic_packet(mac: str) -> bytes | None:
 
 @router.get("/wol", response_class=HTMLResponse, include_in_schema=False)
 async def wol(request: Request):
+    return await _wol_page(request)
+
+
+async def _wol_page(request: Request, form: dict | None = None, status_code: int = 200):
+    """장치 목록. `form` 이 있으면 등록(`where='create'`)·카드 수정(`where=장치 id`)의 서버 검증 실패다 —
+    그 폼의 입력값을 채우고 그 칸 아래에 오류를 보인다(정본 toast.md D2)."""
     async with db_session() as db:
         me = await _require_admin(request, db)
         if me is None:
@@ -755,7 +779,9 @@ async def wol(request: Request):
     response = templates.TemplateResponse(
         request,
         "admin_wol.html",
-        {**ctx, "admin_menu": "wol", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg")},
+        {**ctx, "admin_menu": "wol", "rows": rows, "csrf_token": token, "msg": request.query_params.get("msg"),
+         "form": form},
+        status_code=status_code,
     )
     csrf.attach(response, token)
     return response
@@ -816,6 +842,20 @@ async def wol_execute(request: Request, csrf_token: str = Form(""), device_id: i
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
+
+def _wol_invalid(device_name: str, ip_range: str, mac_address: str) -> tuple[str, str] | None:
+    """WOL 입력 검사 — 틀린 칸과 안내, 맞으면 None."""
+    if not device_name.strip():
+        return "device_name", "이름을 입력하세요"
+    if _magic_packet(mac_address) is None:
+        return "mac_address", "MAC 주소 형식이 아닙니다(AA-BB-CC-DD-EE-FF)"
+    try:
+        ip_address_obj(ip_range.strip())
+    except ValueError:
+        return "ip_range", "IP 주소 형식이 아닙니다(예: 192.168.0.255)"
+    return None
+
+
 @router.post("/wol/create", include_in_schema=False)
 async def wol_create(
     request: Request,
@@ -828,12 +868,13 @@ async def wol_create(
 ):
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/wol")
-    if not device_name.strip() or _magic_packet(mac_address) is None:
-        return _deny("invalid_input", "/admin/wol?msg=이름과+MAC+주소를+확인하세요")
-    try:
-        ip_address_obj(ip_range.strip())
-    except ValueError:
-        return _deny("bad_broadcast", "/admin/wol?msg=브로드캐스트+IP+가+올바르지+않습니다")
+    bad = _wol_invalid(device_name, ip_range, mac_address)
+    if bad:
+        logger.warning("관리자 거부: wol.create %s", bad[0])
+        return await _wol_page(request, {"where": "create", "field": bad[0], "error": bad[1],
+                                         "values": {"device_name": device_name, "ip_range": ip_range,
+                                                    "mac_address": mac_address}},
+                               status.HTTP_400_BAD_REQUEST)
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
@@ -864,12 +905,15 @@ async def wol_update(
     back = "/admin/wol"
     if not csrf.valid(request, csrf_token):
         return _fail(request, "csrf_invalid", back, None, status.HTTP_403_FORBIDDEN)
-    if not device_name.strip() or _magic_packet(mac_address) is None:
-        return _fail(request, "invalid_input", back, "이름과 MAC 주소를 확인하세요")
-    try:
-        ip_address_obj(ip_range.strip())
-    except ValueError:
-        return _fail(request, "bad_broadcast", back, "브로드캐스트 IP 가 올바르지 않습니다")
+    bad = _wol_invalid(device_name, ip_range, mac_address)
+    if bad and _wants_json(request):
+        return _fail(request, f"invalid_input {bad[0]}", back, bad[1])
+    if bad:
+        # 카드의 [저장](폼 제출) — 그 카드에 입력값과 오류를 다시 그린다.
+        logger.warning("관리자 거부: wol.update %s", bad[0])
+        return await _wol_page(request, {"where": device_id, "field": bad[0], "error": bad[1],
+                                         "values": {"ip_range": ip_range, "mac_address": mac_address}},
+                               status.HTTP_400_BAD_REQUEST)
 
     async with db_session() as db:
         if await _require_admin(request, db) is None:
@@ -1106,6 +1150,12 @@ def _back(msg: str, error: bool = False) -> RedirectResponse:
 
 @router.get("/integrations", response_class=HTMLResponse, include_in_schema=False)
 async def integrations(request: Request):
+    return await _integrations_page(request)
+
+
+async def _integrations_page(request: Request, form: dict | None = None, status_code: int = 200):
+    """설정 화면. `form` 이 있으면 저장의 서버 검증 실패다 — 고치던 값(비밀 칸 제외)을 채우고 그 칸 아래에
+    오류를 보인다(정본 toast.md D2). ⚠️ 비밀 칸은 화면으로 돌려보내지 않는다 — 다시 넣어야 한다."""
     async with db_session() as db:
         me = await _require_admin(request, db)
         if me is None:
@@ -1113,6 +1163,8 @@ async def integrations(request: Request):
         cfg = await app_settings.load(db)
         ctx = await _shell_ctx(request, db, me.level)
     values = {k: ("" if k in app_settings.SECRETS else v) for k, v in cfg.items()}
+    if form:
+        values.update({k: v for k, v in form["values"].items() if k not in app_settings.SECRETS})
     saved = {k: app_settings.masked(cfg[k]) for k in app_settings.SECRETS}
     model = codex_runner.resolve_model(cfg["ai_model"])
     codex = {**codex_runner.login_state(), "logged_in": codex_runner.logged_in(),
@@ -1123,7 +1175,8 @@ async def integrations(request: Request):
     response = templates.TemplateResponse(
         request, "admin_integrations.html",
         {**ctx, "admin_menu": "integrations", "values": values, "saved": saved, "codex": codex,
-         "csrf_token": token, "msg": request.query_params.get("msg")})
+         "csrf_token": token, "msg": request.query_params.get("msg"), "form": form},
+        status_code=status_code)
     csrf.attach(response, token)
     return response
 
@@ -1134,12 +1187,17 @@ async def integrations_save(request: Request):
     if not csrf.valid(request, str(form.get("csrf_token", ""))):
         return _deny("csrf_invalid", "/admin/integrations")
     values = {k: str(form.get(k, "")).strip() for k in app_settings.DEFAULTS}
+    bad = None
     if not values["smtp_port"].isdigit() or not 0 < int(values["smtp_port"]) < 65536:
-        return _back("SMTP 포트는 1~65535 숫자여야 합니다", error=True)
-    if values["ai_effort"] and values["ai_effort"] not in app_settings.EFFORTS:
-        return _back("추론 강도가 올바르지 않습니다", error=True)
-    if values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
-        return _back("받는 메일 주소 형식이 아닙니다", error=True)
+        bad = ("smtp_port", "SMTP 포트는 1~65535 숫자여야 합니다")
+    elif values["ai_effort"] and values["ai_effort"] not in app_settings.EFFORTS:
+        bad = ("ai_effort", "추론 강도가 올바르지 않습니다")
+    elif values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
+        bad = ("plan_mail_to", "받는 메일 주소 형식이 아닙니다")
+    if bad:
+        logger.warning("관리자 거부: integrations.save %s", bad[0])
+        return await _integrations_page(request, {"field": bad[0], "error": bad[1], "values": values},
+                                        status.HTTP_400_BAD_REQUEST)
     async with db_session() as db:
         me = await _require_admin(request, db)
         if me is None:
