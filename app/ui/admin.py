@@ -1149,22 +1149,22 @@ async def integrations_save(request: Request):
     return _back("외부 연동 설정을 저장했습니다")
 
 
-async def _test_ai(cfg: dict) -> str:
-    """codex 를 실제로 한 번 부른다(10~20초) — 로그인·모델이 맞는지 한 번에 본다."""
+async def _test_ai(cfg: dict) -> tuple[bool, str]:
+    """codex 를 실제로 한 번 부른다(10~20초) — 로그인·모델이 맞는지 한 번에 본다. (성공 여부, 안내)"""
     model = codex_runner.resolve_model(cfg["ai_model"])
     effort = codex_runner.resolve_effort(model, cfg["ai_effort"])
     try:
         out = await codex_runner.run("‘OK’ 라고만 답해.", model, effort=effort)
     except codex_runner.CodexError as e:
-        return str(e)
-    return f"AI 응답 성공 — {model or 'codex 기본'} · 강도 {effort or '기본'}: {out.strip()[:40]}"
+        return False, str(e)
+    return True, f"AI 응답 성공 — {model or 'codex 기본'} · 강도 {effort or '기본'}: {out.strip()[:40]}"
 
 
-def _test_smtp(cfg: dict) -> str:
-    """로그인까지만 한다 — 메일은 보내지 않는다. 465 는 SSL, 그 밖은 STARTTLS."""
+def _test_smtp(cfg: dict) -> tuple[bool, str]:
+    """로그인까지만 한다 — 메일은 보내지 않는다. 465 는 SSL, 그 밖은 STARTTLS. (성공 여부, 안내)"""
     import smtplib
     if not (cfg["smtp_host"] and cfg["smtp_user"] and cfg["smtp_password"]):
-        return "SMTP 호스트·계정·비밀번호를 모두 넣어 주세요"
+        return False, "SMTP 호스트·계정·비밀번호를 모두 넣어 주세요"
     try:
         port = int(cfg["smtp_port"])
         if port == 465:
@@ -1175,10 +1175,10 @@ def _test_smtp(cfg: dict) -> str:
         with server:
             server.login(cfg["smtp_user"], cfg["smtp_password"])
     except smtplib.SMTPAuthenticationError:
-        return "SMTP 로그인 실패 — 계정·비밀번호(앱 비밀번호)를 확인하세요"
+        return False, "SMTP 로그인 실패 — 계정·비밀번호(앱 비밀번호)를 확인하세요"
     except (OSError, smtplib.SMTPException) as e:
-        return f"SMTP 서버에 닿지 못했습니다({type(e).__name__})"
-    return "SMTP 로그인 성공 — 메일은 보내지 않았습니다"
+        return False, f"SMTP 서버에 닿지 못했습니다({type(e).__name__})"
+    return True, "SMTP 로그인 성공 — 메일은 보내지 않았습니다"
 
 
 @router.post("/integrations/codex", include_in_schema=False)
@@ -1212,10 +1212,12 @@ async def integrations_test(request: Request, csrf_token: str = Form(""), target
             return _deny("not_admin integrations.test")
         cfg = await app_settings.load(db)
     if target == "ai":
-        return _back(await _test_ai(cfg))
+        ok, msg = await _test_ai(cfg)
+        return _back(msg, error=not ok)   # 시험 실패는 오류 토스트로
     if target == "smtp":
         import asyncio
-        return _back(await asyncio.to_thread(_test_smtp, cfg))
+        ok, msg = await asyncio.to_thread(_test_smtp, cfg)
+        return _back(msg, error=not ok)
     return _back("무엇을 시험할지 모릅니다", error=True)
 
 
