@@ -10,6 +10,10 @@
         var dropdown = root.querySelector('.combobox-dropdown');
         dropdown.setAttribute('popover', 'manual');
         window.TopLayer.follow(dropdown, root, { side: 'below', align: 'stretch', gap: 4 });
+        // 콤보가 상단바 뒤로 스크롤돼 toplayer.js 가 목록을 닫으면 열림 표시도 맞춘다.
+        dropdown.addEventListener('toggle', function (e) {
+            if (e.newState === 'closed') root.classList.remove('combobox-open');
+        });
         if (!hiddenInput || !search || !list) {
             return;
         }

@@ -191,6 +191,9 @@
         barEl = formEl && formEl.closest('.c-topbar');
         if (!formEl || !inputEl || !resultsEl || !barEl) return;
         window.TopLayer.follow(resultsEl, formEl, place);
+        resultsEl.addEventListener('toggle', function (e) {
+            if (e.newState === 'closed') inputEl.setAttribute('aria-expanded', 'false');
+        });
 
         inputEl.addEventListener('input', schedule);
         inputEl.addEventListener('focus', function () {

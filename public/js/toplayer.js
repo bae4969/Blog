@@ -53,12 +53,39 @@
     };
 
     /**
+     * 앵커가 보이지 않는가 — 화면 밖, 잘라 내는 스크롤 부모 밖, 또는 고정 상단바(`.c-topbar`)에 통째로 가려졌다.
+     * 상단바 안의 앵커(상단바 검색)는 상단바에 가려지지 않는다.
+     */
+    function anchorHidden(anchor) {
+        var r = anchor.getBoundingClientRect();
+        var top = 0, left = 0;
+        var bottom = document.documentElement.clientHeight, right = document.documentElement.clientWidth;
+        var bar = document.querySelector('.c-topbar');
+        if (bar && !bar.contains(anchor)) top = Math.max(top, bar.getBoundingClientRect().bottom);
+        for (var p = anchor.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+            var cs = getComputedStyle(p);
+            if (/(auto|scroll|hidden|clip)/.test(cs.overflowX + cs.overflowY)) {
+                var q = p.getBoundingClientRect();
+                top = Math.max(top, q.top); left = Math.max(left, q.left);
+                bottom = Math.min(bottom, q.bottom); right = Math.min(right, q.right);
+            }
+        }
+        return r.bottom <= top || r.top >= bottom || r.right <= left || r.left >= right;
+    }
+
+    /**
      * 열린 동안 자리를 따라간다. `getPlace` 는 열 때마다 부르는 함수(화면 폭에 따라 자리가 바뀌는 곳)이거나 값.
      * 연 뒤에는 토스트를 다시 올린다.
+     * 앵커가 보이지 않게 되면(스크롤로 화면·상단바 뒤로) 닫는다 — 앵커 없이 상단바 위에 떠 있었다(2026-10-13 D14).
+     * 닫힘 정리가 필요한 쪽은 popover `toggle`(newState 'closed')을 듣는다.
      */
     TL.follow = function (pop, anchor, getPlace) {
         function cur() { return typeof getPlace === 'function' ? getPlace() : getPlace; }
-        function re() { if (pop.matches(':popover-open')) TL.place(pop, anchor, cur()); }
+        function re() {
+            if (!pop.matches(':popover-open')) return;
+            if (anchorHidden(anchor)) { TL.hide(pop); return; }
+            TL.place(pop, anchor, cur());
+        }
         var ro = new ResizeObserver(re);
         // beforetoggle 은 보이기 직전(동기)이라 첫 그림부터 제자리다.
         pop.addEventListener('beforetoggle', function (e) {
