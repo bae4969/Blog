@@ -320,6 +320,7 @@
     min-block-size: 0;
     padding: var(--space-3) var(--space-4) var(--space-4);
     overflow-y: auto;
+    overscroll-behavior: contain;   /* 좁은 화면 시트 — 터치로 끝에서 당겨도 뒤 문서로 넘어가지 않게(휠은 trapWheel) */
 }
 
 /* 상세 창의 덩어리 — 작은 제목 + 글 */
@@ -799,6 +800,7 @@
     margin: 0;
     padding: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;   /* 끝에서 뒤 문서로 넘어가지 않게 */
     list-style: none;
 }
 

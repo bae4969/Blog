@@ -478,6 +478,19 @@
         color: inherit;
     }
 
+    /* ── 뒤 스크롤 잠금 — 2026-10-13 UI 기본 동작 점검 ─────────────────
+     * 모달 dialog(`showModal()` 은 스크롤을 막지 않는다)·체결 바텀시트·좁은 화면 관심 종목 서랍이 열린 동안
+     * 문서를 잠근다. 스크롤바 자리는 `scrollbar-gutter: stable` 이 지켜 폭이 움찔하지 않는다.
+     * ⚠️ `html` 에 건다 — 예전 체결 시트는 `body.style.overflow` 만 바꿨는데 `html { overflow-x: hidden }`(blog.css)
+     *    때문에 body 의 overflow 가 뷰포트로 전파되지 않아 잠기지 않았다.
+     */
+    html:has(dialog:modal),
+    html:has(.execution-overlay.active) { overflow: hidden; }
+
+    @media (max-width: 89.99rem) {
+        html.rail-open { overflow: hidden; }
+    }
+
     /* ── 상단바 종목 검색 ─────────────────────────────────────────────
      * 2026-09-23 주식이 메인이 되며 `/stocks` 오른쪽 열에서 상단바로 올라왔다
      * (`/js/stock_search.js`). 토스증권 PC 처럼 테두리 없는 둥근 칸 하나.
@@ -533,6 +546,7 @@
         position: fixed;
         max-block-size: min(70vh, 36rem);
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding: var(--space-2);
         border: 1px solid var(--bae-border);
         border-radius: var(--r-card);

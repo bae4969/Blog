@@ -554,6 +554,7 @@
         flex: 1;
         max-block-size: none;
         overflow-y: auto;
+        overscroll-behavior: contain;   /* 끝에서 당겨도 뒤 문서·새로고침으로 넘어가지 않게 */
         -webkit-overflow-scrolling: touch;
     }
 }

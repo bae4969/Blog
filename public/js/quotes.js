@@ -638,6 +638,8 @@
         });
         boxEl.addEventListener('mousemove', moveTooltip);
         boxEl.addEventListener('mouseleave', hideTooltip);
+        // 마우스를 따라가는 풍선이라 스크롤하면 타일과 어긋난 채 남는다 — 거둔다(2026-10-13 점검).
+        document.addEventListener('scroll', hideTooltip, true);
 
         // 창 크기뿐 아니라 옆 칸 높이를 따라서도 판이 늘어난다(`stock_home.css`) — 판 자체를 지켜본다.
         // 데이터가 오기 전에는 그리지 않는다(첫 호출이 "불러오는 중…" 을 "없습니다" 로 덮는다).

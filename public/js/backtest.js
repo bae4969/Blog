@@ -1242,6 +1242,14 @@
         return copy;
     }
 
+    // 프리셋 요약 풍선 — 마우스를 올린 항목 옆에 하나만 뜬다. 스크롤하면 항목만 움직이고 풍선은 남으므로 거둔다
+    // (2026-10-13 점검, capture 라 목록·문서 어느 스크롤이든).
+    var presetTip = null;
+    function removePresetTip() {
+        if (presetTip) { presetTip.remove(); presetTip = null; }
+    }
+    document.addEventListener('scroll', removePresetTip, true);
+
     function loadPresetList() {
         if (!window.__BACKTEST_USER_LOGGED_IN) return;
         var listEl = document.getElementById('presetList');
@@ -1276,6 +1284,7 @@
                 listEl.querySelectorAll('.preset-item[data-info]').forEach(function (item) {
                     if (!item.dataset.info) return;
                     item.addEventListener('mouseenter', function () {
+                        removePresetTip();
                         var tip = document.createElement('div');
                         tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
                         tip.setAttribute('popover', 'manual');   // top layer — 크기를 재려면 먼저 띄운다
@@ -1291,11 +1300,9 @@
                         top = Math.max(8, Math.min(top, window.innerHeight - tip.offsetHeight - 8));
                         tip.style.left = left + 'px';
                         tip.style.top = top + 'px';
-                        item._floatTip = tip;
+                        presetTip = tip;
                     });
-                    item.addEventListener('mouseleave', function () {
-                        if (item._floatTip) { item._floatTip.remove(); item._floatTip = null; }
-                    });
+                    item.addEventListener('mouseleave', removePresetTip);
                 });
 
                 listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {

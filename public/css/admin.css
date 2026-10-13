@@ -650,6 +650,7 @@
     box-shadow: var(--shadow-lg);
     max-height: 280px;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .combobox-list {

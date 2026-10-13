@@ -1179,6 +1179,7 @@ details[open] > .config-section-title.clickable {
     border-radius: var(--border-radius-sm, 4px);
     max-height: 240px;
     overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: var(--shadow-lg);
 }
 

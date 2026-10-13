@@ -838,6 +838,8 @@
     }
 
     function hideTip() { if (tip && tip.matches(':popover-open')) tip.hidePopover(); }
+    // 마우스를 따라가는 풍선이라 스크롤하면 조각과 어긋난 채 남는다 — 거둔다(2026-10-13 점검).
+    document.addEventListener('scroll', hideTip, true);
 
     function arc(cx, cy, r1, r0, a0, a1) {
         // 한 조각이 전부(100%)면 시작·끝이 같아 호가 사라진다 — 살짝 덜 그린다.
