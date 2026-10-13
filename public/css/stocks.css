@@ -462,11 +462,26 @@
     opacity: 0.7;
 }
 
-.chart-indicator-help:hover .chart-indicator-help-btn,
-.chart-indicator-help:focus-within .chart-indicator-help-btn {
+/* ⓘ 동작은 다른 ⓘ 와 같다(2026-10-13) — 마우스는 올리면(hover 는 마우스 기기에서만), 키보드는 포커스로,
+   손가락은 tooltip.js 가 탭마다 `.is-open` 을 여닫는다. 손가락으로 누른 자리에 남는 hover·focus 로 띄우지 않는다. */
+.chart-indicator-help.is-open .chart-indicator-help-btn,
+.chart-indicator-help:has(.chart-indicator-help-btn:focus-visible) .chart-indicator-help-btn {
     border-color: var(--bae-info);
     color: var(--bae-text-primary);
     opacity: 1;
+}
+
+@media (hover: hover) {
+    .chart-indicator-help:hover .chart-indicator-help-btn {
+        border-color: var(--bae-info);
+        color: var(--bae-text-primary);
+        opacity: 1;
+    }
+
+    .chart-indicator-help:hover .chart-indicator-tooltip {
+        visibility: visible;
+        pointer-events: auto;
+    }
 }
 
 /* 차트 지표 설명 · 백테스트 지표 ⓘ — 안에 줄·색 점이 든 풍선이라 `.c-tip`(글자 한 줄)과 따로 두지만
@@ -495,9 +510,8 @@
     pointer-events: none;
 }
 
-/* 키보드로 옮겨 오거나 손가락으로 눌러도(버튼에 포커스가 간다) 뜬다 — 예전엔 :hover 뿐이었다(2026-10-13 점검). */
-.chart-indicator-help:hover .chart-indicator-tooltip,
-.chart-indicator-help:focus-within .chart-indicator-tooltip {
+.chart-indicator-help.is-open .chart-indicator-tooltip,
+.chart-indicator-help:has(.chart-indicator-help-btn:focus-visible) .chart-indicator-tooltip {
     visibility: visible;
     pointer-events: auto;
 }
