@@ -674,6 +674,13 @@
     cursor: crosshair;
 }
 
+/* 손가락 세로 쓸기는 페이지 스크롤로 보낸다 — 줌 플러그인의 Hammer 가 캔버스에 인라인 `touch-action: none` 을
+   넣어 차트 위에서는 페이지가 내려가지 않았다(2026-10-13 점검). 가로 이동·두 손가락 확대는 그대로 Hammer 가 받는다.
+   ⚠️ 인라인 값을 이기려면 !important — Hammer 가 설정을 바꿀 때마다 다시 넣는다. */
+#stockChart {
+    touch-action: pan-y !important;
+}
+
 .chart-no-data {
     position: absolute;
     top: 50%;
