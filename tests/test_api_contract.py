@@ -307,6 +307,15 @@ class TestBacktestRoutes:
     def test_프리셋은_Bearer_가_필요하다(self, client, method, url):
         assert client.request(method.upper(), url).status_code == 401
 
+    def test_프리셋_이름_바꾸기는_Bearer_가_필요하다(self, client):
+        """이름 바꾸기(2026-10-13) — 본문이 맞으면 토큰 검사에서 401."""
+        assert client.patch("/api/v1/backtest/presets/1", json={"name": "새 이름"}).status_code == 401
+
+    @pytest.mark.parametrize("body", [{}, {"name": ""}, {"name": "x" * 101}])
+    def test_프리셋_이름은_DB_전에_거른다(self, client, body):
+        r = client.patch("/api/v1/backtest/presets/1", json=body, headers={"Authorization": "Bearer x"})
+        assert r.status_code == 422
+
     def test_실행은_토큰_없이도_401_이_아니다(self, client):
         """계산은 공개다 — 여기서 401 이면 회귀다(422 는 입력 문제라 정상)."""
         assert client.post("/api/v1/backtest/run", json={}).status_code != 401

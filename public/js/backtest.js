@@ -1305,6 +1305,7 @@
                     var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
                     html += '<div class="preset-item" data-id="' + p.id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
                         '<span class="preset-item-name preset-load-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</span>' +
+                        '<button type="button" class="preset-rename-btn" aria-label="이름 바꾸기">' + PENCIL_SVG + '</button>' +
                         '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
                         '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.id + '">&times;</button>' +
                         '</div>';
@@ -1336,6 +1337,9 @@
                     item.addEventListener('mouseleave', removePresetTip);
                 });
 
+                listEl.querySelectorAll('.preset-rename-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () { startPresetRename(btn.closest('.preset-item')); });
+                });
                 listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {
                     btn.addEventListener('click', function () {
                         loadPreset(parseInt(btn.dataset.id));
@@ -1350,6 +1354,65 @@
                 });
             })
             .catch(function () { /* 무시 */ });
+    }
+
+    // 연필 — `_icons.html` 의 'edit' 과 같은 그림.
+    var PENCIL_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>' +
+        '<path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
+
+    /**
+     * 프리셋 이름 인라인 편집(정본 inline-edit.md, 2026-10-13 — 예전엔 지우고 다시 만들어야 했다).
+     * 연필로 연다(이름을 누르면 불러오기라 더블클릭 편집은 두지 않는다). Enter·blur = 저장, Esc = 취소,
+     * 빈 이름은 저장하지 않는다. 실패하면 원래 이름으로 되돌리고 오류 토스트.
+     */
+    function startPresetRename(item) {
+        if (!item || item.querySelector('.preset-rename-input')) return;
+        var nameEl = item.querySelector('.preset-item-name');
+        var btn = item.querySelector('.preset-rename-btn');
+        var prev = nameEl.textContent;
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'backtest-input preset-rename-input';
+        input.maxLength = 100;
+        input.value = prev;
+        input.setAttribute('aria-label', '프리셋 이름');
+        nameEl.hidden = true;
+        btn.hidden = true;
+        nameEl.after(input);
+        input.focus();
+        input.select();
+
+        var done = false;
+        function end(save) {
+            if (done) return;
+            done = true;
+            var next = input.value.trim();
+            input.remove();
+            nameEl.hidden = false;
+            btn.hidden = false;
+            if (!save || !next || next === prev) return;
+            nameEl.textContent = next;
+            apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(item.dataset.id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: next })
+            })
+                .then(function (r) {
+                    if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                    notify('프리셋 이름을 바꿨습니다.', 'success');
+                })
+                .catch(function (err) {
+                    if (nameEl.textContent === next) nameEl.textContent = prev;
+                    notify(err.message || '프리셋 이름을 바꾸지 못했습니다.');
+                });
+        }
+        input.addEventListener('blur', function () { end(true); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); end(true); }
+            if (e.key === 'Escape') { e.preventDefault(); end(false); }
+        });
     }
 
     function savePreset() {

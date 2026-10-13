@@ -1542,10 +1542,11 @@ details[open] > .config-section-title.clickable {
 
 .preset-item .portfolio-strategy-badge {
     flex-shrink: 0;
+    margin-left: auto;   /* 이름이 늘어나지 않으므로 배지·삭제를 줄 끝으로 민다 — 연필은 이름 바로 뒤 */
 }
 
 .preset-item-name {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     color: var(--bae-text-primary);
     white-space: nowrap;
@@ -1556,6 +1557,37 @@ details[open] > .config-section-title.clickable {
 
 .preset-item-name:hover {
     color: var(--bae-accent-fg);
+}
+
+.preset-item-name[hidden] { display: none; }
+
+/* 프리셋 이름 연필(정본 inline-edit.md) — 마우스 기기는 줄에 올렸을 때·포커스 때만, 손가락은 늘 보인다. */
+.preset-rename-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 4px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.preset-rename-btn:hover { color: var(--bae-text-primary); }
+.preset-rename-btn[hidden] { display: none; }
+
+@media (hover: hover) {
+    .preset-rename-btn { opacity: 0; }
+
+    .preset-item:hover .preset-rename-btn,
+    .preset-rename-btn:focus-visible { opacity: 1; }
+}
+
+.preset-rename-input {
+    flex: 1;
+    min-width: 0;
+    padding: 2px 8px;
 }
 
 .config-save-row {
