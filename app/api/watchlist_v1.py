@@ -36,6 +36,15 @@ class WatchItem(BaseModel):
     change_pct: float | None = Field(default=None, description="등락률(%). 직전 종가가 없으면 null")
 
 
+class WatchKey(BaseModel):
+    code: str = Field(pattern="^" + _SAFE_CODE.pattern + "$")
+    market: str = Field(pattern="^(KR|US|COIN)$", description="시장 묶음 KR·US·COIN")
+
+
+class WatchOrder(BaseModel):
+    items: list[WatchKey] = Field(max_length=_MAX_ITEMS, description="새 순서 — 지금 담긴 종목 전부")
+
+
 async def _me(db, request: Request):
     me = await blog_user.find(db, bearer_user(request))
     if me is None:
@@ -58,12 +67,14 @@ def _market_arg(v: str | None) -> str:
 
 @router.get("", response_model=list[WatchItem], summary="내 관심 종목")
 async def watchlist(request: Request):
-    """담은 순서대로. 이름과 시세(마지막 거래일 기준)를 붙여 준다 — 목록·히트맵과 같은 헬퍼다."""
+    """사용자가 정한 순서대로(`sort_order`, 2026-10-13). 순서가 없는 줄(옛 코드가 담은 것)은 맨 뒤에 담은 순서로.
+    이름과 시세(마지막 거래일 기준)를 붙여 준다 — 목록·히트맵과 같은 헬퍼다."""
     async with db_session() as db:
         me = await _me(db, request)
         rows = (await db.execute(text(
             "SELECT market, stock_code FROM stock_watchlist WHERE user_index = :u "
-            "ORDER BY created_at, stock_code LIMIT :n"), {"u": me.user_index, "n": _MAX_ITEMS})).all()
+            "ORDER BY sort_order IS NULL, sort_order, created_at, stock_code LIMIT :n"),
+            {"u": me.user_index, "n": _MAX_ITEMS})).all()
         if not rows:
             return []
 
@@ -95,6 +106,26 @@ async def watchlist(request: Request):
     return out
 
 
+@router.put("", status_code=status.HTTP_204_NO_CONTENT, summary="관심 종목 순서 저장")
+async def reorder(request: Request, body: WatchOrder):
+    """레일에서 바꾼 순서를 통째로 받는다. 목록은 **지금 담긴 종목 전부**여야 한다 — 그사이 다른 기기에서
+    담거나 뺐으면 409(화면이 다시 받아 그린다)."""
+    async with db_session() as db:
+        me = await _me(db, request)
+        now = {(m, c) for m, c in (await db.execute(text(
+            "SELECT market, stock_code FROM stock_watchlist WHERE user_index = :u"),
+            {"u": me.user_index})).all()}
+        new = [(i.market, i.code) for i in body.items]
+        if len(new) != len(now) or set(new) != now:
+            raise HTTPException(status.HTTP_409_CONFLICT, "관심 종목이 그사이 바뀌었습니다")
+        for n, (m, c) in enumerate(new, 1):
+            await db.execute(text(
+                "UPDATE stock_watchlist SET sort_order = :o WHERE user_index = :u AND market = :m AND stock_code = :c"),
+                {"o": n, "u": me.user_index, "m": m, "c": c})
+        await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.put("/{code}", status_code=status.HTTP_204_NO_CONTENT, summary="관심 종목에 담기")
 async def add(request: Request, code: str, market: str | None = Query(None, description="KR·US·COIN")):
     """이미 담겨 있으면 그대로 둔다(멱등). 없는 종목은 404, 상한을 넘으면 409."""
@@ -121,8 +152,10 @@ async def add(request: Request, code: str, market: str | None = Query(None, desc
         if not exists:
             if count >= _MAX_ITEMS:
                 raise HTTPException(status.HTTP_409_CONFLICT, f"관심 종목은 {_MAX_ITEMS}개까지 담을 수 있습니다")
+            # 새로 담은 것은 맨 뒤.
             await db.execute(text(
-                "INSERT INTO stock_watchlist (user_index, market, stock_code) VALUES (:u, :m, :c)"),
+                "INSERT INTO stock_watchlist (user_index, market, stock_code, sort_order) "
+                "SELECT :u, :m, :c, COALESCE(MAX(sort_order), 0) + 1 FROM stock_watchlist WHERE user_index = :u"),
                 {"u": me.user_index, "m": group, "c": code})
             await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

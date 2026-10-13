@@ -619,6 +619,22 @@ class TestWatchlistInput:
         r = client.request(method.upper(), url, headers={"Authorization": "Bearer dummy-token"})
         assert r.status_code == 422
 
+    @pytest.mark.parametrize("body", [
+        {"items": [{"code": "a b", "market": "KR"}]},          # 코드 형식
+        {"items": [{"code": "005930", "market": "KOSPI"}]},    # 시장은 묶음으로만
+        {"items": [{"code": "005930", "market": "KR"}] * 51},  # 상한(50)을 넘는다
+        {},                                                     # 목록 없음
+    ])
+    def test_순서_저장도_DB_전에_거른다(self, client, body):
+        """순서 저장(2026-10-13)은 본문이 있어 본문 검사가 토큰 검사보다 먼저다(포트폴리오 PATCH 와 같다)."""
+        r = client.put("/api/v1/watchlist", json=body, headers={"Authorization": "Bearer dummy-token"})
+        assert r.status_code == 422
+
+    @pytest.mark.parametrize("cookies", [None, {"session": "dummy"}])
+    def test_순서_저장은_Bearer_가_필요하다(self, client, cookies):
+        r = client.put("/api/v1/watchlist", json={"items": [{"code": "005930", "market": "KR"}]}, cookies=cookies)
+        assert r.status_code == 401
+
 
 class TestPostGroup:
     """글 묶음(2026-09-23) — finance(인사이트)·general(블로그) 말고는 DB 에 닿기 전에 거른다."""
