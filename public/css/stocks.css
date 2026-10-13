@@ -1655,7 +1655,7 @@ details[open] > .config-section-title.clickable {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 1;
+    flex: 0 1 auto;     /* 늘어나지 않는다 — 연필이 이름 바로 뒤에 붙는다(정본 inline-edit.md) */
     min-width: 0;
 }
 
@@ -1692,13 +1692,23 @@ details[open] > .config-section-title.clickable {
     background: var(--bae-surface-hover);
 }
 
+.portfolio-name-edit-btn svg { color: inherit; }   /* 줄의 별 아이콘 accent 를 물려받지 않게 */
+
+/* 마우스 기기에서는 이름 줄에 올렸을 때·키보드 포커스 때만 보인다. 손가락(hover 없음)은 늘 보인다. */
+@media (hover: hover) {
+    .portfolio-name-edit-btn { opacity: 0; }
+
+    .portfolio-name-row:hover .portfolio-name-edit-btn,
+    .portfolio-name-edit-btn:focus-visible { opacity: 1; }
+}
+
 /* 공개/비공개 토글 — 이름 옆 작은 알약 버튼. 켜짐(공개)은 accent tint 로 표시한다.
    ⚠️ 색만으로 상태를 말하지 않는다 — 라벨(공개/비공개)이 함께 바뀐다. */
 .portfolio-public-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
+    margin-left: auto;  /* 이름이 늘어나지 않으므로 토글을 줄 끝으로 민다 */
     padding: 3px 10px;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-pill);
