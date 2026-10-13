@@ -592,7 +592,9 @@
             }, 300);
         });
 
-        document.addEventListener('click', function (e) {
+        // 바깥은 누르는 순간(pointerdown)에 판정한다 — click 이면 목록 안에서 글자·스크롤바를 끌다 밖에서 뗄 때
+        // click 이 공통 조상에서 일어나 닫혔다(2026-10-13 점검).
+        document.addEventListener('pointerdown', function (e) {
             if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
                 window.TopLayer.hide(resultsDiv);
             }

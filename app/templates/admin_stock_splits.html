@@ -42,7 +42,7 @@
                     <div class="admin-form-field" style="position:relative">
                         <label>종목 검색 <span style="color:var(--bae-danger)">*</span></label>
                         <input type="text" id="splitStockSearch" autocomplete="off" placeholder="종목명 또는 코드 검색 (예: 엔비디아, NVDA, 삼성전자)" required>
-                        <div id="splitSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;max-height:240px;overflow-y:auto;border:1px solid var(--bae-border);border-radius:4px;background:var(--bae-bg)"></div>
+                        <div id="splitSearchResults" popover="manual" style="position:fixed;max-height:240px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--bae-border);border-radius:4px;background:var(--bae-bg)"></div>
                         <div id="splitSelectedStock" style="display:none;margin-top:0.4rem;padding:0.4rem 0.7rem;border-radius:4px;background:var(--bae-surface);font-size:0.9rem">
                             <span id="splitSelectedInfo"></span>
                             <button type="button" onclick="clearSplitSelection()" aria-label="선택 초기화" style="float:right;background:none;border:none;color:var(--bae-text-dim);cursor:pointer;font-size:0.85rem">{{ icons.i('cancel') }}</button>
@@ -159,17 +159,29 @@ function notifyToast(message) {
     var resultsBox = document.getElementById('splitSearchResults');
     var selectedBox = document.getElementById('splitSelectedStock');
     var selectedInfo = document.getElementById('splitSelectedInfo');
+    // 결과 목록은 top layer(popover="manual") — 자리는 검색 칸 아래·같은 폭(옛 absolute 자리)을 따라간다.
+    // ⚠️ 이 인라인 스크립트는 defer 인 toplayer.js 보다 먼저 돈다 — 문서를 다 읽은 뒤 붙인다.
+    function showResults() { window.TopLayer.show(resultsBox); }
+    function hideResults() { if (window.TopLayer) window.TopLayer.hide(resultsBox); }
+    document.addEventListener('DOMContentLoaded', function () {
+        window.TopLayer.follow(resultsBox, searchInput.parentElement, { side: 'below', align: 'stretch', gap: 0 });
+    });
 
     searchInput.addEventListener('input', function () {
         clearTimeout(searchTimer);
         var q = this.value.trim();
-        if (q.length < 1) { resultsBox.style.display = 'none'; return; }
+        if (q.length < 1) { hideResults(); return; }
         searchTimer = setTimeout(function () { searchStocks(q); }, 300);
     });
 
-    // 결과를 누르는 중에 닫히지 않도록 약간 늦춘다(mousedown 이 먼저 온다).
-    searchInput.addEventListener('blur', function () {
-        setTimeout(function () { resultsBox.style.display = 'none'; }, 200);
+    // 바깥은 누르는 순간(pointerdown)에 판정한다 — 예전에는 blur 뒤 200ms 에 닫아 목록 스크롤바를 누르면
+    // 닫혔다(2026-10-13 점검). 목록을 눌러도 포커스는 입력칸에 남긴다. Tab 으로 떠날 때는 blur 가 닫는다.
+    document.addEventListener('pointerdown', function (e) {
+        if (!searchInput.contains(e.target) && !resultsBox.contains(e.target)) hideResults();
+    });
+    resultsBox.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    searchInput.addEventListener('blur', function (e) {
+        if (e.relatedTarget && !resultsBox.contains(e.relatedTarget)) hideResults();
     });
 
     function searchStocks(q) {
@@ -184,7 +196,7 @@ function notifyToast(message) {
             .then(function (data) {
                 if (!data.items || !data.items.length) {
                     resultsBox.innerHTML = '<div style="padding:0.6rem;color:var(--bae-text-dim)">검색 결과 없음</div>';
-                    resultsBox.style.display = 'block';
+                    showResults();
                     return;
                 }
                 var html = '';
@@ -198,9 +210,9 @@ function notifyToast(message) {
                         + '</div>';
                 });
                 resultsBox.innerHTML = html;
-                resultsBox.style.display = 'block';
+                showResults();
             })
-            .catch(function () { resultsBox.style.display = 'none'; });
+            .catch(hideResults);
     }
 
     // 검색 API 는 거래소 이름(KOSPI·NASDAQ…)을 주는데 분할 테이블은 KR/US/COIN 만 쓴다.
@@ -218,7 +230,7 @@ function notifyToast(message) {
         selectedInfo.textContent = code + ' — ' + name + ' (' + market + ')';
         selectedBox.style.display = 'block';
         searchInput.style.display = 'none';
-        resultsBox.style.display = 'none';
+        hideResults();
     };
 
     window.clearSplitSelection = function () {

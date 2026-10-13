@@ -1397,15 +1397,24 @@
         if (e.key === 'Escape' && !floatEl.hidden && !historyDlg.open) closeFloat();
     });
     // 바깥을 누르면 닫는다. 다른 원·날짜 라벨·할 일의 가지 이름은 그 상세로 바꾸는 자리라 빼고, 토스트(되돌리기 등)도 뺀다.
-    document.addEventListener('click', function (e) {
-        if (floatEl.hidden || historyDlg.open || dragMoved) { dragMoved = false; return; }
-        // ⚠️ 창 안의 가지 버튼은 누르는 순간 창이 다시 그려져 문서에서 빠진다 — `contains` 로는 바깥으로 오판한다.
-        //    누른 시점의 경로(composedPath)로 판정한다.
+    // ⚠️ 창 안의 가지 버튼은 누르는 순간 창이 다시 그려져 문서에서 빠진다 — `contains` 로는 바깥으로 오판한다.
+    //    이벤트 시점의 경로(composedPath)로 판정한다.
+    function outsideFloat(e) {
         var path = e.composedPath();
-        if (path.indexOf(floatEl) >= 0 || path.some(function (n) {
+        return path.indexOf(floatEl) < 0 && !path.some(function (n) {
             return n.nodeType === 1 && n.matches('.plan-dot, .plan-axis__ev, .plan-todo__name, .c-toast-host');
-        })) return;
-        closeFloat();
+        });
+    }
+    // 누르기 시작(pointerdown)과 떼기(pointerup)가 **둘 다** 바깥일 때만 닫는다 — click 하나로 보면 창 안 표·숫자를
+    // 끌어 고르다 밖에서 뗄 때(또는 그 반대) click 이 공통 조상에서 일어나 닫혔다(2026-10-13 점검, 정본 bindModal 조건).
+    var downOutside = false, upOutside = false;
+    document.addEventListener('pointerdown', function (e) { downOutside = outsideFloat(e); }, true);
+    document.addEventListener('pointerup', function (e) { upOutside = outsideFloat(e); }, true);
+    document.addEventListener('click', function () {
+        var outside = downOutside && upOutside;
+        downOutside = upOutside = false;
+        if (floatEl.hidden || historyDlg.open || dragMoved) { dragMoved = false; return; }
+        if (outside) closeFloat();
     });
 
     // ── 버전 기록 ──────────────────────────────────────────

@@ -148,26 +148,27 @@
             }
         });
 
-        list.addEventListener('mousedown', function (e) {
+        // 목록 상자(스크롤바·빈 곳 포함)를 눌러도 포커스가 입력칸에 남게 한다.
+        dropdown.addEventListener('mousedown', function (e) {
+            e.preventDefault();
             var target = e.target.closest('[data-combobox-item]');
             if (target) {
-                e.preventDefault();
                 selectItem(target);
             }
         });
 
-        document.addEventListener('mousedown', function (e) {
+        document.addEventListener('pointerdown', function (e) {
             if (!root.contains(e.target)) {
                 close();
             }
         });
 
-        search.addEventListener('blur', function () {
-            setTimeout(function () {
-                if (!root.contains(document.activeElement)) {
-                    close();
-                }
-            }, 100);
+        // 키보드(Tab)로 포커스가 다른 칸으로 옮겨 갈 때만 닫는다 — 마우스로 바깥을 누른 것은 위 pointerdown 이 닫는다.
+        // ⚠️ 예전에는 blur 뒤 100ms 에 닫아 스크롤바를 누르면 닫힐 수 있었다(2026-10-13 점검).
+        search.addEventListener('blur', function (e) {
+            if (e.relatedTarget && !root.contains(e.relatedTarget)) {
+                close();
+            }
         });
     }
 
