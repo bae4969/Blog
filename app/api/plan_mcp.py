@@ -33,34 +33,36 @@ from app.ui.stocks import _latest_quotes, _stock_page
 
 router = APIRouter()
 
-#: 토큰 → (user_index, 만료 시각, 조회만). codex 는 한 번에 하나라(codex_runner) 앞 실행을 기다리는 시간까지 —
-#: 상한(600초) 두 번에 여유. 끝나면 revoke 하므로 길어도 남지 않는다.
-_TOKENS: dict[str, tuple[int, float, bool]] = {}
+#: 토큰 → {user, exp(만료 시각), ro(조회만), revs(이 상담이 쌓은 버전)}. codex 는 한 번에 하나라(codex_runner) 앞 실행을
+#: 기다리는 시간(최대 600초)과 실행 상한(600초)에 여유. 끝나면 revoke 하므로 길어도 남지 않는다.
+_TOKENS: dict[str, dict] = {}
 _TTL = 1260
 
 
 def issue(user_index: int, read_only: bool = False) -> str:
     """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다)."""
     now = time.time()
-    for t, (_, exp, _) in list(_TOKENS.items()):   # 지난 것 청소
-        if exp < now:
+    for t, hit in list(_TOKENS.items()):   # 지난 것 청소
+        if hit["exp"] < now:
             _TOKENS.pop(t, None)
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = (user_index, now + _TTL, read_only)
+    _TOKENS[token] = {"user": user_index, "exp": now + _TTL, "ro": read_only, "revs": []}
     return token
 
 
-def revoke(token: str) -> None:
-    _TOKENS.pop(token, None)
+def revoke(token: str) -> list[int]:
+    """토큰을 거두고 그 상담이 쌓은 버전 번호들을 돌려준다 — 상담의 [되돌리기]가 자기 것만 되돌리게(2026-10-14 검토)."""
+    hit = _TOKENS.pop(token, None)
+    return hit["revs"] if hit else []
 
 
-def _user_of(request: Request) -> tuple[int, bool] | None:
-    """(user_index, 조회만) — 토큰이 없거나 만료면 None."""
+def _user_of(request: Request) -> dict | None:
+    """토큰 항목({user, ro, revs …}) — 토큰이 없거나 만료면 None."""
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
         return None
     hit = _TOKENS.get(header[7:].strip())
-    return (hit[0], hit[2]) if hit and hit[1] > time.time() else None
+    return hit if hit and hit["exp"] > time.time() else None
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +129,7 @@ async def _usdkrw(db) -> float | None:
     return fx["close"] if fx else None
 
 
-async def _call(db, user_index: int, name: str, args: dict):
+async def _call(db, user_index: int, name: str, args: dict, made: list | None = None):
     from app.api.plan_v1 import latest_rev, plan_view   # 순환 임포트를 피한다(plan_v1 이 이 모듈을 부른다)
 
     if name == "plan_get":
@@ -167,12 +169,31 @@ async def _call(db, user_index: int, name: str, args: dict):
         _, rows = await _stock_page(db, args.get("market") or "", q, 1, 10)
         return [{"code": r.code, "name_kr": r.name_kr, "name_en": r.name_en, "market": r.market} for r in rows]
     if name in WRITE_TOOLS:
-        return await _write(db, user_index, name, args)
+        return await _write(db, user_index, name, args, made)
     raise ValueError(f"모르는 도구: {name}")
 
 
-async def _write(db, user_index: int, name: str, args: dict) -> dict:
+#: 목록을 통째로 바꾸는 도구 → 받아야 할 키. 키가 없으면 비우지 않고 거절한다 — `args.get(…) or []` 였을 때
+#: 키 이름을 틀리면 보유가 통째로 비었다(2026-10-14 검토).
+_SET_KEYS = {"holdings_set": "holdings", "cashflow_set": "cashflow", "rules_set": "rules", "memory_set": "memory"}
+
+
+async def _write(db, user_index: int, name: str, args: dict, made: list | None = None) -> dict:
     """지금 버전을 고쳐 검증하고 새 버전으로 쌓는다. 검증에 걸리면 ValueError(이유) — AI 가 보고 고친다."""
+    from app.api.plan_v1 import write_lock
+
+    key = _SET_KEYS.get(name)
+    if key and not isinstance(args.get(key), list):
+        raise ValueError(f"{key} 목록이 없습니다 — 저장하지 않았습니다(통째로 바꾸는 도구라 전체 목록을 보내야 한다)")
+    # 화면 저장·[실행함]·되돌리기와 같은 잠금 — 읽고 고쳐 쌓는 사이에 다른 쓰기가 끼면 한쪽이 사라진다(2026-10-14 검토).
+    async with write_lock(user_index):
+        out = await _write_locked(db, user_index, name, args)
+    if out.get("saved") and made is not None:
+        made.append(out["rev_id"])
+    return out
+
+
+async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
     from pydantic import ValidationError
 
     from app.api.plan_v1 import _doc_of, _save_rev, latest_rev
@@ -205,16 +226,16 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
         data["nodes"] = [n for n in nodes if n["id"] not in gone]
         what = f"노드 삭제: {target}" + (f" 외 {len(gone) - 1}개" if len(gone) > 1 else "")
     elif name == "cashflow_set":
-        data["cashflow"] = args.get("cashflow") or []
+        data["cashflow"] = args["cashflow"]
         what = "현금흐름 갱신"
     elif name == "rules_set":
-        data["rules"] = args.get("rules") or []
+        data["rules"] = args["rules"]
         what = "원칙 갱신"
     elif name == "memory_set":
-        data["memory"] = args.get("memory") or []
+        data["memory"] = args["memory"]
         what = "기억 갱신"
     else:   # holdings_set
-        data["holdings"] = args.get("holdings") or []
+        data["holdings"] = args["holdings"]
         if args.get("as_of"):
             data["as_of"] = args["as_of"]
         what = "보유 자산 갱신"
@@ -251,7 +272,7 @@ async def mcp(request: Request):
     who = _user_of(request)
     if who is None:
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
-    user_index, read_only = who
+    user_index, read_only = who["user"], who["ro"]
     try:
         msg = await request.json()
     except ValueError:
@@ -277,7 +298,7 @@ async def mcp(request: Request):
                                  "isError": True})
         try:
             async with db_session() as db:
-                data = await _call(db, user_index, name, args)
+                data = await _call(db, user_index, name, args, who["revs"])
         except (ValueError, KeyError, TypeError) as e:
             return _result(mid, {"content": [{"type": "text", "text": str(e)}], "isError": True})
         return _result(mid, {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False, default=str)}]})

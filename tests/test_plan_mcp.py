@@ -101,6 +101,28 @@ class TestWrite:
         assert state["doc"].holdings[0].account == "ISA"
         assert [x.account for x in state["doc"].nodes[1].holdings] == ["ISA", "IRP"]
 
+    @pytest.mark.parametrize("name,args", [("holdings_set", {"holding": []}), ("cashflow_set", {}),
+                                           ("rules_set", {"rules": "문자열"}), ("memory_set", {"memo": ["x"]})])
+    def test_통째로_바꾸는_도구는_키가_없으면_비우지_않고_거절(self, monkeypatch, name, args):
+        run, state, saved = self._store(monkeypatch, {**self.BASE, "holdings": [{"kind": "cash", "name": "예금", "amount": 1}],
+                                                      "rules": ["a"], "memory": ["b"]})
+        with pytest.raises(ValueError, match="목록이 없습니다"):
+            run(name, args)
+        assert saved == [] and state["doc"].holdings and state["doc"].rules == ["a"]
+
+    def test_상담이_쌓은_버전을_토큰이_기억한다(self, monkeypatch):
+        import asyncio
+        self._store(monkeypatch, self.BASE)
+
+        class DB:
+            async def commit(self):
+                pass
+
+        t = plan_mcp.issue(1)
+        for _ in range(2):   # 두 번째는 변경 없음 — 쌓이지 않는다
+            asyncio.run(plan_mcp._write(DB(), 1, "rules_set", {"rules": ["a"]}, plan_mcp._TOKENS[t]["revs"]))
+        assert plan_mcp.revoke(t) == [101] and plan_mcp.revoke(t) == []
+
     def test_원칙_기억_쓰기(self, monkeypatch):
         run, state, saved = self._store(monkeypatch, self.BASE)
         assert run("rules_set", {"rules": ["레버리지 안 씀"]})["summary"] == "원칙 갱신"

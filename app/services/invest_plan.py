@@ -48,6 +48,13 @@ class Holding(BaseModel):
     region: Literal["KR", "GLOBAL"] | None = Field(default=None,
                                                   description="주식·채권의 투자 대상(상장 시장이 아니다 — 국내 상장 미국 ETF 는 GLOBAL). 비면 market 으로 본다")
 
+    @model_validator(mode="after")
+    def _priced_needs_market(self):
+        # 시세 환산은 market 으로 고른다(US 면 환율을 곱한다) — 빠지면 100달러가 100원이 됐다(2026-10-14 검토).
+        if self.code and self.qty is not None and self.market is None:
+            raise ValueError(f"{self.name}: 종목(code+qty)은 market(KR·US·COIN)이 있어야 한다")
+        return self
+
 
 def group(h: Holding) -> str:
     """자산군 비중의 칸 — 주식·채권은 국내/해외로 나눈다. region 이 비면 미국 시장 종목만 해외로 본다."""
@@ -130,6 +137,9 @@ class PlanDoc(BaseModel):
                     raise ValueError(f"{n.id}: 이벤트에는 at(시작 시각)이 있어야 한다")
             elif p is None or p.kind != "event":
                 raise ValueError(f"{n.id}: 가지의 부모는 이벤트여야 한다")
+            if n.kind == "event" and sum(1 for b in self.nodes
+                                         if b.parent == n.id and b.kind == "branch" and b.status == "realized") > 1:
+                raise ValueError(f"{n.id}: 실현된 가지는 하나여야 한다")
             # 부모를 따라 올라가 순환을 막는다 — 노드 수보다 깊으면 돌고 있는 것이다.
             cur, hops = n, 0
             while cur.parent:
@@ -311,6 +321,18 @@ def accruals(doc: PlanDoc, today: date) -> dict[str, dict]:
 # 복기 — 날짜가 지난 이벤트의 가지마다 "그때(이벤트 시각 시세) → 지금(오늘 시세)" 평가(2026-10-10 사용자 요청)
 # ---------------------------------------------------------------------------
 
+def on_dropped_path(doc: PlanDoc, node: Node) -> bool:
+    """조상 가지(자신이 가지면 자신도) 중 접힌(dropped) 것이 있으면 True — 그 경로는 더 오지 않는다.
+    시작 메일·지금 할 일에서 뺀다(접힌 가지 아래 이벤트에도 메일이 갔다, 2026-10-14 검토)."""
+    by_id = {n.id: n for n in doc.nodes}
+    cur = node
+    while cur is not None:
+        if cur.kind == "branch" and cur.status == "dropped":
+            return True
+        cur = by_id.get(cur.parent) if cur.parent else None
+    return False
+
+
 def past_events(doc: PlanDoc, now: datetime) -> list[Node]:
     return [n for n in doc.nodes if n.kind == "event" and _kst(n.at) <= now]
 
@@ -320,6 +342,8 @@ def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> 
 
     가지마다 {event, at, then, now, change, pct, missing}. 가지의 보유는 **계획상 수량**이라 실제 체결과 다를 수 있다.
     `missing` 은 그때 시세가 없어 평가에서 빠진 보유 수(상장 전·환율 데이터 시작 전 등) — 0 이 아니면 값이 덜 잡혔다.
+    ⚠️ 그때와 지금 빠진 보유가 다르면 견줄 수 없어 `change`·`pct` 를 None 으로 둔다 — 그때만 빠진 주식이 지금 더해져
+       +100% 처럼 나왔다(2026-10-14 검토).
     """
     by_id = {n.id: n for n in doc.nodes}
     out = {}
@@ -327,9 +351,12 @@ def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> 
         ev = by_id[ev_id]
         for b in (n for n in doc.nodes if n.kind == "branch" and n.parent == ev_id):
             then, now = vals[b.id]["total"], now_values[b.id]["total"]
+            gone = [i for i, r in enumerate(vals[b.id]["rows"]) if r["value"] is None]
+            same = gone == [i for i, r in enumerate(now_values[b.id]["rows"]) if r["value"] is None]
             out[b.id] = {"event": ev_id, "at": _kst(ev.at).isoformat(), "then": then, "now": now,
-                         "change": now - then, "pct": (now / then - 1) * 100 if then else None,
-                         "missing": sum(1 for r in vals[b.id]["rows"] if r["value"] is None)}
+                         "change": now - then if same else None,
+                         "pct": (now / then - 1) * 100 if then and same else None,
+                         "missing": len(gone)}
     return out
 
 
@@ -473,7 +500,7 @@ DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보�
 JSON 하나만 답한다(설명 글 없이):
 {{"level": "none|notice|urgent", "title": "한 줄 제목(none 이면 빈 글)", "summary": "무슨 일인지 2~4문장",
  "impacts": ["예상 영향 — 영향받는 이벤트·가지·보유와 어떻게(제목으로 쓰고 id 는 쓰지 않는다)"],
- "actions": ["할 일 — 계좌·종목·수량처럼 구체적으로, 또는 '상담에서 가지 다시 짜기'"]}}
+ "actions": ["할 일 — 무엇을 다시 볼지·상담에서 정할 것(방향만). 수량·금액은 쓰지 않는다 — 주문은 상담에서 계획으로 정한다"]}}
 
 ## 지금 계획(뼈대 — 노드 상세는 node_get(id))
 ```json

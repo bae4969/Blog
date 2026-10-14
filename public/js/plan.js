@@ -254,10 +254,19 @@
         return wrap;
     }
 
-    /** 실현됐는데 아직 매매하지 않은 가지 — 매매표나 실행할 일이 있는 것만. */
+    /** 조상 가지 중 접힌 것이 있으면 true — 그 경로는 더 오지 않는다(서버 `on_dropped_path` 와 같은 규칙). */
+    function onDroppedPath(n) {
+        var byId = nodesById();
+        for (var cur = n; cur; cur = cur.parent ? byId[cur.parent] : null) {
+            if (cur.kind === 'branch' && cur.status === 'dropped') return true;
+        }
+        return false;
+    }
+
+    /** 실현됐는데 아직 매매하지 않은 가지 — 매매표나 실행할 일이 있는 것만, 접힌 경로 아래 것은 뺀다. */
     function todoBranches() {
         return plan.doc.nodes.filter(function (n) {
-            return n.kind === 'branch' && n.status === 'realized' && !n.executed_at
+            return n.kind === 'branch' && n.status === 'realized' && !n.executed_at && !onDroppedPath(n)
                 && (((plan.trades || {})[n.id] || []).length || n.actions.length);
         });
     }
@@ -272,7 +281,7 @@
             b.disabled = true;
             api('POST', '/api/v1/plan/nodes/' + encodeURIComponent(n.id) + '/executed').then(function (p) {
                 setPlan(p);
-                var opt = p.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id); } }, duration: 8000 } : {};
+                var opt = p.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id, p.rev_id); } }, duration: 8000 } : {};
                 window.toast('‘' + n.title + '’ 매매를 실행함으로 표시했습니다 — 잔고 화면을 상담에 올리면 실제 보유로 갱신합니다', 'success', opt);
             }).catch(function (e) {
                 b.disabled = false;
@@ -1037,12 +1046,14 @@
     function signed(v) { return (v >= 0 ? '+' : '−') + won(Math.abs(v)); }
 
     function changeEl(change, pct) {
+        // 그때와 지금 시세가 없는 보유가 다르면 서버가 변화를 비운다(retrospect) — 견줄 수 없는 숫자를 내지 않는다.
+        if (change == null) return el('span', null, '비교 불가');
         var c = el('span', change > 0 ? 'q-up' : change < 0 ? 'q-down' : '', signed(change) + (pct == null ? '' : ' (' + (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(1) + '%)'));
         return c;
     }
 
     /**
-     * 복기 — 이벤트 날짜가 지난 가지: 그때(이벤트 시각 시세) → 지금(오늘 시세). 접힌 가지는 "채택했다면" 실제(채택 가지)와 견준다.
+     * 복기 — 이벤트 날짜가 지난 가지: 그때(이벤트 시각 시세) → 지금(오늘 시세). 접힌 가지는 "채택했다면" 채택한 계획(채택 가지)과 견준다.
      * 가지의 보유는 계획상 수량이다(실제 체결과 다를 수 있다).
      */
     function retroBox(n, byId) {
@@ -1062,13 +1073,14 @@
                 // 가지마다 출발 금액이 다를 수 있어 금액이 아니라 **변화율**로 견준다.
                 var diff = r.pct - t.pct, cmp = el('p', 'plan-retro__line');
                 cmp.appendChild(document.createTextNode('채택했다면 ' + (r.pct >= 0 ? '+' : '−') + Math.abs(r.pct).toFixed(1)
-                    + '% — 실제(‘' + taken.title + '’) ' + (t.pct >= 0 ? '+' : '−') + Math.abs(t.pct).toFixed(1) + '%보다 '));
+                    + '% — 채택한 계획(‘' + taken.title + '’) ' + (t.pct >= 0 ? '+' : '−') + Math.abs(t.pct).toFixed(1) + '%보다 '));
                 cmp.appendChild(el('span', diff > 0 ? 'q-up' : diff < 0 ? 'q-down' : '',
                     Math.abs(diff).toFixed(1) + '%p ' + (diff > 0 ? '나음' : diff < 0 ? '못함' : '같음')));
                 box.appendChild(cmp);
             }
         }
-        if (r.missing) box.appendChild(el('p', 'plan-retro__note', '보유 ' + r.missing + '개는 그때 시세가 없어 빠졌습니다'));
+        if (r.missing) box.appendChild(el('p', 'plan-retro__note', '보유 ' + r.missing + '개는 그때 시세가 없어 빠졌습니다'
+            + (r.change == null ? ' — 지금과 범위가 달라 비교하지 않습니다' : '')));
         return box;
     }
 
@@ -1313,8 +1325,10 @@
         render();
     }
 
-    function restore(revId) {
-        return api('POST', '/api/v1/plan/revisions/' + revId + '/restore').then(function (p) {
+    // `expect` — 토스트의 [되돌리기]는 그때 만든 버전이 아직 최신일 때만 되돌린다(그 사이 상담·저장이 끼면 서버가 409).
+    function restore(revId, expect) {
+        var q = expect ? '?expect=' + expect : '';
+        return api('POST', '/api/v1/plan/revisions/' + revId + '/restore' + q).then(function (p) {
             setPlan(p);
             window.toast('계획을 ' + revId + '번 버전으로 되돌렸습니다', 'success');
         }).catch(function (e) { window.toast('되돌리지 못했습니다: ' + e.message, 'error'); });
@@ -1336,7 +1350,7 @@
             addMessage({ role: 'assistant', content: r.reply || '(계획을 고쳤습니다)', rev_id: r.rev_id });
             if (r.plan) {
                 setPlan(r.plan);
-                var opt = r.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(r.prev_rev_id); } }, duration: 8000 } : {};
+                var opt = r.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(r.prev_rev_id, r.plan.rev_id); } }, duration: 8000 } : {};
                 window.toast('계획을 고쳤습니다: ' + r.summary, 'success', opt);
             }
             if (r.note) window.toast(r.note, 'error');
@@ -1348,7 +1362,19 @@
             images = sent.images;
             renderChips();
             if (!logEl.querySelector('.plan-msg')) emptyChat();
-            window.toast('상담 실패: ' + e.message, 'error', { action: { label: '다시 시도', onClick: send } });
+            // 실패해도 AI 가 그 전에 계획을 고쳤을 수 있다(쓰기는 그때그때 저장된다) — 다시 읽어 바뀌었으면 알리고,
+            // 같은 요청을 되풀이하지 않게 그때는 [다시 시도]를 뺀다(2026-10-14 검토).
+            var before = plan && plan.rev_id;
+            api('GET', '/api/v1/plan').then(function (p) {
+                if (p.rev_id !== before) {
+                    setPlan(p);
+                    window.toast('상담은 실패했지만 계획이 일부 바뀌었습니다 — 버전 기록에서 확인하세요: ' + e.message, 'error');
+                } else {
+                    window.toast('상담 실패: ' + e.message, 'error', { action: { label: '다시 시도', onClick: send } });
+                }
+            }).catch(function () {
+                window.toast('상담 실패: ' + e.message + ' — 계획이 바뀌었는지 새로고침해 확인하세요', 'error');
+            });
         });
     }
 
@@ -1534,7 +1560,7 @@
                 setPlan(p);
                 if (!p.saved) { window.toast('원칙·기억이 바뀌지 않았습니다', 'info'); return; }
                 window.toast('원칙·기억을 저장했습니다', 'success', p.prev_rev_id
-                    ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id); } }, duration: 8000 } : {});
+                    ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id, p.rev_id); } }, duration: 8000 } : {});
             })
             .catch(function (e) { window.toast('원칙·기억을 저장하지 못했습니다: ' + e.message, 'error'); })
             .then(function () { btn.disabled = false; });

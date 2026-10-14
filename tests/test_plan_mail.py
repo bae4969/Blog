@@ -57,11 +57,26 @@ def test_점검은_켜져_있고_시각부터_6시간_안에만():
     assert plan_mail.daily_due(_cfg(at="깨짐"), noon) is None
 
 
-def test_무난한_하루나_깨진_답은_알리지_않는다():
-    assert plan_mail.parse_check('{"level": "none", "title": ""}') is None
-    assert plan_mail.parse_check("오늘은 특별한 일이 없습니다.") is None
-    assert plan_mail.parse_check('{"level": "notice", "title": "x"') is None
-    assert plan_mail.parse_check('{"level": "notice", "title": ""}') is None
+def test_무난한_하루와_깨진_답을_가른다():
+    assert plan_mail.parse_check('{"level": "none", "title": ""}')["level"] == "none"
+    for broken in ("오늘은 특별한 일이 없습니다.", '{"level": "notice", "title": "x"', '{"level": "notice", "title": ""}',
+                   '{"level": "모름", "title": "x"}'):
+        assert plan_mail.parse_check(broken) is None, broken
+
+
+def test_점검_실패_메일():
+    msg = plan_mail.compose_daily_failure(NOW.date(), "Codex 로그인이 필요합니다", "me@x", "me@x", "https://blog.x/stocks/plan")
+    assert msg["Subject"] == "[투자 계획·점검 실패] 2026-10-29" and "Codex 로그인이 필요합니다" in msg.get_content()
+
+
+def test_접힌_가지_아래_이벤트는_시작_메일을_안_보낸다():
+    doc = ip.PlanDoc.model_validate({"nodes": [
+        {"id": "e1", "kind": "event", "title": "A", "at": "2026-10-20T03:00:00+09:00"},
+        {"id": "b1", "parent": "e1", "kind": "branch", "title": "접힘", "status": "dropped"},
+        {"id": "b2", "parent": "e1", "kind": "branch", "title": "실현", "status": "realized"},
+        {"id": "e2", "parent": "b1", "kind": "event", "title": "접힌 쪽", "at": "2026-10-29T03:00:00+09:00"},
+        {"id": "e3", "parent": "b2", "kind": "event", "title": "실현 쪽", "at": "2026-10-29T03:00:00+09:00"}]})
+    assert [e.id for e in plan_mail.due_events(doc, NOW)] == ["e3"]
 
 
 def test_알릴_답은_코드블록이든_맨_JSON이든_읽는다():

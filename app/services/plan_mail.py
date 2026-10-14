@@ -8,16 +8,17 @@ import re
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
-from app.services.invest_plan import GROUP_LABEL, PlanDoc, _kst
+from app.services.invest_plan import GROUP_LABEL, PlanDoc, _kst, on_dropped_path
 
 #: 시작 시각이 이만큼 지난 이벤트는 보내지 않는다 — 앱이 오래 꺼져 있다 켜졌을 때 옛 알림이 몰려오지 않게.
 LATE_LIMIT = timedelta(hours=24)
 
 
 def due_events(doc: PlanDoc, now: datetime):
-    """시작 시각이 지났고(24시간 안) 아직 결과가 정해지지 않은(pending) 이벤트."""
+    """시작 시각이 지났고(24시간 안) 아직 결과가 정해지지 않은(pending) 이벤트 — 접힌 가지 아래 것은 뺀다."""
     return [n for n in doc.nodes
-            if n.kind == "event" and n.status == "pending" and timedelta(0) <= now - _kst(n.at) <= LATE_LIMIT]
+            if n.kind == "event" and n.status == "pending" and timedelta(0) <= now - _kst(n.at) <= LATE_LIMIT
+            and not on_dropped_path(doc, n)]
 
 
 def _won(v: float) -> str:
@@ -96,14 +97,17 @@ def daily_due(cfg: dict, now: datetime) -> date | None:
 
 
 def parse_check(reply: str) -> dict | None:
-    """AI 답 → 알릴 점검 결과. 무난한 하루(none)거나 형식이 깨졌으면 None — 메일을 보내지 않는다."""
+    """AI 답 → 점검 결과(`level` 이 none·notice·urgent). **형식이 깨졌으면 None** — 무난한 하루(none)와 구분해
+    점검 실패로 알린다(둘이 같으면 며칠째 실패해도 "조용한 날"로 보였다, 2026-10-14 검토)."""
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", reply, re.S)
     raw = m.group(1) if m else reply[reply.find("{"):reply.rfind("}") + 1]
     try:
         data = json.loads(raw)
     except ValueError:
         return None
-    if not isinstance(data, dict) or data.get("level") not in LEVEL_LABEL or not data.get("title"):
+    if not isinstance(data, dict) or data.get("level") not in ("none", *LEVEL_LABEL):
+        return None
+    if data["level"] != "none" and not data.get("title"):
         return None
     return data
 
@@ -177,4 +181,15 @@ def compose_daily(check: dict, day: date, sender: str, to: str, page_url: str) -
     msg.set_content(daily_text(check, day) + "\n\n계획은 바꾸지 않았습니다 — 반영하려면 상담에서 말씀해 주세요.\n"
                     + f"투자 계획: {page_url}")
     msg.add_alternative(daily_html(check, day, page_url), subtype="html")
+    return msg
+
+
+def compose_daily_failure(day: date, reason: str, sender: str, to: str, page_url: str) -> EmailMessage:
+    """점검을 못 한 날 — 하루 한 번(차지한 그날 몫)만 간다. 조용한 날과 헷갈리지 않게 따로 알린다."""
+    msg = EmailMessage()
+    msg["Subject"] = f"[투자 계획·점검 실패] {day:%Y-%m-%d}"
+    msg["From"] = sender
+    msg["To"] = to
+    msg.set_content(f"{day:%Y-%m-%d} 매일 점검을 하지 못했습니다.\n\n사유: {reason}\n\n"
+                    f"Codex 로그인(관리자 › 외부 연동)을 확인해 주세요. 내일 같은 시각에 다시 합니다.\n투자 계획: {page_url}")
     return msg

@@ -31,7 +31,11 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT = 600
 #: codex 는 한 번에 하나만 — 한 번이 약 400MB 라 상담·매일 점검이 겹치면 테스트 컨테이너(512M)가 넘친다. 뒤의 것은 기다린다.
+#: 기다림도 상한이 있다(MCP 토큰 수명 1260초 = 기다림 600 + 실행 600 + 여유 — plan_mcp._TTL).
 _RUN_LOCK = asyncio.Lock()
+LOCK_WAIT = 600
+#: 끝내라고(SIGTERM) 한 뒤 기다리는 시간. ⚠️ SIGKILL 은 쓰지 않는다 — 머리 주석의 커널 패닉.
+STOP_WAIT = 30
 
 
 class CodexError(RuntimeError):
@@ -111,9 +115,26 @@ def _save_images(folder: str, images: list[str]) -> list[str]:
 async def run(prompt: str, model: str | None, images: list[str] | None = None,
               mcp_url: str | None = None, mcp_token: str | None = None, write_tools: tuple = (),
               effort: str | None = None) -> str:
-    """답 본문(에이전트 메시지들을 이은 것). 실패하면 CodexError. 앞의 실행이 끝날 때까지 기다렸다 돈다."""
-    async with _RUN_LOCK:
+    """답 본문(에이전트 메시지들을 이은 것). 실패하면 CodexError. 앞의 실행이 끝날 때까지(최대 LOCK_WAIT) 기다렸다 돈다."""
+    try:
+        await asyncio.wait_for(_RUN_LOCK.acquire(), LOCK_WAIT)
+    except TimeoutError:
+        raise CodexError("앞의 AI 작업이 끝나지 않았습니다 — 잠시 뒤 다시 해 주세요")
+    try:
         return await _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort)
+    finally:
+        _RUN_LOCK.release()
+
+
+async def _stop(proc) -> None:
+    """SIGTERM 뒤 STOP_WAIT 까지 기다린다. 그래도 안 끝나면 남기고 로그만 — 잠금을 영원히 쥐지 않게."""
+    if proc.returncode is not None:
+        return
+    proc.terminate()
+    try:
+        await asyncio.wait_for(proc.wait(), STOP_WAIT)
+    except TimeoutError:
+        logger.error("codex(pid %s)가 SIGTERM 뒤 %s초가 지나도 끝나지 않았다 — 그대로 두고 넘어간다", proc.pid, STOP_WAIT)
 
 
 async def _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort) -> str:
@@ -147,10 +168,10 @@ async def _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort) -
             await proc.stdin.drain()
             proc.stdin.close()
 
-            texts, failure, tools = [], None, []
+            texts, failure, tools, turn_failed = [], None, [], False
 
             async def read():
-                nonlocal failure
+                nonlocal failure, turn_failed
                 while line := await proc.stdout.readline():
                     try:
                         o = json.loads(line)
@@ -165,17 +186,20 @@ async def _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort) -
                         failure = o.get("message") or failure
                     elif kind == "turn.failed":
                         failure = (o.get("error") or {}).get("message") or failure
+                        turn_failed = True
 
             try:
                 await asyncio.wait_for(read(), TIMEOUT)
-            except TimeoutError:
-                proc.terminate()
                 await proc.wait()
+            except TimeoutError:
                 raise CodexError(f"AI 가 {TIMEOUT}초 안에 답하지 않았습니다")
-            await proc.wait()
+            finally:
+                await _stop(proc)   # 시간 초과·요청 취소(CancelledError)에도 자식을 남기지 않는다
             if tools:
                 logger.info("codex MCP 호출: %s", ", ".join(tools))
-            if not texts:
+            # 중간 메시지가 있어도 턴이 실패했으면 실패다 — 성공처럼 반쪽 답을 내지 않는다(2026-10-14 검토).
+            # (`error` 이벤트는 재연결 같은 일시 오류일 수 있어 그것만으로는 실패로 보지 않는다.)
+            if not texts or turn_failed:
                 err.seek(0)
                 tail = err.read()[-500:].decode(errors="replace").strip()
                 logger.warning("codex 실패(exit %s): %s | %s", proc.returncode, failure, tail)

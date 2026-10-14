@@ -364,3 +364,44 @@ class TestNotes:
         with pytest.raises(HTTPException) as e:
             put({"rules": ["가" * 301], "base_rev_id": 5})
         assert e.value.status_code == 422
+
+
+class TestIntegrity:
+    """2026-10-14 검토(반론자)에서 나온 검사 — 환산에 필요한 market, 이벤트마다 실현 가지 하나, 복기 비교 범위, 되돌리기 충돌."""
+
+    def test_종목은_market_이_있어야_한다(self):
+        with pytest.raises(ValueError, match="market"):
+            ip.Holding.model_validate({"kind": "stock", "name": "AAPL", "code": "AAPL", "qty": 1, "currency": "USD"})
+        ip.Holding.model_validate({"kind": "cash", "name": "달러", "amount": 100, "currency": "USD"})   # 시세 없는 것은 그대로
+
+    def test_실현_가지는_이벤트마다_하나(self):
+        nodes = [{"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+                 {"id": "a", "parent": "e", "kind": "branch", "title": "인하", "status": "realized"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "동결", "status": "realized"}]
+        with pytest.raises(ValueError, match="하나"):
+            ip.PlanDoc.model_validate({"nodes": nodes})
+
+    def test_그때만_빠진_보유가_있으면_비교하지_않는다(self):
+        doc = ip.PlanDoc.model_validate({"holdings": [
+            {"kind": "cash", "name": "예금", "amount": 100},
+            {"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1}], "nodes": [
+            {"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-01T03:00:00+09:00"},
+            {"id": "b", "parent": "e", "kind": "branch", "title": "동결"}]})
+        now = ip.valuate(doc, {"005930": 100}, {}, None)
+        then = ip.valuate(doc, {}, {}, None)            # 그때 시세 없음
+        r = ip.retrospect(doc, now, {"e": then})["b"]
+        assert r["missing"] == 1 and r["pct"] is None and r["change"] is None
+        same = ip.retrospect(doc, now, {"e": ip.valuate(doc, {"005930": 50}, {}, None)})["b"]
+        assert same["pct"] == pytest.approx(100 * (200 / 150 - 1))
+
+    def test_되돌리기는_기대한_버전이_아니면_409(self, monkeypatch):
+        from types import SimpleNamespace
+        from fastapi import HTTPException
+        from app.api import plan_v1
+
+        async def latest(db, u):
+            return SimpleNamespace(rev_id=7)
+        monkeypatch.setattr(plan_v1, "latest_rev", latest)
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(plan_v1._restore(None, 1, 5, expect=6))
+        assert e.value.status_code == 409
