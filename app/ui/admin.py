@@ -1228,6 +1228,8 @@ async def integrations_save(request: Request):
         bad = ("ai_effort", "추론 강도가 올바르지 않습니다")
     elif values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
         bad = ("plan_mail_to", "받는 메일 주소 형식이 아닙니다")
+    elif not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", values["plan_daily_at"]):
+        bad = ("plan_daily_at", "점검 시각은 HH:MM 이어야 합니다")
     if bad:
         logger.warning("관리자 거부: integrations.save %s", bad[0])
         return await _integrations_page(request, {"field": bad[0], "error": bad[1], "values": values},

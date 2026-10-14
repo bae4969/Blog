@@ -16,9 +16,9 @@ AI 는 MCP 쓰기 도구로 노드·보유를 고치고, 서버가 그때마다 
 
 import json
 from datetime import date, datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 AssetClass = Literal["stock", "bond", "cash", "crypto", "other"]
 _KST = timezone(timedelta(hours=9))
@@ -98,11 +98,19 @@ class Node(BaseModel):
     executed_at: date | None = Field(default=None, description="가지의 매매를 실제로 한 날(화면 [실행함]) — 2026-10-11")
 
 
+#: 원칙·기억 한 줄 — 앞뒤 공백을 떼고, 빈 줄은 받지 않는다.
+Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+MAX_RULES, MAX_MEMORY = 30, 50
+
+
 class PlanDoc(BaseModel):
     as_of: date | None = Field(default=None, description="보유 자산 기준일")
     holdings: list[Holding] = Field(default_factory=list, max_length=_MAX_HOLDINGS)
     nodes: list[Node] = Field(default_factory=list, max_length=_MAX_NODES)
     cashflow: list[Flow] = Field(default_factory=list, max_length=50, description="월 현금흐름 — 2026-10-11 에 더했다(옛 문서는 빈 목록)")
+    # 2026-10-14 — 상담·매일 점검 프롬프트에 늘 싣는다. 화면 [원칙·기억] 목록과 상담(rules_set·memory_set) 두 길로 고친다.
+    rules: list[Note] = Field(default_factory=list, max_length=MAX_RULES, description="원칙 — AI 가 늘 지킬 규칙")
+    memory: list[Note] = Field(default_factory=list, max_length=MAX_MEMORY, description="기억 — 상담에 늘 깔고 갈 사실")
 
     @model_validator(mode="after")
     def _tree(self):
@@ -358,9 +366,21 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
   숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
-  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로). **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
+  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로), rules_set(원칙 통째로), memory_set(기억 통째로).
+  **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
   거부되면 돌려준 이유를 보고 고쳐 다시 부른다. 사용자가 바꾸라고 하지 않았으면 쓰지 않는다.
 - 여러 노드를 만들 때는 부모부터(이벤트 → 그 가지 → 다음 이벤트) 차례로 node_add 한다.
+
+## 원칙·기억
+- **원칙**은 사용자가 정한 행동 규칙이다. 가지·액션·권유는 원칙을 어기지 않는다. 사용자가 원칙에 어긋나는 걸 시키면
+  그 원칙을 들어 한 번 묻고, 그래도 하라면 따르며 원칙을 고칠지도 묻는다.
+- **기억**은 사용자에 대한 사실·상황·선호다(만기·상여 시기·답 형식 등). 답과 계획에 반영한다.
+- 사용자가 "기억해·원칙으로 해·잊어·빼"처럼 **시킬 때만** rules_set·memory_set 으로 고친다 — 지금 목록에 더하거나 빼서
+  통째로 보낸다(다른 줄은 그대로). 대화에서 남길 만한 게 보이면 "원칙(기억)으로 남길까요?" 하고 묻기만 한다.
+- 한 줄에 하나, 짧게(300자 이내, 원칙 최대 30줄·기억 50줄). 기억의 날짜는 "2027-03"처럼 절대 날짜로 쓴다("내년" 금지).
+  하지 말 것·해야 할 것은 원칙, 사실·상황·선호는 기억이다. 사용자는 화면 목록에서도 직접 고친다.
+
+{notes}
 
 ## 계획 문서 형식(JSON)
 {{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드], "cashflow": [현금흐름]}}
@@ -419,9 +439,52 @@ def outline(doc: PlanDoc) -> dict:
                       for n in doc.nodes]}
 
 
+def notes_block(doc: PlanDoc) -> str:
+    """프롬프트의 원칙·기억 목록 — 뼈대 JSON 과 따로, 눈에 띄게 싣는다."""
+    rules = "\n".join(f"- {r}" for r in doc.rules) or "(없음)"
+    memory = "\n".join(f"- {m}" for m in doc.memory) or "(없음)"
+    return f"### 원칙(꼭 지킨다)\n{rules}\n\n### 기억\n{memory}"
+
+
 def system_prompt(doc: PlanDoc, now: datetime) -> str:
-    return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"),
+    return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"), notes=notes_block(doc),
                                 doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
+
+
+DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보는 감시자다. 하루 한 번 점검한다. 한국어로 쓴다.
+지금 시각(KST): {now}
+
+## 할 일
+최근 하루 남짓 사이에 아래 계획에 영향을 줄 **특별한 일**이 있었는지 웹에서 찾는다.
+- 계획의 대기(pending) 이벤트, 특히 14일 안의 것: 일정 변경, 시장 예상(컨센서스·금리선물 확률)의 큰 변화, 전제가 깨지는 발표
+- 보유 비중이 큰 종목·자산: 급등락, 중요 공시·실적, 거래 정지 같은 사건
+- 계획에 없던 큰 일: 예정에 없던 금리 결정, 전쟁·금융 사고처럼 시장 전체를 흔드는 일
+숫자(종가·등락률·환율·평가)는 블로그 도구(MCP `blog` — plan_get·node_get·quotes_get)를 먼저 쓴다. 이 점검은 **조회만** 한다 — 계획을 고치지 않는다.
+아래 원칙은 사용자가 정한 규칙이다 — 할 일(actions)은 원칙을 어기지 않는다. 기억은 사용자에 대한 사실이다.
+
+{notes}
+
+## 판정
+- "none": 무난한 하루 — 늘 있는 등락·이미 계획에 반영된 소식뿐. **대부분의 날은 none 이다.** 애매하면 none.
+- "notice": 계획을 다시 볼 만한 변화 — 다가오는 이벤트의 예상이 크게 바뀜, 보유 종목의 중요 소식.
+- "urgent": 지금 대응이 필요하다 — 이벤트의 전제가 깨짐, 보유 비중 큰 자산의 급변(하루 ±5% 넘게 등), 계획에 없던 큰 사건.
+
+## 답하는 법
+JSON 하나만 답한다(설명 글 없이):
+{{"level": "none|notice|urgent", "title": "한 줄 제목(none 이면 빈 글)", "summary": "무슨 일인지 2~4문장",
+ "impacts": ["예상 영향 — 영향받는 이벤트·가지·보유와 어떻게(제목으로 쓰고 id 는 쓰지 않는다)"],
+ "actions": ["할 일 — 계좌·종목·수량처럼 구체적으로, 또는 '상담에서 가지 다시 짜기'"]}}
+
+## 지금 계획(뼈대 — 노드 상세는 node_get(id))
+```json
+{doc}
+```
+"""
+
+
+def daily_prompt(doc: PlanDoc, now: datetime) -> str:
+    return DAILY_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"), notes=notes_block(doc),
+                               doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
 
 
 def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
@@ -438,4 +501,8 @@ def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
         parts.append("보유 자산 갱신")
     if old.cashflow != new.cashflow:
         parts.append("현금흐름 갱신")
+    if old.rules != new.rules:
+        parts.append("원칙 갱신")
+    if old.memory != new.memory:
+        parts.append("기억 갱신")
     return ", ".join(parts) or "변경 없음"

@@ -30,6 +30,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 TIMEOUT = 600
+#: codex 는 한 번에 하나만 — 한 번이 약 400MB 라 상담·매일 점검이 겹치면 테스트 컨테이너(512M)가 넘친다. 뒤의 것은 기다린다.
+_RUN_LOCK = asyncio.Lock()
 
 
 class CodexError(RuntimeError):
@@ -109,7 +111,12 @@ def _save_images(folder: str, images: list[str]) -> list[str]:
 async def run(prompt: str, model: str | None, images: list[str] | None = None,
               mcp_url: str | None = None, mcp_token: str | None = None, write_tools: tuple = (),
               effort: str | None = None) -> str:
-    """답 본문(에이전트 메시지들을 이은 것). 실패하면 CodexError."""
+    """답 본문(에이전트 메시지들을 이은 것). 실패하면 CodexError. 앞의 실행이 끝날 때까지 기다렸다 돈다."""
+    async with _RUN_LOCK:
+        return await _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort)
+
+
+async def _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort) -> str:
     if not logged_in():
         raise CodexError("Codex 로그인이 필요합니다 — 관리자 › 외부 연동에서 로그인해 주세요")
     folder = tempfile.mkdtemp(prefix="plan-codex-")   # 빈 작업 폴더 — 읽을 파일이 없다

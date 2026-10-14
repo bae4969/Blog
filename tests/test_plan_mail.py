@@ -39,3 +39,54 @@ def test_내용에_개요_예상_대응_출처():
     for part in ("2026-10-29 03:00", "연준이 기준금리를 정한다.", "동결 우세.", "조건: 0.25%p 이상 인하",
                  "- QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
         assert part in body, part
+
+
+# --- 매일 점검 ---
+
+def _cfg(on="1", at="12:00"):
+    return {"plan_daily_on": on, "plan_daily_at": at}
+
+
+def test_점검은_켜져_있고_시각부터_6시간_안에만():
+    noon = datetime(2026, 10, 14, 12, 0, tzinfo=KST)
+    assert plan_mail.daily_due(_cfg(), noon).isoformat() == "2026-10-14"
+    assert plan_mail.daily_due(_cfg(), noon + timedelta(hours=6)) is not None
+    assert plan_mail.daily_due(_cfg(), noon - timedelta(minutes=1)) is None
+    assert plan_mail.daily_due(_cfg(), noon + timedelta(hours=6, minutes=1)) is None
+    assert plan_mail.daily_due(_cfg(on=""), noon) is None
+    assert plan_mail.daily_due(_cfg(at="깨짐"), noon) is None
+
+
+def test_무난한_하루나_깨진_답은_알리지_않는다():
+    assert plan_mail.parse_check('{"level": "none", "title": ""}') is None
+    assert plan_mail.parse_check("오늘은 특별한 일이 없습니다.") is None
+    assert plan_mail.parse_check('{"level": "notice", "title": "x"') is None
+    assert plan_mail.parse_check('{"level": "notice", "title": ""}') is None
+
+
+def test_알릴_답은_코드블록이든_맨_JSON이든_읽는다():
+    fenced = '점검 결과:\n```json\n{"level": "urgent", "title": "FOMC 앞당김"}\n```'
+    assert plan_mail.parse_check(fenced)["level"] == "urgent"
+    assert plan_mail.parse_check('{"level": "notice", "title": "실적 경고"}')["title"] == "실적 경고"
+
+
+def test_점검_메일_제목과_섹션_셋_출처_없음():
+    check = {"level": "urgent", "title": "FOMC 임시 회의", "summary": "연준이 <임시> 회의를 열었다.",
+             "impacts": ["10월 FOMC — 전제가 바뀜"], "actions": ["상담에서 가지 다시 짜기"],
+             "links": [{"title": "연준", "url": "https://fed.gov"}]}
+    msg = plan_mail.compose_daily(check, NOW.date(), "me@x", "me@x", "https://blog.x/stocks/plan")
+    assert msg["Subject"] == "[투자 계획·긴급] FOMC 임시 회의"
+    text = msg.get_body(("plain",)).get_content()
+    html = msg.get_body(("html",)).get_content()
+    for part in ("■ 무슨 일", "■ 예상 영향", "- 10월 FOMC — 전제가 바뀜", "■ 할 일", "- 상담에서 가지 다시 짜기",
+                 "계획은 바꾸지 않았습니다", "https://blog.x/stocks/plan"):
+        assert part in text
+    for part in ("무슨 일", "예상 영향", "할 일", "연준이 &lt;임시&gt; 회의를 열었다.", "#FF99A4",
+                 'href="https://blog.x/stocks/plan"'):
+        assert part in html
+    assert "fed.gov" not in text + html and "출처" not in text + html
+
+
+def test_빈_섹션은_뺀다():
+    text = plan_mail.daily_text({"level": "notice", "title": "x", "summary": "요지"}, NOW.date())
+    assert "■ 무슨 일" in text and "예상 영향" not in text and "할 일" not in text

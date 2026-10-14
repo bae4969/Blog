@@ -1,7 +1,8 @@
 """투자 계획 문서(`app/services/invest_plan.py`) — 형식 검증·평가·AI 답 해석. DB 없이 본다."""
 
+import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -285,3 +286,81 @@ class TestRetrospect:
         kst = timezone(timedelta(hours=9))
         assert [e.id for e in ip.past_events(_doc(), datetime(2026, 10, 29, 3, 0, tzinfo=kst))] == ["fomc"]
         assert ip.past_events(_doc(), datetime(2026, 10, 29, 2, 59, tzinfo=kst)) == []
+
+
+class TestNotes:
+    """원칙·기억(2026-10-14) — 문서 칸, 프롬프트, 변경 요약, 화면 저장 API(PUT /notes)."""
+
+    def test_옛_문서는_빈_목록_줄은_공백을_뗀다(self):
+        assert ip.PlanDoc.model_validate({}).rules == []
+        assert ip.PlanDoc.model_validate({"rules": ["  레버리지 안 씀 "]}).rules == ["레버리지 안 씀"]
+
+    @pytest.mark.parametrize("data", [{"rules": [""]}, {"memory": ["가" * 301]}, {"rules": ["x"] * 31}, {"memory": ["x"] * 51}])
+    def test_빈_줄_긴_줄_한도_초과는_거절(self, data):
+        with pytest.raises(ValueError):
+            ip.PlanDoc.model_validate(data)
+
+    def test_상담과_점검_프롬프트에_늘_싣는다(self):
+        doc = ip.PlanDoc.model_validate({"rules": ["레버리지 ETF 안 씀"], "memory": ["상여는 1월·7월"]})
+        now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
+        for prompt in (ip.system_prompt(doc, now), ip.daily_prompt(doc, now)):
+            assert "- 레버리지 ETF 안 씀" in prompt and "- 상여는 1월·7월" in prompt
+        assert "(없음)" in ip.system_prompt(ip.PlanDoc(), now)
+
+    def test_변경_요약(self):
+        old = ip.PlanDoc()
+        assert ip.diff_summary(old, ip.PlanDoc(rules=["a"], memory=["b"])) == "원칙 갱신, 기억 갱신"
+
+    def _api(self, monkeypatch, rev_id=5, doc=None):
+        from contextlib import asynccontextmanager
+        from types import SimpleNamespace
+        from app.api import plan_v1
+
+        state = {"row": SimpleNamespace(rev_id=rev_id, doc=ip.PlanDoc.model_validate(doc or {}).model_dump_json()),
+                 "saved": []}
+
+        class DB:
+            async def commit(self):
+                pass
+
+        @asynccontextmanager
+        async def session():
+            yield DB()
+
+        async def owner(db, request):
+            return SimpleNamespace(user_index=1)
+
+        async def latest(db, u):
+            return state["row"]
+
+        async def save(db, u, new, summary):
+            state["saved"].append(summary)
+            state["row"] = SimpleNamespace(rev_id=state["row"].rev_id + 1, doc=new.model_dump_json())
+
+        async def view(db, row):
+            return {"rev_id": row.rev_id, "doc": json.loads(row.doc)}
+
+        for name, fn in (("db_session", session), ("owner", owner), ("latest_rev", latest), ("_save_rev", save),
+                         ("plan_view", view)):
+            monkeypatch.setattr(plan_v1, name, fn)
+        return (lambda body: asyncio.run(plan_v1.put_notes(None, plan_v1.NotesIn(**body)))), state
+
+    def test_저장은_새_버전_빈_줄은_뺀다(self, monkeypatch):
+        put, state = self._api(monkeypatch)
+        out = put({"rules": ["레버리지 안 씀", "  "], "memory": ["상여 1월"], "base_rev_id": 5})
+        assert out["saved"] and out["prev_rev_id"] == 5 and out["rev_id"] == 6 and out["doc"]["rules"] == ["레버리지 안 씀"]
+        assert state["saved"] == ["원칙 갱신, 기억 갱신"]
+
+    def test_바뀐_게_없으면_버전을_안_쌓는다(self, monkeypatch):
+        put, state = self._api(monkeypatch, doc={"rules": ["a"]})
+        assert not put({"rules": ["a"], "base_rev_id": 5})["saved"] and state["saved"] == []
+
+    def test_그_사이_바뀌었으면_409_긴_줄은_422(self, monkeypatch):
+        from fastapi import HTTPException
+        put, _ = self._api(monkeypatch)
+        with pytest.raises(HTTPException) as e:
+            put({"rules": ["a"], "base_rev_id": 4})
+        assert e.value.status_code == 409
+        with pytest.raises(HTTPException) as e:
+            put({"rules": ["가" * 301], "base_rev_id": 5})
+        assert e.value.status_code == 422

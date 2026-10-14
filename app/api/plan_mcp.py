@@ -33,18 +33,20 @@ from app.ui.stocks import _latest_quotes, _stock_page
 
 router = APIRouter()
 
-#: 토큰 → (user_index, 만료 시각). 상담 상한(600초)보다 조금 길게.
-_TOKENS: dict[str, tuple[int, float]] = {}
-_TTL = 660
+#: 토큰 → (user_index, 만료 시각, 조회만). codex 는 한 번에 하나라(codex_runner) 앞 실행을 기다리는 시간까지 —
+#: 상한(600초) 두 번에 여유. 끝나면 revoke 하므로 길어도 남지 않는다.
+_TOKENS: dict[str, tuple[int, float, bool]] = {}
+_TTL = 1260
 
 
-def issue(user_index: int) -> str:
+def issue(user_index: int, read_only: bool = False) -> str:
+    """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다)."""
     now = time.time()
-    for t, (_, exp) in list(_TOKENS.items()):   # 지난 것 청소
+    for t, (_, exp, _) in list(_TOKENS.items()):   # 지난 것 청소
         if exp < now:
             _TOKENS.pop(t, None)
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = (user_index, now + _TTL)
+    _TOKENS[token] = (user_index, now + _TTL, read_only)
     return token
 
 
@@ -52,12 +54,13 @@ def revoke(token: str) -> None:
     _TOKENS.pop(token, None)
 
 
-def _user_of(request: Request) -> int | None:
+def _user_of(request: Request) -> tuple[int, bool] | None:
+    """(user_index, 조회만) — 토큰이 없거나 만료면 None."""
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
         return None
     hit = _TOKENS.get(header[7:].strip())
-    return hit[0] if hit and hit[1] > time.time() else None
+    return (hit[0], hit[2]) if hit and hit[1] > time.time() else None
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +79,7 @@ _RO = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "
 _RW = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 _RW_DEL = {**_RW, "destructiveHint": True}
 #: 쓰기 도구 이름 — codex_runner 가 이 목록에만 자동 승인을 건다.
-WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set")
+WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "rules_set", "memory_set")
 
 TOOLS = [
     {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율), 월 현금흐름 합계(cashflow)와 이벤트까지의 예상 적립(accrual).",
@@ -110,6 +113,12 @@ TOOLS = [
     {"annotations": _RW, "name": "cashflow_set",
      "description": "월 현금흐름(cashflow — 수입·고정 지출·생활비·저축·납입) 목록을 통째로 바꾼다. 금액은 한 달 원화.",
      "inputSchema": _obj({"cashflow": {"type": "array", "items": {"type": "object"}}}, ["cashflow"])},
+    {"annotations": _RW, "name": "rules_set",
+     "description": "원칙(rules — AI 가 늘 지킬 사용자 규칙) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 30줄.",
+     "inputSchema": _obj({"rules": {"type": "array", "items": {"type": "string"}}}, ["rules"])},
+    {"annotations": _RW, "name": "memory_set",
+     "description": "기억(memory — 사용자에 대한 사실·상황·선호) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 50줄.",
+     "inputSchema": _obj({"memory": {"type": "array", "items": {"type": "string"}}}, ["memory"])},
 ]
 
 
@@ -198,6 +207,12 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
     elif name == "cashflow_set":
         data["cashflow"] = args.get("cashflow") or []
         what = "현금흐름 갱신"
+    elif name == "rules_set":
+        data["rules"] = args.get("rules") or []
+        what = "원칙 갱신"
+    elif name == "memory_set":
+        data["memory"] = args.get("memory") or []
+        what = "기억 갱신"
     else:   # holdings_set
         data["holdings"] = args.get("holdings") or []
         if args.get("as_of"):
@@ -233,9 +248,10 @@ async def mcp_get():
 
 @router.post("/mcp", include_in_schema=False)
 async def mcp(request: Request):
-    user_index = _user_of(request)
-    if user_index is None:
+    who = _user_of(request)
+    if who is None:
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
+    user_index, read_only = who
     try:
         msg = await request.json()
     except ValueError:
@@ -256,6 +272,9 @@ async def mcp(request: Request):
         return _result(mid, {"tools": TOOLS})
     if method == "tools/call":
         name, args = params.get("name"), params.get("arguments") or {}
+        if read_only and name in WRITE_TOOLS:
+            return _result(mid, {"content": [{"type": "text", "text": "조회만 하는 점검입니다 — 계획을 고칠 수 없습니다"}],
+                                 "isError": True})
         try:
             async with db_session() as db:
                 data = await _call(db, user_index, name, args)

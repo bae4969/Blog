@@ -36,7 +36,7 @@ def test_초기화와_도구_목록():
     assert init["protocolVersion"] == "2025-06-18" and "tools" in init["capabilities"]
     names = [x["name"] for x in _rpc(t, "tools/list").json()["result"]["tools"]]
     assert names == ["plan_get", "node_get", "plan_revisions", "plan_revision_get", "quotes_get", "stock_search",
-                     "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set"]
+                     "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "rules_set", "memory_set"]
     assert set(plan_mcp.WRITE_TOOLS) == set(names[6:])
     plan_mcp.revoke(t)
 
@@ -101,6 +101,15 @@ class TestWrite:
         assert state["doc"].holdings[0].account == "ISA"
         assert [x.account for x in state["doc"].nodes[1].holdings] == ["ISA", "IRP"]
 
+    def test_원칙_기억_쓰기(self, monkeypatch):
+        run, state, saved = self._store(monkeypatch, self.BASE)
+        assert run("rules_set", {"rules": ["레버리지 안 씀"]})["summary"] == "원칙 갱신"
+        assert run("memory_set", {"memory": ["상여 1월·7월"]})["summary"] == "기억 갱신"
+        assert state["doc"].rules == ["레버리지 안 씀"] and state["doc"].memory == ["상여 1월·7월"]
+        assert run("rules_set", {"rules": []})["summary"] == "원칙 갱신" and state["doc"].rules == []
+        with pytest.raises(ValueError):
+            run("memory_set", {"memory": ["가" * 301]})
+
     def test_현금흐름_쓰기(self, monkeypatch):
         run, state, saved = self._store(monkeypatch, self.BASE)
         out = run("cashflow_set", {"cashflow": [{"kind": "income", "name": "월급", "amount": 3_000_000},
@@ -125,3 +134,10 @@ class TestWrite:
         run, state, saved = self._store(monkeypatch, self.BASE)
         assert run("node_update", {"id": "b", "fields": {"title": "인하"}}) == {"saved": False, "summary": "변경 없음"}
         assert saved == []
+
+
+def test_조회_전용_토큰은_쓰기_도구를_거절한다():
+    t = plan_mcp.issue(7, read_only=True)
+    r = _rpc(t, "tools/call", {"name": "node_delete", "arguments": {"id": "x"}}).json()["result"]
+    plan_mcp.revoke(t)
+    assert r["isError"] and "조회만" in r["content"][0]["text"]

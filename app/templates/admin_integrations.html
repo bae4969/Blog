@@ -122,6 +122,18 @@
                     <input type="email" id="plan_mail_to" name="plan_mail_to" maxlength="200" value="{{ values.plan_mail_to }}"{{ finvalid('plan_mail_to') }}>
                     {{ ferr('plan_mail_to') }}
                 </div>
+                <div class="admin-form-field">
+                    <label for="plan_daily_on">매일 점검</label>
+                    <select id="plan_daily_on" name="plan_daily_on">
+                        <option value="">끔</option>
+                        <option value="1"{% if values.plan_daily_on == '1' %} selected{% endif %}>켬</option>
+                    </select>
+                </div>
+                <div class="admin-form-field">
+                    <label for="plan_daily_at">점검 시각</label>
+                    <input type="time" id="plan_daily_at" name="plan_daily_at" required value="{{ values.plan_daily_at }}"{{ finvalid('plan_daily_at') }}>
+                    {{ ferr('plan_daily_at') }}
+                </div>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">{{ icons.i('save') }}<span>저장</span></button>

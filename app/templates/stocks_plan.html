@@ -19,6 +19,7 @@
     <div>
         <h1 class="plan-title">투자 계획</h1>
     </div>
+    <button type="button" class="c-btn" id="planNotesOpen">{{ icons.i('list') }}<span>원칙·기억</span></button>
     <button type="button" class="c-btn" id="planHistoryOpen">{{ icons.i('history') }}<span>버전 기록</span></button>
 </header>
 
@@ -73,6 +74,30 @@
         <button type="button" class="c-btn" id="planHistoryClose">{{ icons.i('cancel') }}<span>닫기</span></button>
     </header>
     <ol class="plan-history__list" id="planHistoryList"></ol>
+</dialog>
+{#
+  원칙·기억(2026-10-14) — 상담·매일 점검 프롬프트에 늘 싣는 목록. 여기서 고쳐 [저장]으로 한 번에 보내고(새 버전),
+  상담에서도 "기억해·원칙으로·잊어"로 고친다. 저장하지 않고 닫으면 고친 것은 버린다.
+#}
+<dialog class="plan-history plan-notes" id="planNotes" aria-label="원칙·기억">
+    <header class="plan-history__head">
+        <h2>원칙·기억</h2>
+        <button type="button" class="c-btn" id="planNotesClose">{{ icons.i('cancel') }}<span>닫기</span></button>
+    </header>
+    <div class="plan-notes__body">
+        {# div 로 둔다 — blog.css 의 전역 `section`(바탕·모바일 flex 세로)이 추가 버튼을 가로로 늘려 정사각으로 키웠다 #}
+        <div class="plan-notes__sec" data-key="rules" data-max="30" data-label="원칙">
+            <h3>원칙</h3>
+            <ol class="plan-notes__list"></ol>
+        </div>
+        <div class="plan-notes__sec" data-key="memory" data-max="50" data-label="기억">
+            <h3>기억</h3>
+            <ol class="plan-notes__list"></ol>
+        </div>
+    </div>
+    <footer class="plan-notes__foot">
+        <button type="button" class="c-btn c-btn--accent" id="planNotesSave">{{ icons.i('save') }}<span>저장</span></button>
+    </footer>
 </dialog>
 
 </div>

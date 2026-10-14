@@ -1396,7 +1396,7 @@
 
     document.getElementById('planFloatClose').addEventListener('click', closeFloat);
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && !floatEl.hidden && !historyDlg.open) closeFloat();
+        if (e.key === 'Escape' && !floatEl.hidden && !historyDlg.open && !document.getElementById('planNotes').open) closeFloat();
     });
     // 바깥을 누르면 닫는다. 다른 원·날짜 라벨·할 일의 가지 이름은 그 상세로 바꾸는 자리라 빼고, 토스트(되돌리기 등)도 뺀다.
     // ⚠️ 창 안의 가지 버튼은 누르는 순간 창이 다시 그려져 문서에서 빠진다 — `contains` 로는 바깥으로 오판한다.
@@ -1415,7 +1415,7 @@
     document.addEventListener('click', function () {
         var outside = downOutside && upOutside;
         downOutside = upOutside = false;
-        if (floatEl.hidden || historyDlg.open || dragMoved) { dragMoved = false; return; }
+        if (floatEl.hidden || historyDlg.open || document.getElementById('planNotes').open || dragMoved) { dragMoved = false; return; }
         if (outside) closeFloat();
     });
 
@@ -1457,6 +1457,88 @@
     // 떠 있는 창 규칙 — 바깥(막)을 누르면 닫는다. 정본처럼 **누르기 시작과 떼기가 모두 창 밖**일 때만이다
     // (창 안에서 글자를 끌다 밖에서 떼면 안 닫힌다). Esc 는 dialog 기본(cancel)으로 닫힌다.
     window.TopLayer.bindModal(historyDlg);
+
+    // ── 원칙·기억 ──────────────────────────────────────────
+    //
+    // 열 때 지금 계획의 목록으로 채우고, [저장]에서 두 목록을 통째로 보낸다(PUT /notes — 연 버전과 다르면 409).
+
+    var notesDlg = document.getElementById('planNotes');
+    var notesBase = null;   // 열 때의 버전 — 그 사이 상담이 고쳤으면 서버가 거절한다
+
+    function iconSvg(paths) {
+        return '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+             + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+    }
+
+    function noteRow(list, value) {
+        var li = el('li');
+        var ta = el('textarea');
+        ta.rows = 1;
+        ta.maxLength = 300;
+        ta.value = value;
+        ta.setAttribute('aria-label', list.parentNode.dataset.label);
+        var del = el('button', 'c-btn');
+        del.type = 'button';
+        del.innerHTML = iconSvg('<path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>'
+                              + '<path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>');
+        del.appendChild(el('span', null, '지우기'));
+        del.addEventListener('click', function () { li.remove(); syncAdd(list); });
+        li.appendChild(ta);
+        li.appendChild(del);
+        list.appendChild(li);
+        return ta;
+    }
+
+    // 한도(원칙 30·기억 50)에 닿으면 추가 버튼을 끈다.
+    function syncAdd(list) {
+        var sec = list.parentNode;
+        sec.querySelector('.plan-notes__add').disabled = list.children.length >= +sec.dataset.max;
+    }
+
+    notesDlg.querySelectorAll('.plan-notes__sec').forEach(function (sec) {
+        var list = sec.querySelector('.plan-notes__list');
+        var add = el('button', 'c-btn plan-notes__add');
+        add.type = 'button';
+        add.innerHTML = iconSvg('<path d="M12 5v14"/><path d="M5 12h14"/>');
+        add.appendChild(el('span', null, sec.dataset.label + ' 추가'));
+        add.addEventListener('click', function () { noteRow(list, '').focus(); syncAdd(list); });
+        sec.appendChild(add);
+    });
+
+    function notesOf(key) {
+        return Array.prototype.map.call(notesDlg.querySelectorAll('[data-key="' + key + '"] textarea'), function (t) {
+            return t.value.trim();
+        }).filter(Boolean);
+    }
+
+    document.getElementById('planNotesOpen').addEventListener('click', function () {
+        if (!plan) return;
+        notesBase = plan.rev_id;
+        notesDlg.querySelectorAll('.plan-notes__sec').forEach(function (sec) {
+            var list = sec.querySelector('.plan-notes__list');
+            list.textContent = '';
+            (plan.doc[sec.dataset.key] || []).forEach(function (v) { noteRow(list, v); });
+            syncAdd(list);
+        });
+        window.TopLayer.openModal(notesDlg);
+    });
+    document.getElementById('planNotesClose').addEventListener('click', function () { notesDlg.close(); });
+    window.TopLayer.bindModal(notesDlg);
+
+    document.getElementById('planNotesSave').addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+        api('PUT', '/api/v1/plan/notes', { rules: notesOf('rules'), memory: notesOf('memory'), base_rev_id: notesBase })
+            .then(function (p) {
+                notesDlg.close();
+                setPlan(p);
+                if (!p.saved) { window.toast('원칙·기억이 바뀌지 않았습니다', 'info'); return; }
+                window.toast('원칙·기억을 저장했습니다', 'success', p.prev_rev_id
+                    ? { action: { label: '되돌리기', onClick: function () { restore(p.prev_rev_id); } }, duration: 8000 } : {});
+            })
+            .catch(function (e) { window.toast('원칙·기억을 저장하지 못했습니다: ' + e.message, 'error'); })
+            .then(function () { btn.disabled = false; });
+    });
 
     // ── 시작 ───────────────────────────────────────────────
 

@@ -817,6 +817,39 @@
 .plan-history__list b { color: var(--bae-text-primary); }
 .plan-history__list small { display: block; color: var(--bae-text-dim); }
 
+/* 원칙·기억(2026-10-14) — 버전 기록과 같은 창. 목록은 줄마다 입력칸 + 지우기, 섹션 끝에 추가, 창 아래 저장 */
+.plan-notes { inline-size: min(40rem, calc(100% - 2rem)); }
+.plan-notes__body {
+    display: grid;
+    gap: var(--space-4);
+    max-block-size: 60vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+.plan-notes__body::-webkit-scrollbar { display: none; }
+.plan-notes__sec h3 { margin: 0 0 var(--space-2); color: var(--bae-text-primary); font-size: var(--fs-0); }
+.plan-notes__list { display: grid; gap: var(--space-2); margin: 0 0 var(--space-2); padding: 0; list-style: none; }
+.plan-notes__list li { display: flex; align-items: flex-start; gap: var(--space-2); }
+.plan-notes__list li::after { content: none; }   /* blog.css 의 li::after float 해제 — flex 안에서 빈 항목이 된다 */
+.plan-notes__list textarea {
+    flex: 1;
+    min-inline-size: 0;
+    field-sizing: content;   /* 글 길이만큼 늘어난다(지원 안 하는 브라우저는 한 줄 + 스크롤) */
+    min-block-size: 2.5rem;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--bae-border);
+    border-radius: var(--border-radius);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    font: inherit;
+    font-size: var(--fs--1);
+    line-height: 1.5;
+    resize: none;
+}
+.plan-notes__list textarea:focus { outline: none; border-color: var(--bae-border-hover); box-shadow: var(--shadow-focus); }
+.plan-notes__foot { display: flex; justify-content: flex-end; margin-block-start: var(--space-3); }
+
 /* 이벤트에 개요·예상이 없으면 대응 덩어리가 맨 위에 온다 — 그때는 위 여백을 두지 않는다 */
 .plan-float__body > .plan-event:first-child { margin-block-start: 0; }
 
