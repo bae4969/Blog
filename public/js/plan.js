@@ -229,7 +229,15 @@
                   + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
     /** 계좌 · 종목 · 매매 · 수량 · 금액. 현금(평가액으로 적은 것)은 수량 없이 증가·감소. 매매가 없으면 null. */
+    /** 잔고가 바뀌어 다시 짜야 하는 가지 — 서버 `stale_branches`. 매매표가 엉뚱한 매도·매수를 낼 수 있어 표 대신 경고를 보인다. */
+    function isStale(id) { return (plan.stale || []).indexOf(id) >= 0; }
+
+    function staleNote() {
+        return el('p', 'plan-stale', '잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다 — 상담에서 정해 주세요');
+    }
+
     function tradeTable(id) {
+        if (isStale(id)) return staleNote();
         var list = (plan.trades || {})[id];
         if (!list || !list.length) return null;
         var wrap = el('div', 'plan-trades');
@@ -308,7 +316,7 @@
             open.appendChild(el('b', null, n.title));
             open.addEventListener('click', function () { select(n.id); });
             head.appendChild(open);
-            head.appendChild(executedButton(n));
+            if (!isStale(n.id)) head.appendChild(executedButton(n));
             item.appendChild(head);
             var table = tradeTable(n.id);
             if (table) item.appendChild(table);
@@ -1021,13 +1029,14 @@
         if (n) {
             section('조건', n.condition);
             var tradeSec = section('매매', tradeTable(n.id));
-            if (tradeSec && n.status === 'realized' && !n.executed_at) {
+            if (tradeSec && !isStale(n.id) && n.status === 'realized' && !n.executed_at) {
                 // [실행함] 은 제목 줄 오른쪽에 — 표 위에 따로 두면 버튼 하나가 한 줄을 차지했다
                 var h = tradeSec.firstChild;
                 h.classList.add('plan-sec__title--act');
                 h.appendChild(executedButton(n));
             }
-            section('실행할 일', n.actions.length ? n.actions : (n.holdings ? null : '매매 없이 유지'));
+            // 주문은 서버 매매표가 정한다 — AI 가 쓴 actions 는 표가 있으면 메모로만(2026-10-14 검토, 메일도 같다).
+            section(tradeSec ? '메모' : '실행할 일', n.actions.length ? n.actions : (n.holdings ? null : '매매 없이 유지'));
             section('근거', n.note);
             section('복기', retroBox(n, byId));
         }

@@ -16,6 +16,7 @@ codex 는 대화를 기억하지 않아 매번 시스템 프롬프트(지금 계
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -113,15 +114,21 @@ async def _closes_at(db, items: list[tuple[str, str, bool]], at: datetime) -> di
     return {code: float(c) for code, c in rows if c is not None}
 
 
-async def plan_view(db, row) -> dict:
-    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
-    doc = _doc_of(row)
+async def prices(db, doc: ip.PlanDoc) -> tuple[dict, dict, float | None]:
+    """(종목 종가, 코인 종가, 원/달러) — 오늘 시세. 평가(`ip.valuate`)에 그대로 넣는다."""
     stocks, coins = ip.price_pairs(doc)
     sq = await _latest_quotes(db, [(c, "s") for c in stocks])
     cq = await _latest_quotes(db, [(c, "c") for c in coins])
     fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
-    usdkrw = fx["close"] if fx else None
-    values = ip.valuate(doc, {k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, usdkrw)
+    return ({k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, fx["close"] if fx else None)
+
+
+async def plan_view(db, row) -> dict:
+    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
+    doc = _doc_of(row)
+    stocks, coins = ip.price_pairs(doc)
+    stock_px, coin_px, usdkrw = await prices(db, doc)
+    values = ip.valuate(doc, stock_px, coin_px, usdkrw)
 
     # 복기 — 지난 이벤트마다 그 시각의 종가로 다시 평가한다(같은 시각의 이벤트는 한 번만 읽는다).
     us_codes = {h.code for h in ip._all_holdings(doc) if h.code and h.market == "US"}
@@ -145,6 +152,7 @@ async def plan_view(db, row) -> dict:
         "cashflow": ip.cashflow_summary(doc),
         "accrual": ip.accruals(doc, datetime.now(_KST).date()),
         "trades": ip.trades(doc, values),
+        "stale": sorted(ip.stale_branches(doc)),
     }
 
 
@@ -193,18 +201,28 @@ def _flatten(messages: list[dict]) -> tuple[str, list[str]]:
     return "\n\n".join(parts), images
 
 
-async def _ask(cfg: dict, messages: list[dict], user_index: int) -> tuple[str, list[int]]:
+#: 원칙·기억을 고치라는 말 — 이게 있는 상담에만 rules_set·memory_set 을 연다(2026-10-14 검토, 사용자 선택 A).
+#: 단어 검사라 넓게 잡는다("빼"·"지워"는 다른 뜻일 때도 열리지만 여는 쪽 실수라 괜찮다). 없으면 AI 가 "남길까요?"라고 묻는다.
+_NOTE_INTENT = re.compile(r"기억|원칙|규칙|잊|빼|지워|지우|삭제")
+
+
+def write_tools_for(message: str) -> tuple:
+    return plan_mcp.WRITE_TOOLS if _NOTE_INTENT.search(message) else tuple(
+        t for t in plan_mcp.WRITE_TOOLS if t not in plan_mcp.NOTE_TOOLS)
+
+
+async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple) -> tuple[str, list[int]]:
     """codex 한 번 → (답, 이 상담이 쌓은 버전들). 상담 동안만 유효한 MCP 토큰을 그 사람에게 묶어 넘기고, 끝나면 회수한다.
 
     계획은 AI 가 MCP 쓰기 도구로 고친다(plan_mcp) — 고칠 때마다 이미 새 버전이 쌓여 있다.
     ⚠️ 실패해도 그 전에 쓴 버전은 남는다 — 화면이 실패 뒤 계획을 다시 읽는다(plan.js send).
     """
     prompt, images = _flatten(messages)
-    token = plan_mcp.issue(user_index)
+    token = plan_mcp.issue(user_index, allow=tools)
     made: list[int] = []
     try:
         model = codex_runner.resolve_model(cfg["ai_model"])
-        reply = await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, plan_mcp.WRITE_TOOLS,
+        reply = await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, tools,
                                        effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
     except codex_runner.CodexError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
@@ -234,10 +252,11 @@ async def chat(request: Request, body: ChatIn):
     # ⚠️ AI 를 기다리는 동안(최대 10분) DB 커넥션을 붙잡지 않는다 — 세션을 닫고 부른다.
     user_part = [{"type": "text", "text": msg or "이미지를 읽어 줘."}] + [
         {"type": "image_url", "image_url": {"url": u}} for u in body.images]
-    messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST))}]
+    tools = write_tools_for(msg)
+    messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST), "rules_set" in tools)}]
                 + [{"role": r.role, "content": r.content} for r in reversed(history)]
                 + [{"role": "user", "content": user_part}])
-    reply, ours = await _ask(cfg, messages, me.user_index)
+    reply, ours = await _ask(cfg, messages, me.user_index, tools)
     reply = reply.strip()
 
     prev = row.rev_id if row else 0
@@ -257,6 +276,8 @@ async def chat(request: Request, body: ChatIn):
         summary = ""
         if made:
             summary = " · ".join(r.summary for r in made)[:300] + f" ({ip.diff_summary(old, _doc_of(latest))})"
+            if changes := ip.change_lines(old, _doc_of(latest)):
+                reply += "\n\n[바뀐 것]\n" + "\n".join(f"- {c}" for c in changes[:30])
         stored = msg + (f"\n[이미지 {len(body.images)}장]" if body.images else "")
         await db.execute(text(
             "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'user', :c)"),
@@ -405,7 +426,7 @@ async def mail_tick(now: datetime) -> int:
                 await db.commit()
                 if not claimed:
                     continue
-                msg = plan_mail.compose(doc, view["values"], ev, cfg["smtp_user"], cfg["plan_mail_to"],
+                msg = plan_mail.compose(doc, view, ev, cfg["smtp_user"], cfg["plan_mail_to"],
                                         f"https://blog.{settings.base_domain}/stocks/plan")
                 try:
                     await asyncio.to_thread(_send, cfg, msg)

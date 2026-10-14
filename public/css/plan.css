@@ -893,3 +893,6 @@
 }
 .plan-todo__name small { color: var(--bae-text-dim); font-size: 0.75rem; }
 .plan-todo__name:hover b { text-decoration: underline; }
+
+/* 잔고가 바뀌어 다시 짜야 하는 가지(2026-10-14) — 매매표 자리에 */
+.plan-stale { margin: 0; color: var(--bae-warn); font-size: var(--fs--1); }

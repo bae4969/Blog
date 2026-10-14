@@ -33,11 +33,12 @@ def test_시작_전에는_안_보낸다():
 def test_내용에_개요_예상_대응_출처():
     doc = _doc()
     values = ip.valuate(doc, {}, {}, None)
-    msg = plan_mail.compose(doc, values, doc.nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
+    view = {"values": values, "trades": ip.trades(doc, values), "stale": []}
+    msg = plan_mail.compose(doc, view, doc.nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
     body = msg.get_content()
     assert msg["Subject"] == "[투자 계획] 10월 FOMC 시작 — 대응 2가지"
     for part in ("2026-10-29 03:00", "연준이 기준금리를 정한다.", "동결 우세.", "조건: 0.25%p 이상 인하",
-                 "- QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
+                 "메모: QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
         assert part in body, part
 
 
@@ -105,3 +106,20 @@ def test_점검_메일_제목과_섹션_셋_출처_없음():
 def test_빈_섹션은_뺀다():
     text = plan_mail.daily_text({"level": "notice", "title": "x", "summary": "요지"}, NOW.date())
     assert "■ 무슨 일" in text and "예상 영향" not in text and "할 일" not in text
+
+
+def test_시작_메일의_주문은_서버_매매표_잔고가_바뀐_가지는_경고():
+    doc = ip.PlanDoc.model_validate({"holdings": [
+        {"kind": "cash", "name": "예수금", "amount": 1_000_000, "account": "ISA"},
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 10, "account": "ISA"}], "nodes": [
+        {"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+        {"id": "a", "parent": "e", "kind": "branch", "title": "인하", "actions": ["TIGER 200 1주 매수"], "holdings": [
+            {"kind": "cash", "name": "예수금", "amount": 0, "account": "ISA"},
+            {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 20, "account": "ISA"}]},
+        {"id": "b", "parent": "e", "kind": "branch", "title": "동결", "holdings": []}]})
+    values = ip.valuate(doc, {"102110": 100_000}, {}, None)
+    body = plan_mail.compose(doc, {"values": values, "trades": ip.trades(doc, values), "stale": ["b"]}, doc.nodes[0],
+                             "me@x", "me@x", "u").get_content()
+    assert "- ISA · 매수 TIGER 200(102110) 10주 · 약 100만" in body      # 메모의 "1주"가 아니라 매매표의 10주
+    assert "- ISA · 예수금 감소 100만" in body and "메모: TIGER 200 1주 매수" in body
+    assert "잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다" in body

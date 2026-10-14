@@ -38,8 +38,24 @@ def _mix(state: dict) -> str:
     return " · ".join(f"{GROUP_LABEL[k]} {v / total * 100:.0f}%" for k, v in sums.items() if v > 0)
 
 
-def compose(doc: PlanDoc, values: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
-    """이벤트 개요·시장 예상, 그리고 대응 방법(가지마다 조건·실행할 일·실행 뒤 자산)을 글로 적은 메일."""
+def _trade_line(t: dict) -> str:
+    """매매표 한 줄 — 화면 `tradeTable` 과 같은 말(현금은 증가·감소, 종목은 매수·매도 + 수량)."""
+    acc = t["account"] or "—"
+    if t["qty"] is None:
+        return f"{acc} · {t['name']} {'증가' if t['side'] == 'buy' else '감소'} {_won(t['value'] or 0)}"
+    code = f"({t['code']})" if t.get("code") and t["code"] != t["name"] else ""
+    qty = f"{t['qty']:,.4f}".rstrip("0").rstrip(".")
+    value = f" · 약 {_won(t['value'])}" if t["value"] is not None else ""
+    return f"{acc} · {'매수' if t['side'] == 'buy' else '매도'} {t['name']}{code} {qty}주{value}"
+
+
+def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
+    """이벤트 개요·시장 예상, 그리고 대응 방법(가지마다 조건·매매표·실행 뒤 자산)을 글로 적은 메일.
+
+    주문은 **서버 매매표**(`view["trades"]`)로 적는다 — 화면과 같은 출처다. AI 가 쓴 `actions` 는 메모로만 붙인다
+    (둘이 따로 놀아 메일과 화면의 수량이 다를 수 있었다, 2026-10-14 검토). 잔고가 바뀐 가지는 매매표 대신 경고.
+    """
+    values, trades, stale = view["values"], view.get("trades", {}), set(view.get("stale", ()))
     branches = [n for n in doc.nodes if n.kind == "branch" and n.parent == event.id]
     at = _kst(event.at).strftime("%Y-%m-%d %H:%M")
     lines = [f"{event.title} — {at} (KST) 시작", ""]
@@ -57,8 +73,14 @@ def compose(doc: PlanDoc, values: dict, event, sender: str, to: str, page_url: s
         lines += ["", f"{i}. {b.title}"]
         if b.condition:
             lines.append(f"   조건: {b.condition}")
-        for a in b.actions or (["매매 없이 유지"] if b.holdings is None else []):
-            lines.append(f"   - {a}")
+        if b.id in stale:
+            lines.append("   ⚠ 잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다 — 상담에서 정해 주세요")
+        elif b.holdings is None:
+            lines.append("   - 매매 없이 유지")
+        else:
+            lines += [f"   - {_trade_line(t)}" for t in trades.get(b.id, [])] or ["   - 매매 없음"]
+        if b.actions:
+            lines.append(f"   메모: {' / '.join(b.actions)}")
         after = values.get(b.id)
         if after:
             lines.append(f"   실행 뒤: {_won(after['total'])} ({_mix(after)})")

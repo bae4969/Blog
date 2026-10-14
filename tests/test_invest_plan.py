@@ -405,3 +405,20 @@ class TestIntegrity:
         with pytest.raises(HTTPException) as e:
             asyncio.run(plan_v1._restore(None, 1, 5, expect=6))
         assert e.value.status_code == 409
+
+
+def test_바뀐_것_줄():
+    old = ip.PlanDoc.model_validate({"rules": ["a", "b"], "holdings": [
+        {"kind": "cash", "name": "예금", "amount": 1, "account": "저축"},
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 1, "account": "ISA"}]})
+    new = ip.PlanDoc.model_validate({"rules": ["a", "c"], "memory": ["m"], "holdings": [
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 2, "account": "ISA"},
+        {"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1}]})
+    assert ip.change_lines(old, new) == ["원칙 + ‘c’", "원칙 − ‘b’", "기억 + ‘m’",
+                                         "보유 − 예금 · 저축", "보유 ~ TIGER 200 · ISA", "보유 + 삼성전자"]
+
+
+def test_원칙_기억_도구가_닫힌_상담은_프롬프트가_알린다():
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
+    assert "원칙(기억)으로 남길까요?\" 하고 물어라" in ip.system_prompt(ip.PlanDoc(), now, notes_open=False)
+    assert "열려 있다" in ip.system_prompt(ip.PlanDoc(), now)

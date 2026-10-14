@@ -39,14 +39,16 @@ _TOKENS: dict[str, dict] = {}
 _TTL = 1260
 
 
-def issue(user_index: int, read_only: bool = False) -> str:
-    """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다)."""
+def issue(user_index: int, read_only: bool = False, allow: tuple | None = None) -> str:
+    """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다).
+    `allow` 는 이 상담에 연 쓰기 도구(없으면 전부) — 원칙·기억은 사용자가 시킨 상담에만 연다(plan_v1.write_tools_for)."""
     now = time.time()
     for t, hit in list(_TOKENS.items()):   # 지난 것 청소
         if hit["exp"] < now:
             _TOKENS.pop(t, None)
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = {"user": user_index, "exp": now + _TTL, "ro": read_only, "revs": []}
+    _TOKENS[token] = {"user": user_index, "exp": now + _TTL, "ro": read_only, "revs": [],
+                      "allow": set(WRITE_TOOLS if allow is None else allow)}
     return token
 
 
@@ -82,6 +84,8 @@ _RW = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False,
 _RW_DEL = {**_RW, "destructiveHint": True}
 #: 쓰기 도구 이름 — codex_runner 가 이 목록에만 자동 승인을 건다.
 WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "rules_set", "memory_set")
+#: 원칙·기억 쓰기 — 웹 검색 결과의 지시(프롬프트 주입)로 바뀌면 이후 상담·점검에 계속 실린다. 사용자가 시킨 상담에만 연다.
+NOTE_TOOLS = ("rules_set", "memory_set")
 
 TOOLS = [
     {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율), 월 현금흐름 합계(cashflow)와 이벤트까지의 예상 적립(accrual).",
@@ -243,6 +247,11 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
         new = ip.PlanDoc.model_validate(data)
     except ValidationError as e:
         raise ValueError(f"계획 형식 오류 — 저장하지 않았습니다: {e}") from e
+    ip.stamp_branches(old, new)
+    if ip.changed_branches(old, new):
+        from app.api.plan_v1 import prices
+        if errs := ip.funding_errors(old, new, ip.valuate(new, *await prices(db, new))):
+            raise ValueError("재원 초과 — 저장하지 않았습니다: " + "; ".join(errs))
     if new == old:
         return {"saved": False, "summary": "변경 없음"}
     rev_id = await _save_rev(db, user_index, new, what)
@@ -290,12 +299,18 @@ async def mcp(request: Request):
     if method == "ping":
         return _result(mid, {})
     if method == "tools/list":
-        return _result(mid, {"tools": TOOLS})
+        # 닫힌 쓰기 도구는 목록에서도 뺀다 — 프롬프트로 "부르지 말라"고 해도 불렀다(2026-10-14 실제 상담).
+        return _result(mid, {"tools": [t for t in TOOLS if t["name"] not in WRITE_TOOLS
+                                       or (not read_only and t["name"] in who["allow"])]})
     if method == "tools/call":
         name, args = params.get("name"), params.get("arguments") or {}
         if read_only and name in WRITE_TOOLS:
             return _result(mid, {"content": [{"type": "text", "text": "조회만 하는 점검입니다 — 계획을 고칠 수 없습니다"}],
                                  "isError": True})
+        if name in WRITE_TOOLS and name not in who["allow"]:
+            return _result(mid, {"content": [{"type": "text", "text":
+                f"이 상담에서는 {name} 을 쓸 수 없습니다 — 원칙·기억은 사용자가 '기억해·원칙으로·잊어·빼'처럼 시킨 상담에서만 "
+                "고친다. 남길 만하면 사용자에게 \"원칙(기억)으로 남길까요?\" 하고 물어라"}], "isError": True})
         try:
             async with db_session() as db:
                 data = await _call(db, user_index, name, args, who["revs"])
