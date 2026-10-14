@@ -1,7 +1,8 @@
 """투자 계획 문서(`app/services/invest_plan.py`) — 형식 검증·평가·AI 답 해석. DB 없이 본다."""
 
+import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -285,3 +286,139 @@ class TestRetrospect:
         kst = timezone(timedelta(hours=9))
         assert [e.id for e in ip.past_events(_doc(), datetime(2026, 10, 29, 3, 0, tzinfo=kst))] == ["fomc"]
         assert ip.past_events(_doc(), datetime(2026, 10, 29, 2, 59, tzinfo=kst)) == []
+
+
+class TestNotes:
+    """원칙·기억(2026-10-14) — 문서 칸, 프롬프트, 변경 요약, 화면 저장 API(PUT /notes)."""
+
+    def test_옛_문서는_빈_목록_줄은_공백을_뗀다(self):
+        assert ip.PlanDoc.model_validate({}).rules == []
+        assert ip.PlanDoc.model_validate({"rules": ["  레버리지 안 씀 "]}).rules == ["레버리지 안 씀"]
+
+    @pytest.mark.parametrize("data", [{"rules": [""]}, {"memory": ["가" * 301]}, {"rules": ["x"] * 31}, {"memory": ["x"] * 51}])
+    def test_빈_줄_긴_줄_한도_초과는_거절(self, data):
+        with pytest.raises(ValueError):
+            ip.PlanDoc.model_validate(data)
+
+    def test_상담과_점검_프롬프트에_늘_싣는다(self):
+        doc = ip.PlanDoc.model_validate({"rules": ["레버리지 ETF 안 씀"], "memory": ["상여는 1월·7월"]})
+        now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
+        for prompt in (ip.system_prompt(doc, now), ip.daily_prompt(doc, now)):
+            assert "- 레버리지 ETF 안 씀" in prompt and "- 상여는 1월·7월" in prompt
+        assert "(없음)" in ip.system_prompt(ip.PlanDoc(), now)
+
+    def test_변경_요약(self):
+        old = ip.PlanDoc()
+        assert ip.diff_summary(old, ip.PlanDoc(rules=["a"], memory=["b"])) == "원칙 갱신, 기억 갱신"
+
+    def _api(self, monkeypatch, rev_id=5, doc=None):
+        from contextlib import asynccontextmanager
+        from types import SimpleNamespace
+        from app.api import plan_v1
+
+        state = {"row": SimpleNamespace(rev_id=rev_id, doc=ip.PlanDoc.model_validate(doc or {}).model_dump_json()),
+                 "saved": []}
+
+        class DB:
+            async def commit(self):
+                pass
+
+        @asynccontextmanager
+        async def session():
+            yield DB()
+
+        async def owner(db, request):
+            return SimpleNamespace(user_index=1)
+
+        async def latest(db, u):
+            return state["row"]
+
+        async def save(db, u, new, summary):
+            state["saved"].append(summary)
+            state["row"] = SimpleNamespace(rev_id=state["row"].rev_id + 1, doc=new.model_dump_json())
+
+        async def view(db, row):
+            return {"rev_id": row.rev_id, "doc": json.loads(row.doc)}
+
+        for name, fn in (("db_session", session), ("owner", owner), ("latest_rev", latest), ("_save_rev", save),
+                         ("plan_view", view)):
+            monkeypatch.setattr(plan_v1, name, fn)
+        return (lambda body: asyncio.run(plan_v1.put_notes(None, plan_v1.NotesIn(**body)))), state
+
+    def test_저장은_새_버전_빈_줄은_뺀다(self, monkeypatch):
+        put, state = self._api(monkeypatch)
+        out = put({"rules": ["레버리지 안 씀", "  "], "memory": ["상여 1월"], "base_rev_id": 5})
+        assert out["saved"] and out["prev_rev_id"] == 5 and out["rev_id"] == 6 and out["doc"]["rules"] == ["레버리지 안 씀"]
+        assert state["saved"] == ["원칙 갱신, 기억 갱신"]
+
+    def test_바뀐_게_없으면_버전을_안_쌓는다(self, monkeypatch):
+        put, state = self._api(monkeypatch, doc={"rules": ["a"]})
+        assert not put({"rules": ["a"], "base_rev_id": 5})["saved"] and state["saved"] == []
+
+    def test_그_사이_바뀌었으면_409_긴_줄은_422(self, monkeypatch):
+        from fastapi import HTTPException
+        put, _ = self._api(monkeypatch)
+        with pytest.raises(HTTPException) as e:
+            put({"rules": ["a"], "base_rev_id": 4})
+        assert e.value.status_code == 409
+        with pytest.raises(HTTPException) as e:
+            put({"rules": ["가" * 301], "base_rev_id": 5})
+        assert e.value.status_code == 422
+
+
+class TestIntegrity:
+    """2026-10-14 검토(반론자)에서 나온 검사 — 환산에 필요한 market, 이벤트마다 실현 가지 하나, 복기 비교 범위, 되돌리기 충돌."""
+
+    def test_종목은_market_이_있어야_한다(self):
+        with pytest.raises(ValueError, match="market"):
+            ip.Holding.model_validate({"kind": "stock", "name": "AAPL", "code": "AAPL", "qty": 1, "currency": "USD"})
+        ip.Holding.model_validate({"kind": "cash", "name": "달러", "amount": 100, "currency": "USD"})   # 시세 없는 것은 그대로
+
+    def test_실현_가지는_이벤트마다_하나(self):
+        nodes = [{"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+                 {"id": "a", "parent": "e", "kind": "branch", "title": "인하", "status": "realized"},
+                 {"id": "b", "parent": "e", "kind": "branch", "title": "동결", "status": "realized"}]
+        with pytest.raises(ValueError, match="하나"):
+            ip.PlanDoc.model_validate({"nodes": nodes})
+
+    def test_그때만_빠진_보유가_있으면_비교하지_않는다(self):
+        doc = ip.PlanDoc.model_validate({"holdings": [
+            {"kind": "cash", "name": "예금", "amount": 100},
+            {"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1}], "nodes": [
+            {"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-01T03:00:00+09:00"},
+            {"id": "b", "parent": "e", "kind": "branch", "title": "동결"}]})
+        now = ip.valuate(doc, {"005930": 100}, {}, None)
+        then = ip.valuate(doc, {}, {}, None)            # 그때 시세 없음
+        r = ip.retrospect(doc, now, {"e": then})["b"]
+        assert r["missing"] == 1 and r["pct"] is None and r["change"] is None
+        same = ip.retrospect(doc, now, {"e": ip.valuate(doc, {"005930": 50}, {}, None)})["b"]
+        assert same["pct"] == pytest.approx(100 * (200 / 150 - 1))
+
+    def test_되돌리기는_기대한_버전이_아니면_409(self, monkeypatch):
+        from types import SimpleNamespace
+        from fastapi import HTTPException
+        from app.api import plan_v1
+
+        async def latest(db, u):
+            return SimpleNamespace(rev_id=7)
+        monkeypatch.setattr(plan_v1, "latest_rev", latest)
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(plan_v1._restore(None, 1, 5, expect=6))
+        assert e.value.status_code == 409
+
+
+def test_바뀐_것_줄():
+    old = ip.PlanDoc.model_validate({"rules": ["a", "b"], "holdings": [
+        {"kind": "cash", "name": "예금", "amount": 1, "account": "저축"},
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 1, "account": "ISA"}]})
+    new = ip.PlanDoc.model_validate({"rules": ["a", "c"], "memory": ["m"], "holdings": [
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 2, "account": "ISA"},
+        {"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1}]})
+    assert ip.change_lines(old, new) == ["원칙 + ‘c’", "원칙 − ‘b’", "기억 + ‘m’",
+                                         "보유 − 예금 · 저축", "보유 ~ TIGER 200 · ISA", "보유 + 삼성전자"]
+
+
+def test_원칙_기억_도구가_닫힌_상담은_프롬프트가_알린다():
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
+    assert "원칙(기억)으로 남길까요?\" 하고 물어라" in ip.system_prompt(ip.PlanDoc(), now, notes_open=False)
+    assert "열려 있다" in ip.system_prompt(ip.PlanDoc(), now)

@@ -33,9 +33,93 @@ def test_시작_전에는_안_보낸다():
 def test_내용에_개요_예상_대응_출처():
     doc = _doc()
     values = ip.valuate(doc, {}, {}, None)
-    msg = plan_mail.compose(doc, values, doc.nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
+    view = {"values": values, "trades": ip.trades(doc, values), "stale": []}
+    msg = plan_mail.compose(doc, view, doc.nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
     body = msg.get_content()
     assert msg["Subject"] == "[투자 계획] 10월 FOMC 시작 — 대응 2가지"
     for part in ("2026-10-29 03:00", "연준이 기준금리를 정한다.", "동결 우세.", "조건: 0.25%p 이상 인하",
-                 "- QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
+                 "메모: QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
         assert part in body, part
+
+
+# --- 매일 점검 ---
+
+def _cfg(on="1", at="12:00"):
+    return {"plan_daily_on": on, "plan_daily_at": at}
+
+
+def test_점검은_켜져_있고_시각부터_6시간_안에만():
+    noon = datetime(2026, 10, 14, 12, 0, tzinfo=KST)
+    assert plan_mail.daily_due(_cfg(), noon).isoformat() == "2026-10-14"
+    assert plan_mail.daily_due(_cfg(), noon + timedelta(hours=6)) is not None
+    assert plan_mail.daily_due(_cfg(), noon - timedelta(minutes=1)) is None
+    assert plan_mail.daily_due(_cfg(), noon + timedelta(hours=6, minutes=1)) is None
+    assert plan_mail.daily_due(_cfg(on=""), noon) is None
+    assert plan_mail.daily_due(_cfg(at="깨짐"), noon) is None
+
+
+def test_무난한_하루와_깨진_답을_가른다():
+    assert plan_mail.parse_check('{"level": "none", "title": ""}')["level"] == "none"
+    for broken in ("오늘은 특별한 일이 없습니다.", '{"level": "notice", "title": "x"', '{"level": "notice", "title": ""}',
+                   '{"level": "모름", "title": "x"}'):
+        assert plan_mail.parse_check(broken) is None, broken
+
+
+def test_점검_실패_메일():
+    msg = plan_mail.compose_daily_failure(NOW.date(), "Codex 로그인이 필요합니다", "me@x", "me@x", "https://blog.x/stocks/plan")
+    assert msg["Subject"] == "[투자 계획·점검 실패] 2026-10-29" and "Codex 로그인이 필요합니다" in msg.get_content()
+
+
+def test_접힌_가지_아래_이벤트는_시작_메일을_안_보낸다():
+    doc = ip.PlanDoc.model_validate({"nodes": [
+        {"id": "e1", "kind": "event", "title": "A", "at": "2026-10-20T03:00:00+09:00"},
+        {"id": "b1", "parent": "e1", "kind": "branch", "title": "접힘", "status": "dropped"},
+        {"id": "b2", "parent": "e1", "kind": "branch", "title": "실현", "status": "realized"},
+        {"id": "e2", "parent": "b1", "kind": "event", "title": "접힌 쪽", "at": "2026-10-29T03:00:00+09:00"},
+        {"id": "e3", "parent": "b2", "kind": "event", "title": "실현 쪽", "at": "2026-10-29T03:00:00+09:00"}]})
+    assert [e.id for e in plan_mail.due_events(doc, NOW)] == ["e3"]
+
+
+def test_알릴_답은_코드블록이든_맨_JSON이든_읽는다():
+    fenced = '점검 결과:\n```json\n{"level": "urgent", "title": "FOMC 앞당김"}\n```'
+    assert plan_mail.parse_check(fenced)["level"] == "urgent"
+    assert plan_mail.parse_check('{"level": "notice", "title": "실적 경고"}')["title"] == "실적 경고"
+
+
+def test_점검_메일_제목과_섹션_셋_출처_없음():
+    check = {"level": "urgent", "title": "FOMC 임시 회의", "summary": "연준이 <임시> 회의를 열었다.",
+             "impacts": ["10월 FOMC — 전제가 바뀜"], "actions": ["상담에서 가지 다시 짜기"],
+             "links": [{"title": "연준", "url": "https://fed.gov"}]}
+    msg = plan_mail.compose_daily(check, NOW.date(), "me@x", "me@x", "https://blog.x/stocks/plan")
+    assert msg["Subject"] == "[투자 계획·긴급] FOMC 임시 회의"
+    text = msg.get_body(("plain",)).get_content()
+    html = msg.get_body(("html",)).get_content()
+    for part in ("■ 무슨 일", "■ 예상 영향", "- 10월 FOMC — 전제가 바뀜", "■ 할 일", "- 상담에서 가지 다시 짜기",
+                 "계획은 바꾸지 않았습니다", "https://blog.x/stocks/plan"):
+        assert part in text
+    for part in ("무슨 일", "예상 영향", "할 일", "연준이 &lt;임시&gt; 회의를 열었다.", "#FF99A4",
+                 'href="https://blog.x/stocks/plan"'):
+        assert part in html
+    assert "fed.gov" not in text + html and "출처" not in text + html
+
+
+def test_빈_섹션은_뺀다():
+    text = plan_mail.daily_text({"level": "notice", "title": "x", "summary": "요지"}, NOW.date())
+    assert "■ 무슨 일" in text and "예상 영향" not in text and "할 일" not in text
+
+
+def test_시작_메일의_주문은_서버_매매표_잔고가_바뀐_가지는_경고():
+    doc = ip.PlanDoc.model_validate({"holdings": [
+        {"kind": "cash", "name": "예수금", "amount": 1_000_000, "account": "ISA"},
+        {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 10, "account": "ISA"}], "nodes": [
+        {"id": "e", "kind": "event", "title": "FOMC", "at": "2026-10-29T03:00:00+09:00"},
+        {"id": "a", "parent": "e", "kind": "branch", "title": "인하", "actions": ["TIGER 200 1주 매수"], "holdings": [
+            {"kind": "cash", "name": "예수금", "amount": 0, "account": "ISA"},
+            {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 20, "account": "ISA"}]},
+        {"id": "b", "parent": "e", "kind": "branch", "title": "동결", "holdings": []}]})
+    values = ip.valuate(doc, {"102110": 100_000}, {}, None)
+    body = plan_mail.compose(doc, {"values": values, "trades": ip.trades(doc, values), "stale": ["b"]}, doc.nodes[0],
+                             "me@x", "me@x", "u").get_content()
+    assert "- ISA · 매수 TIGER 200(102110) 10주 · 약 100만" in body      # 메모의 "1주"가 아니라 매매표의 10주
+    assert "- ISA · 예수금 감소 100만" in body and "메모: TIGER 200 1주 매수" in body
+    assert "잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다" in body

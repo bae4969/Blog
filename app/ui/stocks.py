@@ -637,20 +637,41 @@ _CANDLE_COLS = ("execution_datetime, execution_open, execution_close, execution_
                 "execution_non_amount, execution_ask_amount, execution_bid_amount")
 
 
+#: 일봉 이상은 DB 가 **하루 단위로 묶어** 보낸다(2026-10-14). 시가=그날 첫 봉, 종가=끝 봉, 고저=극값, 나머지=합 —
+#: `_merge_candles` 와 같은 규칙이고 시각도 그날 첫 봉 시각이다. 분할 보정 계수는 날짜 단위라 묶은 뒤 보정해도 같다.
+#: ⚠️ 전에는 10분봉을 전부 앱으로 끌어와 묶었다 — BTC 일봉 12만 행에 3.1초, 워커가 하나라 동시 3건이 각 9.4초로
+#:    줄을 서고 그동안 다른 요청까지 막혔다. 묶으면 1천 행 아래다. 시가·종가는 PK(시각) 조인으로 정확한 값을 읽는다
+#:    (GROUP_CONCAT 은 double 을 글자로 바꿔 자릿수를 잃는다).
+_DAY_SQL = (
+    "SELECT d.first_at AS execution_datetime, o.execution_open, c.execution_close, d.execution_min, d.execution_max, "
+    "d.execution_non_volume, d.execution_ask_volume, d.execution_bid_volume, "
+    "d.execution_non_amount, d.execution_ask_amount, d.execution_bid_amount FROM ("
+    "SELECT MIN(execution_datetime) AS first_at, MAX(execution_datetime) AS last_at, "
+    "MIN(execution_min) AS execution_min, MAX(execution_max) AS execution_max, "
+    "SUM(execution_non_volume) AS execution_non_volume, SUM(execution_ask_volume) AS execution_ask_volume, "
+    "SUM(execution_bid_volume) AS execution_bid_volume, SUM(execution_non_amount) AS execution_non_amount, "
+    "SUM(execution_ask_amount) AS execution_ask_amount, SUM(execution_bid_amount) AS execution_bid_amount "
+    "FROM `candle`.`{t}` WHERE execution_datetime BETWEEN :s AND :e GROUP BY DATE(execution_datetime)) d "
+    "JOIN `candle`.`{t}` o ON o.execution_datetime = d.first_at "
+    "JOIN `candle`.`{t}` c ON c.execution_datetime = d.last_at ORDER BY d.first_at")
+
+
 async def _fetch_candles(db, table: str, start: datetime, end: datetime, limit: int,
                          tf: str, is_kr: bool, events: list) -> list:
-    """범위를 넓혀 가며 limit 만큼 캔들을 모은다(최대 5회 확장).
+    """범위를 넓혀 가며 limit 만큼 캔들을 모은다(최대 5회 확장). 일봉 이상은 DB 가 하루씩 묶어 준다(`_DAY_SQL`).
 
     ⚠️ PHP 는 gzip 파일 캐시 때문에 **하루씩 끊어** 조회했지만, 포팅본은 캐시가 없으므로
        한 번의 범위 조회로 바꿨다. 결과는 같고 쿼리 수만 준다.
     """
     cur_start, prev_count = start, 0
+    sql = (_DAY_SQL.format(t=table) if tf in ("1d", "1w", "1M") else
+           f"SELECT {_CANDLE_COLS} FROM `candle`.`{table}` "
+           "WHERE execution_datetime BETWEEN :s AND :e ORDER BY execution_datetime ASC")
+    # 이 종목의 첫 봉 — 이미 그 앞까지 읽었으면 넓혀 봐야 같은 행이다(AAPL 월봉이 같은 5만 행을 두 번 읽었다).
+    first = (await db.execute(text(f"SELECT MIN(execution_datetime) FROM `candle`.`{table}`"))).scalar()
 
     for attempt in range(6):
-        rows = [dict(r._mapping) for r in (await db.execute(
-            text(f"SELECT {_CANDLE_COLS} FROM `candle`.`{table}` "
-                 "WHERE execution_datetime BETWEEN :s AND :e ORDER BY execution_datetime ASC"),
-            {"s": cur_start, "e": end})).all()]
+        rows = [dict(r._mapping) for r in (await db.execute(text(sql), {"s": cur_start, "e": end})).all()]
 
         if is_kr and _is_sub_daily(tf):
             rows = _filter_regular_hours(rows)
@@ -659,7 +680,7 @@ async def _fetch_candles(db, table: str, start: datetime, end: datetime, limit: 
         if len(rows) >= limit:
             return rows[-limit:]
         # 넓혀도 새 캔들이 안 나오면 그 종목엔 더 없는 것이다 — 멈춘다.
-        if attempt > 0 and len(rows) <= prev_count:
+        if first is None or cur_start <= first or (attempt > 0 and len(rows) <= prev_count):
             return rows
         prev_count = len(rows)
         cur_start = _expand_start(cur_start, tf, is_kr)

@@ -33,31 +33,38 @@ from app.ui.stocks import _latest_quotes, _stock_page
 
 router = APIRouter()
 
-#: 토큰 → (user_index, 만료 시각). 상담 상한(600초)보다 조금 길게.
-_TOKENS: dict[str, tuple[int, float]] = {}
-_TTL = 660
+#: 토큰 → {user, exp(만료 시각), ro(조회만), revs(이 상담이 쌓은 버전)}. codex 는 한 번에 하나라(codex_runner) 앞 실행을
+#: 기다리는 시간(최대 600초)과 실행 상한(600초)에 여유. 끝나면 revoke 하므로 길어도 남지 않는다.
+_TOKENS: dict[str, dict] = {}
+_TTL = 1260
 
 
-def issue(user_index: int) -> str:
+def issue(user_index: int, read_only: bool = False, allow: tuple | None = None) -> str:
+    """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다).
+    `allow` 는 이 상담에 연 쓰기 도구(없으면 전부) — 원칙·기억은 사용자가 시킨 상담에만 연다(plan_v1.write_tools_for)."""
     now = time.time()
-    for t, (_, exp) in list(_TOKENS.items()):   # 지난 것 청소
-        if exp < now:
+    for t, hit in list(_TOKENS.items()):   # 지난 것 청소
+        if hit["exp"] < now:
             _TOKENS.pop(t, None)
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = (user_index, now + _TTL)
+    _TOKENS[token] = {"user": user_index, "exp": now + _TTL, "ro": read_only, "revs": [],
+                      "allow": set(WRITE_TOOLS if allow is None else allow)}
     return token
 
 
-def revoke(token: str) -> None:
-    _TOKENS.pop(token, None)
+def revoke(token: str) -> list[int]:
+    """토큰을 거두고 그 상담이 쌓은 버전 번호들을 돌려준다 — 상담의 [되돌리기]가 자기 것만 되돌리게(2026-10-14 검토)."""
+    hit = _TOKENS.pop(token, None)
+    return hit["revs"] if hit else []
 
 
-def _user_of(request: Request) -> int | None:
+def _user_of(request: Request) -> dict | None:
+    """토큰 항목({user, ro, revs …}) — 토큰이 없거나 만료면 None."""
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
         return None
     hit = _TOKENS.get(header[7:].strip())
-    return hit[0] if hit and hit[1] > time.time() else None
+    return hit if hit and hit["exp"] > time.time() else None
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +83,9 @@ _RO = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "
 _RW = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 _RW_DEL = {**_RW, "destructiveHint": True}
 #: 쓰기 도구 이름 — codex_runner 가 이 목록에만 자동 승인을 건다.
-WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set")
+WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "rules_set", "memory_set")
+#: 원칙·기억 쓰기 — 웹 검색 결과의 지시(프롬프트 주입)로 바뀌면 이후 상담·점검에 계속 실린다. 사용자가 시킨 상담에만 연다.
+NOTE_TOOLS = ("rules_set", "memory_set")
 
 TOOLS = [
     {"annotations": _RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율), 월 현금흐름 합계(cashflow)와 이벤트까지의 예상 적립(accrual).",
@@ -110,6 +119,12 @@ TOOLS = [
     {"annotations": _RW, "name": "cashflow_set",
      "description": "월 현금흐름(cashflow — 수입·고정 지출·생활비·저축·납입) 목록을 통째로 바꾼다. 금액은 한 달 원화.",
      "inputSchema": _obj({"cashflow": {"type": "array", "items": {"type": "object"}}}, ["cashflow"])},
+    {"annotations": _RW, "name": "rules_set",
+     "description": "원칙(rules — AI 가 늘 지킬 사용자 규칙) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 30줄.",
+     "inputSchema": _obj({"rules": {"type": "array", "items": {"type": "string"}}}, ["rules"])},
+    {"annotations": _RW, "name": "memory_set",
+     "description": "기억(memory — 사용자에 대한 사실·상황·선호) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 50줄.",
+     "inputSchema": _obj({"memory": {"type": "array", "items": {"type": "string"}}}, ["memory"])},
 ]
 
 
@@ -118,7 +133,7 @@ async def _usdkrw(db) -> float | None:
     return fx["close"] if fx else None
 
 
-async def _call(db, user_index: int, name: str, args: dict):
+async def _call(db, user_index: int, name: str, args: dict, made: list | None = None):
     from app.api.plan_v1 import latest_rev, plan_view   # 순환 임포트를 피한다(plan_v1 이 이 모듈을 부른다)
 
     if name == "plan_get":
@@ -158,12 +173,31 @@ async def _call(db, user_index: int, name: str, args: dict):
         _, rows = await _stock_page(db, args.get("market") or "", q, 1, 10)
         return [{"code": r.code, "name_kr": r.name_kr, "name_en": r.name_en, "market": r.market} for r in rows]
     if name in WRITE_TOOLS:
-        return await _write(db, user_index, name, args)
+        return await _write(db, user_index, name, args, made)
     raise ValueError(f"모르는 도구: {name}")
 
 
-async def _write(db, user_index: int, name: str, args: dict) -> dict:
+#: 목록을 통째로 바꾸는 도구 → 받아야 할 키. 키가 없으면 비우지 않고 거절한다 — `args.get(…) or []` 였을 때
+#: 키 이름을 틀리면 보유가 통째로 비었다(2026-10-14 검토).
+_SET_KEYS = {"holdings_set": "holdings", "cashflow_set": "cashflow", "rules_set": "rules", "memory_set": "memory"}
+
+
+async def _write(db, user_index: int, name: str, args: dict, made: list | None = None) -> dict:
     """지금 버전을 고쳐 검증하고 새 버전으로 쌓는다. 검증에 걸리면 ValueError(이유) — AI 가 보고 고친다."""
+    from app.api.plan_v1 import write_lock
+
+    key = _SET_KEYS.get(name)
+    if key and not isinstance(args.get(key), list):
+        raise ValueError(f"{key} 목록이 없습니다 — 저장하지 않았습니다(통째로 바꾸는 도구라 전체 목록을 보내야 한다)")
+    # 화면 저장·[실행함]·되돌리기와 같은 잠금 — 읽고 고쳐 쌓는 사이에 다른 쓰기가 끼면 한쪽이 사라진다(2026-10-14 검토).
+    async with write_lock(user_index):
+        out = await _write_locked(db, user_index, name, args)
+    if out.get("saved") and made is not None:
+        made.append(out["rev_id"])
+    return out
+
+
+async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
     from pydantic import ValidationError
 
     from app.api.plan_v1 import _doc_of, _save_rev, latest_rev
@@ -196,10 +230,16 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
         data["nodes"] = [n for n in nodes if n["id"] not in gone]
         what = f"노드 삭제: {target}" + (f" 외 {len(gone) - 1}개" if len(gone) > 1 else "")
     elif name == "cashflow_set":
-        data["cashflow"] = args.get("cashflow") or []
+        data["cashflow"] = args["cashflow"]
         what = "현금흐름 갱신"
+    elif name == "rules_set":
+        data["rules"] = args["rules"]
+        what = "원칙 갱신"
+    elif name == "memory_set":
+        data["memory"] = args["memory"]
+        what = "기억 갱신"
     else:   # holdings_set
-        data["holdings"] = args.get("holdings") or []
+        data["holdings"] = args["holdings"]
         if args.get("as_of"):
             data["as_of"] = args["as_of"]
         what = "보유 자산 갱신"
@@ -207,6 +247,11 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
         new = ip.PlanDoc.model_validate(data)
     except ValidationError as e:
         raise ValueError(f"계획 형식 오류 — 저장하지 않았습니다: {e}") from e
+    ip.stamp_branches(old, new)
+    if ip.changed_branches(old, new):
+        from app.api.plan_v1 import prices
+        if errs := ip.funding_errors(old, new, ip.valuate(new, *await prices(db, new))):
+            raise ValueError("재원 초과 — 저장하지 않았습니다: " + "; ".join(errs))
     if new == old:
         return {"saved": False, "summary": "변경 없음"}
     rev_id = await _save_rev(db, user_index, new, what)
@@ -233,9 +278,10 @@ async def mcp_get():
 
 @router.post("/mcp", include_in_schema=False)
 async def mcp(request: Request):
-    user_index = _user_of(request)
-    if user_index is None:
+    who = _user_of(request)
+    if who is None:
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
+    user_index, read_only = who["user"], who["ro"]
     try:
         msg = await request.json()
     except ValueError:
@@ -253,12 +299,21 @@ async def mcp(request: Request):
     if method == "ping":
         return _result(mid, {})
     if method == "tools/list":
-        return _result(mid, {"tools": TOOLS})
+        # 닫힌 쓰기 도구는 목록에서도 뺀다 — 프롬프트로 "부르지 말라"고 해도 불렀다(2026-10-14 실제 상담).
+        return _result(mid, {"tools": [t for t in TOOLS if t["name"] not in WRITE_TOOLS
+                                       or (not read_only and t["name"] in who["allow"])]})
     if method == "tools/call":
         name, args = params.get("name"), params.get("arguments") or {}
+        if read_only and name in WRITE_TOOLS:
+            return _result(mid, {"content": [{"type": "text", "text": "조회만 하는 점검입니다 — 계획을 고칠 수 없습니다"}],
+                                 "isError": True})
+        if name in WRITE_TOOLS and name not in who["allow"]:
+            return _result(mid, {"content": [{"type": "text", "text":
+                f"이 상담에서는 {name} 을 쓸 수 없습니다 — 원칙·기억은 사용자가 '기억해·원칙으로·잊어·빼'처럼 시킨 상담에서만 "
+                "고친다. 남길 만하면 사용자에게 \"원칙(기억)으로 남길까요?\" 하고 물어라"}], "isError": True})
         try:
             async with db_session() as db:
-                data = await _call(db, user_index, name, args)
+                data = await _call(db, user_index, name, args, who["revs"])
         except (ValueError, KeyError, TypeError) as e:
             return _result(mid, {"content": [{"type": "text", "text": str(e)}], "isError": True})
         return _result(mid, {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False, default=str)}]})

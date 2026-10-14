@@ -16,10 +16,11 @@ codex 는 대화를 기억하지 않아 매번 시스템 프롬프트(지금 계
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, text
 
@@ -48,6 +49,16 @@ async def owner(db, request: Request):
     if me is None or me.level != 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     return me
+
+
+#: 사용자별 쓰기 잠금 — MCP 쓰기·원칙 저장·[실행함]·되돌리기가 "최신을 읽고 고쳐 새 버전으로 쌓는" 사이에 서로 끼지
+#: 않게 한다(끼면 한쪽 변경이 사라졌다, 2026-10-14 검토). 앱 워커가 하나라 프로세스 안 잠금이면 충분하다.
+_WRITE_LOCKS: dict[int, "asyncio.Lock"] = {}
+
+
+def write_lock(user_index: int):
+    import asyncio
+    return _WRITE_LOCKS.setdefault(user_index, asyncio.Lock())
 
 
 async def latest_rev(db, user_index: int):
@@ -103,15 +114,21 @@ async def _closes_at(db, items: list[tuple[str, str, bool]], at: datetime) -> di
     return {code: float(c) for code, c in rows if c is not None}
 
 
-async def plan_view(db, row) -> dict:
-    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
-    doc = _doc_of(row)
+async def prices(db, doc: ip.PlanDoc) -> tuple[dict, dict, float | None]:
+    """(종목 종가, 코인 종가, 원/달러) — 오늘 시세. 평가(`ip.valuate`)에 그대로 넣는다."""
     stocks, coins = ip.price_pairs(doc)
     sq = await _latest_quotes(db, [(c, "s") for c in stocks])
     cq = await _latest_quotes(db, [(c, "c") for c in coins])
     fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
-    usdkrw = fx["close"] if fx else None
-    values = ip.valuate(doc, {k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, usdkrw)
+    return ({k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, fx["close"] if fx else None)
+
+
+async def plan_view(db, row) -> dict:
+    """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
+    doc = _doc_of(row)
+    stocks, coins = ip.price_pairs(doc)
+    stock_px, coin_px, usdkrw = await prices(db, doc)
+    values = ip.valuate(doc, stock_px, coin_px, usdkrw)
 
     # 복기 — 지난 이벤트마다 그 시각의 종가로 다시 평가한다(같은 시각의 이벤트는 한 번만 읽는다).
     us_codes = {h.code for h in ip._all_holdings(doc) if h.code and h.market == "US"}
@@ -135,6 +152,7 @@ async def plan_view(db, row) -> dict:
         "cashflow": ip.cashflow_summary(doc),
         "accrual": ip.accruals(doc, datetime.now(_KST).date()),
         "trades": ip.trades(doc, values),
+        "stale": sorted(ip.stale_branches(doc)),
     }
 
 
@@ -183,21 +201,34 @@ def _flatten(messages: list[dict]) -> tuple[str, list[str]]:
     return "\n\n".join(parts), images
 
 
-async def _ask(cfg: dict, messages: list[dict], user_index: int) -> str:
-    """codex 한 번. 상담 동안만 유효한 MCP 토큰을 그 사람에게 묶어 넘기고, 끝나면 회수한다.
+#: 원칙·기억을 고치라는 말 — 이게 있는 상담에만 rules_set·memory_set 을 연다(2026-10-14 검토, 사용자 선택 A).
+#: 단어 검사라 넓게 잡는다("빼"·"지워"는 다른 뜻일 때도 열리지만 여는 쪽 실수라 괜찮다). 없으면 AI 가 "남길까요?"라고 묻는다.
+_NOTE_INTENT = re.compile(r"기억|원칙|규칙|잊|빼|지워|지우|삭제")
+
+
+def write_tools_for(message: str) -> tuple:
+    return plan_mcp.WRITE_TOOLS if _NOTE_INTENT.search(message) else tuple(
+        t for t in plan_mcp.WRITE_TOOLS if t not in plan_mcp.NOTE_TOOLS)
+
+
+async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple) -> tuple[str, list[int]]:
+    """codex 한 번 → (답, 이 상담이 쌓은 버전들). 상담 동안만 유효한 MCP 토큰을 그 사람에게 묶어 넘기고, 끝나면 회수한다.
 
     계획은 AI 가 MCP 쓰기 도구로 고친다(plan_mcp) — 고칠 때마다 이미 새 버전이 쌓여 있다.
+    ⚠️ 실패해도 그 전에 쓴 버전은 남는다 — 화면이 실패 뒤 계획을 다시 읽는다(plan.js send).
     """
     prompt, images = _flatten(messages)
-    token = plan_mcp.issue(user_index)
+    token = plan_mcp.issue(user_index, allow=tools)
+    made: list[int] = []
     try:
         model = codex_runner.resolve_model(cfg["ai_model"])
-        return await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, plan_mcp.WRITE_TOOLS,
-                                      effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
+        reply = await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, tools,
+                                       effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
     except codex_runner.CodexError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
     finally:
-        plan_mcp.revoke(token)
+        made = plan_mcp.revoke(token)
+    return reply, made
 
 
 @router.post("/chat", summary="상담 — AI 가 MCP 쓰기 도구로 계획을 고치면 그때마다 새 버전이 쌓인다")
@@ -221,22 +252,32 @@ async def chat(request: Request, body: ChatIn):
     # ⚠️ AI 를 기다리는 동안(최대 10분) DB 커넥션을 붙잡지 않는다 — 세션을 닫고 부른다.
     user_part = [{"type": "text", "text": msg or "이미지를 읽어 줘."}] + [
         {"type": "image_url", "image_url": {"url": u}} for u in body.images]
-    messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST))}]
+    tools = write_tools_for(msg)
+    messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST), "rules_set" in tools)}]
                 + [{"role": r.role, "content": r.content} for r in reversed(history)]
                 + [{"role": "user", "content": user_part}])
-    reply = (await _ask(cfg, messages, me.user_index)).strip()
+    reply, ours = await _ask(cfg, messages, me.user_index, tools)
+    reply = reply.strip()
 
     prev = row.rev_id if row else 0
+    note = ""
     async with db_session() as db:
-        # 이번 상담 동안 쓰기 도구가 쌓은 버전들 — 요약을 잇고, 되돌리기는 상담 직전 버전으로 한 번에.
-        made = (await db.execute(text(
+        # 상담 시작 뒤 쌓인 버전 — 이 상담이 쓴 것(ours)만 요약하고, 되돌리기(상담 직전 버전으로)는 그 사이에 다른 저장
+        # (화면의 원칙·기억·[실행함])이 없을 때만 준다. 있으면 그것까지 되돌리게 된다(2026-10-14 검토).
+        since = (await db.execute(text(
             "SELECT rev_id, summary FROM invest_plan_rev WHERE user_index = :u AND rev_id > :p ORDER BY rev_id"),
             {"u": me.user_index, "p": prev})).all()
+        made = [r for r in since if r.rev_id in ours]
+        undo = row.rev_id if row and made and len(made) == len(since) else None
+        if made and undo is None and row:
+            note = "상담 중 다른 저장이 있어 한 번에 되돌리지 않습니다 — 버전 기록에서 고르세요"
         latest = await latest_rev(db, me.user_index)
         rev_id = made[-1].rev_id if made else None
         summary = ""
         if made:
             summary = " · ".join(r.summary for r in made)[:300] + f" ({ip.diff_summary(old, _doc_of(latest))})"
+            if changes := ip.change_lines(old, _doc_of(latest)):
+                reply += "\n\n[바뀐 것]\n" + "\n".join(f"- {c}" for c in changes[:30])
         stored = msg + (f"\n[이미지 {len(body.images)}장]" if body.images else "")
         await db.execute(text(
             "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'user', :c)"),
@@ -246,8 +287,8 @@ async def chat(request: Request, body: ChatIn):
             {"u": me.user_index, "c": reply or "(계획을 고쳤습니다)", "r": rev_id})
         await db.commit()
         plan = await plan_view(db, latest) if made else None
-    return {"reply": reply, "rev_id": rev_id, "prev_rev_id": row.rev_id if row else None,
-            "summary": summary, "note": "", "plan": plan}
+    return {"reply": reply, "rev_id": rev_id, "prev_rev_id": undo,
+            "summary": summary, "note": note, "plan": plan}
 
 
 @router.get("/revisions", summary="계획 버전(최근 것부터)")
@@ -261,33 +302,73 @@ async def revisions(request: Request):
 
 
 @router.post("/revisions/{rev_id}/restore", summary="옛 버전으로 되돌린다(새 버전으로 다시 쌓는다)")
-async def restore(request: Request, rev_id: int):
+async def restore(request: Request, rev_id: int,
+                  expect: int | None = Query(None, description="지금 버전이 이것일 때만 — 토스트 [되돌리기]가 그 사이 다른 변경을 덮지 않게")):
     async with db_session() as db:
         me = await owner(db, request)
-        row = (await db.execute(text(
-            "SELECT doc FROM invest_plan_rev WHERE user_index = :u AND rev_id = :r"),
-            {"u": me.user_index, "r": rev_id})).first()
-        if row is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 버전입니다")
-        await _save_rev(db, me.user_index, ip.PlanDoc.model_validate_json(row.doc), f"{rev_id}번 버전으로 되돌림")
-        await db.commit()
-        return await plan_view(db, await latest_rev(db, me.user_index))
+        async with write_lock(me.user_index):
+            return await _restore(db, me.user_index, rev_id, expect)
+
+
+async def _restore(db, user_index: int, rev_id: int, expect: int | None) -> dict:
+    if expect is not None and (cur := await latest_rev(db, user_index)) and cur.rev_id != expect:
+        raise HTTPException(status.HTTP_409_CONFLICT, "그 사이 계획이 바뀌어 되돌리지 않았습니다 — 버전 기록에서 고르세요")
+    row = (await db.execute(text(
+        "SELECT doc FROM invest_plan_rev WHERE user_index = :u AND rev_id = :r"),
+        {"u": user_index, "r": rev_id})).first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 버전입니다")
+    await _save_rev(db, user_index, ip.PlanDoc.model_validate_json(row.doc), f"{rev_id}번 버전으로 되돌림")
+    await db.commit()
+    return await plan_view(db, await latest_rev(db, user_index))
+
+
+class NotesIn(BaseModel):
+    rules: list[str] = Field(default_factory=list, max_length=ip.MAX_RULES)
+    memory: list[str] = Field(default_factory=list, max_length=ip.MAX_MEMORY)
+    base_rev_id: int | None = Field(default=None, description="화면이 연 버전 — 그 사이 바뀌었으면 409(상담이 고친 걸 덮지 않게)")
+
+
+@router.put("/notes", summary="원칙·기억을 통째로 바꾼다(화면 목록, 새 버전으로 쌓는다)")
+async def put_notes(request: Request, body: NotesIn):
+    from pydantic import ValidationError
+
+    async with db_session() as db:
+        me = await owner(db, request)
+        async with write_lock(me.user_index):
+            row = await latest_rev(db, me.user_index)
+            if (row.rev_id if row else None) != body.base_rev_id:
+                raise HTTPException(status.HTTP_409_CONFLICT, "그 사이 계획이 바뀌었습니다 — 다시 열어 주세요")
+            old = _doc_of(row)
+            try:
+                new = ip.PlanDoc.model_validate({**old.model_dump(mode="json"),
+                                                 "rules": [r for r in body.rules if r.strip()],
+                                                 "memory": [m for m in body.memory if m.strip()]})
+            except ValidationError:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "한 줄은 300자까지입니다")
+            if new == old:
+                return {**await plan_view(db, row), "saved": False, "prev_rev_id": None}
+            await _save_rev(db, me.user_index, new, ip.diff_summary(old, new))
+            await db.commit()
+            view = await plan_view(db, await latest_rev(db, me.user_index))
+            return {**view, "saved": True, "prev_rev_id": row.rev_id if row else None}
 
 
 @router.post("/nodes/{node_id}/executed", summary="가지의 매매를 했다고 표시한다(오늘 날짜, 새 버전으로 쌓는다)")
 async def mark_executed(request: Request, node_id: str):
     async with db_session() as db:
         me = await owner(db, request)
-        row = await latest_rev(db, me.user_index)
-        doc = _doc_of(row)
-        node = next((n for n in doc.nodes if n.id == node_id), None)
-        if node is None or node.kind != "branch":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 가지입니다")
-        node.executed_at = datetime.now(_KST).date()
-        await _save_rev(db, me.user_index, doc, f"실행함: {node.title}")
-        await db.commit()
-        view = await plan_view(db, await latest_rev(db, me.user_index))
-        return {**view, "prev_rev_id": row.rev_id if row else None}
+        async with write_lock(me.user_index):
+            row = await latest_rev(db, me.user_index)
+            doc = _doc_of(row)
+            node = next((n for n in doc.nodes if n.id == node_id), None)
+            if node is None or node.kind != "branch":
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 가지입니다")
+            node.executed_at = datetime.now(_KST).date()
+            await _save_rev(db, me.user_index, doc, f"실행함: {node.title}")
+            await db.commit()
+            view = await plan_view(db, await latest_rev(db, me.user_index))
+            return {**view, "prev_rev_id": row.rev_id if row else None}
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +426,7 @@ async def mail_tick(now: datetime) -> int:
                 await db.commit()
                 if not claimed:
                     continue
-                msg = plan_mail.compose(doc, view["values"], ev, cfg["smtp_user"], cfg["plan_mail_to"],
+                msg = plan_mail.compose(doc, view, ev, cfg["smtp_user"], cfg["plan_mail_to"],
                                         f"https://blog.{settings.base_domain}/stocks/plan")
                 try:
                     await asyncio.to_thread(_send, cfg, msg)
@@ -361,12 +442,102 @@ async def mail_tick(now: datetime) -> int:
     return sent
 
 
+# ---------------------------------------------------------------------------
+# 매일 점검 메일(2026-10-14) — 설정 시각(기본 12:00)에 AI 가 계획에 영향을 줄 이슈를 찾고, 있을 때만 보낸다
+# ---------------------------------------------------------------------------
+#
+# - 관리자 › 외부 연동의 [매일 점검] 켬/끔·시각. 기본은 꺼짐이다(테스트 컨테이너도 이 루프를 돈다).
+# - 하루 한 번은 `invest_plan_notice` 의 (사람, "daily", 그날 0시)를 먼저 차지해 지킨다. 시각을 6시간 넘겨 켜지면 그날은 건너뛴다.
+# - codex 는 **조회 전용 토큰**으로 부른다(쓰기 도구 승인도 넘기지 않는다) — 계획은 상담에서만 바뀐다.
+# - 실패(로그인 풀림·답 형식 깨짐 등)는 "점검 실패" 메일 한 통 — 조용한 날과 구분한다. 그날은 다시 하지 않는다(매분 codex 를 부르지 않게).
+# - 무난한 하루(none)면 아무것도 보내지 않는다. 보낸 날은 상담 기록에도 남겨 다음 상담이 이어 다룬다.
+
+_DAILY_ID = "daily"
+_daily_tasks: set = set()   # 돌고 있는 점검 — 참조를 쥐고 있어야 도중에 GC 되지 않는다
+
+
+async def daily_tick(now: datetime) -> int:
+    """점검할 때면 사람마다 그날 몫을 차지하고 점검을 띄운다. 띄운 수를 돌려준다."""
+    import asyncio
+    from app.services import plan_mail
+
+    async with db_session() as db:
+        cfg = await app_settings.load(db)
+        day = plan_mail.daily_due(cfg, now)
+        if day is None or not (cfg["smtp_host"] and cfg["smtp_user"] and cfg["smtp_password"] and cfg["plan_mail_to"]):
+            return 0
+        rows = (await db.execute(text(
+            "SELECT r.user_index, r.rev_id, r.doc FROM invest_plan_rev r "
+            "JOIN (SELECT user_index, MAX(rev_id) AS m FROM invest_plan_rev GROUP BY user_index) x ON r.rev_id = x.m"))).all()
+        started = 0
+        for row in rows:
+            claimed = (await db.execute(text(
+                "INSERT IGNORE INTO invest_plan_notice (user_index, node_id, event_at) VALUES (:u, :n, :a)"),
+                {"u": row.user_index, "n": _DAILY_ID, "a": datetime.combine(day, datetime.min.time())})).rowcount
+            await db.commit()
+            if not claimed:
+                continue
+            task = asyncio.create_task(daily_check(cfg, row.user_index, _doc_of(row), day, now))
+            _daily_tasks.add(task)
+            task.add_done_callback(_daily_tasks.discard)
+            started += 1
+    return started
+
+
+async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: datetime) -> bool:
+    """codex 로 한 번 점검하고, 알릴 일이 있으면 메일·상담 기록. 점검을 못 했으면(로그인·실행 실패, 답 형식 깨짐)
+    "점검 실패" 메일을 보낸다 — 조용한 날과 구분한다. 메일을 보냈으면 True."""
+    import asyncio
+    from app.services import plan_mail
+
+    page = f"https://blog.{settings.base_domain}/stocks/plan"
+    token = plan_mcp.issue(user_index, read_only=True)
+    failure = None
+    try:
+        model = codex_runner.resolve_model(cfg["ai_model"])
+        reply = await codex_runner.run(ip.daily_prompt(doc, now), model, mcp_url=settings.plan_mcp_url, mcp_token=token,
+                                       effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
+    except codex_runner.CodexError as e:
+        failure, reply = str(e), ""
+    finally:
+        plan_mcp.revoke(token)
+    check = None if failure else plan_mail.parse_check(reply)
+    if check is None:
+        failure = failure or f"AI 답의 형식이 깨졌습니다: {reply.strip()[:150]}"
+        logger.warning("매일 점검 실패(user=%s %s): %s", user_index, day, failure)
+        msg = plan_mail.compose_daily_failure(day, failure, cfg["smtp_user"], cfg["plan_mail_to"], page)
+    elif check["level"] == "none":
+        logger.info("매일 점검: user=%s %s — 알릴 일 없음", user_index, day)
+        return False
+    else:
+        msg = plan_mail.compose_daily(check, day, cfg["smtp_user"], cfg["plan_mail_to"], page)
+    try:
+        await asyncio.to_thread(_send, cfg, msg)
+    except Exception as e:   # noqa: BLE001 — 점검은 하루 한 번, 다시 하지 않는다
+        logger.warning("매일 점검 메일 실패(user=%s %s): %r", user_index, day, e)
+        return False
+    if check is None:
+        return True
+    async with db_session() as db:
+        await db.execute(text(
+            "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'assistant', :c)"),
+            {"u": user_index, "c": "[매일 점검 메일] " + plan_mail.daily_text(check, day)})
+        await db.commit()
+    logger.info("매일 점검 메일 보냄: user=%s %s %s → %s", user_index, check["level"], check["title"], cfg["plan_mail_to"])
+    return True
+
+
 async def mail_loop() -> None:
     import asyncio
     await asyncio.sleep(20)   # 기동 직후 DB·공개키 준비를 기다린다
     while True:
+        now = datetime.now(_KST)
         try:
-            await mail_tick(datetime.now(_KST))
+            await mail_tick(now)
         except Exception:   # noqa: BLE001 — 루프는 죽지 않는다
             logger.exception("이벤트 메일 루프 오류")
+        try:
+            await daily_tick(now)
+        except Exception:   # noqa: BLE001
+            logger.exception("매일 점검 루프 오류")
         await asyncio.sleep(_MAIL_TICK)

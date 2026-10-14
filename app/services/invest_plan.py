@@ -14,11 +14,12 @@ AI 는 MCP 쓰기 도구로 노드·보유를 고치고, 서버가 그때마다 
 금액은 AI 가 쓰지 않는다 — 수량 × 시세로 여기서 계산한다(`valuate`).
 """
 
+import hashlib
 import json
 from datetime import date, datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 AssetClass = Literal["stock", "bond", "cash", "crypto", "other"]
 _KST = timezone(timedelta(hours=9))
@@ -47,6 +48,13 @@ class Holding(BaseModel):
     type: AssetType | None = Field(default=None, description="유형(현금성·저축성·투자성·연금성·주택) — 화면 유형별 비중. 2026-10-11")
     region: Literal["KR", "GLOBAL"] | None = Field(default=None,
                                                   description="주식·채권의 투자 대상(상장 시장이 아니다 — 국내 상장 미국 ETF 는 GLOBAL). 비면 market 으로 본다")
+
+    @model_validator(mode="after")
+    def _priced_needs_market(self):
+        # 시세 환산은 market 으로 고른다(US 면 환율을 곱한다) — 빠지면 100달러가 100원이 됐다(2026-10-14 검토).
+        if self.code and self.qty is not None and self.market is None:
+            raise ValueError(f"{self.name}: 종목(code+qty)은 market(KR·US·COIN)이 있어야 한다")
+        return self
 
 
 def group(h: Holding) -> str:
@@ -96,6 +104,12 @@ class Node(BaseModel):
     holdings: list[Holding] | None = Field(default=None, max_length=_MAX_HOLDINGS)
     status: Literal["pending", "realized", "dropped"] = "pending"
     executed_at: date | None = Field(default=None, description="가지의 매매를 실제로 한 날(화면 [실행함]) — 2026-10-11")
+    base: str | None = Field(default=None, description="가지 보유를 쓸 때의 직전 보유 지문 — 서버가 채운다(`stamp_branches`). 2026-10-14")
+
+
+#: 원칙·기억 한 줄 — 앞뒤 공백을 떼고, 빈 줄은 받지 않는다.
+Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+MAX_RULES, MAX_MEMORY = 30, 50
 
 
 class PlanDoc(BaseModel):
@@ -103,6 +117,9 @@ class PlanDoc(BaseModel):
     holdings: list[Holding] = Field(default_factory=list, max_length=_MAX_HOLDINGS)
     nodes: list[Node] = Field(default_factory=list, max_length=_MAX_NODES)
     cashflow: list[Flow] = Field(default_factory=list, max_length=50, description="월 현금흐름 — 2026-10-11 에 더했다(옛 문서는 빈 목록)")
+    # 2026-10-14 — 상담·매일 점검 프롬프트에 늘 싣는다. 화면 [원칙·기억] 목록과 상담(rules_set·memory_set) 두 길로 고친다.
+    rules: list[Note] = Field(default_factory=list, max_length=MAX_RULES, description="원칙 — AI 가 늘 지킬 규칙")
+    memory: list[Note] = Field(default_factory=list, max_length=MAX_MEMORY, description="기억 — 상담에 늘 깔고 갈 사실")
 
     @model_validator(mode="after")
     def _tree(self):
@@ -122,6 +139,9 @@ class PlanDoc(BaseModel):
                     raise ValueError(f"{n.id}: 이벤트에는 at(시작 시각)이 있어야 한다")
             elif p is None or p.kind != "event":
                 raise ValueError(f"{n.id}: 가지의 부모는 이벤트여야 한다")
+            if n.kind == "event" and sum(1 for b in self.nodes
+                                         if b.parent == n.id and b.kind == "branch" and b.status == "realized") > 1:
+                raise ValueError(f"{n.id}: 실현된 가지는 하나여야 한다")
             # 부모를 따라 올라가 순환을 막는다 — 노드 수보다 깊으면 돌고 있는 것이다.
             cur, hops = n, 0
             while cur.parent:
@@ -221,6 +241,72 @@ def _by_key(rows: list[dict]) -> dict[tuple, dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# 가지 보유의 재원·기준 (2026-10-14 반론자 검토)
+#
+# 가지 보유는 "실행 뒤 전체 보유"라 AI 가 현금보다 많이 사도, 잔고가 나중에 바뀌어도 형식 검사로는 안 걸렸다.
+#   - 재원: 계좌마다 실행 뒤 평가액 ≤ 실행 전 × (1 + FUND_SLACK). 계좌 사이 이동은 하지 않는다는 규칙을 서버가 지킨다.
+#   - 기준: 가지 보유를 쓸 때 직전 보유의 지문을 `base` 에 남기고, 나중에 직전 보유가 달라지면 "다시 짜야 함"(stale).
+# ---------------------------------------------------------------------------
+
+#: 시세 오차·수수료 여유. 이보다 크게 늘면 판 것보다 많이 산 것이다.
+FUND_SLACK = 0.02
+
+
+def holdings_stamp(hs: list[Holding]) -> str:
+    """보유 목록의 지문 — 줄 순서는 따지지 않는다."""
+    rows = sorted(json.dumps(h.model_dump(mode="json"), sort_keys=True, ensure_ascii=False) for h in hs)
+    return hashlib.sha1("\n".join(rows).encode()).hexdigest()[:16]
+
+
+def changed_branches(old: PlanDoc, new: PlanDoc) -> list[Node]:
+    """보유를 새로 쓰거나 바꾼(또는 부모를 옮긴) 가지."""
+    olds = {n.id: n for n in old.nodes}
+    return [n for n in new.nodes if n.kind == "branch" and n.holdings is not None
+            and (n.id not in olds or olds[n.id].holdings != n.holdings or olds[n.id].parent != n.parent)]
+
+
+def stamp_branches(old: PlanDoc, new: PlanDoc) -> None:
+    """가지의 `base` 는 서버만 쓴다 — 바뀐 가지는 지금의 직전 보유 지문으로, 나머지는 옛 값 그대로(AI 가 보낸 값은 버린다)."""
+    olds = {n.id: n for n in old.nodes}
+    st = states(new)
+    fresh = {n.id for n in changed_branches(old, new)}
+    for n in new.nodes:
+        if n.kind != "branch":
+            continue
+        n.base = holdings_stamp(st[n.parent]) if n.id in fresh else (olds[n.id].base if n.id in olds else None)
+
+
+def stale_branches(doc: PlanDoc) -> set[str]:
+    """직전 보유가 가지를 짤 때와 달라진 가지 — 매매표가 엉뚱한 매도·매수를 낼 수 있다. 지문이 없는 옛 가지는 모른다(빼지 않는다)."""
+    st = states(doc)
+    return {n.id for n in doc.nodes
+            if n.kind == "branch" and n.holdings is not None and n.base and n.base != holdings_stamp(st[n.parent])}
+
+
+def _account_totals(rows: list[dict]) -> dict[str, float | None]:
+    """계좌 → 평가액 합. 그 계좌에 값을 못 낸 줄이 있으면 None(검사하지 않는다)."""
+    out: dict[str, float | None] = {}
+    for r in rows:
+        k = r.get("account") or ""
+        out[k] = None if r["value"] is None or out.get(k, 0.0) is None else out.get(k, 0.0) + r["value"]
+    return out
+
+
+def funding_errors(old: PlanDoc, new: PlanDoc, values: dict[str, dict]) -> list[str]:
+    """바뀐 가지마다 계좌별로 판 것보다 많이 샀는지. 옛 가지는 시세가 움직여 걸릴 수 있어 보지 않는다."""
+    errs = []
+    for n in changed_branches(old, new):
+        before, after = _account_totals(values[n.parent]["rows"]), _account_totals(values[n.id]["rows"])
+        for acc, a in after.items():
+            b = before.get(acc, 0.0)
+            if a is None or b is None or a <= b * (1 + FUND_SLACK) + 1:
+                continue
+            errs.append(f"{n.title}: 계좌 {acc or '(계좌 없음)'} 실행 뒤 {a:,.0f}원 > 실행 전 {b:,.0f}원 — "
+                        "그 계좌에서 판 돈과 현금으로만 살 수 있다(산 만큼 현금을 줄이고, 계좌 사이 이동은 하지 않는다)")
+    return errs
+
+
 def trades(doc: PlanDoc, values: dict[str, dict]) -> dict[str, list[dict]]:
     """가지 id → 매매표(2026-10-11) — 직전(부모 이벤트 시점) 보유와 가지의 실행 뒤 보유를 견준다. 가지 보유가 null 이면 매매가 없다.
 
@@ -303,6 +389,18 @@ def accruals(doc: PlanDoc, today: date) -> dict[str, dict]:
 # 복기 — 날짜가 지난 이벤트의 가지마다 "그때(이벤트 시각 시세) → 지금(오늘 시세)" 평가(2026-10-10 사용자 요청)
 # ---------------------------------------------------------------------------
 
+def on_dropped_path(doc: PlanDoc, node: Node) -> bool:
+    """조상 가지(자신이 가지면 자신도) 중 접힌(dropped) 것이 있으면 True — 그 경로는 더 오지 않는다.
+    시작 메일·지금 할 일에서 뺀다(접힌 가지 아래 이벤트에도 메일이 갔다, 2026-10-14 검토)."""
+    by_id = {n.id: n for n in doc.nodes}
+    cur = node
+    while cur is not None:
+        if cur.kind == "branch" and cur.status == "dropped":
+            return True
+        cur = by_id.get(cur.parent) if cur.parent else None
+    return False
+
+
 def past_events(doc: PlanDoc, now: datetime) -> list[Node]:
     return [n for n in doc.nodes if n.kind == "event" and _kst(n.at) <= now]
 
@@ -312,6 +410,8 @@ def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> 
 
     가지마다 {event, at, then, now, change, pct, missing}. 가지의 보유는 **계획상 수량**이라 실제 체결과 다를 수 있다.
     `missing` 은 그때 시세가 없어 평가에서 빠진 보유 수(상장 전·환율 데이터 시작 전 등) — 0 이 아니면 값이 덜 잡혔다.
+    ⚠️ 그때와 지금 빠진 보유가 다르면 견줄 수 없어 `change`·`pct` 를 None 으로 둔다 — 그때만 빠진 주식이 지금 더해져
+       +100% 처럼 나왔다(2026-10-14 검토).
     """
     by_id = {n.id: n for n in doc.nodes}
     out = {}
@@ -319,9 +419,12 @@ def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> 
         ev = by_id[ev_id]
         for b in (n for n in doc.nodes if n.kind == "branch" and n.parent == ev_id):
             then, now = vals[b.id]["total"], now_values[b.id]["total"]
+            gone = [i for i, r in enumerate(vals[b.id]["rows"]) if r["value"] is None]
+            same = gone == [i for i, r in enumerate(now_values[b.id]["rows"]) if r["value"] is None]
             out[b.id] = {"event": ev_id, "at": _kst(ev.at).isoformat(), "then": then, "now": now,
-                         "change": now - then, "pct": (now / then - 1) * 100 if then else None,
-                         "missing": sum(1 for r in vals[b.id]["rows"] if r["value"] is None)}
+                         "change": now - then if same else None,
+                         "pct": (now / then - 1) * 100 if then and same else None,
+                         "missing": len(gone)}
     return out
 
 
@@ -350,7 +453,10 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
 - **가지는 바로 주문할 수 있게** 만든다 — 매매가 있는 가지는 holdings(실행 뒤 전체 보유)를 반드시 채운다(서버가 직전 보유와
   견줘 매매표를 만든다). actions 는 "ISA · KODEX 미국30년국채액티브(H) 484790 · 200주 매수(약 160만 원)" 처럼
   계좌·종목·코드·수량(또는 금액)을 적고, "일부"·"적당히" 같은 말은 쓰지 않는다. 수량은 quotes_get 의 종가와 그 계좌의 현금으로 정하고,
-  산 만큼 그 계좌 현금을 줄인다(계좌 사이 이동은 하지 않는다).
+  산 만큼 그 계좌 현금을 줄인다(계좌 사이 이동은 하지 않는다). 서버가 계좌마다 실행 뒤 평가액이 실행 전보다 2% 넘게 크면
+  "재원 초과"로 거절한다 — 그러면 수량을 줄여 다시 쓴다. 주문은 서버 매매표(trades)가 정하고 actions 는 메모로 보인다.
+- plan_get 의 `stale` 은 잔고가 바뀌어 매매표가 틀어진 가지다 — 상담 때 보이면 그 가지의 holdings 를 지금 보유 기준으로
+  다시 짜자고 제안한다(시키면 node_update).
 
 ## 블로그 도구(MCP `blog`)
 - 조회: node_get(노드 하나의 모든 칸과 그 시점 평가·복기), plan_get(지금 계획 전체와 노드별 평가 — 오늘 시세 원화 환산·환율, 그리고 retro: 지난 이벤트의 가지마다
@@ -358,9 +464,22 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 함께 �
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
   숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
-  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로). **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
+  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로), rules_set(원칙 통째로), memory_set(기억 통째로).
+  **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
   거부되면 돌려준 이유를 보고 고쳐 다시 부른다. 사용자가 바꾸라고 하지 않았으면 쓰지 않는다.
 - 여러 노드를 만들 때는 부모부터(이벤트 → 그 가지 → 다음 이벤트) 차례로 node_add 한다.
+
+## 원칙·기억
+- **원칙**은 사용자가 정한 행동 규칙이다. 가지·액션·권유는 원칙을 어기지 않는다. 사용자가 원칙에 어긋나는 걸 시키면
+  그 원칙을 들어 한 번 묻고, 그래도 하라면 따르며 원칙을 고칠지도 묻는다.
+- **기억**은 사용자에 대한 사실·상황·선호다(만기·상여 시기·답 형식 등). 답과 계획에 반영한다.
+- rules_set·memory_set 은 사용자가 "기억해·원칙으로 해·잊어·빼"처럼 **시킨 상담에서만 열린다**(서버가 막는다). 그때만 — 지금 목록에 더하거나 빼서
+  통째로 보낸다(다른 줄은 그대로). 대화에서 남길 만한 게 보이면 "원칙(기억)으로 남길까요?" 하고 묻기만 한다.
+- **이번 상담: {gate}**
+- 한 줄에 하나, 짧게(300자 이내, 원칙 최대 30줄·기억 50줄). 기억의 날짜는 "2027-03"처럼 절대 날짜로 쓴다("내년" 금지).
+  하지 말 것·해야 할 것은 원칙, 사실·상황·선호는 기억이다. 사용자는 화면 목록에서도 직접 고친다.
+
+{notes}
 
 ## 계획 문서 형식(JSON)
 {{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드], "cashflow": [현금흐름]}}
@@ -419,9 +538,75 @@ def outline(doc: PlanDoc) -> dict:
                       for n in doc.nodes]}
 
 
-def system_prompt(doc: PlanDoc, now: datetime) -> str:
-    return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"),
+def notes_block(doc: PlanDoc) -> str:
+    """프롬프트의 원칙·기억 목록 — 뼈대 JSON 과 따로, 눈에 띄게 싣는다."""
+    rules = "\n".join(f"- {r}" for r in doc.rules) or "(없음)"
+    memory = "\n".join(f"- {m}" for m in doc.memory) or "(없음)"
+    return f"### 원칙(꼭 지킨다)\n{rules}\n\n### 기억\n{memory}"
+
+
+def system_prompt(doc: PlanDoc, now: datetime, notes_open: bool = True) -> str:
+    """`notes_open` — 이번 상담에 rules_set·memory_set 이 열렸나(plan_v1.write_tools_for). 닫혔으면 AI 가 쓰려 하지 않고 묻게 한다."""
+    gate = ("rules_set·memory_set 이 열려 있다(사용자가 시켰다)." if notes_open else
+            "사용자가 원칙·기억으로 남기라고 하지 않았다(그래서 rules_set·memory_set 이 없다). 남길 만한 말이면 답 끝에 "
+            "\"원칙(기억)으로 남길까요?\" 하고 물어라 — 사용자가 그렇다고 하면 다음 상담에서 저장된다.")
+    return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"), notes=notes_block(doc), gate=gate,
                                 doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
+
+
+DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보는 감시자다. 하루 한 번 점검한다. 한국어로 쓴다.
+지금 시각(KST): {now}
+
+## 할 일
+최근 하루 남짓 사이에 아래 계획에 영향을 줄 **특별한 일**이 있었는지 웹에서 찾는다.
+- 계획의 대기(pending) 이벤트, 특히 14일 안의 것: 일정 변경, 시장 예상(컨센서스·금리선물 확률)의 큰 변화, 전제가 깨지는 발표
+- 보유 비중이 큰 종목·자산: 급등락, 중요 공시·실적, 거래 정지 같은 사건
+- 계획에 없던 큰 일: 예정에 없던 금리 결정, 전쟁·금융 사고처럼 시장 전체를 흔드는 일
+숫자(종가·등락률·환율·평가)는 블로그 도구(MCP `blog` — plan_get·node_get·quotes_get)를 먼저 쓴다. 이 점검은 **조회만** 한다 — 계획을 고치지 않는다.
+아래 원칙은 사용자가 정한 규칙이다 — 할 일(actions)은 원칙을 어기지 않는다. 기억은 사용자에 대한 사실이다.
+
+{notes}
+
+## 판정
+- "none": 무난한 하루 — 늘 있는 등락·이미 계획에 반영된 소식뿐. **대부분의 날은 none 이다.** 애매하면 none.
+- "notice": 계획을 다시 볼 만한 변화 — 다가오는 이벤트의 예상이 크게 바뀜, 보유 종목의 중요 소식.
+- "urgent": 지금 대응이 필요하다 — 이벤트의 전제가 깨짐, 보유 비중 큰 자산의 급변(하루 ±5% 넘게 등), 계획에 없던 큰 사건.
+
+## 답하는 법
+JSON 하나만 답한다(설명 글 없이):
+{{"level": "none|notice|urgent", "title": "한 줄 제목(none 이면 빈 글)", "summary": "무슨 일인지 2~4문장",
+ "impacts": ["예상 영향 — 영향받는 이벤트·가지·보유와 어떻게(제목으로 쓰고 id 는 쓰지 않는다)"],
+ "actions": ["할 일 — 무엇을 다시 볼지·상담에서 정할 것(방향만). 수량·금액은 쓰지 않는다 — 주문은 상담에서 계획으로 정한다"]}}
+
+## 지금 계획(뼈대 — 노드 상세는 node_get(id))
+```json
+{doc}
+```
+"""
+
+
+def daily_prompt(doc: PlanDoc, now: datetime) -> str:
+    return DAILY_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"), notes=notes_block(doc),
+                               doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
+
+
+def change_lines(old: PlanDoc, new: PlanDoc) -> list[str]:
+    """상담 답 끝에 붙이는 "무엇이 바뀌었나" — 원칙·기억은 줄 단위, 보유는 바뀐 종목. 눈에 안 띄게 바뀌면 이후 상담·점검에
+    계속 실리므로 드러낸다(웹 검색 결과의 지시로 바뀌는 경우까지, 2026-10-14 검토)."""
+    out = []
+    for label, a, b in (("원칙", old.rules, new.rules), ("기억", old.memory, new.memory)):
+        out += [f"{label} + ‘{x}’" for x in b if x not in a] + [f"{label} − ‘{x}’" for x in a if x not in b]
+
+    def keyed(hs):
+        return {(h.account or "", h.code or h.name): h for h in hs}
+    ko, kn = keyed(old.holdings), keyed(new.holdings)
+    for k in list(ko) + [k for k in kn if k not in ko]:
+        h, g = ko.get(k), kn.get(k)
+        if h == g:
+            continue
+        name = f"{(g or h).name}{' · ' + k[0] if k[0] else ''}"
+        out.append(f"보유 {'+' if h is None else '−' if g is None else '~'} {name}")
+    return out
 
 
 def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
@@ -438,4 +623,8 @@ def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
         parts.append("보유 자산 갱신")
     if old.cashflow != new.cashflow:
         parts.append("현금흐름 갱신")
+    if old.rules != new.rules:
+        parts.append("원칙 갱신")
+    if old.memory != new.memory:
+        parts.append("기억 갱신")
     return ", ".join(parts) or "변경 없음"

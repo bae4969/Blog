@@ -20,6 +20,8 @@ DEFAULTS: dict[str, str] = {
     "smtp_user": "",
     "smtp_password": "",
     "plan_mail_to": "",
+    "plan_daily_on": "",               # "1" 이면 매일 점검(plan_v1.daily_tick) — 기본은 꺼짐(테스트 컨테이너도 같은 루프를 돈다)
+    "plan_daily_at": "12:00",          # 점검 시각(KST, HH:MM)
 }
 SECRETS = frozenset({"smtp_password"})
 #: 화면의 강도 선택지(모델마다 지원 범위가 다르다 — 지원하지 않으면 모델 기본값을 쓴다).
