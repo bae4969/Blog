@@ -91,7 +91,7 @@ def _prev_close_sql(tbl: str) -> str:
 
 
 async def _latest_quotes(db, pairs) -> dict[str, dict]:
-    """`(종목코드, 접두사)` 목록 → `{code: {close, prev_close, change_pct}}`.
+    """`(종목코드, 접두사)` 목록 → `{code: {close, prev_close, change_pct, as_of}}`. `as_of` 는 마지막 캔들 시각(그 테이블의 시간대 그대로).
 
     PHP 의 N+1 을 배치 두 번으로 바꾼 곳이다(모듈 docstring 참조). 최신 종가만 필요하면
     `_latest_closes` 를 쓴다 — 같은 쿼리라 따로 돌릴 이유가 없다.
@@ -131,7 +131,8 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
     parts = [
         f"SELECT '{code}' AS code, (SELECT execution_close FROM `candle`.`{tbl}` "
         f"ORDER BY execution_datetime DESC LIMIT 1) AS close_price, "
-        f"{_prev_close_sql(tbl)} AS prev_close"
+        f"{_prev_close_sql(tbl)} AS prev_close, "
+        f"(SELECT MAX(execution_datetime) FROM `candle`.`{tbl}`) AS as_of"
         for code, tbl in picked.items()
         if tbl.replace("_", "").isalnum() and code.replace("_", "").replace(".", "").replace("/", "").isalnum()
     ]
@@ -139,7 +140,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
         return {}
 
     out: dict[str, dict] = {}
-    for code, close, prev_close in (await db.execute(text(" UNION ALL ".join(parts)))).all():
+    for code, close, prev_close, as_of in (await db.execute(text(" UNION ALL ".join(parts)))).all():
         if close is None:
             continue
         close = float(close)
@@ -150,6 +151,7 @@ async def _latest_quotes(db, pairs) -> dict[str, dict]:
             # 직전 거래일이 없으면(상장 직후·수집 첫날) 계산하지 않는다. 0% 로 두면
             # "보합"으로 읽혀 없는 정보가 있는 것처럼 보인다.
             "change_pct": None if not prev_close else (close / prev_close - 1) * 100,
+            "as_of": as_of,
         }
     return out
 
