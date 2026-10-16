@@ -416,6 +416,12 @@ _MAIL_TICK = 60
 
 def _send(cfg: dict, msg) -> None:
     import smtplib
+    from email.utils import format_datetime, make_msgid
+    # Date·Message-ID 는 우리가 붙인다 — 비워 두면 메일 앱이 보낸 시각을 엉뚱하게 보일 수 있다(2026-10-17 사용자 지적).
+    if "Date" not in msg:
+        msg["Date"] = format_datetime(datetime.now(_KST))
+    if "Message-ID" not in msg:
+        msg["Message-ID"] = make_msgid(domain=cfg["smtp_user"].rpartition("@")[2] or None)
     port = int(cfg["smtp_port"])
     if port == 465:
         server = smtplib.SMTP_SSL(cfg["smtp_host"], port, timeout=20)

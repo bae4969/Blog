@@ -118,6 +118,17 @@ def daily_due(cfg: dict, now: datetime) -> date | None:
     return now.date() if timedelta(0) <= now - slot <= DAILY_LATE else None
 
 
+#: 점검 글의 링크 — 마크다운 `[이름](url)` 과 맨 URL. 매일 점검 메일엔 출처를 넣지 않는데(사용자 지시) AI 가 상담 답처럼
+#: 본문에 링크를 섞어, 메일에 `[로이터](https://…)` 가 날 글자로 찍혔다(2026-10-15·16 운영).
+_LINK = re.compile(r"\s*(\[[^\]]*\]\(\s*https?://[^)]*\)|https?://\S+)")
+
+
+def _unlink(v):
+    if isinstance(v, list):
+        return [_unlink(x) for x in v]
+    return re.sub(r" {2,}", " ", _LINK.sub("", v)).strip() if isinstance(v, str) else v
+
+
 def parse_check(reply: str) -> dict | None:
     """AI 답 → 점검 결과(`level` 이 none·notice·urgent). **형식이 깨졌으면 None** — 무난한 하루(none)와 구분해
     점검 실패로 알린다(둘이 같으면 며칠째 실패해도 "조용한 날"로 보였다, 2026-10-14 검토)."""
@@ -131,7 +142,7 @@ def parse_check(reply: str) -> dict | None:
         return None
     if data["level"] != "none" and not data.get("title"):
         return None
-    return data
+    return {k: _unlink(v) for k, v in data.items()}
 
 
 def _sections(check: dict) -> list[tuple[str, list[str]]]:

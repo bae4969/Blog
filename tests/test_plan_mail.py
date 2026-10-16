@@ -123,3 +123,35 @@ def test_시작_메일의_주문은_서버_매매표_잔고가_바뀐_가지는_
     assert "- ISA · 매수 TIGER 200(102110) 10주 · 약 100만" in body      # 메모의 "1주"가 아니라 매매표의 10주
     assert "- ISA · 예수금 감소 100만" in body and "메모: TIGER 200 1주 매수" in body
     assert "잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다" in body
+
+
+def test_점검_글의_링크는_지운다():
+    # AI 가 본문에 섞은 링크가 메일에 `[로이터](https://…)` 날 글자로 찍혔다(2026-10-15·16 운영)
+    reply = ('{"level": "urgent", "title": "코스피 급락", "summary": "사이드카가 발동했습니다. '
+             '[연합뉴스](https://www.yna.co.kr/view/AKR1) 미국 물가가 높았습니다 https://x.com/a",'
+             ' "impacts": ["TIGER 200 — 손실 [로이터](https://r.com/1)"], "actions": ["상담에서 점검"]}')
+    check = plan_mail.parse_check(reply)
+    assert check["summary"] == "사이드카가 발동했습니다. 미국 물가가 높았습니다"
+    assert check["impacts"] == ["TIGER 200 — 손실"] and check["actions"] == ["상담에서 점검"]
+
+
+def test_보내는_메일에_날짜와_메시지_ID():
+    from app.api import plan_v1
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def login(self, *a): pass
+        def send_message(self, msg): sent.append(msg)
+
+    import smtplib
+    orig, smtplib.SMTP_SSL = smtplib.SMTP_SSL, FakeSMTP
+    try:
+        msg = plan_mail.compose_daily_failure(NOW.date(), "x", "me@naver.com", "me@naver.com", "https://blog.x")
+        plan_v1._send({"smtp_host": "h", "smtp_port": "465", "smtp_user": "me@naver.com", "smtp_password": "p"}, msg)
+    finally:
+        smtplib.SMTP_SSL = orig
+    assert sent[0]["Date"].endswith("+0900") and sent[0]["Message-ID"].endswith("@naver.com>")
+
