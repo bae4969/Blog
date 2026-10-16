@@ -53,6 +53,7 @@
     var selected = null;      // 상세 창에 연 원(id) — 없으면 null
     var images = [];          // 보낼 이미지 data URL
     var busy = false;
+    var lastChatId = 0;   // 화면에 있는 마지막 상담 기록 — 끊긴 뒤 다시 읽을 때 새 답이 왔는지 가른다
 
     // ── API ────────────────────────────────────────────────
 
@@ -82,7 +83,11 @@
             return fetch(url, opt);
         }).then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (j) {
-                if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : '요청 실패(' + r.status + ')');
+                if (!r.ok) {
+                    var err = new Error(typeof j.detail === 'string' ? j.detail : '요청 실패(' + r.status + ')');
+                    err.status = r.status;   // 없으면 서버에 닿지 못한 것(연결 끊김) — send() 가 가른다
+                    throw err;
+                }
                 return j;
             });
         });
@@ -1353,9 +1358,11 @@
         images = [];
         renderChips();
         setBusy(true);
+        var before = plan && plan.rev_id;
 
         api('POST', '/api/v1/plan/chat', sent).then(function (r) {
             setBusy(false);
+            lastChatId = r.chat_id;
             addMessage({ role: 'assistant', content: r.reply || '(계획을 고쳤습니다)', rev_id: r.rev_id });
             if (r.plan) {
                 setPlan(r.plan);
@@ -1364,6 +1371,19 @@
             }
             if (r.note) window.toast(r.note, 'error');
         }).catch(function (e) {
+            // 서버에 못 닿은 실패면(휴대폰 화면이 꺼지거나 앱을 옮기면 기다리던 요청이 끊긴다) 서버는 답을 끝까지 만들어
+            // 저장한다 — 다시 보내면 AI 가 같은 일을 두 번 했다(2026-10-14~16 운영 로그). 끝나길 기다렸다 기록을 다시 읽는다.
+            if (!e.status) {
+                follow().then(function (got) {
+                    if (got) window.toast('연결이 끊긴 동안 온 답을 불러왔습니다', 'info');
+                    else failed(e);
+                }, function () { failed(e); });
+                return;
+            }
+            failed(e);
+        });
+
+        function failed(e) {
             setBusy(false);
             // 보낸 것을 되살려 다시 보낼 수 있게 한다.
             mine.remove();
@@ -1373,7 +1393,6 @@
             if (!logEl.querySelector('.plan-msg')) emptyChat();
             // 실패해도 AI 가 그 전에 계획을 고쳤을 수 있다(쓰기는 그때그때 저장된다) — 다시 읽어 바뀌었으면 알리고,
             // 같은 요청을 되풀이하지 않게 그때는 [다시 시도]를 뺀다(2026-10-14 검토).
-            var before = plan && plan.rev_id;
             api('GET', '/api/v1/plan').then(function (p) {
                 if (p.rev_id !== before) {
                     setPlan(p);
@@ -1384,7 +1403,39 @@
             }).catch(function () {
                 window.toast('상담 실패: ' + e.message + ' — 계획이 바뀌었는지 새로고침해 확인하세요', 'error');
             });
+        }
+    }
+
+    // 서버의 상담이 끝날 때까지 기다렸다(최대 12분 — codex 는 10분이면 끊긴다) 계획·대화를 다시 그린다.
+    // 이 사이 새 답이 저장됐으면 true. 기다리는 동안의 연결 실패는 다시 묻는다(화면이 꺼져 있었을 수 있다).
+    function follow() {
+        var until = Date.now() + 12 * 60 * 1000;
+        var later = function () { return new Promise(function (ok) { setTimeout(ok, 5000); }); };
+        var poll = function () {
+            return api('GET', '/api/v1/plan/chat/busy').then(function (r) { return r.busy; }, function (e) {
+                if (e.status || Date.now() > until) throw e;
+                return true;
+            }).then(function (still) {
+                if (still) return later().then(poll);
+                return Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat')]);
+            });
+        };
+        if (!busy) setBusy(true);
+        return poll().then(function (res) {
+            var chats = res[1], newest = chats.length ? chats[chats.length - 1].chat_id : 0;
+            setPlan(res[0]);
+            if (newest <= lastChatId) return false;
+            setBusy(false);
+            showChats(chats);
+            return true;
         });
+    }
+
+    function showChats(chats) {
+        logEl.textContent = '';
+        if (!chats.length) emptyChat();
+        chats.forEach(addMessage);
+        lastChatId = chats.length ? chats[chats.length - 1].chat_id : 0;
     }
 
     // 대화 기록 아래 여백 = 떠 있는 입력 상자의 실제 높이 + 4px. 고정값(10rem)으로 두면 입력창과
@@ -1577,11 +1628,11 @@
 
     // ── 시작 ───────────────────────────────────────────────
 
-    Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat')]).then(function (res) {
+    Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat'), api('GET', '/api/v1/plan/chat/busy')]).then(function (res) {
         setPlan(res[0]);
-        logEl.textContent = '';
-        if (!res[1].length) emptyChat();
-        res[1].forEach(addMessage);
+        showChats(res[1]);
+        // 새로고침했는데 상담이 아직 돌고 있으면(끊긴 뒤 다시 연 경우) 끝날 때까지 기다렸다 답을 띄운다.
+        if (res[2].busy) follow().then(function () { setBusy(false); }, function () { setBusy(false); });
     }).catch(function (e) {
         treeEl.textContent = '';
         treeEl.appendChild(el('p', 'plan-empty', '계획을 불러오지 못했습니다: ' + e.message));

@@ -224,3 +224,11 @@ def test_원칙_기억을_여는_말():
     assert "memory_set" in plan_v1.write_tools_for("그거 잊어 줘")
     tools = plan_v1.write_tools_for("FOMC 가지 만들어 줘")
     assert "memory_set" not in tools and "rules_set" not in tools and "node_add" in tools
+
+
+def test_원칙_기억을_물었으면_다음_답에서_연다():
+    # 직전 답이 "기억으로 남길까요?" 였으면 "ㅇㅇ" 에도 연다 — 안 열면 같은 질문만 되풀이했다(2026-10-16 운영)
+    from app.api import plan_v1
+    assert "memory_set" in plan_v1.write_tools_for("ㅇㅇ", "‘ISA는 저축·투자용’이라는 점을 기억으로 남길까요?")
+    assert "rules_set" in plan_v1.write_tools_for("응", "원칙으로 남길까요?")
+    assert "memory_set" not in plan_v1.write_tools_for("ㅇㅇ", "5년 이상 보유할 수 있을까요?")
