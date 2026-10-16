@@ -104,5 +104,8 @@
 {% endblock %}
 
 {% block extra_js %}
+{# AI 답 마크다운 — 30.ai_center 와 같은 판(marked 14.1.4 · DOMPurify 3.2.6) #}
+<script src="/vendor/marked.min.js" defer></script>
+<script src="/vendor/dompurify.min.js" defer></script>
 <script src="/js/plan.js?v={{ static_v }}" defer></script>
 {% endblock %}

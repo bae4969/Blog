@@ -1205,25 +1205,19 @@
     //    내 말 = 오른쪽 연보라 말풍선(원문 그대로), AI = 전폭 카드("ASSISTANT"·시각), 아래에 떠 있는 입력 상자.
 
     /**
-     * AI 답의 `**굵게**`·`` `코드` ``·`[이름](http…)` 만 살린다. 나머지는 글자 그대로다(줄바꿈은 CSS pre-wrap).
-     * ⚠️ innerHTML 을 쓰지 않는다 — 조각마다 텍스트 노드·요소를 만들고, 링크는 http(s) 만 받는다.
+     * AI 답을 마크다운으로 그린다 — 30.ai_center 와 같은 marked(gfm·줄바꿈 살림) + DOMPurify 정화.
+     * 표가 날 글자로 보여 읽기 힘들었다(2026-10-17 사용자). ⚠️ innerHTML 은 **정화한 결과에만** 쓴다 — AI 답엔 웹 검색
+     * 결과가 섞이므로 이 정화가 유일한 방어선이다. 링크는 새 창, 표는 좁은 화면에서 가로로 밀리게 감싼다.
      */
     function richText(target, text) {
-        var re = /\*\*([^*]+)\*\*|`([^`\n]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, last = 0, m;
-        while ((m = re.exec(text))) {
-            target.appendChild(document.createTextNode(text.slice(last, m.index)));
-            if (m[1] != null) target.appendChild(el('strong', null, m[1]));
-            else if (m[2] != null) target.appendChild(el('code', null, m[2]));
-            else {
-                var a = el('a', null, m[3]);
-                a.href = m[4];
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                target.appendChild(a);
-            }
-            last = re.lastIndex;
-        }
-        target.appendChild(document.createTextNode(text.slice(last)));
+        if (!window.marked || !window.DOMPurify) { target.textContent = text; target.classList.add('is-plain'); return; }
+        target.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text, { gfm: true, breaks: true }));
+        target.querySelectorAll('a').forEach(function (a) { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+        target.querySelectorAll('table').forEach(function (t) {
+            var wrap = el('div', 'plan-md-table');
+            t.parentNode.insertBefore(wrap, t);
+            wrap.appendChild(t);
+        });
     }
 
     function clock(iso) {

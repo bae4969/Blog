@@ -565,9 +565,51 @@
     color: var(--bae-text-primary);
     font-size: 14px;
     line-height: 20px;
-    white-space: pre-wrap;
     overflow-wrap: break-word;
 }
+
+/* 마크다운(marked) 결과 — 30.ai_center 의 .assistant-md 와 같은 톤. 첫·끝 요소의 바깥 여백은 카드 안쪽 여백과 겹치지 않게 뺀다. */
+.plan-msg__body.is-plain { white-space: pre-wrap; }
+.plan-msg__body > :first-child { margin-block-start: 0; }
+.plan-msg__body > :last-child { margin-block-end: 0; }
+.plan-msg__body p,
+.plan-msg__body ul,
+.plan-msg__body ol,
+.plan-msg__body blockquote,
+.plan-msg__body pre,
+.plan-md-table { margin-block: 0 10px; }
+.plan-msg__body ul,
+.plan-msg__body ol { padding-inline-start: 1.4em; }
+.plan-msg__body li + li { margin-block-start: 2px; }
+.plan-msg__body h1,
+.plan-msg__body h2,
+.plan-msg__body h3,
+.plan-msg__body h4 { margin-block: 14px 6px; font-size: 15px; line-height: 22px; font-weight: 700; }
+.plan-msg__body blockquote {
+    padding-inline-start: 10px;
+    border-inline-start: 3px solid var(--bae-border-hover);
+    color: var(--bae-text-muted);
+}
+.plan-msg__body pre {
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--bae-bg-alt);
+    overflow-x: auto;
+}
+.plan-msg__body pre code { padding: 0; background: none; }
+.plan-msg__body hr { border: 0; border-block-start: 1px solid var(--bae-border); margin-block: 12px; }
+
+/* 표는 좁은 화면에서 카드 밖으로 넘치지 않고 가로로 밀린다 */
+.plan-md-table { overflow-x: auto; }
+.plan-md-table table { border-collapse: collapse; font-size: 13px; line-height: 18px; }
+.plan-md-table th,
+.plan-md-table td {
+    padding: 5px 9px;
+    border: 1px solid var(--bae-border);
+    text-align: start;
+    vertical-align: top;
+}
+.plan-md-table th { background: var(--bae-surface-alt); font-weight: 600; white-space: nowrap; }
 
 .plan-msg__body a { color: var(--bae-accent-fg); text-decoration: underline; }
 .plan-msg__body a:hover { color: var(--bae-accent-fg-hover); }
