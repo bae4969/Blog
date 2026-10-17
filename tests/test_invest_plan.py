@@ -422,3 +422,45 @@ def test_원칙_기억_도구가_닫힌_상담은_프롬프트가_알린다():
     now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
     assert "원칙(기억)으로 남길까요?\" 하고 물어라" in ip.system_prompt(ip.PlanDoc(), now, notes_open=False)
     assert "열려 있다" in ip.system_prompt(ip.PlanDoc(), now)
+
+
+class TestAccountsDebts:
+    """계좌 목록·부채(2026-10-17 사용자: LLM 이 잘 정리하게 구조적으로, 부채는 (나) 따로 두고 주거는 전액)."""
+
+    ACC = [{"name": "ISA", "institution": "NH투자증권", "type": "invest", "principal": 2_000_000},
+           {"name": "주거", "type": "housing"}]
+    HOLD = [{"kind": "cash", "name": "예수금", "amount": 1_000_000, "account": "ISA"},
+            {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 10, "account": "ISA"},
+            {"kind": "other", "name": "전세보증금", "amount": 150_000_000, "account": "주거"}]
+    DEBT = [{"name": "전세대출", "lender": "NH농협", "balance": 100_000_000, "rate": 1.5, "account": "주거"}]
+
+    def test_계좌_목록에_없는_계좌는_거절(self):
+        with pytest.raises(ValidationError, match="계좌 목록"):
+            ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD + [{"kind": "cash", "name": "x", "amount": 1, "account": "입출금"}]})
+        with pytest.raises(ValidationError, match="계좌 목록"):   # 가지 보유도 본다
+            ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD, "nodes": [
+                {"id": "e", "kind": "event", "title": "e", "at": "2026-11-01T09:00:00+09:00"},
+                {"id": "b", "parent": "e", "kind": "branch", "title": "b", "holdings": [{"kind": "cash", "name": "x", "amount": 1, "account": "ISA2"}]}]})
+        with pytest.raises(ValidationError, match="계좌 목록"):   # 부채의 연결 계좌도
+            ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD, "debts": [{**self.DEBT[0], "account": "집"}]})
+        # 옛 문서(계좌 목록 없음)는 그대로 읽힌다
+        assert ip.PlanDoc.model_validate({"holdings": [{"kind": "cash", "name": "x", "amount": 1, "account": "아무거나"}]})
+
+    def test_순자산과_계좌_표(self):
+        doc = ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD, "debts": self.DEBT,
+                                         "cashflow": [{"kind": "saving", "name": "ISA 납입", "amount": 300_000, "account": "ISA"}]})
+        v = ip.valuate(doc, {"102110": 90_000}, {}, None)
+        assert v["root"]["total"] == 151_900_000 and v["root"]["net"] == 51_900_000
+        # 유형이 빈 보유는 계좌의 유형을 쓴다(화면 유형별 비중)
+        assert [r["type"] for r in v["root"]["rows"]] == ["invest", "invest", "housing"]
+        isa, home = ip.account_view(doc, v)
+        assert isa["value"] == 1_900_000 and isa["pnl"] == -100_000 and round(isa["pnl_pct"], 1) == -5.0 and isa["monthly"] == 300_000
+        assert home["debt"] == 100_000_000 and home["pnl"] is None
+
+    def test_AI_뼈대와_바뀐_것에_계좌·부채(self):
+        old = ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD})
+        new = ip.PlanDoc.model_validate({"accounts": self.ACC, "holdings": self.HOLD, "debts": self.DEBT})
+        o = ip.outline(new)
+        assert o["accounts"][0] == {"name": "ISA", "institution": "NH투자증권", "type": "invest", "principal": 2_000_000.0}
+        assert o["debts"][0]["balance"] == 100_000_000 and o["debts"][0]["rate"] == 1.5
+        assert "부채 + 전세대출" in ip.change_lines(old, new) and "부채 갱신" in ip.diff_summary(old, new)

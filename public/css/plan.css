@@ -441,6 +441,14 @@
 .plan-flow__kind td { color: var(--bae-text-primary); font-weight: 600; }
 .plan-flow__kind:not(:first-child) td { padding-block-start: 0.5rem; }
 .plan-flow__item td:first-child { padding-inline-start: 0.875rem; color: var(--bae-text-muted); }
+/* 계좌·부채 표(2026-10-17) — 이름 아래 목적·메모를 작은 글로, 숫자 칸은 오른쪽 */
+.plan-acc th { color: var(--bae-text-dim); font-weight: 500; text-align: start; }
+.plan-acc td:not(:first-child),
+.plan-acc th:not(:first-child) { text-align: end; white-space: nowrap; }
+.plan-acc td { vertical-align: top; padding-block: 0.3rem; }
+.plan-acc b { color: var(--bae-text-primary); font-weight: 600; }
+.plan-acc small { color: var(--bae-text-dim); }
+.plan-acc__purpose { display: block; color: var(--bae-text-dim); font-size: 0.75rem; line-height: 1.4; }
 
 .plan-swatch {
     display: inline-block;

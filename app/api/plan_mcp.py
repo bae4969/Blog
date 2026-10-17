@@ -83,7 +83,8 @@ _RO = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "
 _RW = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 _RW_DEL = {**_RW, "destructiveHint": True}
 #: 쓰기 도구 이름 — codex_runner 가 이 목록에만 자동 승인을 건다.
-WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "rules_set", "memory_set")
+WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
+               "rules_set", "memory_set")
 #: 원칙·기억 쓰기 — 웹 검색 결과의 지시(프롬프트 주입)로 바뀌면 이후 상담·점검에 계속 실린다. 사용자가 시킨 상담에만 연다.
 NOTE_TOOLS = ("rules_set", "memory_set")
 
@@ -119,6 +120,12 @@ TOOLS = [
     {"annotations": _RW, "name": "cashflow_set",
      "description": "월 현금흐름(cashflow — 수입·고정 지출·생활비·저축·납입) 목록을 통째로 바꾼다. 금액은 한 달 원화.",
      "inputSchema": _obj({"cashflow": {"type": "array", "items": {"type": "object"}}}, ["cashflow"])},
+    {"annotations": _RW, "name": "accounts_set",
+     "description": "계좌 목록(accounts — 기관·유형·목적·원금·개설·만기)을 통째로 바꾼다. 보유·납입·부채의 account 는 이 목록의 name 이어야 한다.",
+     "inputSchema": _obj({"accounts": {"type": "array", "items": {"type": "object"}}}, ["accounts"])},
+    {"annotations": _RW, "name": "debts_set",
+     "description": "부채 목록(debts — 빌린 곳·잔액·연 금리·만기·연결 계좌)을 통째로 바꾼다. 순자산 = 보유 평가 − 부채 잔액.",
+     "inputSchema": _obj({"debts": {"type": "array", "items": {"type": "object"}}}, ["debts"])},
     {"annotations": _RW, "name": "rules_set",
      "description": "원칙(rules — AI 가 늘 지킬 사용자 규칙) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 30줄.",
      "inputSchema": _obj({"rules": {"type": "array", "items": {"type": "string"}}}, ["rules"])},
@@ -182,7 +189,8 @@ async def _call(db, user_index: int, name: str, args: dict, made: list | None = 
 
 #: 목록을 통째로 바꾸는 도구 → 받아야 할 키. 키가 없으면 비우지 않고 거절한다 — `args.get(…) or []` 였을 때
 #: 키 이름을 틀리면 보유가 통째로 비었다(2026-10-14 검토).
-_SET_KEYS = {"holdings_set": "holdings", "cashflow_set": "cashflow", "rules_set": "rules", "memory_set": "memory"}
+_SET_KEYS = {"holdings_set": "holdings", "cashflow_set": "cashflow", "accounts_set": "accounts", "debts_set": "debts",
+             "rules_set": "rules", "memory_set": "memory"}
 
 
 async def _write(db, user_index: int, name: str, args: dict, made: list | None = None) -> dict:
@@ -235,6 +243,12 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
     elif name == "cashflow_set":
         data["cashflow"] = args["cashflow"]
         what = "현금흐름 갱신"
+    elif name == "accounts_set":
+        data["accounts"] = args["accounts"]
+        what = "계좌 갱신"
+    elif name == "debts_set":
+        data["debts"] = args["debts"]
+        what = "부채 갱신"
     elif name == "rules_set":
         data["rules"] = args["rules"]
         what = "원칙 갱신"

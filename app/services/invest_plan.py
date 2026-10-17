@@ -79,6 +79,33 @@ class Flow(BaseModel):
     note: str = Field(default="", max_length=200)
 
 
+class Account(BaseModel):
+    """계좌 한 줄(2026-10-17) — 보유·납입·부채의 `account` 가 가리키는 대상. 목적·원금·기관·만기를 이름·메모 글이 아니라 칸으로 둔다
+    (사용자: "LLM 이 잘 정리할 수 있게 구조적으로"). 월 납입은 여기 두지 않는다 — 현금흐름의 저축·납입 줄(account)이 한 곳이다."""
+
+    name: str = Field(min_length=1, max_length=30, description="계좌 이름 — 보유·현금흐름·부채의 account 와 같은 글자")
+    institution: str = Field(default="", max_length=50, description="기관(은행·증권사·회사)")
+    type: AssetType | None = Field(default=None, description="유형 — 그 계좌 보유의 type 이 비면 이걸 쓴다")
+    purpose: str = Field(default="", max_length=300, description="무슨 돈인가 — 언제 쓰나·어떻게 굴리나")
+    principal: float | None = Field(default=None, ge=0, description="넣은 원금(원) — 있으면 원금 대비 손익을 낸다")
+    opened: date | None = None
+    maturity: date | None = None
+    note: str = Field(default="", max_length=300)
+
+
+class Debt(BaseModel):
+    """부채 한 줄(2026-10-17) — 순자산 = 보유 평가 − 부채 잔액. 주거 보증금은 보유에 **전액**, 대출·차입은 여기(사용자 결정 (나))."""
+
+    name: str = Field(min_length=1, max_length=50)
+    lender: str = Field(default="", max_length=50)
+    balance: float = Field(ge=0, description="남은 원금(원)")
+    rate: float | None = Field(default=None, ge=0, le=100, description="연 금리(%) — 모르면 비운다")
+    rate_type: Literal["fixed", "variable"] | None = None
+    maturity: date | None = Field(default=None, description="만기·다음 연장일")
+    account: str | None = Field(default=None, max_length=30, description="담보·연결된 계좌(예: 주거)")
+    note: str = Field(default="", max_length=300)
+
+
 class Link(BaseModel):
     title: str = Field(max_length=100)
     url: str = Field(pattern=r"^https?://\S{1,500}$")
@@ -120,6 +147,26 @@ class PlanDoc(BaseModel):
     # 2026-10-14 — 상담·매일 점검 프롬프트에 늘 싣는다. 화면 [원칙·기억] 목록과 상담(rules_set·memory_set) 두 길로 고친다.
     rules: list[Note] = Field(default_factory=list, max_length=MAX_RULES, description="원칙 — AI 가 늘 지킬 규칙")
     memory: list[Note] = Field(default_factory=list, max_length=MAX_MEMORY, description="기억 — 상담에 늘 깔고 갈 사실")
+    accounts: list[Account] = Field(default_factory=list, max_length=30, description="계좌 목록 — 2026-10-17(옛 문서는 빈 목록)")
+    debts: list[Debt] = Field(default_factory=list, max_length=20, description="부채 — 2026-10-17(옛 문서는 빈 목록)")
+
+    @model_validator(mode="after")
+    def _accounts(self):
+        """계좌 목록이 있으면 보유(가지 포함)·납입·부채의 account 는 그 이름이어야 한다 — 같은 계좌를 다르게 적어 따로 묶이지 않게.
+        목록이 비면(옛 문서) 보지 않는다."""
+        if not self.accounts:
+            return self
+        names = [a.name for a in self.accounts]
+        if len(set(names)) != len(names):
+            raise ValueError("계좌 이름이 겹친다")
+        where = [(f"보유 {h.name}", h.account) for h in self.holdings]
+        where += [(f"{n.id} 보유 {h.name}", h.account) for n in self.nodes for h in n.holdings or []]
+        where += [(f"납입 {f.name}", f.account) for f in self.cashflow if f.kind == "saving"]
+        where += [(f"부채 {d.name}", d.account) for d in self.debts if d.account]
+        bad = sorted({f"{w}({a or '계좌 없음'})" for w, a in where if a not in names})
+        if bad:
+            raise ValueError(f"계좌 목록(accounts)에 없는 계좌: {', '.join(bad[:8])} — 계좌 목록 이름을 그대로 쓴다")
+        return self
 
     @model_validator(mode="after")
     def _tree(self):
@@ -218,14 +265,31 @@ def states(doc: PlanDoc) -> dict[str, list[Holding]]:
 
 def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -> dict[str, dict]:
     """`{노드 id | "root": {total, rows: [보유 + value·price]}}`. 미래 노드도 **오늘 시세**로 환산한다."""
-    out = {}
+    out, acc_type = {}, {a.name: a.type for a in doc.accounts}
+    debt = sum(d.balance for d in doc.debts)
     for key, hs in states(doc).items():
         rows, total = [], 0.0
         for h in hs:
             v, px = _value(h, stock_px, coin_px, usdkrw)
-            rows.append({**h.model_dump(), "group": group(h), "value": v, "price": px})
+            rows.append({**h.model_dump(), "type": h.type or acc_type.get(h.account), "group": group(h), "value": v, "price": px})
             total += v or 0.0
-        out[key] = {"total": total, "rows": rows}
+        # net = 순자산(보유 − 부채). 부채는 계획 전체에 하나라 가지마다 같은 값을 뺀다(가지는 대출을 바꾸지 않는다).
+        out[key] = {"total": total, "net": total - debt, "rows": rows}
+    return out
+
+
+def account_view(doc: PlanDoc, values: dict[str, dict]) -> list[dict]:
+    """계좌 표(2026-10-17) — 계좌마다 지금 평가·원금 대비 손익·월 납입(현금흐름 저축 줄)·부채. 계좌 목록이 비면 빈 목록."""
+    rows = values["root"]["rows"]
+    out = []
+    for a in doc.accounts:
+        mine = [r for r in rows if r.get("account") == a.name]
+        value = None if any(r["value"] is None for r in mine) else sum(r["value"] for r in mine)
+        pnl = value - a.principal if value is not None and a.principal else None
+        out.append({**a.model_dump(mode="json"), "value": value, "pnl": pnl,
+                    "pnl_pct": pnl / a.principal * 100 if pnl is not None else None,
+                    "monthly": sum(f.amount for f in doc.cashflow if f.kind == "saving" and f.account == a.name) or None,
+                    "debt": sum(d.balance for d in doc.debts if d.account == a.name) or None})
     return out
 
 
@@ -464,7 +528,8 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 맡은 �
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
   숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
-  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로), rules_set(원칙 통째로), memory_set(기억 통째로).
+  holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로), accounts_set(계좌 목록 통째로), debts_set(부채 통째로),
+  rules_set(원칙 통째로), memory_set(기억 통째로).
   **계획을 바꾸는 길은 이 도구뿐이다.** 쓸 때마다 서버가 검증해 새 버전으로 저장한다.
   거부되면 돌려준 이유를 보고 고쳐 다시 부른다. 사용자가 바꾸라고 하지 않았으면 쓰지 않는다.
 - 여러 노드를 만들 때는 부모부터(이벤트 → 그 가지 → 다음 이벤트) 차례로 node_add 한다.
@@ -482,7 +547,19 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 맡은 �
 {notes}
 
 ## 계획 문서 형식(JSON)
-{{"as_of": "YYYY-MM-DD"(보유 기준일), "holdings": [보유], "nodes": [노드], "cashflow": [현금흐름]}}
+{{"as_of": "YYYY-MM-DD"(보유 기준일), "accounts": [계좌], "holdings": [보유], "debts": [부채], "nodes": [노드], "cashflow": [현금흐름]}}
+- **사실은 칸에 적는다** — 계좌의 기관·목적·원금·만기, 대출의 잔액·금리·만기를 이름(name)이나 메모(note) 글에 숨기지 않는다.
+  모르는 칸은 비우고(추측 금지) 사용자에게 묻는다. 그래야 서버가 원금 대비 손익·순자산을 계산하고 다음 상담이 그대로 읽는다.
+- 계좌: {{"name": 이름, "institution": 기관, "type": "cash|saving|invest|pension|housing", "purpose": 무슨 돈인가(언제 쓰나·어떻게 굴리나),
+  "principal": 넣은 원금(원)|null, "opened": "YYYY-MM-DD"|null, "maturity": "YYYY-MM-DD"|null, "note": 메모}}
+  - 통장·증권 계좌 하나가 한 줄이다(예: "신한 주계좌", "NH1934 파킹", "ISA", "IRP", "DC", "금현물", "주거"). 여러 통장을 한 줄로 합치지 않는다.
+  - 목록이 있으면 보유·가지 보유·저축 납입·부채의 account 는 **이 목록의 name 그대로**여야 저장된다(서버가 거절한다).
+    계좌를 새로 만들면 accounts_set 을 먼저, 그다음 보유를 고친다. 이름을 바꿀 땐 새 이름을 더한 목록 → 보유(가지 포함)를 새 이름으로 →
+    옛 이름을 뺀 목록 순서로 쓴다(옛 이름을 쓰는 보유가 남아 있으면 거절된다).
+  - 월 납입은 계좌가 아니라 현금흐름의 saving 줄(account)에 적는다.
+- 부채: {{"name": 이름, "lender": 빌린 곳, "balance": 남은 원금(원), "rate": 연 %|null, "rate_type": "fixed|variable"|null,
+  "maturity": 만기·다음 연장일 "YYYY-MM-DD"|null, "account": 연결된 계좌(예: 주거)|null, "note": 상환 방식 등}}
+  - 화면은 순자산 = 보유 평가 − 부채 잔액으로 보인다. 대출 이자는 현금흐름 fixed 줄에도 적는다.
 - 현금흐름: {{"kind": "income|fixed|living|saving", "name": 이름, "amount": 한 달 금액(원), "account": 계좌|null, "note": 메모}}
   - income 수입(세후 월급 등), fixed 고정 지출(대출 이자·월세·보험·통신·구독), living 생활비(식비·교통·쇼핑 등 변동),
     saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
@@ -490,10 +567,10 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 맡은 �
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
   "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null,
   "type": "cash|saving|invest|pension|housing"|null, "region": "KR|GLOBAL"|null}}
-  - account 는 계좌 이름이다(예: ISA·IRP·DC·연금저축·일반·입출금·저축). 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
+  - account 는 계좌 목록(accounts)의 name 이다. 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
     이름(name)에는 계좌를 붙이지 않는다. 가지의 holdings 에서도 계좌를 그대로 이어 쓰고, 계좌를 옮기는 매매는 하지 않는다.
   - type 은 유형이다 — cash 현금성(입출금·파킹·외화예금), saving 저축성(적금·청약), invest 투자성(ISA·일반 계좌·금현물),
-    pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — amount 는 대출·차입을 뺀 순액, 내역은 이름에). 줄마다 채운다.
+    pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — amount 는 **전액**, 대출·차입은 debts 에). 비면 계좌의 type 을 쓴다.
   - region 은 주식·채권의 투자 대상이다 — 국내 상장이라도 미국·중국·인도 등을 담으면 "GLOBAL"(예: TIGER 미국S&P500). 그 밖의 자산은 비운다.
   - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). 금액은 서버가 시세로 계산하니 amount 는 비운다.
   - 예금·현금·직접 보유 채권처럼 시세가 없는 것만 amount(+currency).
@@ -547,6 +624,8 @@ def outline(doc: PlanDoc) -> dict:
     """
     return {"as_of": doc.as_of and doc.as_of.isoformat(),
             "holdings": [h.model_dump(mode="json", exclude_none=True) for h in doc.holdings],
+            "accounts": [a.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for a in doc.accounts],
+            "debts": [d.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for d in doc.debts],
             "cashflow": [f.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for f in doc.cashflow],
             "nodes": [{k: v for k, v in {"id": n.id, "parent": n.parent, "kind": n.kind, "title": n.title,
                                          "at": n.at and n.at.isoformat(), "status": n.status,
@@ -614,6 +693,11 @@ def change_lines(old: PlanDoc, new: PlanDoc) -> list[str]:
     for label, a, b in (("원칙", old.rules, new.rules), ("기억", old.memory, new.memory)):
         out += [f"{label} + ‘{x}’" for x in b if x not in a] + [f"{label} − ‘{x}’" for x in a if x not in b]
 
+    for label, a, b in (("계좌", old.accounts, new.accounts), ("부채", old.debts, new.debts)):
+        ka, kb = {x.name: x for x in a}, {x.name: x for x in b}
+        out += [f"{label} {'+' if k not in ka else '−' if k not in kb else '~'} {k}"
+                for k in list(ka) + [k for k in kb if k not in ka] if ka.get(k) != kb.get(k)]
+
     def keyed(hs):
         return {(h.account or "", h.code or h.name): h for h in hs}
     ko, kn = keyed(old.holdings), keyed(new.holdings)
@@ -640,6 +724,10 @@ def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
         parts.append("보유 자산 갱신")
     if old.cashflow != new.cashflow:
         parts.append("현금흐름 갱신")
+    if old.accounts != new.accounts:
+        parts.append("계좌 갱신")
+    if old.debts != new.debts:
+        parts.append("부채 갱신")
     if old.rules != new.rules:
         parts.append("원칙 갱신")
     if old.memory != new.memory:

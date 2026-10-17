@@ -1016,6 +1016,55 @@
         return table;
     }
 
+    /** 계좌 표(2026-10-17) — 계좌(기관)·지금 평가·원금 대비·월 납입, 그 아래 목적. 계좌 목록이 비면(옛 문서) 없다. */
+    function accountTable() {
+        var list = plan.accounts || [];
+        if (!list.length) return null;
+        var table = el('table', 'plan-legend plan-flow plan-acc'), thead = el('thead'), hr = el('tr'), tbody = el('tbody');
+        ['계좌', '평가', '원금 대비', '월 납입'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+        thead.appendChild(hr);
+        list.forEach(function (a) {
+            var tr = el('tr'), name = el('td');
+            name.appendChild(el('b', null, a.name));
+            if (a.institution) name.appendChild(el('small', null, ' ' + a.institution));
+            if (a.purpose || a.maturity) name.appendChild(el('span', 'plan-acc__purpose', [a.purpose, a.maturity ? '만기 ' + a.maturity : ''].filter(Boolean).join(' · ')));
+            tr.appendChild(name);
+            tr.appendChild(el('td', null, a.value == null ? '—' : won(a.value)));
+            var p = el('td');
+            if (a.pnl != null) p.appendChild(changeEl(a.pnl, a.pnl_pct));
+            else p.textContent = a.debt ? '부채 ' + won(a.debt) : '';
+            tr.appendChild(p);
+            tr.appendChild(el('td', null, a.monthly ? won(a.monthly) : ''));
+            tbody.appendChild(tr);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        return table;
+    }
+
+    /** 부채 표(2026-10-17) — 빌린 곳·잔액·연 금리·만기. 모르는 칸은 비워 둔다(AI 가 채우게). */
+    function debtTable() {
+        var list = plan.doc.debts || [];
+        if (!list.length) return null;
+        var table = el('table', 'plan-legend plan-flow plan-acc'), thead = el('thead'), hr = el('tr'), tbody = el('tbody');
+        ['부채', '잔액', '금리', '만기'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+        thead.appendChild(hr);
+        list.forEach(function (x) {
+            var tr = el('tr'), name = el('td');
+            name.appendChild(el('b', null, x.name));
+            if (x.lender) name.appendChild(el('small', null, ' ' + x.lender));
+            if (x.note) name.appendChild(el('span', 'plan-acc__purpose', x.note));
+            tr.appendChild(name);
+            tr.appendChild(el('td', null, won(x.balance)));
+            tr.appendChild(el('td', null, x.rate == null ? '모름' : x.rate + '%' + (x.rate_type ? (x.rate_type === 'fixed' ? ' 고정' : ' 변동') : '')));
+            tr.appendChild(el('td', null, x.maturity || '모름'));
+            tbody.appendChild(tr);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        return table;
+    }
+
     /** 그 노드(가지는 자기 이벤트) 날짜까지 쌓이는 저축·납입 — 보유 평가와 따로 보인다. */
     function accrualBox(id) {
         var a = (plan.accrual || {})[id];
@@ -1050,15 +1099,23 @@
             section('근거', n.note);
             section('복기', retroBox(n, byId));
         }
+        // 부채가 있으면 순자산(보유 − 부채)이 머리 숫자다 — 주거를 보증금 전액으로 적게 바꿨다(2026-10-17).
+        var debt = plan.debt_total || 0, worth = function (st) { return debt ? st.net : st.total; };
         var tot = el('div', 'plan-total');
-        tot.appendChild(el('strong', null, won(state.total)));
+        tot.appendChild(el('strong', null, won(worth(state))));
         if (base) {
             var d = state.total - base.total;
-            tot.appendChild(el('span', null, '실행 전 ' + won(base.total) + ' 대비 ' + (d >= 0 ? '+' : '') + won(d)));
+            tot.appendChild(el('span', null, '실행 전 ' + won(worth(base)) + ' 대비 ' + (d >= 0 ? '+' : '') + won(d)));
+        } else if (debt) {
+            tot.appendChild(el('span', null, '자산 ' + won(state.total) + ' − 부채 ' + won(debt)));
         }
-        section(n ? '실행 뒤 자산' : '총자산', tot);
+        section(n ? (debt ? '실행 뒤 순자산' : '실행 뒤 자산') : (debt ? '순자산' : '총자산'), tot);
         if (n) section('그때까지 예상 적립', accrualBox(n.id));
-        else if (plan.cashflow) section('월 현금흐름', flowTable());
+        else {
+            section('계좌', accountTable());
+            section('부채', debtTable());
+            if (plan.cashflow) section('월 현금흐름', flowTable());
+        }
         detailEl.appendChild(pies(state, base));
     }
 
@@ -1150,7 +1207,7 @@
                     b.type = 'button';
                     var head = el('span', 'plan-branch__head');
                     head.appendChild(el('b', null, k.title + (k.status !== 'pending' ? ' (' + STATUS_LABEL[k.status] + ')' : '')));
-                    head.appendChild(el('small', null, won(plan.values[k.id].total)));
+                    head.appendChild(el('small', null, won(plan.debt_total ? plan.values[k.id].net : plan.values[k.id].total)));
                     b.appendChild(head);
                     if (k.condition) b.appendChild(el('span', 'plan-branch__cond', k.condition));
                     var r = (plan.retro || {})[k.id];
