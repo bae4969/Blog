@@ -172,3 +172,12 @@ def test_이벤트_시작_메일도_HTML_을_함께_보낸다():
     for part in ("10월 FOMC", "개요", "연준이 기준금리를 정한다.", "대응 1 · 인하", "0.25%p 이상 인하", "대응 2 · 동결",
                  'href="https://fed.gov"', 'href="https://blog.x/stocks/plan"'):
         assert part in html, part
+
+
+def test_이벤트_메일_본문은_상담_기록에도_같은_글로():
+    # 보낸 뒤 상담 기록에 남겨 상담 AI 가 이어 다룬다(2026-10-17 사용자: 연속성) — 메일 글 본문과 같고, 출처·안내 꼬리는 뺀다
+    doc = _doc()
+    body = plan_mail.event_text(doc, {"values": {}}, doc.nodes[0])
+    mail = plan_mail.compose(doc, {"values": {}}, doc.nodes[0], "me@x", "me@x", "u").get_body(("plain",)).get_content()
+    assert body.startswith("10월 FOMC — 2026-10-29 03:00 (KST) 시작") and "1. 인하" in body and "조건: 0.25%p 이상 인하" in body
+    assert mail.startswith(body) and "■ 출처" in mail and "■ 출처" not in body and "fed.gov" not in body

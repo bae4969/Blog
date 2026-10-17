@@ -472,6 +472,11 @@ async def mail_tick(now: datetime) -> int:
                     await db.commit()
                     continue
                 sent += 1
+                # 상담 기록에도 남긴다 — 매일 점검 메일처럼 다음 상담에서 AI 가 "그 메일"을 이어 다루게(2026-10-17 사용자: 연속성)
+                await db.execute(text(
+                    "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'assistant', :c)"),
+                    {"u": row.user_index, "c": "[이벤트 시작 메일] " + plan_mail.event_text(doc, view, ev)})
+                await db.commit()
                 logger.info("이벤트 메일 보냄: user=%s event=%s(%s) → %s", row.user_index, ev.id, ev.title, cfg["plan_mail_to"])
     return sent
 

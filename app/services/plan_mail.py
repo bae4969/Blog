@@ -49,8 +49,9 @@ def _trade_line(t: dict) -> str:
     return f"{acc} · {'매수' if t['side'] == 'buy' else '매도'} {t['name']}{code} {qty}주{value}"
 
 
-def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
-    """이벤트 개요·시장 예상, 그리고 대응 방법(가지마다 조건·매매표·실행 뒤 자산)을 글로 적은 메일.
+def event_text(doc: PlanDoc, view: dict, event) -> str:
+    """이벤트 시작 메일의 본문 — 개요·시장 예상·메모·지금 자산·대응 방법(가지마다 조건·매매표·실행 뒤 자산).
+    메일(`compose`)과 상담 기록(보낸 뒤 남겨 상담 AI 가 이어 다룬다)이 같은 글을 쓴다.
 
     주문은 **서버 매매표**(`view["trades"]`)로 적는다 — 화면과 같은 출처다. AI 가 쓴 `actions` 는 메모로만 붙인다
     (둘이 따로 놀아 메일과 화면의 수량이 다를 수 있었다, 2026-10-14 검토). 잔고가 바뀐 가지는 매매표 대신 경고.
@@ -84,6 +85,13 @@ def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str
         after = values.get(b.id)
         if after:
             lines.append(f"   실행 뒤: {_won(after['total'])} ({_mix(after)})")
+    return "\n".join(lines)
+
+
+def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
+    """이벤트 시작 메일 — 본문(`event_text`) + 출처·안내, HTML 판(`event_html`)을 함께."""
+    branches = [n for n in doc.nodes if n.kind == "branch" and n.parent == event.id]
+    lines = [event_text(doc, view, event)]
     if event.links:
         lines += ["", "■ 출처"] + [f"- {l.title}: {l.url}" for l in event.links]
     lines += ["", "결과가 나오면 상담에서 알려 주세요 — 실현된 가지를 표시하고 다음 계획을 이어 갑니다.",
