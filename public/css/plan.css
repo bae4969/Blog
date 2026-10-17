@@ -831,11 +831,13 @@
         block-size: 90dvh;
         border-block-end: 0;
         border-radius: 1rem 1rem 0 0;
-        box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);   /* 정본 서랍 그림자를 위로 — 체결 시트(stocks.css)와 같은 값 */
         transform: translateY(calc(100% - var(--grip-peek)));
         transition: transform 0.28s var(--ease);
     }
     .plan-chat.is-open { transform: none; }
+    /* 열린 동안 뒤 페이지는 멈춘다 — 짧은 가로 화면에서 깔개 위를 쓸면 뒤가 움직였다(11.web_design 검토, 체결 시트와 같은 방식) */
+    html:has(.plan-chat.is-open) { overflow: hidden; }
     .plan-chat.is-dragging { transition: none; }
     /* 상세 시트가 떠 있으면 손잡이까지 내려 겹치지 않게 */
     .plan-chat.is-away { transform: translateY(100%); }
@@ -865,16 +867,17 @@
         background: var(--bae-text-dim);
     }
     .plan-grip:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -4px; }
-    /* 접혀 있는 동안 온 답 — 손잡이 오른쪽 끝에 연보라 점 */
+    /* 접혀 있는 동안 온 답 — 손잡이 오른쪽 끝에 정본 알림 점(8px 위험색 + 1.5px 시트 바탕색 링) */
     .plan-grip.has-new .plan-grip__bar::after {
         content: "";
         position: absolute;
-        inset-block-start: -2px;
+        inset-block-start: -1.5px;
         inset-inline-end: -14px;
-        inline-size: 9px;
-        block-size: 9px;
+        inline-size: 8px;
+        block-size: 8px;
         border-radius: 50%;
-        background: var(--bae-accent);
+        background: var(--bae-danger);
+        box-shadow: 0 0 0 1.5px var(--bae-bg);   /* 링 = 시트 바탕색(.plan-chat) — 11.web_design bottom-sheet.md */
     }
 
     .plan-sheet-dim {
