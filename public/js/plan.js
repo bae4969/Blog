@@ -54,6 +54,9 @@
     var images = [];          // 보낼 이미지 data URL
     var busy = false;
     var lastChatId = 0;   // 화면에 있는 마지막 상담 기록 — 끊긴 뒤 다시 읽을 때 새 답이 왔는지 가른다
+    var sheet = null;     // 좁은 화면의 상담 시트(아래 "상담 시트") — 넓은 화면에서도 만들지만 CSS 가 손잡이를 숨긴다
+    //: 손가락이 주 입력인 기기 — Enter 는 줄바꿈, 보내기는 버튼(휴대폰 메신저처럼. 긴 글을 쓰다 Enter 로 잘못 보냈다)
+    var coarse = window.matchMedia('(pointer: coarse)');
 
     // ── API ────────────────────────────────────────────────
 
@@ -793,10 +796,12 @@
         detailEl.textContent = '';
         floatEl.hidden = false;
         floatEl.scrollTop = 0;
+        if (sheet) sheet.away(true);
     }
 
     function closeFloat() {
         floatEl.hidden = true;
+        if (sheet) sheet.away(false);
         selected = null;
         openedEvent = null;
         mark();
@@ -1358,6 +1363,7 @@
             setBusy(false);
             lastChatId = r.chat_id;
             addMessage({ role: 'assistant', content: r.reply || '(계획을 고쳤습니다)', rev_id: r.rev_id });
+            sheet.arrived();
             if (r.plan) {
                 setPlan(r.plan);
                 var opt = r.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(r.prev_rev_id, r.plan.rev_id); } }, duration: 8000 } : {};
@@ -1369,7 +1375,7 @@
             // 저장한다 — 다시 보내면 AI 가 같은 일을 두 번 했다(2026-10-14~16 운영 로그). 끝나길 기다렸다 기록을 다시 읽는다.
             if (!e.status) {
                 follow().then(function (got) {
-                    if (got) window.toast('연결이 끊긴 동안 온 답을 불러왔습니다', 'info');
+                    if (got) { window.toast('연결이 끊긴 동안 온 답을 불러왔습니다', 'info'); sheet.arrived(); }
                     else failed(e);
                 }, function () { failed(e); });
                 return;
@@ -1454,7 +1460,7 @@
     form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
     input.addEventListener('keydown', function (e) {
         // 한글 조합 중 Enter 는 글자 확정이다 — 보내지 않는다.
-        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !coarse.matches) { e.preventDefault(); send(); }
     });
     input.addEventListener('paste', function (e) {
         var files = Array.prototype.map.call((e.clipboardData && e.clipboardData.items) || [], function (it) {
@@ -1471,6 +1477,81 @@
         return t && t.scrollHeight > t.clientHeight ? t : logEl;
     });
     trapWheel(floatEl, function () { return detailEl; });
+
+    // ── 상담 시트(좁은 화면, 2026-10-17) ───────────────────
+    //    아래 손잡이를 위로 쓸면 올라오고 아래로 내리면 접힌다(삼성페이 카드 꺼내듯). 누르기·키보드(Enter·Space)로도 연다.
+    //    끄는 동안은 손가락을 따라 움직이고, 40px 넘게 움직였으면 그 방향으로 열고 닫는다. 상세 시트가 뜨면 손잡이까지 내려 비킨다.
+
+    sheet = (function () {
+        var chatEl = document.getElementById('planChat');
+        var grip = document.getElementById('planChatGrip');
+        var dim = document.getElementById('planSheetDim');
+        var narrow = window.matchMedia('(max-width: 63.99rem)');
+        var drag = null, closedY = 0, swallowClick = false;
+
+        function isOpen() { return chatEl.classList.contains('is-open'); }
+        function translateY() { return new DOMMatrix(getComputedStyle(chatEl).transform).m42; }
+
+        function set(open) {
+            if (!open && !isOpen()) return;
+            chatEl.classList.toggle('is-open', open);
+            dim.hidden = !open;
+            grip.setAttribute('aria-expanded', String(open));
+            grip.setAttribute('aria-label', open ? '상담 닫기' : '상담 열기');
+            if (open) {
+                grip.classList.remove('has-new');
+                if (!floatEl.hidden) closeFloat();
+                fitLogPadding();
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+
+        grip.addEventListener('pointerdown', function (e) {
+            if (!narrow.matches || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            swallowClick = false;
+            if (!isOpen()) closedY = translateY();   // 접힌 자리 — 열린 채 끌기 시작하면 앞서 잰 값을 쓴다
+            drag = { y: e.clientY, base: translateY(), open: isOpen(), moved: false };
+            grip.setPointerCapture(e.pointerId);
+            chatEl.classList.add('is-dragging');
+        });
+        grip.addEventListener('pointermove', function (e) {
+            if (!drag) return;
+            var dy = e.clientY - drag.y;
+            if (Math.abs(dy) > 6) drag.moved = true;
+            var max = closedY || chatEl.offsetHeight;
+            chatEl.style.transform = 'translateY(' + Math.min(max, Math.max(0, drag.base + dy)) + 'px)';
+        });
+        function end(e) {
+            if (!drag) return;
+            var dy = e.clientY - drag.y, was = drag.open, moved = drag.moved;
+            drag = null;
+            chatEl.classList.remove('is-dragging');
+            chatEl.style.transform = '';
+            // 누르기는 여기서 연다/닫는다 — 손잡이에 포인터를 잡아 둔 터치에서는 click 이 오지 않는다(browserless 실측).
+            // 오는 기기도 있어 뒤따르는 click 한 번은 삼킨다(다음 pointerdown 이 표시를 지운다). click 은 키보드 몫이다.
+            swallowClick = true;
+            set(!moved ? !was : dy < -40 ? true : dy > 40 ? false : was);
+        }
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+        grip.addEventListener('click', function () {
+            if (swallowClick) { swallowClick = false; return; }
+            set(!isOpen());
+        });
+        dim.addEventListener('click', function () { set(false); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && isOpen() && floatEl.hidden) set(false);
+        });
+        narrow.addEventListener('change', function () { set(false); });
+
+        return {
+            /** 접혀 있는 동안 답이 오면 손잡이에 점을 찍는다. */
+            arrived: function () { if (narrow.matches && !isOpen()) grip.classList.add('has-new'); },
+            /** 상세 시트가 떠 있는 동안은 손잡이까지 내린다. */
+            away: function (on) { chatEl.classList.toggle('is-away', on); if (on) set(false); },
+        };
+    })();
+    if (coarse.matches) input.placeholder = '메시지 입력';
 
     // ── 상세 창 닫기 ───────────────────────────────────────
 
