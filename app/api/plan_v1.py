@@ -152,6 +152,8 @@ async def plan_view(db, row) -> dict:
         "cashflow": ip.cashflow_summary(doc),
         "accrual": ip.accruals(doc, datetime.now(_KST).date()),
         "trades": ip.trades(doc, values),
+        "accounts": ip.account_view(doc, values),
+        "debt_total": sum(d.balance for d in doc.debts),
         "stale": sorted(ip.stale_branches(doc)),
     }
 

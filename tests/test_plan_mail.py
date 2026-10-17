@@ -181,3 +181,13 @@ def test_이벤트_메일_본문은_상담_기록에도_같은_글로():
     mail = plan_mail.compose(doc, {"values": {}}, doc.nodes[0], "me@x", "me@x", "u").get_body(("plain",)).get_content()
     assert body.startswith("10월 FOMC — 2026-10-29 03:00 (KST) 시작") and "1. 인하" in body and "조건: 0.25%p 이상 인하" in body
     assert mail.startswith(body) and "■ 출처" in mail and "■ 출처" not in body and "fed.gov" not in body
+
+
+def test_부채가_있으면_메일_총액은_순자산():
+    doc = ip.PlanDoc.model_validate({
+        "holdings": [{"kind": "other", "name": "전세보증금", "amount": 150_000_000, "account": "주거"}],
+        "debts": [{"name": "전세대출", "balance": 100_000_000}],
+        "nodes": [{"id": "e", "kind": "event", "title": "갱신", "at": "2026-10-29T03:00:00+09:00"}]})
+    values = ip.valuate(doc, {}, {}, None)
+    body = plan_mail.event_text(doc, {"values": values}, doc.nodes[0])
+    assert "■ 지금 자산 순자산 5,000만(자산 1.50억 − 부채 1.00억)" in body

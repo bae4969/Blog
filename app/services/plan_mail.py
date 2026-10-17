@@ -27,6 +27,12 @@ def _won(v: float) -> str:
     return f"{round(v / 1e4):,}만"
 
 
+def _worth(state: dict) -> str:
+    """총액 — 부채가 있으면 순자산(자산 − 부채)으로(2026-10-17, 주거를 전액으로 적게 바꿨다)."""
+    net = state.get("net", state["total"])
+    return _won(state["total"]) if abs(net - state["total"]) < 1 else f"순자산 {_won(net)}(자산 {_won(state['total'])} − 부채 {_won(state['total'] - net)})"
+
+
 def _mix(state: dict) -> str:
     total = state["total"] or 0
     if total <= 0:
@@ -68,7 +74,7 @@ def event_text(doc: PlanDoc, view: dict, event) -> str:
         lines += ["■ 메모", event.note, ""]
     before = values.get(event.id)
     if before:
-        lines += [f"■ 지금 자산 {_won(before['total'])} ({_mix(before)})", ""]
+        lines += [f"■ 지금 자산 {_worth(before)} ({_mix(before)})", ""]
     lines.append(f"■ 대응 방법 {len(branches)}가지" if branches else "■ 대응 방법 — 아직 정하지 않았습니다")
     for i, b in enumerate(branches, 1):
         lines += ["", f"{i}. {b.title}"]
@@ -84,7 +90,7 @@ def event_text(doc: PlanDoc, view: dict, event) -> str:
             lines.append(f"   메모: {' / '.join(b.actions)}")
         after = values.get(b.id)
         if after:
-            lines.append(f"   실행 뒤: {_won(after['total'])} ({_mix(after)})")
+            lines.append(f"   실행 뒤: {_worth(after)} ({_mix(after)})")
     return "\n".join(lines)
 
 
@@ -269,7 +275,7 @@ def event_html(doc: PlanDoc, view: dict, event, page_url: str) -> str:
             cards += _card(title, md_html(text))
     before = values.get(event.id)
     if before:
-        cards += _card("지금 자산", f'<b>{_won(before["total"])}</b> <span style="color:{_C["muted"]}">{escape(_mix(before))}</span>')
+        cards += _card("지금 자산", f'<b>{escape(_worth(before))}</b> <span style="color:{_C["muted"]}">{escape(_mix(before))}</span>')
     for i, b in enumerate(branches, 1):
         rows = []
         if b.condition:
@@ -284,7 +290,7 @@ def event_html(doc: PlanDoc, view: dict, event, page_url: str) -> str:
             rows.append(f'<span style="color:{_C["muted"]}">메모</span> ' + " / ".join(md_html(a) for a in b.actions))
         after = values.get(b.id)
         if after:
-            rows.append(f'<span style="color:{_C["muted"]}">실행 뒤</span> {_won(after["total"])} · {escape(_mix(after))}')
+            rows.append(f'<span style="color:{_C["muted"]}">실행 뒤</span> {escape(_worth(after))} · {escape(_mix(after))}')
         cards += _card(f"대응 {i} · {escape(b.title)}", _bullets(rows, tone))
     if not branches:
         cards += _card("대응 방법", "아직 정하지 않았습니다")
