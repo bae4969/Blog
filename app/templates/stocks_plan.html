@@ -47,7 +47,15 @@
         </aside>
     </section>
 
-    <section class="plan-card plan-chat" aria-label="AI 상담">
+    {#
+      좁은 화면(64rem 미만)에서 상담은 아래에서 끌어올리는 시트다(2026-10-17 사용자: 삼성페이 카드 꺼내듯). 평소엔 손잡이만 보이고,
+      위로 쓸면 올라오고 아래로 내리면 접힌다. 손잡이는 휴대폰 홈 제스처 자리보다 위에, 폭 전체를 누를 자리로 둔다. 넓은 화면에선 숨는다.
+    #}
+    <div class="plan-sheet-dim" id="planSheetDim" hidden></div>
+    <section class="plan-card plan-chat" id="planChat" aria-label="AI 상담">
+        <button type="button" class="plan-grip" id="planChatGrip" aria-label="상담 열기" aria-expanded="false" aria-controls="planChat">
+            <span class="plan-grip__bar"></span>
+        </button>
         <div class="plan-chat__log" id="planChatLog">
             <p class="plan-empty">불러오는 중…</p>
         </div>
@@ -104,5 +112,8 @@
 {% endblock %}
 
 {% block extra_js %}
+{# AI 답 마크다운 — 30.ai_center 와 같은 판(marked 14.1.4 · DOMPurify 3.2.6) #}
+<script src="/vendor/marked.min.js" defer></script>
+<script src="/vendor/dompurify.min.js" defer></script>
 <script src="/js/plan.js?v={{ static_v }}" defer></script>
 {% endblock %}

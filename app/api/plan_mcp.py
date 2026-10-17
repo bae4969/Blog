@@ -97,7 +97,7 @@ TOOLS = [
      "inputSchema": _obj()},
     {"annotations": _RO, "name": "plan_revision_get", "description": "특정 버전의 계획 문서와 평가(평가는 오늘 시세 기준).",
      "inputSchema": _obj({"rev_id": {"type": "integer"}}, ["rev_id"])},
-    {"annotations": _RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률. market 은 KR·US·COIN. 원/달러 환율도 함께 준다.",
+    {"annotations": _RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률과 그 값의 시각(as_of — 마지막 10분봉, KR·COIN 은 KST·US 는 미국 동부 현지시각). 장중이면 확정 종가가 아니다. market 은 KR·US·COIN. 원/달러 환율도 함께 준다.",
      "inputSchema": _obj({"items": {"type": "array", "maxItems": 30, "items": _obj(
          {"code": {"type": "string"}, "market": {"type": "string", "enum": ["KR", "US", "COIN"]}}, ["code", "market"])}},
          ["items"])},
@@ -163,9 +163,12 @@ async def _call(db, user_index: int, name: str, args: dict, made: list | None = 
         coins = [i["code"] for i in items if i.get("market") == "COIN"]
         sq = await _latest_quotes(db, [(c, "s") for c in stocks])
         cq = await _latest_quotes(db, [(c, "c") for c in coins])
-        return {"usdkrw": await _usdkrw(db), "quotes": [
-            {"code": i["code"], "market": i.get("market"),
-             **((cq if i.get("market") == "COIN" else sq).get(i["code"]) or {"close": None})} for i in items]}
+        def one(i):
+            q = dict((cq if i.get("market") == "COIN" else sq).get(i["code"]) or {"close": None})
+            if q.get("as_of"):
+                q["as_of"] = f"{q['as_of']:%Y-%m-%d %H:%M} {'ET' if i.get('market') == 'US' else 'KST'}"
+            return {"code": i["code"], "market": i.get("market"), **q}
+        return {"usdkrw": await _usdkrw(db), "quotes": [one(i) for i in items]}
     if name == "stock_search":
         q = str(args.get("q", "")).strip()[:50]
         if not q:

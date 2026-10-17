@@ -53,6 +53,10 @@
     var selected = null;      // 상세 창에 연 원(id) — 없으면 null
     var images = [];          // 보낼 이미지 data URL
     var busy = false;
+    var lastChatId = 0;   // 화면에 있는 마지막 상담 기록 — 끊긴 뒤 다시 읽을 때 새 답이 왔는지 가른다
+    var sheet = null;     // 좁은 화면의 상담 시트(아래 "상담 시트") — 넓은 화면에서도 만들지만 CSS 가 손잡이를 숨긴다
+    //: 손가락이 주 입력인 기기 — Enter 는 줄바꿈, 보내기는 버튼(휴대폰 메신저처럼. 긴 글을 쓰다 Enter 로 잘못 보냈다)
+    var coarse = window.matchMedia('(pointer: coarse)');
 
     // ── API ────────────────────────────────────────────────
 
@@ -82,7 +86,11 @@
             return fetch(url, opt);
         }).then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (j) {
-                if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : '요청 실패(' + r.status + ')');
+                if (!r.ok) {
+                    var err = new Error(typeof j.detail === 'string' ? j.detail : '요청 실패(' + r.status + ')');
+                    err.status = r.status;   // 없으면 서버에 닿지 못한 것(연결 끊김) — send() 가 가른다
+                    throw err;
+                }
                 return j;
             });
         });
@@ -788,10 +796,12 @@
         detailEl.textContent = '';
         floatEl.hidden = false;
         floatEl.scrollTop = 0;
+        if (sheet) sheet.away(true);
     }
 
     function closeFloat() {
         floatEl.hidden = true;
+        if (sheet) sheet.away(false);
         selected = null;
         openedEvent = null;
         mark();
@@ -1200,25 +1210,19 @@
     //    내 말 = 오른쪽 연보라 말풍선(원문 그대로), AI = 전폭 카드("ASSISTANT"·시각), 아래에 떠 있는 입력 상자.
 
     /**
-     * AI 답의 `**굵게**`·`` `코드` ``·`[이름](http…)` 만 살린다. 나머지는 글자 그대로다(줄바꿈은 CSS pre-wrap).
-     * ⚠️ innerHTML 을 쓰지 않는다 — 조각마다 텍스트 노드·요소를 만들고, 링크는 http(s) 만 받는다.
+     * AI 답을 마크다운으로 그린다 — 30.ai_center 와 같은 marked(gfm·줄바꿈 살림) + DOMPurify 정화.
+     * 표가 날 글자로 보여 읽기 힘들었다(2026-10-17 사용자). ⚠️ innerHTML 은 **정화한 결과에만** 쓴다 — AI 답엔 웹 검색
+     * 결과가 섞이므로 이 정화가 유일한 방어선이다. 링크는 새 창, 표는 좁은 화면에서 가로로 밀리게 감싼다.
      */
     function richText(target, text) {
-        var re = /\*\*([^*]+)\*\*|`([^`\n]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, last = 0, m;
-        while ((m = re.exec(text))) {
-            target.appendChild(document.createTextNode(text.slice(last, m.index)));
-            if (m[1] != null) target.appendChild(el('strong', null, m[1]));
-            else if (m[2] != null) target.appendChild(el('code', null, m[2]));
-            else {
-                var a = el('a', null, m[3]);
-                a.href = m[4];
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                target.appendChild(a);
-            }
-            last = re.lastIndex;
-        }
-        target.appendChild(document.createTextNode(text.slice(last)));
+        if (!window.marked || !window.DOMPurify) { target.textContent = text; target.classList.add('is-plain'); return; }
+        target.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text, { gfm: true, breaks: true }));
+        target.querySelectorAll('a').forEach(function (a) { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+        target.querySelectorAll('table').forEach(function (t) {
+            var wrap = el('div', 'plan-md-table');
+            t.parentNode.insertBefore(wrap, t);
+            wrap.appendChild(t);
+        });
     }
 
     function clock(iso) {
@@ -1353,10 +1357,13 @@
         images = [];
         renderChips();
         setBusy(true);
+        var before = plan && plan.rev_id;
 
         api('POST', '/api/v1/plan/chat', sent).then(function (r) {
             setBusy(false);
+            lastChatId = r.chat_id;
             addMessage({ role: 'assistant', content: r.reply || '(계획을 고쳤습니다)', rev_id: r.rev_id });
+            sheet.arrived();
             if (r.plan) {
                 setPlan(r.plan);
                 var opt = r.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(r.prev_rev_id, r.plan.rev_id); } }, duration: 8000 } : {};
@@ -1364,6 +1371,19 @@
             }
             if (r.note) window.toast(r.note, 'error');
         }).catch(function (e) {
+            // 서버에 못 닿은 실패면(휴대폰 화면이 꺼지거나 앱을 옮기면 기다리던 요청이 끊긴다) 서버는 답을 끝까지 만들어
+            // 저장한다 — 다시 보내면 AI 가 같은 일을 두 번 했다(2026-10-14~16 운영 로그). 끝나길 기다렸다 기록을 다시 읽는다.
+            if (!e.status) {
+                follow().then(function (got) {
+                    if (got) { window.toast('연결이 끊긴 동안 온 답을 불러왔습니다', 'info'); sheet.arrived(); }
+                    else failed(e);
+                }, function () { failed(e); });
+                return;
+            }
+            failed(e);
+        });
+
+        function failed(e) {
             setBusy(false);
             // 보낸 것을 되살려 다시 보낼 수 있게 한다.
             mine.remove();
@@ -1373,7 +1393,6 @@
             if (!logEl.querySelector('.plan-msg')) emptyChat();
             // 실패해도 AI 가 그 전에 계획을 고쳤을 수 있다(쓰기는 그때그때 저장된다) — 다시 읽어 바뀌었으면 알리고,
             // 같은 요청을 되풀이하지 않게 그때는 [다시 시도]를 뺀다(2026-10-14 검토).
-            var before = plan && plan.rev_id;
             api('GET', '/api/v1/plan').then(function (p) {
                 if (p.rev_id !== before) {
                     setPlan(p);
@@ -1384,7 +1403,39 @@
             }).catch(function () {
                 window.toast('상담 실패: ' + e.message + ' — 계획이 바뀌었는지 새로고침해 확인하세요', 'error');
             });
+        }
+    }
+
+    // 서버의 상담이 끝날 때까지 기다렸다(최대 12분 — codex 는 10분이면 끊긴다) 계획·대화를 다시 그린다.
+    // 이 사이 새 답이 저장됐으면 true. 기다리는 동안의 연결 실패는 다시 묻는다(화면이 꺼져 있었을 수 있다).
+    function follow() {
+        var until = Date.now() + 12 * 60 * 1000;
+        var later = function () { return new Promise(function (ok) { setTimeout(ok, 5000); }); };
+        var poll = function () {
+            return api('GET', '/api/v1/plan/chat/busy').then(function (r) { return r.busy; }, function (e) {
+                if (e.status || Date.now() > until) throw e;
+                return true;
+            }).then(function (still) {
+                if (still) return later().then(poll);
+                return Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat')]);
+            });
+        };
+        if (!busy) setBusy(true);
+        return poll().then(function (res) {
+            var chats = res[1], newest = chats.length ? chats[chats.length - 1].chat_id : 0;
+            setPlan(res[0]);
+            if (newest <= lastChatId) return false;
+            setBusy(false);
+            showChats(chats);
+            return true;
         });
+    }
+
+    function showChats(chats) {
+        logEl.textContent = '';
+        if (!chats.length) emptyChat();
+        chats.forEach(addMessage);
+        lastChatId = chats.length ? chats[chats.length - 1].chat_id : 0;
     }
 
     // 대화 기록 아래 여백 = 떠 있는 입력 상자의 실제 높이 + 4px. 고정값(10rem)으로 두면 입력창과
@@ -1409,7 +1460,7 @@
     form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
     input.addEventListener('keydown', function (e) {
         // 한글 조합 중 Enter 는 글자 확정이다 — 보내지 않는다.
-        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !coarse.matches) { e.preventDefault(); send(); }
     });
     input.addEventListener('paste', function (e) {
         var files = Array.prototype.map.call((e.clipboardData && e.clipboardData.items) || [], function (it) {
@@ -1426,6 +1477,81 @@
         return t && t.scrollHeight > t.clientHeight ? t : logEl;
     });
     trapWheel(floatEl, function () { return detailEl; });
+
+    // ── 상담 시트(좁은 화면, 2026-10-17) ───────────────────
+    //    아래 손잡이를 위로 쓸면 올라오고 아래로 내리면 접힌다(삼성페이 카드 꺼내듯). 누르기·키보드(Enter·Space)로도 연다.
+    //    끄는 동안은 손가락을 따라 움직이고, 40px 넘게 움직였으면 그 방향으로 열고 닫는다. 상세 시트가 뜨면 손잡이까지 내려 비킨다.
+
+    sheet = (function () {
+        var chatEl = document.getElementById('planChat');
+        var grip = document.getElementById('planChatGrip');
+        var dim = document.getElementById('planSheetDim');
+        var narrow = window.matchMedia('(max-width: 63.99rem)');
+        var drag = null, closedY = 0, swallowClick = false;
+
+        function isOpen() { return chatEl.classList.contains('is-open'); }
+        function translateY() { return new DOMMatrix(getComputedStyle(chatEl).transform).m42; }
+
+        function set(open) {
+            if (!open && !isOpen()) return;
+            chatEl.classList.toggle('is-open', open);
+            dim.hidden = !open;
+            grip.setAttribute('aria-expanded', String(open));
+            grip.setAttribute('aria-label', open ? '상담 닫기' : '상담 열기');
+            if (open) {
+                grip.classList.remove('has-new');
+                if (!floatEl.hidden) closeFloat();
+                fitLogPadding();
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+
+        grip.addEventListener('pointerdown', function (e) {
+            if (!narrow.matches || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            swallowClick = false;
+            if (!isOpen()) closedY = translateY();   // 접힌 자리 — 열린 채 끌기 시작하면 앞서 잰 값을 쓴다
+            drag = { y: e.clientY, base: translateY(), open: isOpen(), moved: false };
+            grip.setPointerCapture(e.pointerId);
+            chatEl.classList.add('is-dragging');
+        });
+        grip.addEventListener('pointermove', function (e) {
+            if (!drag) return;
+            var dy = e.clientY - drag.y;
+            if (Math.abs(dy) > 6) drag.moved = true;
+            var max = closedY || chatEl.offsetHeight;
+            chatEl.style.transform = 'translateY(' + Math.min(max, Math.max(0, drag.base + dy)) + 'px)';
+        });
+        function end(e) {
+            if (!drag) return;
+            var dy = e.clientY - drag.y, was = drag.open, moved = drag.moved;
+            drag = null;
+            chatEl.classList.remove('is-dragging');
+            chatEl.style.transform = '';
+            // 누르기는 여기서 연다/닫는다 — 손잡이에 포인터를 잡아 둔 터치에서는 click 이 오지 않는다(browserless 실측).
+            // 오는 기기도 있어 뒤따르는 click 한 번은 삼킨다(다음 pointerdown 이 표시를 지운다). click 은 키보드 몫이다.
+            swallowClick = true;
+            set(!moved ? !was : dy < -40 ? true : dy > 40 ? false : was);
+        }
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+        grip.addEventListener('click', function () {
+            if (swallowClick) { swallowClick = false; return; }
+            set(!isOpen());
+        });
+        dim.addEventListener('click', function () { set(false); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && isOpen() && floatEl.hidden) set(false);
+        });
+        narrow.addEventListener('change', function () { set(false); });
+
+        return {
+            /** 접혀 있는 동안 답이 오면 손잡이에 점을 찍는다. */
+            arrived: function () { if (narrow.matches && !isOpen()) grip.classList.add('has-new'); },
+            /** 상세 시트가 떠 있는 동안은 손잡이까지 내린다. */
+            away: function (on) { chatEl.classList.toggle('is-away', on); if (on) set(false); },
+        };
+    })();
+    if (coarse.matches) input.placeholder = '메시지 입력';
 
     // ── 상세 창 닫기 ───────────────────────────────────────
 
@@ -1577,11 +1703,11 @@
 
     // ── 시작 ───────────────────────────────────────────────
 
-    Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat')]).then(function (res) {
+    Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat'), api('GET', '/api/v1/plan/chat/busy')]).then(function (res) {
         setPlan(res[0]);
-        logEl.textContent = '';
-        if (!res[1].length) emptyChat();
-        res[1].forEach(addMessage);
+        showChats(res[1]);
+        // 새로고침했는데 상담이 아직 돌고 있으면(끊긴 뒤 다시 연 경우) 끝날 때까지 기다렸다 답을 띄운다.
+        if (res[2].busy) follow().then(function () { setBusy(false); }, function () { setBusy(false); });
     }).catch(function (e) {
         treeEl.textContent = '';
         treeEl.appendChild(el('p', 'plan-empty', '계획을 불러오지 못했습니다: ' + e.message));

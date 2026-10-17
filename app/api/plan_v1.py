@@ -204,11 +204,15 @@ def _flatten(messages: list[dict]) -> tuple[str, list[str]]:
 #: 원칙·기억을 고치라는 말 — 이게 있는 상담에만 rules_set·memory_set 을 연다(2026-10-14 검토, 사용자 선택 A).
 #: 단어 검사라 넓게 잡는다("빼"·"지워"는 다른 뜻일 때도 열리지만 여는 쪽 실수라 괜찮다). 없으면 AI 가 "남길까요?"라고 묻는다.
 _NOTE_INTENT = re.compile(r"기억|원칙|규칙|잊|빼|지워|지우|삭제")
+#: 직전 답이 "원칙(기억)으로 남길까요?" 라고 물었으면 이번 답("ㅇㅇ")에 그 말이 없어도 연다 — 안 열면 물어 놓고
+#: 저장할 길이 없어 같은 질문만 되풀이했다(2026-10-16 운영 상담).
+_NOTE_ASKED = re.compile(r"(원칙|기억)으로\s*남길까요")
 
 
-def write_tools_for(message: str) -> tuple:
-    return plan_mcp.WRITE_TOOLS if _NOTE_INTENT.search(message) else tuple(
-        t for t in plan_mcp.WRITE_TOOLS if t not in plan_mcp.NOTE_TOOLS)
+def write_tools_for(message: str, last_reply: str = "") -> tuple:
+    if _NOTE_INTENT.search(message) or _NOTE_ASKED.search(last_reply):
+        return plan_mcp.WRITE_TOOLS
+    return tuple(t for t in plan_mcp.WRITE_TOOLS if t not in plan_mcp.NOTE_TOOLS)
 
 
 async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple) -> tuple[str, list[int]]:
@@ -231,6 +235,19 @@ async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple) -
     return reply, made
 
 
+#: 상담이 돌고 있는 사용자. 휴대폰은 기다리는 사이 요청이 끊기는데 서버는 끝까지 답을 만들어 저장한다 — 화면은
+#: `/chat/busy` 로 끝나길 기다렸다 대화를 다시 읽고, 그 사이 다시 보낸 상담은 409 로 막는다(끊긴 줄 알고 다시 보내
+#: AI 가 같은 일을 두 번 했다 — 2026-10-14~16 운영 로그). 앱 워커가 하나라 프로세스 안 집합이면 충분하다.
+_CHATTING: set[int] = set()
+
+
+@router.get("/chat/busy", summary="상담이 아직 돌고 있나")
+async def chat_busy(request: Request):
+    async with db_session() as db:
+        me = await owner(db, request)
+    return {"busy": me.user_index in _CHATTING}
+
+
 @router.post("/chat", summary="상담 — AI 가 MCP 쓰기 도구로 계획을 고치면 그때마다 새 버전이 쌓인다")
 async def chat(request: Request, body: ChatIn):
     msg = body.message.strip()
@@ -249,10 +266,21 @@ async def chat(request: Request, body: ChatIn):
             "SELECT role, content FROM invest_plan_chat WHERE user_index = :u ORDER BY chat_id DESC LIMIT :n"),
             {"u": me.user_index, "n": _HISTORY})).all()
 
+    if me.user_index in _CHATTING:
+        raise HTTPException(status.HTTP_409_CONFLICT, "앞의 상담이 아직 진행 중입니다")
+    _CHATTING.add(me.user_index)
+    try:
+        return await _chat(me, msg, body.images, row, old, cfg, history)
+    finally:
+        _CHATTING.discard(me.user_index)
+
+
+async def _chat(me, msg: str, images: list[str], row, old: ip.PlanDoc, cfg: dict, history) -> dict:
     # ⚠️ AI 를 기다리는 동안(최대 10분) DB 커넥션을 붙잡지 않는다 — 세션을 닫고 부른다.
     user_part = [{"type": "text", "text": msg or "이미지를 읽어 줘."}] + [
-        {"type": "image_url", "image_url": {"url": u}} for u in body.images]
-    tools = write_tools_for(msg)
+        {"type": "image_url", "image_url": {"url": u}} for u in images]
+    last_reply = next((r.content for r in history if r.role == "assistant"), "")
+    tools = write_tools_for(msg, last_reply)
     messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST), "rules_set" in tools)}]
                 + [{"role": r.role, "content": r.content} for r in reversed(history)]
                 + [{"role": "user", "content": user_part}])
@@ -278,16 +306,16 @@ async def chat(request: Request, body: ChatIn):
             summary = " · ".join(r.summary for r in made)[:300] + f" ({ip.diff_summary(old, _doc_of(latest))})"
             if changes := ip.change_lines(old, _doc_of(latest)):
                 reply += "\n\n[바뀐 것]\n" + "\n".join(f"- {c}" for c in changes[:30])
-        stored = msg + (f"\n[이미지 {len(body.images)}장]" if body.images else "")
+        stored = msg + (f"\n[이미지 {len(images)}장]" if images else "")
         await db.execute(text(
             "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'user', :c)"),
             {"u": me.user_index, "c": stored or "[이미지]"})
-        await db.execute(text(
+        res = await db.execute(text(
             "INSERT INTO invest_plan_chat (user_index, role, content, rev_id) VALUES (:u, 'assistant', :c, :r)"),
             {"u": me.user_index, "c": reply or "(계획을 고쳤습니다)", "r": rev_id})
         await db.commit()
         plan = await plan_view(db, latest) if made else None
-    return {"reply": reply, "rev_id": rev_id, "prev_rev_id": undo,
+    return {"chat_id": res.lastrowid, "reply": reply, "rev_id": rev_id, "prev_rev_id": undo,
             "summary": summary, "note": note, "plan": plan}
 
 
@@ -388,6 +416,12 @@ _MAIL_TICK = 60
 
 def _send(cfg: dict, msg) -> None:
     import smtplib
+    from email.utils import format_datetime, make_msgid
+    # Date·Message-ID 는 우리가 붙인다 — 비워 두면 메일 앱이 보낸 시각을 엉뚱하게 보일 수 있다(2026-10-17 사용자 지적).
+    if "Date" not in msg:
+        msg["Date"] = format_datetime(datetime.now(_KST))
+    if "Message-ID" not in msg:
+        msg["Message-ID"] = make_msgid(domain=cfg["smtp_user"].rpartition("@")[2] or None)
     port = int(cfg["smtp_port"])
     if port == 465:
         server = smtplib.SMTP_SSL(cfg["smtp_host"], port, timeout=20)

@@ -35,7 +35,7 @@ def test_내용에_개요_예상_대응_출처():
     values = ip.valuate(doc, {}, {}, None)
     view = {"values": values, "trades": ip.trades(doc, values), "stale": []}
     msg = plan_mail.compose(doc, view, doc.nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
-    body = msg.get_content()
+    body = msg.get_body(("plain",)).get_content()
     assert msg["Subject"] == "[투자 계획] 10월 FOMC 시작 — 대응 2가지"
     for part in ("2026-10-29 03:00", "연준이 기준금리를 정한다.", "동결 우세.", "조건: 0.25%p 이상 인하",
                  "메모: QQQ 10주 매수", "- 매매 없이 유지", "https://fed.gov", "https://blog.x/stocks/plan"):
@@ -119,7 +119,56 @@ def test_시작_메일의_주문은_서버_매매표_잔고가_바뀐_가지는_
         {"id": "b", "parent": "e", "kind": "branch", "title": "동결", "holdings": []}]})
     values = ip.valuate(doc, {"102110": 100_000}, {}, None)
     body = plan_mail.compose(doc, {"values": values, "trades": ip.trades(doc, values), "stale": ["b"]}, doc.nodes[0],
-                             "me@x", "me@x", "u").get_content()
+                             "me@x", "me@x", "u").get_body(("plain",)).get_content()
     assert "- ISA · 매수 TIGER 200(102110) 10주 · 약 100만" in body      # 메모의 "1주"가 아니라 매매표의 10주
     assert "- ISA · 예수금 감소 100만" in body and "메모: TIGER 200 1주 매수" in body
     assert "잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다" in body
+
+
+def test_점검_글의_링크는_지운다():
+    # AI 가 본문에 섞은 링크가 메일에 `[로이터](https://…)` 날 글자로 찍혔다(2026-10-15·16 운영)
+    reply = ('{"level": "urgent", "title": "코스피 급락", "summary": "사이드카가 발동했습니다. '
+             '[연합뉴스](https://www.yna.co.kr/view/AKR1) 미국 물가가 높았습니다 https://x.com/a",'
+             ' "impacts": ["TIGER 200 — 손실 [로이터](https://r.com/1)"], "actions": ["상담에서 점검"]}')
+    check = plan_mail.parse_check(reply)
+    assert check["summary"] == "사이드카가 발동했습니다. 미국 물가가 높았습니다"
+    assert check["impacts"] == ["TIGER 200 — 손실"] and check["actions"] == ["상담에서 점검"]
+
+
+def test_보내는_메일에_날짜와_메시지_ID():
+    from app.api import plan_v1
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def login(self, *a): pass
+        def send_message(self, msg): sent.append(msg)
+
+    import smtplib
+    orig, smtplib.SMTP_SSL = smtplib.SMTP_SSL, FakeSMTP
+    try:
+        msg = plan_mail.compose_daily_failure(NOW.date(), "x", "me@naver.com", "me@naver.com", "https://blog.x")
+        plan_v1._send({"smtp_host": "h", "smtp_port": "465", "smtp_user": "me@naver.com", "smtp_password": "p"}, msg)
+    finally:
+        smtplib.SMTP_SSL = orig
+    assert sent[0]["Date"].endswith("+0900") and sent[0]["Message-ID"].endswith("@naver.com>")
+
+
+def test_AI_글의_마크다운은_정화한_HTML_로():
+    # 표·목록이 날 글자로 보였다(2026-10-17 사용자) — 그리되 웹 검색이 섞인 글이라 스크립트·이벤트 속성은 지운다
+    html = plan_mail.md_html("**굵게**\n\n| 종목 | 수량 |\n|---|---|\n| TIGER 200 | 3주 |\n\n- 하나\n- 둘\n\n"
+                             '<script>alert(1)</script><img src=x onerror=alert(1)> [x](javascript:alert(1))')
+    assert "<strong>굵게</strong>" in html and "<table style=" in html and "<td style=" in html and ">TIGER 200</td>" in html
+    assert "<ul style=" in html and "<li style=" in html
+    assert "<script" not in html and "onerror" not in html and "javascript:" not in html and "<img" not in html
+    assert plan_mail.md_html("한 **줄**") == "한 <strong>줄</strong>"
+
+
+def test_이벤트_시작_메일도_HTML_을_함께_보낸다():
+    msg = plan_mail.compose(_doc(), {"values": {}}, _doc().nodes[0], "me@x", "me@x", "https://blog.x/stocks/plan")
+    html = msg.get_body(("html",)).get_content()
+    for part in ("10월 FOMC", "개요", "연준이 기준금리를 정한다.", "대응 1 · 인하", "0.25%p 이상 인하", "대응 2 · 동결",
+                 'href="https://fed.gov"', 'href="https://blog.x/stocks/plan"'):
+        assert part in html, part

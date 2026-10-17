@@ -94,6 +94,7 @@ def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str
     msg["From"] = sender
     msg["To"] = to
     msg.set_content("\n".join(lines))
+    msg.add_alternative(event_html(doc, view, event, page_url), subtype="html")
     return msg
 
 
@@ -118,6 +119,17 @@ def daily_due(cfg: dict, now: datetime) -> date | None:
     return now.date() if timedelta(0) <= now - slot <= DAILY_LATE else None
 
 
+#: 점검 글의 링크 — 마크다운 `[이름](url)` 과 맨 URL. 매일 점검 메일엔 출처를 넣지 않는데(사용자 지시) AI 가 상담 답처럼
+#: 본문에 링크를 섞어, 메일에 `[로이터](https://…)` 가 날 글자로 찍혔다(2026-10-15·16 운영).
+_LINK = re.compile(r"\s*(\[[^\]]*\]\(\s*https?://[^)]*\)|https?://\S+)")
+
+
+def _unlink(v):
+    if isinstance(v, list):
+        return [_unlink(x) for x in v]
+    return re.sub(r" {2,}", " ", _LINK.sub("", v)).strip() if isinstance(v, str) else v
+
+
 def parse_check(reply: str) -> dict | None:
     """AI 답 → 점검 결과(`level` 이 none·notice·urgent). **형식이 깨졌으면 None** — 무난한 하루(none)와 구분해
     점검 실패로 알린다(둘이 같으면 며칠째 실패해도 "조용한 날"로 보였다, 2026-10-14 검토)."""
@@ -131,7 +143,7 @@ def parse_check(reply: str) -> dict | None:
         return None
     if data["level"] != "none" and not data.get("title"):
         return None
-    return data
+    return {k: _unlink(v) for k, v in data.items()}
 
 
 def _sections(check: dict) -> list[tuple[str, list[str]]]:
@@ -156,22 +168,57 @@ _C = {"bg": "#202020", "surface": "#2B2B2B", "border": "#3A3A3A", "text": "#FFFF
 _FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic',sans-serif"
 
 
-def daily_html(check: dict, day: date, page_url: str) -> str:
-    from html import escape
-    tone = _C[check["level"]]
-    blocks = []
-    for i, (title, rows) in enumerate(_sections(check)):
-        if i == 0:
-            body = f'<p style="margin:0;line-height:1.7;color:{_C["text"]}">{escape(rows[0])}</p>'
-        else:
-            body = "".join(
-                f'<tr><td valign="top" style="width:14px;padding:3px 0;color:{tone}">•</td>'
-                f'<td style="padding:3px 0;line-height:1.6;color:{_C["text"]}">{escape(x)}</td></tr>' for x in rows)
-            body = f'<table role="presentation" cellpadding="0" cellspacing="0" width="100%">{body}</table>'
-        blocks.append(
-            f'<tr><td style="padding:16px 20px;background:{_C["surface"]};border-radius:8px">'
-            f'<div style="margin:0 0 8px;font-size:12px;font-weight:600;color:{_C["muted"]}">{title}</div>{body}</td></tr>'
+# ── 마크다운 → 메일 HTML (2026-10-17 사용자: "md 표가 날것으로 보여서 보기 힘들어") ─────────────
+#: 메일 앱은 <style> 을 버리는 일이 많아 태그마다 인라인 스타일을 붙인다.
+_MD_STYLE = {
+    "p": "margin:0 0 8px",
+    "ul": "margin:0 0 8px;padding-left:20px", "ol": "margin:0 0 8px;padding-left:20px", "li": "margin:2px 0",
+    "table": "border-collapse:collapse;margin:0 0 8px;font-size:13px",
+    "th": f"padding:5px 9px;border:1px solid {_C['border']};background:#323232;text-align:left;white-space:nowrap",
+    "td": f"padding:5px 9px;border:1px solid {_C['border']};text-align:left;vertical-align:top",
+    "code": "padding:1px 4px;border-radius:4px;background:#323232;font-family:Consolas,Menlo,monospace;font-size:13px",
+    "pre": "margin:0 0 8px;padding:8px 10px;border-radius:6px;background:#1C1C1C;white-space:pre-wrap",
+    "blockquote": f"margin:0 0 8px;padding-left:10px;border-left:3px solid #4A4A4A;color:{_C['muted']}",
+    "h1": "margin:12px 0 6px;font-size:15px", "h2": "margin:12px 0 6px;font-size:15px",
+    "h3": "margin:12px 0 6px;font-size:15px", "h4": "margin:12px 0 6px;font-size:15px",
+    "a": f"color:{_C['accent']}", "hr": f"border:0;border-top:1px solid {_C['border']}",
+}
+_MD_TAGS = set(_MD_STYLE) | {"strong", "em", "b", "i", "del", "br", "thead", "tbody", "tr"}
+_MD_OPEN = re.compile(r"<(%s)\b" % "|".join(sorted(_MD_STYLE, key=len, reverse=True)))
+
+
+def md_html(text: str) -> str:
+    """AI 글(마크다운) → 메일용 HTML. **nh3 로 정화한 뒤** 스타일만 붙인다 — 웹 검색이 섞인 글이라 태그·속성은 허용 목록만.
+    문단 하나뿐이면 <p> 를 벗긴다 — 목록 칸·"조건 …" 줄처럼 앞 글자와 한 줄로 이어지는 자리라서."""
+    import markdown
+    import nh3
+    raw = markdown.markdown(str(text), extensions=["tables", "sane_lists", "nl2br"])
+    html = nh3.clean(raw, tags=_MD_TAGS, attributes={"a": {"href"}}, url_schemes={"http", "https"})
+    html = _MD_OPEN.sub(lambda m: f'<{m[1]} style="{_MD_STYLE[m[1]]}"', html).strip()
+    head = f'<p style="{_MD_STYLE["p"]}">'
+    if html.startswith(head) and html.count("<p ") == 1 and html.endswith("</p>"):
+        html = html[len(head):-4]
+    return html
+
+
+def _card(title: str, body: str) -> str:
+    return (f'<tr><td style="padding:16px 20px;background:{_C["surface"]};border-radius:8px">'
+            f'<div style="margin:0 0 8px;font-size:12px;font-weight:600;color:{_C["muted"]}">{title}</div>'
+            f'<div style="line-height:1.7;color:{_C["text"]}">{body}</div></td></tr>'
             f'<tr><td style="height:10px;line-height:10px;font-size:0">&nbsp;</td></tr>')
+
+
+def _bullets(rows: list[str], tone: str) -> str:
+    """• 줄들 — 각 줄은 이미 HTML 이다."""
+    body = "".join(
+        f'<tr><td valign="top" style="width:14px;padding:3px 0;color:{tone}">•</td>'
+        f'<td style="padding:3px 0;line-height:1.6;color:{_C["text"]}">{x}</td></tr>' for x in rows)
+    return f'<table role="presentation" cellpadding="0" cellspacing="0" width="100%">{body}</table>'
+
+
+def _frame(badge: str, tone: str, kicker: str, title: str, cards: str, page_url: str, foot: str) -> str:
+    """메일 한 통의 틀 — 블로그 어두운 테마(배지·작은 머리말·제목 → 카드들 → [투자 계획 열기] · 꼬리말)."""
+    from html import escape
     return (
         f'<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"></head>'
@@ -182,17 +229,64 @@ def daily_html(check: dict, day: date, page_url: str) -> str:
         f'style="max-width:600px;font-family:{_FONT};font-size:14px;color:{_C["text"]};word-break:keep-all">'
         f'<tr><td style="padding:0 4px 16px">'
         f'<span style="display:inline-block;padding:2px 10px;border:1px solid {tone};border-radius:999px;'
-        f'font-size:12px;font-weight:600;color:{tone}">{LEVEL_LABEL[check["level"]]}</span>'
-        f'<span style="margin-left:8px;font-size:12px;color:{_C["dim"]}">투자 계획 · {day:%Y-%m-%d} 점검</span>'
+        f'font-size:12px;font-weight:600;color:{tone}">{escape(badge)}</span>'
+        f'<span style="margin-left:8px;font-size:12px;color:{_C["dim"]}">{escape(kicker)}</span>'
         f'<h1 style="margin:10px 0 0;font-size:20px;line-height:1.4;font-weight:700;color:{_C["text"]}">'
-        f'{escape(str(check["title"]))}</h1></td></tr>'
-        + "".join(blocks) +
+        f'{escape(title)}</h1></td></tr>'
+        + cards +
         f'<tr><td style="padding:10px 4px 0">'
         f'<a href="{escape(page_url)}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:{_C["accent"]};'
         f'color:{_C["accent_text"]};font-weight:600;text-decoration:none">투자 계획 열기</a>'
-        f'<p style="margin:14px 0 0;font-size:12px;line-height:1.6;color:{_C["dim"]}">'
-        f'계획은 바꾸지 않았습니다 — 반영하려면 상담에서 말씀해 주세요.</p></td></tr>'
+        f'<p style="margin:14px 0 0;font-size:12px;line-height:1.6;color:{_C["dim"]}">{foot}</p></td></tr>'
         f'</table></td></tr></table></body></html>')
+
+
+def daily_html(check: dict, day: date, page_url: str) -> str:
+    tone = _C[check["level"]]
+    cards = "".join(_card(title, md_html(rows[0]) if i == 0 else _bullets([md_html(x) for x in rows], tone))
+                    for i, (title, rows) in enumerate(_sections(check)))
+    return _frame(LEVEL_LABEL[check["level"]], tone, f"투자 계획 · {day:%Y-%m-%d} 점검", str(check["title"]), cards,
+                  page_url, "계획은 바꾸지 않았습니다 — 반영하려면 상담에서 말씀해 주세요.")
+
+
+def event_html(doc: PlanDoc, view: dict, event, page_url: str) -> str:
+    """이벤트 시작 메일의 HTML — 글 버전(`compose`)과 같은 내용을 카드로. AI 가 쓴 칸은 마크다운으로 그린다."""
+    from html import escape
+    values, trades, stale = view["values"], view.get("trades", {}), set(view.get("stale", ()))
+    branches = [n for n in doc.nodes if n.kind == "branch" and n.parent == event.id]
+    tone = _C["accent"]
+    cards = ""
+    for title, text in (("개요", event.about), ("시장 예상", event.expect), ("메모", event.note)):
+        if text:
+            cards += _card(title, md_html(text))
+    before = values.get(event.id)
+    if before:
+        cards += _card("지금 자산", f'<b>{_won(before["total"])}</b> <span style="color:{_C["muted"]}">{escape(_mix(before))}</span>')
+    for i, b in enumerate(branches, 1):
+        rows = []
+        if b.condition:
+            rows.append(f'<span style="color:{_C["muted"]}">조건</span> {md_html(b.condition)}')
+        if b.id in stale:
+            rows.append(f'<span style="color:{_C["urgent"]}">⚠ 잔고가 바뀌어 이 가지의 매매를 다시 짜야 합니다 — 상담에서 정해 주세요</span>')
+        elif b.holdings is None:
+            rows.append("매매 없이 유지")
+        else:
+            rows += [escape(_trade_line(t)) for t in trades.get(b.id, [])] or ["매매 없음"]
+        if b.actions:
+            rows.append(f'<span style="color:{_C["muted"]}">메모</span> ' + " / ".join(md_html(a) for a in b.actions))
+        after = values.get(b.id)
+        if after:
+            rows.append(f'<span style="color:{_C["muted"]}">실행 뒤</span> {_won(after["total"])} · {escape(_mix(after))}')
+        cards += _card(f"대응 {i} · {escape(b.title)}", _bullets(rows, tone))
+    if not branches:
+        cards += _card("대응 방법", "아직 정하지 않았습니다")
+    if event.links:
+        cards += _card("출처", _bullets([f'<a href="{escape(l.url)}" style="color:{tone}">{escape(l.title)}</a>'
+                                        for l in event.links if l.url.startswith(("http://", "https://"))], tone))
+    at = _kst(event.at).strftime("%Y-%m-%d %H:%M")
+    return _frame("시작", tone, f"투자 계획 · {at} (KST)", event.title, cards, page_url,
+                  "결과가 나오면 상담에서 알려 주세요 — 실현된 가지를 표시하고 다음 계획을 이어 갑니다.<br>"
+                  "※ 금액은 오늘 시세로 환산한 값입니다.")
 
 
 def compose_daily(check: dict, day: date, sender: str, to: str, page_url: str) -> EmailMessage:
