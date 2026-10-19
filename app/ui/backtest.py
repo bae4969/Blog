@@ -84,6 +84,10 @@ async def backtest_page(request: Request):
 # ---------------------------------------------------------------------------
 
 _MAX_STOCKS = 10
+#: 구성 변경(2026-10-19) — 구간 수 상한·모든 구간을 합친 종목 수 상한·나눠 바꾸는 거래일 상한
+_MAX_CHANGES = 12
+_MAX_UNIVERSE = 15
+_MAX_SPREAD_DAYS = 60
 _MAX_BENCHMARKS = 5
 _MAX_SIGNAL_RULES = 20
 _MAX_YEARS = 30
@@ -141,10 +145,13 @@ def _norm_config(body: dict) -> tuple[dict | None, str | None]:
 
     fees_in = body.get("fees") or {}
     defer_in = body.get("dcaDefer") or {}
+    stocks = _norm_stocks(stocks_in)
+    changes, err = _norm_changes(body.get("changes"), stocks, str(start), str(end))
+    if err:
+        return None, err
     return {
-        "stocks": [{"code": _s(s.get("code")), "name": _s(s.get("name"), _s(s.get("code"))),
-                    "market": _s(s.get("market")), "weight": _f(s.get("weight"))}
-                   for s in stocks_in[:_MAX_STOCKS] if isinstance(s, dict)],
+        "stocks": stocks,
+        "changes": changes,
         "benchmarks": [{"code": _s(b.get("code")), "market": _s(b.get("market")),
                         "name": _s(b.get("name"), _s(b.get("code")))}
                        for b in (benchmarks_in or [])[:_MAX_BENCHMARKS] if isinstance(b, dict)],
@@ -166,10 +173,64 @@ def _norm_config(body: dict) -> tuple[dict | None, str | None]:
     }, None
 
 
-def _config_hash(stocks: list, strategy: str) -> str:
-    """같은 조합을 다시 돌리면 새 행을 만들지 않고 덮어쓰기 위한 키(IP 와 짝을 이룬다)."""
-    parts = sorted(f"{s['code']}:{engine._php_round(s['weight'], 2):g}" for s in stocks)
-    return hashlib.md5(("|".join(parts) + "|" + strategy).encode()).hexdigest()
+def _norm_stocks(items) -> list[dict]:
+    return [{"code": _s(s.get("code")), "name": _s(s.get("name"), _s(s.get("code"))),
+             "market": _s(s.get("market")), "weight": _f(s.get("weight"))}
+            for s in (items or [])[:_MAX_STOCKS] if isinstance(s, dict)]
+
+
+def _norm_changes(items, stocks: list, start: str, end: str) -> tuple[list, str | None]:
+    """구성 변경 — [{date, stocks, spreadDays}]. 날짜순·기간 안(시작일 다음부터)·구간마다 비중 합 100·종목 1개 이상."""
+    if not items:
+        return [], None
+    if not isinstance(items, list):
+        return [], "changes must be a list"
+    if len(items) > _MAX_CHANGES:
+        return [], f"구성 변경은 {_MAX_CHANGES}번까지입니다"
+    out, prev = [], start
+    for i, c in enumerate(items, 1):
+        if not isinstance(c, dict):
+            return [], "changes must be a list of objects"
+        d = str(c.get("date") or "")
+        if not _DATE_RE.match(d):
+            return [], f"구성 변경 {i}: 날짜 형식이 틀렸습니다"
+        if not (prev < d <= end):
+            return [], f"구성 변경 {i}: 날짜는 앞 구간({prev})보다 뒤, 종료일({end})까지여야 합니다"
+        st = _norm_stocks(c.get("stocks"))
+        if not st or not all(s["code"] for s in st):
+            return [], f"구성 변경 {i}: 종목이 1개 이상 있어야 합니다"
+        if abs(sum(s["weight"] for s in st) - 100) > 0.5:
+            return [], f"구성 변경 {i}: 비중 합계가 100%여야 합니다"
+        spread = int(_clamp(_f(c.get("spreadDays"), 1), 1, _MAX_SPREAD_DAYS))
+        out.append({"date": d, "stocks": st, "spreadDays": spread})
+        prev = d
+    if len({s["code"] for s in stocks} | {s["code"] for c in out for s in c["stocks"]}) > _MAX_UNIVERSE:
+        return [], f"모든 구간을 합쳐 종목은 {_MAX_UNIVERSE}개까지입니다"
+    return out, None
+
+
+def universe(config: dict) -> list[dict]:
+    """모든 구간의 종목(코드 하나에 한 번) — 시세를 읽을 대상."""
+    seen, out = set(), []
+    for s in [*config["stocks"], *(x for c in config.get("changes") or [] for x in c["stocks"])]:
+        if s["code"] and s["code"] not in seen:
+            seen.add(s["code"])
+            out.append(s)
+    return out
+
+
+def _config_hash(stocks: list, strategy: str, changes: list | None = None) -> str:
+    """같은 조합을 다시 돌리면 새 행을 만들지 않고 덮어쓰기 위한 키(IP 와 짝을 이룬다).
+
+    구성 변경이 있으면 그 일정(날짜·나눠 바꾸는 거래일·구성)을 덧붙인다 — 없으면 예전 키 그대로라 옛 행과 마이그레이션 0007 의
+    SQL 키가 그대로 맞는다(2026-10-19).
+    """
+    def parts(st):
+        return sorted(f"{s['code']}:{engine._php_round(s['weight'], 2):g}" for s in st)
+    key = "|".join(parts(stocks)) + "|" + strategy
+    for c in changes or []:
+        key += f"|@{c['date']}~{c.get('spreadDays') or 1}:" + ",".join(parts(c["stocks"]))
+    return hashlib.md5(key.encode()).hexdigest()
 
 
 def _portfolio_name(stocks: list) -> str:
@@ -202,7 +263,7 @@ async def _load_prices(db, config: dict) -> tuple[dict, dict]:
             out[it["code"]] = engine.build_series(rows)
         return out
 
-    return await fetch(config["stocks"]), await fetch(config["benchmarks"])
+    return await fetch(universe(config)), await fetch(config["benchmarks"])
 
 
 async def _owner_index(request: Request) -> int | None:
@@ -233,8 +294,9 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
     score = engine.compute_score(result["metrics"])
     params = {
         "name": name,
-        "owner": owner, "pub": 0 if owner is not None else 1,
-        "hash": _config_hash(config["stocks"], config["strategy"]),
+        # 구성 변경이 있으면 공개(랭킹)하지 않는다 — 결과를 알고 "그때 갈아탔다"를 넣으면 점수를 부풀릴 수 있다(2026-10-19)
+        "owner": owner, "pub": 0 if owner is not None or config.get("changes") else 1,
+        "hash": _config_hash(config["stocks"], config["strategy"], config.get("changes")),
         "cfg": json.dumps(config, ensure_ascii=False),
         "ds": score["score"], "dg": score["grade"],
         "rs": result["rankingScore"], "rg": result["rankingGrade"],

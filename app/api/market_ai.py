@@ -64,9 +64,9 @@ TOOLS = [
     {"annotations": RO, "name": "watchlist_get", "description": "사용자의 관심 종목(정한 순서) — 코드·시장·이름·최신 종가·등락률.",
      "inputSchema": obj()},
     {"annotations": RO, "name": "backtest_portfolios",
-     "description": "사용자의 백테스트 포트폴리오 목록(이름·점수·등급·종목 요약·전략·공개 여부·실행 여부 ran) — 실행하면 자동 저장되고 화면 ☆ 목록에서 관리한다.",
+     "description": "사용자의 백테스트 포트폴리오 목록(이름·점수·등급·종목 요약(첫 구간)·전략·공개 여부·실행 여부 ran·구간 수 phases) — 실행하면 자동 저장되고 화면 ☆ 목록에서 관리한다.",
      "inputSchema": obj()},
-    {"annotations": RO, "name": "backtest_portfolio_get", "description": "백테스트 포트폴리오 하나의 설정 전체(종목·비중·전략·규칙)와 지표.",
+    {"annotations": RO, "name": "backtest_portfolio_get", "description": "백테스트 포트폴리오 하나의 설정 전체(종목·비중·전략·규칙, 구성 변경 changes — [{date, spreadDays, stocks}])와 지표.",
      "inputSchema": obj({"id": {"type": "integer"}}, ["id"])},
 ]
 
@@ -190,10 +190,12 @@ async def call(db, user_index: int, name: str, args: dict):
     if name == "backtest_portfolios":
         rows = (await db.execute(text(
             "SELECT portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, stock_summary, strategy, "
-            "metrics_json <> '{}' AS ran FROM backtest_portfolio WHERE user_index = :u ORDER BY updated_at DESC LIMIT 50"),
+            "metrics_json <> '{}' AS ran, 1 + COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) AS phases "
+            "FROM backtest_portfolio WHERE user_index = :u ORDER BY updated_at DESC LIMIT 50"),
             {"u": user_index})).all()
         return [{"id": r.portfolio_id, "name": r.portfolio_name, "public": bool(r.is_public), "score": r.ranking_score,
-                 "grade": r.ranking_grade, "stocks": r.stock_summary, "strategy": r.strategy, "ran": bool(r.ran)} for r in rows]
+                 "grade": r.ranking_grade, "stocks": r.stock_summary, "strategy": r.strategy, "ran": bool(r.ran),
+                 "phases": int(r.phases or 1)} for r in rows]
     if name == "backtest_portfolio_get":
         row = (await db.execute(text(
             "SELECT portfolio_name, config_json, metrics_json FROM backtest_portfolio WHERE portfolio_id = :id AND user_index = :u"),

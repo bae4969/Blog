@@ -89,6 +89,9 @@ class BacktestRequest(BaseModel):
     dcaDefer: dict = Field(default_factory=dict, description="적립 유예 — `enabled`·`indicator`")
     fees: dict = Field(default_factory=dict, description="시장별 수수료(%) — `KR`·`US`·`COIN`")
     riskFreeRate: float = Field(3, description="무위험수익률(%) — 샤프·소르티노에 쓴다")
+    # ⚠️ 위의 회귀와 같은 자리 — 선언하지 않으면 구성 변경이 조용히 버려져 한 구성으로 돈다(2026-10-19 더함).
+    changes: list[dict] = Field(default_factory=list,
+                                description="구성 변경 — [{date, stocks:[{code,name,market,weight}], spreadDays}]. 날짜순, 시작일 뒤")
 
 
 async def _me(db, request: Request):
@@ -190,16 +193,17 @@ class PortfolioOut(BaseModel):
     stock_summary: str | None = None
     strategy: str | None = None
     ran: bool = Field(True, description="한 번이라도 실행했나 — 옛 프리셋에서 옮긴 것은 실행 전이라 점수가 없다")
+    phases: int = Field(1, description="구간 수 — 구성 변경이 있으면 2 이상(공개 랭킹에 올리지 않는다)")
 
 
 #: 목록·수정 응답이 함께 쓰는 칼럼 — 순서가 `_out` 과 짝이다.
 _OUT_COLS = ("portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, stock_summary, strategy, "
-             "metrics_json <> '{}' AS ran")
+             "metrics_json <> '{}' AS ran, 1 + COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) AS phases")
 
 
 def _out(r) -> PortfolioOut:
     return PortfolioOut(id=r[0], name=r[1], is_public=bool(r[2]), ranking_score=r[3], ranking_grade=r[4],
-                        stock_summary=r[5], strategy=r[6], ran=bool(r[7]))
+                        stock_summary=r[5], strategy=r[6], ran=bool(r[7]), phases=int(r[8] or 1))
 
 
 class PortfolioPatch(BaseModel):
@@ -278,6 +282,7 @@ async def portfolio(request: Request, portfolio_id: int):
         period_end=str(row[13]) if row[13] else None,
         mine=owner is not None and me is not None and owner == me,
         ran=bool(_json(row[9])),
+        phases=1 + len((_json(row[4]) or {}).get("changes") or []),
     )
 
 
@@ -307,6 +312,14 @@ async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioP
     async with db_session() as db:
         me = await _me(db, request)
         params["u"] = me.user_index
+        if body.is_public:
+            # 구성 변경이 있으면 공개(랭킹)하지 않는다 — 결과를 알고 고른 일정으로 점수를 부풀릴 수 있다(2026-10-19)
+            n = (await db.execute(text(
+                "SELECT COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) FROM backtest_portfolio "
+                "WHERE portfolio_id = :id AND user_index = :u"), params)).scalar()
+            if n:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    "구성 변경이 있는 포트폴리오는 랭킹에 올리지 않습니다")
         # 소유권 검사와 갱신을 한 문장에 둔다 — 남의 것은 rowcount 0 으로 떨어진다.
         res = await db.execute(text(
             f"UPDATE backtest_portfolio SET {', '.join(sets)} "
