@@ -411,3 +411,17 @@
     /* 휴대폰 입력 — 16px 아래면 iOS 가 누를 때 화면을 키운다 */
     .ai-composer textarea { font-size: 16px; line-height: 22px; }
 }
+
+/*
+ * 넓은 화면 — 30.ai_center 대화 화면의 열(2026-10-19 사용자: 시트가 넓어졌으니 ai_center 처럼). 대화는 좌우 1rem(넓으면
+ * 가운데 928px), 카드는 최대 64rem, 입력은 좌우·아래 1rem 에 상자 최대 56rem 가운데, 내 말풍선은 최대 672px.
+ * 좁은 화면은 그대로 8px 다(옛 계획 상담 칸에서 사용자가 "더 줄여" 한 값). ⚠️ 위 기본 규칙보다 **뒤에** 둔다(같은 특이도).
+ */
+@media (min-width: 64rem) {
+    .ai-log { padding-inline: max(1rem, calc((100% - 928px) / 2)); }
+    .ai-log > * { max-inline-size: 64rem; margin-inline: auto; }
+    .ai-msg--user > div { max-inline-size: 42rem; }
+    .ai-form { padding: 0 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); }
+    .ai-tools,
+    .ai-composer { max-inline-size: 56rem; margin-inline: auto; }
+}
