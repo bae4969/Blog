@@ -1525,6 +1525,10 @@ details[open] > .config-section-title.clickable {
     flex-direction: column;
     max-height: 200px;
     overflow-y: auto;
+    /* 터치 기기 — 삭제(×) 버튼의 44px 누름 자리(ui.css `::after`)가 목록 밖으로 가로 5px·세로 3px 나와 가로 스크롤바가 생기고
+       옆으로 밀려 이름 앞이 잘렸다(2026-10-19 사용자). 가로는 막고, 아래 여백으로 세로 넘침을 받는다. */
+    overflow-x: hidden;
+    padding-block-end: 4px;
 }
 
 .preset-item {
