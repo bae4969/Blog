@@ -79,7 +79,10 @@
     // 키보드로 옮겨 왔을 때만 — 손가락으로 누른 버튼에도 포커스는 가지만 `:focus-visible` 이 아니다.
     document.addEventListener('focusin', function (e) {
         var el = e.target.closest && e.target.closest(TARGET);
-        if (el && el.matches(':focus-visible')) show(el);
+        if (!el) return;
+        // 한 박자 뒤에 — 다른 popover 가 열리는 도중 브라우저가 닫히는 popover 의 포커스를 버튼으로 되돌리면 이 focusin 이 그 안에서
+        // 와서, 바로 showPopover 하면 "다른 show 도중"이라 던졌다(2026-10-19 백테스트 검색창 → 시점 창).
+        setTimeout(function () { if (document.activeElement === el && el.matches(':focus-visible')) show(el); }, 0);
     });
     document.addEventListener('focusout', function (e) {
         if (owner && owner.contains(e.target)) hide();
