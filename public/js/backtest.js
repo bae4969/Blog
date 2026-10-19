@@ -1437,7 +1437,7 @@
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 notify('"' + name + '" 프리셋을 저장했습니다.', 'success');
-                nameInput.value = '';
+                // 이름은 남겨 둔다 — 이어서 고쳐 다시 저장하면 같은 이름으로 덮어쓴다(서버: 계정+이름이 같으면 덮어쓰기)
                 loadPresetList();
             })
             .catch(function (err) { notify(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
@@ -1492,6 +1492,9 @@
             .then(function (json) {
                 if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
                 applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
+                // 불러온 프리셋을 고쳐 바로 다시 저장할 수 있게 이름 칸을 채운다 — 비어 있어 "이름을 입력하세요"에 막혔다(2026-10-19 사용자)
+                var nameInput = document.getElementById('presetNameInput');
+                if (nameInput && json.name) { nameInput.value = json.name; fieldError('presetNameError', ''); }
                 notify('"' + (json.name || '') + '" 프리셋을 적용했습니다.', 'success');
             })
             .catch(function (err) { notify(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
