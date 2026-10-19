@@ -10,8 +10,12 @@
 */
 
 :root:has(.ai-sheet) {
-    --ai-grip-h: 3.5rem;
+    --ai-grip-h: 2.75rem;   /* 휴대폰 — 터치 최소 44px(56px 에서 줄임, 2026-10-19 사용자 "위아래로 컴팩트하게") */
     --ai-peek: calc(var(--ai-grip-h) + env(safe-area-inset-bottom, 0px));   /* 접혔을 때 보이는 높이 */
+}
+
+@media (min-width: 64rem) {
+    :root:has(.ai-sheet) { --ai-grip-h: 1.75rem; }   /* 마우스 — 28px 면 충분하다 */
 }
 
 /* 접힌 손잡이 줄이 본문 끝·토스트·백테스트 진행 표시를 가리지 않게 그만큼 올린다 */
@@ -34,10 +38,11 @@
     flex-direction: column;
     block-size: min(90dvh, var(--ai-vh, 100dvh));
     overflow: hidden;
-    border: 1px solid var(--bae-border);
+    /* 바탕은 페이지보다 한 단계 밝게·테두리도 한 단계 진하게 — 페이지와 같은 #202020 이라 섞여 보였다(2026-10-19 사용자) */
+    border: 1px solid var(--bae-border-hover);
     border-block-end: 0;
     border-radius: 1rem 1rem 0 0;
-    background: var(--bae-bg);
+    background: var(--bae-surface);
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);   /* 정본 서랍 그림자를 위로 — 체결 시트(stocks.css)와 같은 값 */
     transform: translateY(calc(100% - var(--ai-peek)));
     transition: transform 0.28s var(--ease);
@@ -51,9 +56,13 @@
 .ai-sheet:not(.is-open):not(.is-dragging) :is(.ai-log, .ai-form) { visibility: hidden; }
 
 @media (min-width: 64rem) {
+    /* 넓은 화면은 덮개가 없어 그림자를 키워 떠 있는 판으로 보이게. 손잡이를 좌우로 끌면 옮겨진다(--ai-x, assistant.js) —
+       `translate` 는 `transform`(접기·열기)과 따로 놀아 둘이 섞이지 않는다. */
     .ai-sheet {
         inset-inline: max(1rem, calc((100% - 48rem) / 2));
-        block-size: min(70dvh, 48rem);
+        block-size: calc(100dvh - var(--topbar-h, 4rem) - env(safe-area-inset-top, 0px) - 1rem);   /* 상단바 바로 아래까지(2026-10-19 사용자 "최대 높이 키워") */
+        box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+        translate: var(--ai-x, 0px) 0;
     }
 }
 
@@ -112,15 +121,21 @@
     block-size: 8px;
     border-radius: 50%;
     background: var(--bae-danger);
-    box-shadow: 0 0 0 1.5px var(--bae-bg);   /* 링 = 시트 바탕색 — 11.web_design bottom-sheet.md */
+    box-shadow: 0 0 0 1.5px var(--bae-surface);   /* 링 = 시트 바탕색 — 11.web_design bottom-sheet.md */
 }
 
 /* ── 대화 ───────────────────────────────────────────────── */
 
+/* 대화는 손잡이 줄 아래 한 단계 어두운 판 — 시트와 같은 바탕이면 위로 밀린 글이 손잡이 밑에서 그냥 잘려 보였다(2026-10-19 사용자) */
 .ai-log {
     flex: 1;
     min-block-size: 0;
+    margin-inline: var(--space-2);
     padding: var(--space-2) var(--space-2) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — assistant.js 가 실제 높이로 맞춘다 */
+    border: 1px solid var(--bae-border);
+    border-block-end: 0;
+    border-radius: 0.75rem 0.75rem 0 0;
+    background: var(--bae-bg);
     overflow-y: auto;
     overscroll-behavior: contain;   /* 끝에서 손가락으로 당겨도 페이지로 넘어가지 않게(휠은 assistant.js) */
     scrollbar-width: none;
@@ -162,7 +177,7 @@
     padding: 12px 16px;
     border: 1px solid var(--bae-border);
     border-radius: 8px;
-    background: var(--bae-surface);
+    background: var(--bae-surface);   /* 30.ai_center 와 같다 — 대화 판(bg) 위 한 단계 */
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
@@ -293,7 +308,8 @@
     position: absolute;
     inset-inline: 0;
     inset-block-end: 0;
-    padding: 0 var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));   /* 좌우·아래 8px — 말풍선과 같은 여백 */
+    /* 좌우는 대화 카드와 끝을 맞춘다 — 대화 판의 바깥 여백(8px) + 테두리(1px) + 안쪽 여백(8px). 판을 만들며 입력 상자만 9px 넓어졌었다 */
+    padding: 0 calc(var(--space-2) * 2 + 1px) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
 }
 
@@ -313,7 +329,7 @@
     inline-size: 28px;
     block-size: 28px;
     padding: 0;
-    border: 1.5px solid var(--bae-border-hover);
+    border: 1px solid var(--bae-border-hover);   /* 30.ai_center #attach-btn — border bd-strong */
     border-radius: 999px;
     background: var(--bae-surface-alt);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -385,6 +401,43 @@
 
 .ai-composer textarea::placeholder { color: var(--bae-text-dim); }
 
+/* 입력창 확장/축소 — 상자 안 오른쪽 위(30.ai_center #input-expand-btn: right-2 top-2 · 32px · txt-dim) */
+.ai-expand {
+    position: absolute;
+    inset-inline-end: 8px;
+    inset-block-start: 8px;
+    display: grid;
+    place-items: center;
+    inline-size: 32px;
+    block-size: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--bae-text-dim);
+    cursor: pointer;
+}
+
+.ai-expand:hover { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+.ai-expand:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -2px; }
+.ai-expand .c-ico { inline-size: 16px; block-size: 16px; }
+.ai-expand > span { display: grid; }
+.ai-expand[aria-pressed="true"] .ai-expand__open,
+.ai-expand[aria-pressed="false"] .ai-expand__close { display: none; }
+
+/* 터치 기기 — 누르는 자리만 44px(정본 button.md). 이미 absolute 라 ui.css 공용 목록(relative 를 덮는다)에 넣지 않는다 */
+@media (any-pointer: coarse) {
+    .ai-expand::after {
+        content: "";
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: 50%;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        translate: -50% -50%;
+    }
+}
+
 .ai-send {
     position: absolute;
     inset-inline-end: 8px;
@@ -421,7 +474,7 @@
     .ai-log { padding-inline: max(1rem, calc((100% - 928px) / 2)); }
     .ai-log > * { max-inline-size: 64rem; margin-inline: auto; }
     .ai-msg--user > div { max-inline-size: 42rem; }
-    .ai-form { padding: 0 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); }
+    .ai-form { padding: 0 calc(var(--space-2) + 1px + 1rem) calc(1rem + env(safe-area-inset-bottom, 0px)); }   /* 판 여백 + 테두리 + 대화 좌우 1rem */
     .ai-tools,
     .ai-composer { max-inline-size: 56rem; margin-inline: auto; }
 }

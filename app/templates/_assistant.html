@@ -18,13 +18,17 @@
     <form class="ai-form" id="aiForm" autocomplete="off">
         <div class="ai-tools">
             <input type="file" id="aiFile" accept="image/*" multiple hidden>
-            <button type="button" class="ai-round" id="aiAttach" aria-label="이미지 첨부">{{ icons.i('image') }}</button>
+            <button type="button" class="ai-round" id="aiAttach" aria-label="이미지 첨부">{{ icons.i('paperclip') }}</button>
             <div class="ai-thumbs" id="aiThumbs" hidden></div>
         </div>
         <div class="ai-composer">
             <textarea id="aiInput" rows="3" maxlength="8000"
-                      placeholder="메시지 입력 (Enter 전송 / Shift+Enter 줄바꿈) — 지금 보는 화면을 함께 보냅니다"
+                      placeholder="메시지 입력 (Enter 전송 / Shift+Enter 줄바꿈)"
                       aria-label="상담 내용"></textarea>
+            {# 입력창 확장/축소 — 30.ai_center 와 같이 행 수만 3 ↔ 12 로 바꾼다(보내면 접힌다) #}
+            <button type="button" class="ai-expand" id="aiExpand" aria-label="입력창 확장" aria-pressed="false">
+                <span class="ai-expand__open">{{ icons.i('expand') }}</span><span class="ai-expand__close">{{ icons.i('shrink') }}</span>
+            </button>
             <button type="submit" class="ai-send" id="aiSend" aria-label="보내기">{{ icons.i('send') }}</button>
         </div>
     </form>
