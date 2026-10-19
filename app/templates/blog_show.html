@@ -7,6 +7,8 @@
      `| safe` 를 쓰면 그 순간 XSS 가 된다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "post", "post_id": post.posting_index, "title": post.posting_title} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}{{ post.posting_title }} · Developer Notes{% endblock %}

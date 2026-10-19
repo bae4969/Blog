@@ -1,0 +1,36 @@
+{#
+  AI 상담 시트(2026-10-19) — **모든 화면** 아래에 숨어 있다가 손잡이를 끌어올리면(누르면) 올라온다. root 본인 전용이라
+  `layout.html` 이 레벨 0 일 때만 싣는다(방문자에게는 마크업·스크립트 모두 없다). `/js/assistant.js` 가 움직인다.
+
+  · 보내는 말마다 지금 화면의 맥락(제목·주소·화면이 알려 준 id·상태)을 함께 보낸다 — `assistant_ctx`(템플릿) +
+    `window.assistantContext()`(화면 스크립트).
+  · 투자 계획처럼 AI 가 무언가 고치면 `assistant:changed` 이벤트로 그 화면에 알린다(상담은 화면을 모른다).
+  ⚠️ `section` 이 아니라 `div` 다 — blog.css 의 전역 `section`(바탕·안쪽 여백·모바일 flex 세로)이 시트에 묻는다.
+#}
+{% import "_icons.html" as icons %}
+<div class="ai-dim" id="aiDim" hidden></div>
+<div class="ai-sheet" id="aiSheet" role="region" aria-label="AI 상담">
+    <button type="button" class="ai-grip" id="aiGrip" aria-label="AI 상담 열기" aria-expanded="false" aria-controls="aiSheet">
+        <span class="ai-grip__bar"></span>
+    </button>
+    <div class="ai-log" id="aiLog"></div>
+    {# 입력 — 30.ai_center 처럼 시트 아래에 떠 있다: 위 줄은 첨부 버튼·첨부 칩, 아래는 입력 상자(보내기는 상자 안 오른쪽 아래). #}
+    <form class="ai-form" id="aiForm" autocomplete="off">
+        <div class="ai-tools">
+            <input type="file" id="aiFile" accept="image/*" multiple hidden>
+            <button type="button" class="ai-round" id="aiAttach" aria-label="이미지 첨부">{{ icons.i('image') }}</button>
+            <div class="ai-thumbs" id="aiThumbs" hidden></div>
+        </div>
+        <div class="ai-composer">
+            <textarea id="aiInput" rows="3" maxlength="8000"
+                      placeholder="메시지 입력 (Enter 전송 / Shift+Enter 줄바꿈) — 지금 보는 화면을 함께 보냅니다"
+                      aria-label="상담 내용"></textarea>
+            <button type="submit" class="ai-send" id="aiSend" aria-label="보내기">{{ icons.i('send') }}</button>
+        </div>
+    </form>
+</div>
+{#
+  화면 맥락 — 템플릿이 `{% set assistant_ctx = {...} %}` 로 그 화면의 대상(종목 코드·글 번호 등)을 알린다.
+  ⚠️ `| tojson` 으로 내보낸다(따옴표·`</script>` 가 섞여도 깨지지 않는다).
+#}
+<script type="application/json" id="aiCtx">{{ (assistant_ctx if assistant_ctx is defined else {}) | tojson }}</script>

@@ -104,6 +104,8 @@
       스타일만 먹어 세로로 늘어진다.
     #}
     {% block extra_css %}{% endblock %}
+    {# AI 상담 시트(2026-10-19) — root 본인 전용이라 레벨 0 에만 싣는다(`_assistant.html`) #}
+    {% if level == 0 %}<link rel="stylesheet" href="/css/assistant.css?v={{ static_v }}">{% endif %}
     {#
       top layer 공용(popover 자리·dialog 바깥 판정·토스트 재-raise). 본문 안에서 싣는 화면 스크립트(관리자 콤보 등)보다
       먼저 돌아야 해서 head 에 둔다 — defer 는 문서 순서대로 돈다.
@@ -366,6 +368,7 @@
 
 </div>
 {% include "_watchlist.html" %}
+{% if level == 0 %}{% include "_assistant.html" %}{% endif %}
 
 <script>
 // (2026-09-22) 좌상단 "이동" 드롭다운 토글은 함께 사라졌다 — 목적지가 셋뿐이라
@@ -428,6 +431,12 @@ document.addEventListener('DOMContentLoaded', function () {
 <script src="/js/tooltip.js?v={{ static_v }}" defer></script>
 <script src="/js/stock_search.js?v={{ static_v }}" defer></script>
 <script src="/js/watchlist.js?v={{ static_v }}" defer></script>
+{% if level == 0 %}
+{# AI 답 마크다운 — 30.ai_center 와 같은 판(marked 14.1.4 · DOMPurify 3.2.6). 화면 스크립트(extra_js)보다 먼저 — plan.js 가 assistant 이벤트를 듣는다. #}
+<script src="/vendor/marked.min.js" defer></script>
+<script src="/vendor/dompurify.min.js" defer></script>
+<script src="/js/assistant.js?v={{ static_v }}" defer></script>
+{% endif %}
 {#
   서버가 리다이렉트로 넘긴 안내(`?msg=...`)를 토스트로 띄운다.
   ⚠️ 전에는 관리자 4화면이 각자 `<div class="alert alert-info">{{ msg }}</div>` 를

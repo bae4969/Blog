@@ -17,6 +17,8 @@
      마지막에 한 번 저장하는 것이 이 화면의 요점이다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}주식 구독 관리 · Developer Notes{% endblock %}

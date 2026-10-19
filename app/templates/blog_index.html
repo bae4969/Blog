@@ -1,4 +1,6 @@
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "blog_list", "group": nav_group, "category_id": category_id, "search": search} %}
 
 {% block content %}
 {#

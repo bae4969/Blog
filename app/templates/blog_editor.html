@@ -6,6 +6,8 @@
      편이 동작 차이를 줄인다 — 원본은 `php-final` 태그에 있다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "editor"} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}{{ '글 수정' if is_edit else '글쓰기' }} · Developer Notes{% endblock %}

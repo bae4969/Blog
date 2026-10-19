@@ -8,6 +8,8 @@
      알아서 처리하지만, 여는 자리와 닫는 자리를 옮기면 저장이 깨진다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}블로그 카테고리 · Developer Notes{% endblock %}

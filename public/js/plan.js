@@ -5,7 +5,8 @@
  *   이벤트는 원이 아니라 **갈라지는 지점과 축 라벨**이다. 원·라벨은 HTML(포커스·클릭), 선만 SVG 로 그린다.
  * - 상세: 날짜 라벨이나 원을 누르면 트리 위에 떠 있는 창. 원은 자산군 파이 + 주식·채권 종목별 파이와
  *   실행 전 대비 비중 변화(%p), 이벤트는 가지별 비중 막대와 직전 비중.
- * - 상담: `/api/v1/plan/chat` — AI 가 계획을 고치면 새 버전이 오고, 토스트의 [되돌리기] 로 직전 버전을 다시 쌓는다.
+ * - 상담은 모든 화면 아래의 AI 시트(`assistant.js`, 2026-10-19 떼어 냄)다. AI 가 계획을 고치면 `assistant:changed`
+ *   (source "plan")가 오고 여기서 다시 그린다. 상담에 보낼 화면 맥락은 `window.assistantContext()` — 지금 연 원·라벨.
  *
  * ⚠️ 금액은 서버가 오늘 시세로 낸다(`values`). 미래 노드도 오늘 시세라 **비율**을 보라는 뜻이다.
  * ⚠️ 개인 데이터라 읽기도 Bearer 다 — 쿠키 세션에서 `/api/v1/auth/token` 으로 받는다(watchlist.js 와 같은 길).
@@ -22,8 +23,6 @@
     var STATUS_LABEL = { pending: '대기', realized: '실현', dropped: '접힘' };
     //: 분류 색 — plan.css 의 `--series-N`. 순서 고정, 8번째부터는 "기타" 회색으로 접는다.
     var SERIES = 7;
-    var MAX_IMAGES = 4;
-    var IMAGE_SIDE = 1600;
 
     // 트리 배치(px) — 날짜축 칸 폭·축 x·원 칸 폭·줄 높이·첫 줄 y·원 반지름
     var AXIS_MAX = 168, AXIS_MIN = 96, AXIS_X = 14, SLOT_W = 136, ROW_H = 80, TOP = 40, R = 9;
@@ -39,24 +38,14 @@
     var floatTitle = document.getElementById('planFloatTitle');
     var floatSub = document.getElementById('planFloatSub');
     var detailEl = document.getElementById('planDetail');
-    var logEl = document.getElementById('planChatLog');
-    var form = document.getElementById('planChatForm');
-    var input = document.getElementById('planChatInput');
-    var fileInput = document.getElementById('planChatFile');
-    var thumbsEl = document.getElementById('planChatThumbs');
-    var sendBtn = document.getElementById('planChatSend');
     var historyDlg = document.getElementById('planHistory');
     var historyList = document.getElementById('planHistoryList');
     if (!treeEl) return;
 
     var plan = null;          // GET /api/v1/plan 의 응답
     var selected = null;      // 상세 창에 연 원(id) — 없으면 null
-    var images = [];          // 보낼 이미지 data URL
-    var busy = false;
-    var lastChatId = 0;   // 화면에 있는 마지막 상담 기록 — 끊긴 뒤 다시 읽을 때 새 답이 왔는지 가른다
-    var sheet = null;     // 좁은 화면의 상담 시트(아래 "상담 시트") — 넓은 화면에서도 만들지만 CSS 가 손잡이를 숨긴다
-    //: 손가락이 주 입력인 기기 — Enter 는 줄바꿈, 보내기는 버튼(휴대폰 메신저처럼. 긴 글을 쓰다 Enter 로 잘못 보냈다)
-    var coarse = window.matchMedia('(pointer: coarse)');
+    //: 좁은 화면 — 상세 창이 아래 시트가 되어 AI 상담 시트와 자리가 겹친다(그동안 상담 시트를 내린다)
+    var narrow = window.matchMedia('(max-width: 63.99rem)');
 
     // ── API ────────────────────────────────────────────────
 
@@ -796,12 +785,13 @@
         detailEl.textContent = '';
         floatEl.hidden = false;
         floatEl.scrollTop = 0;
-        if (sheet) sheet.away(true);
+        askedAbout = {};
+        if (window.assistant && narrow.matches) window.assistant.away(true);
     }
 
     function closeFloat() {
         floatEl.hidden = true;
-        if (sheet) sheet.away(false);
+        if (window.assistant) window.assistant.away(false);
         selected = null;
         openedEvent = null;
         mark();
@@ -1263,133 +1253,6 @@
         refreshFloat();
     }
 
-    // ── 상담 — 생김새는 30.ai_center 대화 화면을 따른다 ─────────
-    //    내 말 = 오른쪽 연보라 말풍선(원문 그대로), AI = 전폭 카드("ASSISTANT"·시각), 아래에 떠 있는 입력 상자.
-
-    /**
-     * AI 답을 마크다운으로 그린다 — 30.ai_center 와 같은 marked(gfm·줄바꿈 살림) + DOMPurify 정화.
-     * 표가 날 글자로 보여 읽기 힘들었다(2026-10-17 사용자). ⚠️ innerHTML 은 **정화한 결과에만** 쓴다 — AI 답엔 웹 검색
-     * 결과가 섞이므로 이 정화가 유일한 방어선이다. 링크는 새 창, 표는 좁은 화면에서 가로로 밀리게 감싼다.
-     */
-    function richText(target, text) {
-        if (!window.marked || !window.DOMPurify) { target.textContent = text; target.classList.add('is-plain'); return; }
-        target.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text, { gfm: true, breaks: true }));
-        target.querySelectorAll('a').forEach(function (a) { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
-        target.querySelectorAll('table').forEach(function (t) {
-            var wrap = el('div', 'plan-md-table');
-            t.parentNode.insertBefore(wrap, t);
-            wrap.appendChild(t);
-        });
-    }
-
-    function clock(iso) {
-        var d = iso ? new Date(iso.length === 19 ? iso + '+09:00' : iso) : new Date();
-        var k = new Date(d.getTime() + 9 * 3600 * 1000), now = new Date(Date.now() + 9 * 3600 * 1000);
-        var two = function (v) { return (v < 10 ? '0' : '') + v; };
-        var hm = two(k.getUTCHours()) + ':' + two(k.getUTCMinutes());
-        return k.toISOString().slice(0, 10) === now.toISOString().slice(0, 10) ? hm : (k.getUTCMonth() + 1) + '/' + k.getUTCDate() + ' ' + hm;
-    }
-
-    function clearEmpty() {
-        var empty = logEl.querySelector('.plan-chat__empty');
-        if (empty) empty.remove();
-    }
-
-    function addMessage(m) {
-        clearEmpty();
-        var div;
-        if (m.role === 'user') {
-            div = el('div', 'plan-msg plan-msg--user');
-            div.appendChild(el('div', 'plan-bubble', m.content));
-        } else {
-            div = el('article', 'plan-msg plan-msg--ai');
-            var head = el('header', 'plan-msg__head', 'assistant');
-            head.appendChild(el('time', 'plan-msg__time', clock(m.created_at)));
-            div.appendChild(head);
-            var body = el('div', 'plan-msg__body');
-            richText(body, m.content);
-            div.appendChild(body);
-            if (m.rev_id) div.appendChild(el('span', 'plan-msg__rev', '계획 버전 #' + m.rev_id));
-        }
-        logEl.insertBefore(div, waitEl.parentNode ? waitEl : null);
-        logEl.scrollTop = logEl.scrollHeight;
-        return div;
-    }
-
-    function emptyChat() {
-        var box = el('div', 'plan-chat__empty');
-        box.appendChild(el('div', 'plan-chat__empty-mark', '∅'));
-        box.appendChild(el('p', null, '보유 자산 화면을 첨부하거나, 다가오는 이벤트와 고민을 적어 상담을 시작하세요.'));
-        logEl.appendChild(box);
-    }
-
-    function renderChips() {
-        thumbsEl.textContent = '';
-        thumbsEl.hidden = !images.length;
-        images.forEach(function (src, i) {
-            var chip = el('span', 'plan-chip');
-            var img = el('img'); img.src = src; img.alt = '';
-            chip.appendChild(img);
-            chip.appendChild(el('span', 'plan-chip__name', '이미지 ' + (i + 1)));
-            chip.appendChild(el('span', 'plan-chip__size', '(' + Math.round(src.length * 0.75 / 1024) + ' KB)'));
-            var x = el('button', 'plan-chip__x');
-            x.type = 'button';
-            x.setAttribute('aria-label', '이미지 ' + (i + 1) + ' 빼기');
-            x.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
-                        + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
-            x.addEventListener('click', function () { images.splice(i, 1); renderChips(); });
-            chip.appendChild(x);
-            thumbsEl.appendChild(chip);
-        });
-    }
-
-    /** 긴 변을 1600px 로 줄여 JPEG 로 — 휴대폰 사진 그대로면 수 MB 라 서버 상한(3MB)을 넘는다. */
-    function shrink(file) {
-        return new Promise(function (resolve, reject) {
-            var url = URL.createObjectURL(file), img = new Image();
-            img.onload = function () {
-                var s = Math.min(1, IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-                var c = document.createElement('canvas');
-                c.width = Math.round(img.naturalWidth * s);
-                c.height = Math.round(img.naturalHeight * s);
-                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-                URL.revokeObjectURL(url);
-                resolve(c.toDataURL('image/jpeg', 0.85));
-            };
-            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('이미지를 읽지 못했습니다')); };
-            img.src = url;
-        });
-    }
-
-    function addFiles(files) {
-        var list = Array.prototype.filter.call(files, function (f) { return /^image\//.test(f.type); });
-        if (images.length + list.length > MAX_IMAGES) window.toast('이미지는 한 번에 ' + MAX_IMAGES + '장까지 보낼 수 있습니다', 'error');
-        list = list.slice(0, Math.max(0, MAX_IMAGES - images.length));
-        Promise.all(list.map(shrink)).then(function (urls) {
-            images = images.concat(urls);
-            renderChips();
-        }).catch(function (e) { window.toast(e.message, 'error'); });
-    }
-
-    //: 대화 끝의 "요청중..." 줄(점은 CSS 가 움직인다) — 30.ai_center 와 같은 대기 표시.
-    var waitEl = el('div', 'plan-wait', '요청중');
-    var timer = null;
-
-    function setBusy(on) {
-        busy = on;
-        sendBtn.disabled = on;
-        clearInterval(timer);
-        if (on) {
-            var t0 = Date.now();
-            waitEl.textContent = '요청중';
-            logEl.appendChild(waitEl);
-            timer = setInterval(function () { waitEl.textContent = '요청중 · ' + Math.round((Date.now() - t0) / 1000) + '초'; }, 1000);
-        } else if (waitEl.parentNode) {
-            waitEl.remove();
-        }
-        logEl.scrollTop = logEl.scrollHeight;
-    }
-
     function setPlan(next) {
         plan = next;
         render();
@@ -1404,107 +1267,6 @@
         }).catch(function (e) { window.toast('되돌리지 못했습니다: ' + e.message, 'error'); });
     }
 
-    function send() {
-        if (busy) return;
-        var text = input.value.trim();
-        if (!text && !images.length) return;
-        var sent = { message: text, images: images.slice() };
-        var mine = addMessage({ role: 'user', content: text + (sent.images.length ? '\n[이미지 ' + sent.images.length + '장]' : '') });
-        input.value = '';
-        images = [];
-        renderChips();
-        setBusy(true);
-        var before = plan && plan.rev_id;
-
-        api('POST', '/api/v1/plan/chat', sent).then(function (r) {
-            setBusy(false);
-            lastChatId = r.chat_id;
-            addMessage({ role: 'assistant', content: r.reply || '(계획을 고쳤습니다)', rev_id: r.rev_id });
-            sheet.arrived();
-            if (r.plan) {
-                setPlan(r.plan);
-                var opt = r.prev_rev_id ? { action: { label: '되돌리기', onClick: function () { restore(r.prev_rev_id, r.plan.rev_id); } }, duration: 8000 } : {};
-                window.toast('계획을 고쳤습니다: ' + r.summary, 'success', opt);
-            }
-            if (r.note) window.toast(r.note, 'error');
-        }).catch(function (e) {
-            // 서버에 못 닿은 실패면(휴대폰 화면이 꺼지거나 앱을 옮기면 기다리던 요청이 끊긴다) 서버는 답을 끝까지 만들어
-            // 저장한다 — 다시 보내면 AI 가 같은 일을 두 번 했다(2026-10-14~16 운영 로그). 끝나길 기다렸다 기록을 다시 읽는다.
-            if (!e.status) {
-                follow().then(function (got) {
-                    if (got) { window.toast('연결이 끊긴 동안 온 답을 불러왔습니다', 'info'); sheet.arrived(); }
-                    else failed(e);
-                }, function () { failed(e); });
-                return;
-            }
-            failed(e);
-        });
-
-        function failed(e) {
-            setBusy(false);
-            // 보낸 것을 되살려 다시 보낼 수 있게 한다.
-            mine.remove();
-            input.value = sent.message;
-            images = sent.images;
-            renderChips();
-            if (!logEl.querySelector('.plan-msg')) emptyChat();
-            // 실패해도 AI 가 그 전에 계획을 고쳤을 수 있다(쓰기는 그때그때 저장된다) — 다시 읽어 바뀌었으면 알리고,
-            // 같은 요청을 되풀이하지 않게 그때는 [다시 시도]를 뺀다(2026-10-14 검토).
-            api('GET', '/api/v1/plan').then(function (p) {
-                if (p.rev_id !== before) {
-                    setPlan(p);
-                    window.toast('상담은 실패했지만 계획이 일부 바뀌었습니다 — 버전 기록에서 확인하세요: ' + e.message, 'error');
-                } else {
-                    window.toast('상담 실패: ' + e.message, 'error', { action: { label: '다시 시도', onClick: send } });
-                }
-            }).catch(function () {
-                window.toast('상담 실패: ' + e.message + ' — 계획이 바뀌었는지 새로고침해 확인하세요', 'error');
-            });
-        }
-    }
-
-    // 서버의 상담이 끝날 때까지 기다렸다(최대 12분 — codex 는 10분이면 끊긴다) 계획·대화를 다시 그린다.
-    // 이 사이 새 답이 저장됐으면 true. 기다리는 동안의 연결 실패는 다시 묻는다(화면이 꺼져 있었을 수 있다).
-    function follow() {
-        var until = Date.now() + 12 * 60 * 1000;
-        var later = function () { return new Promise(function (ok) { setTimeout(ok, 5000); }); };
-        var poll = function () {
-            return api('GET', '/api/v1/plan/chat/busy').then(function (r) { return r.busy; }, function (e) {
-                if (e.status || Date.now() > until) throw e;
-                return true;
-            }).then(function (still) {
-                if (still) return later().then(poll);
-                return Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat')]);
-            });
-        };
-        if (!busy) setBusy(true);
-        return poll().then(function (res) {
-            var chats = res[1], newest = chats.length ? chats[chats.length - 1].chat_id : 0;
-            setPlan(res[0]);
-            if (newest <= lastChatId) return false;
-            setBusy(false);
-            showChats(chats);
-            return true;
-        });
-    }
-
-    function showChats(chats) {
-        logEl.textContent = '';
-        if (!chats.length) emptyChat();
-        chats.forEach(addMessage);
-        lastChatId = chats.length ? chats[chats.length - 1].chat_id : 0;
-    }
-
-    // 대화 기록 아래 여백 = 떠 있는 입력 상자의 실제 높이 + 4px. 고정값(10rem)으로 두면 입력창과
-    // 마지막 말풍선 사이가 너무 벌어졌다(사용자 지적). 첨부 칩이 붙어 상자가 높아지면 따라간다.
-    function fitLogPadding() {
-        var bottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 4;
-        logEl.style.paddingBottom = (form.offsetHeight + 4) + 'px';
-        if (bottom) logEl.scrollTop = logEl.scrollHeight;
-    }
-    if (window.ResizeObserver) new ResizeObserver(fitLogPadding).observe(form);
-    fitLogPadding();
-
     // 창 크기가 바뀌면 트리를 칸 폭에 다시 맞춘다(큰 원·작은 점 배분이 폭에 달렸다).
     var resizeTimer = null, lastTreeW = 0;
     window.addEventListener('resize', function () {
@@ -1514,101 +1276,37 @@
         }, 150);
     });
 
-    form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
-    input.addEventListener('keydown', function (e) {
-        // 한글 조합 중 Enter 는 글자 확정이다 — 보내지 않는다.
-        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !coarse.matches) { e.preventDefault(); send(); }
-    });
-    input.addEventListener('paste', function (e) {
-        var files = Array.prototype.map.call((e.clipboardData && e.clipboardData.items) || [], function (it) {
-            return it.kind === 'file' ? it.getAsFile() : null;
-        }).filter(Boolean);
-        if (files.length) { e.preventDefault(); addFiles(files); }
-    });
-    document.getElementById('planChatAttach').addEventListener('click', function () { fileInput.click(); });
-    fileInput.addEventListener('change', function () { addFiles(fileInput.files); fileInput.value = ''; });
-
-    // 상담창은 대화 기록만(넘치는 입력칸 위에서는 입력칸 먼저), 상세 창은 그 본문만 움직인다.
-    trapWheel(document.querySelector('.plan-chat'), function (e) {
-        var t = e.target.closest('textarea');
-        return t && t.scrollHeight > t.clientHeight ? t : logEl;
-    });
+    // 상세 창은 그 본문만 움직인다.
     trapWheel(floatEl, function () { return detailEl; });
 
-    // ── 상담 시트(좁은 화면, 2026-10-17) ───────────────────
-    //    아래 손잡이를 위로 쓸면 올라오고 아래로 내리면 접힌다(삼성페이 카드 꺼내듯). 누르기·키보드(Enter·Space)로도 연다.
-    //    끄는 동안은 손가락을 따라 움직이고, 40px 넘게 움직였으면 그 방향으로 열고 닫는다. 상세 시트가 뜨면 손잡이까지 내려 비킨다.
+    // ── AI 상담 시트와 잇기 ────────────────────────────────
+    //    상담은 이 화면을 모른다 — AI 가 계획을 고쳤거나(source "plan") 무엇이 바뀌었는지 모를 때(null) 알려 주면 다시 그리고,
+    //    상담 시트가 열리면 상세 창을 닫는다(좁은 화면에서 두 시트가 겹친다).
 
-    sheet = (function () {
-        var chatEl = document.getElementById('planChat');
-        var grip = document.getElementById('planChatGrip');
-        var dim = document.getElementById('planSheetDim');
-        var narrow = window.matchMedia('(max-width: 63.99rem)');
-        var drag = null, closedY = 0, swallowClick = false;
-
-        function isOpen() { return chatEl.classList.contains('is-open'); }
-        function translateY() { return new DOMMatrix(getComputedStyle(chatEl).transform).m42; }
-
-        function set(open) {
-            if (!open && !isOpen()) return;
-            chatEl.classList.toggle('is-open', open);
-            dim.hidden = !open;
-            grip.setAttribute('aria-expanded', String(open));
-            grip.setAttribute('aria-label', open ? '상담 닫기' : '상담 열기');
-            if (open) {
-                grip.classList.remove('has-new');
-                if (!floatEl.hidden) closeFloat();
-                fitLogPadding();
-                logEl.scrollTop = logEl.scrollHeight;
-            }
-        }
-
-        grip.addEventListener('pointerdown', function (e) {
-            if (!narrow.matches || (e.pointerType === 'mouse' && e.button !== 0)) return;
-            swallowClick = false;
-            if (!isOpen()) closedY = translateY();   // 접힌 자리 — 열린 채 끌기 시작하면 앞서 잰 값을 쓴다
-            drag = { y: e.clientY, base: translateY(), open: isOpen(), moved: false };
-            grip.setPointerCapture(e.pointerId);
-            chatEl.classList.add('is-dragging');
+    document.addEventListener('assistant:changed', function (e) {
+        var d = e.detail || {};
+        if (d.source && d.source !== 'plan') return;
+        if (d.data && d.data.doc) { setPlan(d.data); return; }
+        api('GET', '/api/v1/plan').then(setPlan).catch(function (err) {
+            window.toast('계획을 다시 읽지 못했습니다: ' + err.message, 'error');
         });
-        grip.addEventListener('pointermove', function (e) {
-            if (!drag) return;
-            var dy = e.clientY - drag.y;
-            if (Math.abs(dy) > 6) drag.moved = true;
-            var max = closedY || chatEl.offsetHeight;
-            chatEl.style.transform = 'translateY(' + Math.min(max, Math.max(0, drag.base + dy)) + 'px)';
-        });
-        function end(e) {
-            if (!drag) return;
-            var dy = e.clientY - drag.y, was = drag.open, moved = drag.moved;
-            drag = null;
-            chatEl.classList.remove('is-dragging');
-            chatEl.style.transform = '';
-            // 누르기는 여기서 연다/닫는다 — 손잡이에 포인터를 잡아 둔 터치에서는 click 이 오지 않는다(browserless 실측).
-            // 오는 기기도 있어 뒤따르는 click 한 번은 삼킨다(다음 pointerdown 이 표시를 지운다). click 은 키보드 몫이다.
-            swallowClick = true;
-            set(!moved ? !was : dy < -40 ? true : dy > 40 ? false : was);
-        }
-        grip.addEventListener('pointerup', end);
-        grip.addEventListener('pointercancel', end);
-        grip.addEventListener('click', function () {
-            if (swallowClick) { swallowClick = false; return; }
-            set(!isOpen());
-        });
-        dim.addEventListener('click', function () { set(false); });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && isOpen() && floatEl.hidden) set(false);
-        });
-        narrow.addEventListener('change', function () { set(false); });
+    });
+    //: 상담 시트를 열며 닫은 상세 창의 맥락 — 그 원·이벤트에 대해 물으려고 연 것이라 닫혀도 함께 보낸다(다른 창을 열면 지운다)
+    var askedAbout = {};
+    document.addEventListener('assistant:open', function () {
+        if (floatEl.hidden) return;
+        askedAbout = window.assistantContext();
+        closeFloat();
+    });
 
-        return {
-            /** 접혀 있는 동안 답이 오면 손잡이에 점을 찍는다. */
-            arrived: function () { if (narrow.matches && !isOpen()) grip.classList.add('has-new'); },
-            /** 상세 시트가 떠 있는 동안은 손잡이까지 내린다. */
-            away: function (on) { chatEl.classList.toggle('is-away', on); if (on) set(false); },
-        };
-    })();
-    if (coarse.matches) input.placeholder = '메시지 입력';
+    /** 상담에 보낼 지금 화면 — 연 원(가지·시작)의 id, 날짜 라벨로 연 이벤트면 그 이벤트들의 id. */
+    window.assistantContext = function () {
+        if (selected) return { node: selected };
+        if (!openedEvent || !plan) return askedAbout;
+        return { events: plan.doc.nodes.filter(function (n) {
+            return n.kind === 'event' && timeKey(n.at) === openedEvent.row && (openedEvent.title == null || n.title === openedEvent.title);
+        }).map(function (n) { return n.id; }) };
+    };
 
     // ── 상세 창 닫기 ───────────────────────────────────────
 
@@ -1760,15 +1458,9 @@
 
     // ── 시작 ───────────────────────────────────────────────
 
-    Promise.all([api('GET', '/api/v1/plan'), api('GET', '/api/v1/plan/chat'), api('GET', '/api/v1/plan/chat/busy')]).then(function (res) {
-        setPlan(res[0]);
-        showChats(res[1]);
-        // 새로고침했는데 상담이 아직 돌고 있으면(끊긴 뒤 다시 연 경우) 끝날 때까지 기다렸다 답을 띄운다.
-        if (res[2].busy) follow().then(function () { setBusy(false); }, function () { setBusy(false); });
-    }).catch(function (e) {
+    api('GET', '/api/v1/plan').then(setPlan).catch(function (e) {
         treeEl.textContent = '';
         treeEl.appendChild(el('p', 'plan-empty', '계획을 불러오지 못했습니다: ' + e.message));
-        logEl.textContent = '';
         window.toast('계획을 불러오지 못했습니다', 'error', { action: { label: '다시 시도', onClick: function () { location.reload(); } } });
     });
 })();

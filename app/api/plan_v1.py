@@ -1,22 +1,15 @@
 """`/api/v1/plan` — 투자 계획(2026-10-10). **root(레벨 0) 본인 전용**이다.
 
 AI 와 상담하며 이벤트 분기 계획을 짜고, 보유 자산 이미지를 읽혀 갱신한다. 계획 형식·검증·평가는
-[invest_plan](../services/invest_plan.py), 여기는 DB·AI 호출·권한만 맡는다.
+[invest_plan](../services/invest_plan.py), 여기는 DB·권한·메일만 맡는다.
 
-## AI 는 블로그 안의 codex CLI 다
+상담은 모든 화면 아래의 시트([assistant_v1](assistant_v1.py))이고, 계획은 거기에 [plan_ai](plan_ai.py) 로 붙는다
+(MCP 도구·프롬프트 조각·상담 뒤 요약 — 2026-10-19 분리). 매일 점검만 여기서 codex 를 조회 전용 토큰으로 부른다.
 
-처음엔 32.ai_stream API 를 거쳤는데, 거기서는 AI 가 블로그 데이터를 조회할 길이 없었다(공용이라 MCP 를 붙일 수
-없다). 그래서 블로그가 직접 codex 에 로그인하고 `codex exec` 에 블로그 MCP(`/mcp`, 읽기 전용)를 붙여 부른다
-([codex_runner](../services/codex_runner.py), [plan_mcp](plan_mcp.py)). MCP 토큰은 상담 한 번짜리다.
-codex 는 대화를 기억하지 않아 매번 시스템 프롬프트(지금 계획 문서 포함) + 최근 대화를 글로 펴서 넘긴다.
-
-⚠️ 응답은 10~60초 걸린다(글자 단위 스트리밍이 아니라 메시지 단위). 화면이 진행 표시를 띄운다.
 ⚠️ 개인 자산 데이터라 읽기도 Bearer 다(관심 종목과 같은 규칙 — [watchlist_v1](watchlist_v1.py)).
 """
 
-import json
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -24,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, text
 
-from app.api import plan_mcp
+from app.api import assistant_v1, mcp
 from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
@@ -37,10 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
 
 _KST = timezone(timedelta(hours=9))
-#: AI 에 넘기는 지난 대화 수. 계획은 시스템 프롬프트의 문서가 들고 있으니 길게 줄 필요가 없다.
-_HISTORY = 20
-_MAX_IMAGES = 4
-_MAX_IMAGE_CHARS = 4_000_000   # data URL 한 장(≈3MB). 화면이 미리 줄여 보낸다.
 
 
 async def owner(db, request: Request):
@@ -163,162 +152,6 @@ async def get_plan(request: Request):
     async with db_session() as db:
         me = await owner(db, request)
         return await plan_view(db, await latest_rev(db, me.user_index))
-
-
-class ChatMessage(BaseModel):
-    chat_id: int
-    role: str
-    content: str
-    rev_id: int | None
-    created_at: str
-
-
-@router.get("/chat", response_model=list[ChatMessage], summary="상담 대화(오래된 것부터)")
-async def get_chat(request: Request, limit: int = 100):
-    async with db_session() as db:
-        me = await owner(db, request)
-        rows = (await db.execute(text(
-            "SELECT chat_id, role, content, rev_id, created_at FROM invest_plan_chat WHERE user_index = :u "
-            "ORDER BY chat_id DESC LIMIT :n"), {"u": me.user_index, "n": max(1, min(limit, 500))})).all()
-    return [ChatMessage(chat_id=r.chat_id, role=r.role, content=r.content, rev_id=r.rev_id,
-                        created_at=r.created_at.isoformat()) for r in reversed(rows)]
-
-
-class ChatIn(BaseModel):
-    message: str = Field(default="", max_length=8000)
-    images: list[str] = Field(default_factory=list, max_length=_MAX_IMAGES,
-                              description="data:image/…;base64,… — 저장하지 않고 이번 요청에만 쓴다")
-
-
-def _flatten(messages: list[dict]) -> tuple[str, list[str]]:
-    """대화 → (codex 에 stdin 으로 넣을 글, 이미지 data URL). 시스템 프롬프트를 맨 앞에, 그 뒤로 말한 순서대로."""
-    parts, images = [], []
-    label = {"user": "사용자", "assistant": "상담가"}
-    for m in messages:
-        content = m["content"]
-        if isinstance(content, list):
-            images += [c["image_url"]["url"] for c in content if c.get("type") == "image_url"]
-            content = "\n".join(c["text"] for c in content if c.get("type") == "text")
-        parts.append(content if m["role"] == "system" else f"[{label[m['role']]}]\n{content}")
-    return "\n\n".join(parts), images
-
-
-#: 원칙·기억을 고치라는 말 — 이게 있는 상담에만 rules_set·memory_set 을 연다(2026-10-14 검토, 사용자 선택 A).
-#: 단어 검사라 넓게 잡는다("빼"·"지워"는 다른 뜻일 때도 열리지만 여는 쪽 실수라 괜찮다). 없으면 AI 가 "남길까요?"라고 묻는다.
-_NOTE_INTENT = re.compile(r"기억|원칙|규칙|잊|빼|지워|지우|삭제")
-#: 직전 답이 "원칙(기억)으로 남길까요?" 라고 물었으면 이번 답("ㅇㅇ")에 그 말이 없어도 연다 — 안 열면 물어 놓고
-#: 저장할 길이 없어 같은 질문만 되풀이했다(2026-10-16 운영 상담).
-_NOTE_ASKED = re.compile(r"(원칙|기억)으로\s*남길까요")
-
-
-def write_tools_for(message: str, last_reply: str = "") -> tuple:
-    if _NOTE_INTENT.search(message) or _NOTE_ASKED.search(last_reply):
-        return plan_mcp.WRITE_TOOLS
-    return tuple(t for t in plan_mcp.WRITE_TOOLS if t not in plan_mcp.NOTE_TOOLS)
-
-
-async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple) -> tuple[str, list[int]]:
-    """codex 한 번 → (답, 이 상담이 쌓은 버전들). 상담 동안만 유효한 MCP 토큰을 그 사람에게 묶어 넘기고, 끝나면 회수한다.
-
-    계획은 AI 가 MCP 쓰기 도구로 고친다(plan_mcp) — 고칠 때마다 이미 새 버전이 쌓여 있다.
-    ⚠️ 실패해도 그 전에 쓴 버전은 남는다 — 화면이 실패 뒤 계획을 다시 읽는다(plan.js send).
-    """
-    prompt, images = _flatten(messages)
-    token = plan_mcp.issue(user_index, allow=tools)
-    made: list[int] = []
-    try:
-        model = codex_runner.resolve_model(cfg["ai_model"])
-        reply = await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, tools,
-                                       effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
-    except codex_runner.CodexError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
-    finally:
-        made = plan_mcp.revoke(token)
-    return reply, made
-
-
-#: 상담이 돌고 있는 사용자. 휴대폰은 기다리는 사이 요청이 끊기는데 서버는 끝까지 답을 만들어 저장한다 — 화면은
-#: `/chat/busy` 로 끝나길 기다렸다 대화를 다시 읽고, 그 사이 다시 보낸 상담은 409 로 막는다(끊긴 줄 알고 다시 보내
-#: AI 가 같은 일을 두 번 했다 — 2026-10-14~16 운영 로그). 앱 워커가 하나라 프로세스 안 집합이면 충분하다.
-_CHATTING: set[int] = set()
-
-
-@router.get("/chat/busy", summary="상담이 아직 돌고 있나")
-async def chat_busy(request: Request):
-    async with db_session() as db:
-        me = await owner(db, request)
-    return {"busy": me.user_index in _CHATTING}
-
-
-@router.post("/chat", summary="상담 — AI 가 MCP 쓰기 도구로 계획을 고치면 그때마다 새 버전이 쌓인다")
-async def chat(request: Request, body: ChatIn):
-    msg = body.message.strip()
-    if not msg and not body.images:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "메시지나 이미지가 필요합니다")
-    for img in body.images:
-        if not img.startswith("data:image/") or len(img) > _MAX_IMAGE_CHARS:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이미지는 3MB 이하 data URL 이어야 합니다")
-
-    async with db_session() as db:
-        me = await owner(db, request)
-        row = await latest_rev(db, me.user_index)
-        old = _doc_of(row)
-        cfg = await app_settings.load(db)
-        history = (await db.execute(text(
-            "SELECT role, content FROM invest_plan_chat WHERE user_index = :u ORDER BY chat_id DESC LIMIT :n"),
-            {"u": me.user_index, "n": _HISTORY})).all()
-
-    if me.user_index in _CHATTING:
-        raise HTTPException(status.HTTP_409_CONFLICT, "앞의 상담이 아직 진행 중입니다")
-    _CHATTING.add(me.user_index)
-    try:
-        return await _chat(me, msg, body.images, row, old, cfg, history)
-    finally:
-        _CHATTING.discard(me.user_index)
-
-
-async def _chat(me, msg: str, images: list[str], row, old: ip.PlanDoc, cfg: dict, history) -> dict:
-    # ⚠️ AI 를 기다리는 동안(최대 10분) DB 커넥션을 붙잡지 않는다 — 세션을 닫고 부른다.
-    user_part = [{"type": "text", "text": msg or "이미지를 읽어 줘."}] + [
-        {"type": "image_url", "image_url": {"url": u}} for u in images]
-    last_reply = next((r.content for r in history if r.role == "assistant"), "")
-    tools = write_tools_for(msg, last_reply)
-    messages = ([{"role": "system", "content": ip.system_prompt(old, datetime.now(_KST), "rules_set" in tools)}]
-                + [{"role": r.role, "content": r.content} for r in reversed(history)]
-                + [{"role": "user", "content": user_part}])
-    reply, ours = await _ask(cfg, messages, me.user_index, tools)
-    reply = reply.strip()
-
-    prev = row.rev_id if row else 0
-    note = ""
-    async with db_session() as db:
-        # 상담 시작 뒤 쌓인 버전 — 이 상담이 쓴 것(ours)만 요약하고, 되돌리기(상담 직전 버전으로)는 그 사이에 다른 저장
-        # (화면의 원칙·기억·[실행함])이 없을 때만 준다. 있으면 그것까지 되돌리게 된다(2026-10-14 검토).
-        since = (await db.execute(text(
-            "SELECT rev_id, summary FROM invest_plan_rev WHERE user_index = :u AND rev_id > :p ORDER BY rev_id"),
-            {"u": me.user_index, "p": prev})).all()
-        made = [r for r in since if r.rev_id in ours]
-        undo = row.rev_id if row and made and len(made) == len(since) else None
-        if made and undo is None and row:
-            note = "상담 중 다른 저장이 있어 한 번에 되돌리지 않습니다 — 버전 기록에서 고르세요"
-        latest = await latest_rev(db, me.user_index)
-        rev_id = made[-1].rev_id if made else None
-        summary = ""
-        if made:
-            summary = " · ".join(r.summary for r in made)[:300] + f" ({ip.diff_summary(old, _doc_of(latest))})"
-            if changes := ip.change_lines(old, _doc_of(latest)):
-                reply += "\n\n[바뀐 것]\n" + "\n".join(f"- {c}" for c in changes[:30])
-        stored = msg + (f"\n[이미지 {len(images)}장]" if images else "")
-        await db.execute(text(
-            "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'user', :c)"),
-            {"u": me.user_index, "c": stored or "[이미지]"})
-        res = await db.execute(text(
-            "INSERT INTO invest_plan_chat (user_index, role, content, rev_id) VALUES (:u, 'assistant', :c, :r)"),
-            {"u": me.user_index, "c": reply or "(계획을 고쳤습니다)", "r": rev_id})
-        await db.commit()
-        plan = await plan_view(db, latest) if made else None
-    return {"chat_id": res.lastrowid, "reply": reply, "rev_id": rev_id, "prev_rev_id": undo,
-            "summary": summary, "note": note, "plan": plan}
 
 
 @router.get("/revisions", summary="계획 버전(최근 것부터)")
@@ -475,9 +308,8 @@ async def mail_tick(now: datetime) -> int:
                     continue
                 sent += 1
                 # 상담 기록에도 남긴다 — 매일 점검 메일처럼 다음 상담에서 AI 가 "그 메일"을 이어 다루게(2026-10-17 사용자: 연속성)
-                await db.execute(text(
-                    "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'assistant', :c)"),
-                    {"u": row.user_index, "c": "[이벤트 시작 메일] " + plan_mail.event_text(doc, view, ev)})
+                await assistant_v1.record(db, row.user_index, "assistant",
+                                          "[이벤트 시작 메일] " + plan_mail.event_text(doc, view, ev))
                 await db.commit()
                 logger.info("이벤트 메일 보냄: user=%s event=%s(%s) → %s", row.user_index, ev.id, ev.title, cfg["plan_mail_to"])
     return sent
@@ -532,7 +364,7 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
     from app.services import plan_mail
 
     page = f"https://blog.{settings.base_domain}/stocks/plan"
-    token = plan_mcp.issue(user_index, read_only=True)
+    token = mcp.issue(user_index, read_only=True)
     failure = None
     try:
         model = codex_runner.resolve_model(cfg["ai_model"])
@@ -541,7 +373,7 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
     except codex_runner.CodexError as e:
         failure, reply = str(e), ""
     finally:
-        plan_mcp.revoke(token)
+        mcp.revoke(token)
     check = None if failure else plan_mail.parse_check(reply)
     if check is None:
         failure = failure or f"AI 답의 형식이 깨졌습니다: {reply.strip()[:150]}"
@@ -560,9 +392,7 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
     if check is None:
         return True
     async with db_session() as db:
-        await db.execute(text(
-            "INSERT INTO invest_plan_chat (user_index, role, content) VALUES (:u, 'assistant', :c)"),
-            {"u": user_index, "c": "[매일 점검 메일] " + plan_mail.daily_text(check, day)})
+        await assistant_v1.record(db, user_index, "assistant", "[매일 점검 메일] " + plan_mail.daily_text(check, day))
         await db.commit()
     logger.info("매일 점검 메일 보냄: user=%s %s %s → %s", user_index, check["level"], check["title"], cfg["plan_mail_to"])
     return True

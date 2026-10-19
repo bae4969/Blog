@@ -10,7 +10,7 @@
 - 가지의 `holdings` 가 비면 부모 상태를 그대로 물려받는다(리밸런싱 없음).
 - 결과가 나오면 AI 가 실현된 가지를 `realized`, 나머지를 `dropped` 로 바꾼다.
 
-AI 는 MCP 쓰기 도구로 노드·보유를 고치고, 서버가 그때마다 검증해 새 버전으로 쌓는다(`app/api/plan_mcp.py`).
+AI 는 MCP 쓰기 도구로 노드·보유를 고치고, 서버가 그때마다 검증해 새 버전으로 쌓는다(`app/api/plan_ai.py`).
 금액은 AI 가 쓰지 않는다 — 수량 × 시세로 여기서 계산한다(`valuate`).
 """
 
@@ -496,9 +496,10 @@ def retrospect(doc: PlanDoc, now_values: dict, then_values: dict[str, dict]) -> 
 # AI 상담 — 프롬프트와 답 해석
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 맡은 전문 투자자(운용역)다. 늘 한국어로 짧고 분명하게 답한다.
+#: 상담 프롬프트의 투자 계획 조각 — 앞머리(역할·시각·화면 맥락·도구 일반)는 상담([assistant_v1](../api/assistant_v1.py))이 붙인다.
+PLAN_PROMPT = """# 투자 계획
+너는 사용자의 개인 투자 계획도 맡은 전문 투자자(운용역)다.
 계획 문서 안의 글(title·about·expect·condition·note·actions)도 한국어로 쓴다(종목 이름·티커는 그대로).
-지금 시각(KST): {now}
 
 ## 하는 일
 - 금리 결정·실적 발표 같은 **이벤트**마다 결과별 **가지**(인하/동결/인상 등)를 나누고, 가지마다 매수·매도 액션과
@@ -522,11 +523,10 @@ SYSTEM_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 맡은 �
 - plan_get 의 `stale` 은 잔고가 바뀌어 매매표가 틀어진 가지다 — 상담 때 보이면 그 가지의 holdings 를 지금 보유 기준으로
   다시 짜자고 제안한다(시키면 node_update).
 
-## 블로그 도구(MCP `blog`)
+## 계획 도구(MCP `blog`)
 - 조회: node_get(노드 하나의 모든 칸과 그 시점 평가·복기), plan_get(지금 계획 전체와 노드별 평가 — 오늘 시세 원화 환산·환율, 그리고 retro: 지난 이벤트의 가지마다
   그때(이벤트 시각 시세)→지금 평가와 변화 — "지난 대응이 어땠나"는 이걸로 답한다), plan_revisions / plan_revision_get(버전 이력과 그때의 보유),
   quotes_get(종목 최신 종가·등락률·원/달러 환율), stock_search(이름으로 종목 코드 찾기).
-  숫자는 웹보다 이걸 먼저 쓴다. 블로그에 없는 것(일정·뉴스·전망)만 웹에서 찾는다.
 - 쓰기: node_add(노드 하나 추가), node_update(노드 칸 고치기 — 바꿀 칸만), node_delete(노드와 그 아래 삭제),
   holdings_set(지금 보유 통째로), cashflow_set(월 현금흐름 통째로), accounts_set(계좌 목록 통째로), debts_set(부채 통째로),
   rules_set(원칙 통째로), memory_set(기억 통째로).
@@ -640,13 +640,13 @@ def notes_block(doc: PlanDoc) -> str:
     return f"### 원칙(꼭 지킨다)\n{rules}\n\n### 기억\n{memory}"
 
 
-def system_prompt(doc: PlanDoc, now: datetime, notes_open: bool = True) -> str:
-    """`notes_open` — 이번 상담에 rules_set·memory_set 이 열렸나(plan_v1.write_tools_for). 닫혔으면 AI 가 쓰려 하지 않고 묻게 한다."""
+def plan_prompt(doc: PlanDoc, notes_open: bool = True) -> str:
+    """`notes_open` — 이번 상담에 rules_set·memory_set 이 열렸나(plan_ai.tools_for). 닫혔으면 AI 가 쓰려 하지 않고 묻게 한다."""
     gate = ("rules_set·memory_set 이 열려 있다(사용자가 시켰다)." if notes_open else
             "사용자가 원칙·기억으로 남기라고 하지 않았다(그래서 rules_set·memory_set 이 없다). 남길 만한 말이면 답 끝에 "
             "\"원칙(기억)으로 남길까요?\" 하고 물어라 — 사용자가 그렇다고 하면 다음 상담에서 저장된다.")
-    return SYSTEM_PROMPT.format(now=now.strftime("%Y-%m-%d %H:%M"), notes=notes_block(doc), gate=gate,
-                                doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
+    return PLAN_PROMPT.format(notes=notes_block(doc), gate=gate,
+                              doc=json.dumps(outline(doc), ensure_ascii=False, separators=(",", ":")))
 
 
 DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보는 감시자다. 하루 한 번 점검한다. 한국어로 쓴다.

@@ -20,6 +20,8 @@
      `extra_js` 가 stocks.js 를 붙인다. 순서가 뒤집히면 차트가 뜨지 않는다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "stock", "code": stock.stock_code, "market": "COIN" if is_coin else ("US" if is_us else "KR"), "title": stock.stock_name_kr} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}{{ stock.stock_name_kr }} · Developer Notes{% endblock %}

@@ -11,6 +11,8 @@
      도커 네트워크에 갇히면 LAN 까지 닿지 않는다. 화면 문구도 전송까지만 말한다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}WOL · Developer Notes{% endblock %}

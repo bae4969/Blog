@@ -15,6 +15,8 @@
      `KRWEUR = FXKRW × FXEUR` 같은 식이 깨지지 않는다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}지수·환율 구독 관리 · Developer Notes{% endblock %}

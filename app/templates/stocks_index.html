@@ -13,6 +13,8 @@
      (히트맵 위에 따로 있던 시장 탭 띠는 같은 버튼이 둘이라 2026-10-07 에 걷었다.)
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "stocks", "market": default_market} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}주식 · Developer Notes{% endblock %}
