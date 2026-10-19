@@ -9,9 +9,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api import mcp, plan_ai
+from app.api import blog_ai, market_ai, mcp, plan_ai
 
-mcp.register(plan_ai)
+mcp.register(plan_ai, market_ai, blog_ai)
 app = FastAPI()
 app.include_router(mcp.router)
 client = TestClient(app)
@@ -41,10 +41,13 @@ def test_초기화와_도구_목록():
     init = _rpc(t, "initialize", {"protocolVersion": "2025-06-18"}).json()["result"]
     assert init["protocolVersion"] == "2025-06-18" and "tools" in init["capabilities"]
     names = [x["name"] for x in _rpc(t, "tools/list").json()["result"]["tools"]]
-    assert names == ["plan_get", "node_get", "plan_revisions", "plan_revision_get", "quotes_get", "stock_search",
-                     "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
-                     "rules_set", "memory_set"]
-    assert set(plan_ai.WRITE_TOOLS) == set(names[6:]) == set(mcp.write_tools())
+    assert names[:13] == ["plan_get", "node_get", "plan_revisions", "plan_revision_get",
+                          "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
+                          "rules_set", "memory_set"]
+    assert set(plan_ai.WRITE_TOOLS) == set(names[4:13]) == set(mcp.write_tools())
+    assert {"quotes_get", "stock_search", "stock_candles", "stock_disclosures", "market_heatmap", "index_quotes",
+            "watchlist_get", "backtest_presets", "post_search", "post_get"} <= set(names[13:])
+    assert len(names) == len(set(names))   # 모듈끼리 이름이 겹치지 않는다
     mcp.revoke(t)
 
 
@@ -255,6 +258,20 @@ def test_조회_도구는_모두_읽기_전용_표시():
     # 표시가 없으면 비대화식 codex 가 승인을 기다리다 막힌다(2026-10-10 스파이크)
     for t in mcp.tools():
         assert t["annotations"]["readOnlyHint"] is (t["name"] not in mcp.write_tools()), t["name"]
+
+
+def test_블로그_본문은_글로_편다():
+    html = "<p>첫 줄&amp;둘</p><script>alert(1)</script><ul><li>가</li><li>나</li></ul>"
+    assert blog_ai._text(html) == "첫 줄&둘\n가\n나"
+
+
+def test_캔들은_물은_기간만_200개까지():
+    from datetime import datetime, timedelta
+    now = datetime.now() + timedelta(hours=9)
+    rows = [{"at": (now - timedelta(days=d + 0.5)).strftime("%Y-%m-%dT%H:%M:%S"), "open": 1, "high": 2, "low": 0, "close": 1,
+             "volume": 5} for d in range(400, -1, -1)]
+    out = market_ai._rows(rows, True, 90)
+    assert len(out) == 90 and out[-1][5] == 5 and len(market_ai._rows(rows, False, 365)) == 200
 
 
 @pytest.mark.parametrize("name", ["mcp.py", "assistant_v1.py"])

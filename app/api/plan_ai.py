@@ -2,7 +2,7 @@
 
 상담([assistant_v1](assistant_v1.py))과 MCP([mcp](mcp.py))는 계획을 모른다. `main.py` 가 이 모듈을 둘에 붙인다.
 
-- MCP: 조회(지금 계획·버전 이력·시세·종목 검색) + 쓰기(노드 추가·수정·삭제, 보유·현금흐름·계좌·부채·원칙·기억 통째로).
+- MCP: 조회(지금 계획·버전 이력 — 시세·종목 검색은 [market_ai](market_ai.py)) + 쓰기(노드 추가·수정·삭제, 보유·현금흐름·계좌·부채·원칙·기억 통째로).
   **계획을 고치는 길은 쓰기 도구뿐이다**(전에 쓰던 답 끝의 plan 블록은 2026-10-10 에 걷었다 — AI 가 노드 하나 고치려고
   문서 전체를 다시 쓰다 빠뜨리는 일이 없게). 쓰기마다 `PlanDoc` 으로 검증하고 통과하면 새 버전으로 쌓는다.
 - 상담: `begin` 이 상담 직전 계획을 읽고, `prompt` 가 프롬프트 조각을, `tools_for` 가 이번 상담에 열 쓰기 도구를,
@@ -16,7 +16,6 @@ from sqlalchemy import text
 from app.api.mcp import RO, RW, RW_DEL, obj
 from app.api.plan_v1 import _doc_of, _save_rev, latest_rev, plan_view, prices, write_lock
 from app.services import invest_plan as ip
-from app.ui.stocks import _latest_quotes, _stock_page
 
 #: 쓰기 도구 이름 — codex_runner 가 상담이 연 것에만 자동 승인을 건다.
 WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
@@ -36,12 +35,6 @@ TOOLS = [
      "inputSchema": obj()},
     {"annotations": RO, "name": "plan_revision_get", "description": "특정 버전의 계획 문서와 평가(평가는 오늘 시세 기준).",
      "inputSchema": obj({"rev_id": {"type": "integer"}}, ["rev_id"])},
-    {"annotations": RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률과 그 값의 시각(as_of — 마지막 10분봉, KR·COIN 은 KST·US 는 미국 동부 현지시각). 장중이면 확정 종가가 아니다. market 은 KR·US·COIN. 원/달러 환율도 함께 준다.",
-     "inputSchema": obj({"items": {"type": "array", "maxItems": 30, "items": obj(
-         {"code": {"type": "string"}, "market": {"type": "string", "enum": ["KR", "US", "COIN"]}}, ["code", "market"])}},
-         ["items"])},
-    {"annotations": RO, "name": "stock_search", "description": "종목 이름·코드로 검색(최대 10개) — 코드를 모를 때 쓴다. market 을 비우면 한국+미국.",
-     "inputSchema": obj({"q": {"type": "string"}, "market": {"type": "string", "enum": ["KR", "US", "COIN"]}}, ["q"])},
     {"annotations": RW, "name": "node_add",
      "description": "노드(이벤트·가지) 하나를 더한다. node 는 계획 문서 형식의 노드 객체 그대로다. 저장되면 새 버전 번호를 준다.",
      "inputSchema": obj({"node": {"type": "object"}}, ["node"])},
@@ -77,11 +70,6 @@ TOOLS = [
 # MCP 도구
 # ---------------------------------------------------------------------------
 
-async def _usdkrw(db) -> float | None:
-    fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
-    return fx["close"] if fx else None
-
-
 async def call(db, user_index: int, name: str, args: dict):
     if name == "plan_get":
         return await plan_view(db, await latest_rev(db, user_index))
@@ -104,24 +92,6 @@ async def call(db, user_index: int, name: str, args: dict):
         if row is None:
             raise ValueError("없는 버전입니다")
         return await plan_view(db, row)
-    if name == "quotes_get":
-        items = args.get("items") or []
-        stocks = [i["code"] for i in items if i.get("market") != "COIN"]
-        coins = [i["code"] for i in items if i.get("market") == "COIN"]
-        sq = await _latest_quotes(db, [(c, "s") for c in stocks])
-        cq = await _latest_quotes(db, [(c, "c") for c in coins])
-        def one(i):
-            q = dict((cq if i.get("market") == "COIN" else sq).get(i["code"]) or {"close": None})
-            if q.get("as_of"):
-                q["as_of"] = f"{q['as_of']:%Y-%m-%d %H:%M} {'ET' if i.get('market') == 'US' else 'KST'}"
-            return {"code": i["code"], "market": i.get("market"), **q}
-        return {"usdkrw": await _usdkrw(db), "quotes": [one(i) for i in items]}
-    if name == "stock_search":
-        q = str(args.get("q", "")).strip()[:50]
-        if not q:
-            raise ValueError("q 가 비었습니다")
-        _, rows = await _stock_page(db, args.get("market") or "", q, 1, 10)
-        return [{"code": r.code, "name_kr": r.name_kr, "name_en": r.name_en, "market": r.market} for r in rows]
     if name in WRITE_TOOLS:
         return await _write(db, user_index, name, args)
     raise ValueError(f"모르는 도구: {name}")
