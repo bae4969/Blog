@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT = 600
 #: codex 는 한 번에 하나만 — 한 번이 약 400MB 라 상담·매일 점검이 겹치면 테스트 컨테이너(512M)가 넘친다. 뒤의 것은 기다린다.
-#: 기다림도 상한이 있다(MCP 토큰 수명 1260초 = 기다림 600 + 실행 600 + 여유 — plan_mcp._TTL).
+#: 기다림도 상한이 있다(MCP 토큰 수명 1260초 = 기다림 600 + 실행 600 + 여유 — mcp._TTL).
 _RUN_LOCK = asyncio.Lock()
 LOCK_WAIT = 600
 #: 끝내라고(SIGTERM) 한 뒤 기다리는 시간. ⚠️ SIGKILL 은 쓰지 않는다 — 머리 주석의 커널 패닉.
@@ -148,11 +148,11 @@ async def _run(prompt, model, images, mcp_url, mcp_token, write_tools, effort) -
             cmd += ["-c", f'model_reasoning_effort="{effort}"']
         extra = {}
         if mcp_url and mcp_token:
-            # 승인할 사람이 없다 — 읽기 전용 표시(readOnlyHint)가 붙은 도구만 바로 부르게 한다(plan_mcp 의 도구는 전부 그렇다).
+            # 승인할 사람이 없다 — 읽기 전용 표시(readOnlyHint)가 붙은 도구만 바로 부르게 한다(mcp.RO — 조회 도구는 전부 그렇다).
             cmd += ["-c", f'mcp_servers.blog.url="{mcp_url}"',
                     "-c", 'mcp_servers.blog.bearer_token_env_var="BLOG_MCP_TOKEN"',
                     "-c", 'mcp_servers.blog.default_tools_approval_mode="writes"']
-            # 쓰기 도구는 도구별로 자동 승인 — 서버가 검증·버전 저장·되돌리기를 맡는다(plan_mcp.WRITE_TOOLS).
+            # 쓰기 도구는 도구별로 자동 승인 — 서버가 검증·버전 저장·되돌리기를 맡는다(상담이 연 쓰기 도구 — mcp.issue(allow=…)).
             for tool in write_tools:
                 cmd += ["-c", f'mcp_servers.blog.tools.{tool}.approval_mode="approve"']
             extra["BLOG_MCP_TOKEN"] = mcp_token

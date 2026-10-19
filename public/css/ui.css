@@ -1467,9 +1467,9 @@
      * ⚠️ 이웃 버튼과 틈이 좁으면(4px 등) 두 영역이 몇 px 겹친다 — 겹친 곳은 뒤 버튼이 받는다.
      */
     @media (any-pointer: coarse) {
-        :where(.c-btn, .btn, .c-search button, .plan-round, .c-toast__close) { position: relative; }
+        :where(.c-btn, .btn, .c-search button, .ai-round, .c-toast__close) { position: relative; }
 
-        :where(.c-btn, .btn, .c-search button, .c-watch__rm, .plan-round, .c-toast__close)::after {
+        :where(.c-btn, .btn, .c-search button, .c-watch__rm, .ai-round, .c-toast__close)::after {
             content: "";
             position: absolute;
             inset-block-start: 50%;

@@ -81,7 +81,8 @@ def test_변경_요약은_서버가_센다():
 
 
 def test_프롬프트에_문서와_시각이_들어간다():
-    p = ip.system_prompt(_doc(), datetime(2026, 10, 10, 9, 0))
+    from app.api import assistant_v1
+    p = assistant_v1.system_prompt(datetime(2026, 10, 10, 9, 0), [ip.plan_prompt(_doc())])
     assert "2026-10-10 09:00" in p and '"fomc"' in p
     body = p.split("```json\n", 1)[1].split("\n```", 1)[0]     # 실린 뼈대 JSON
     assert '"holdings":[{"kind":"stock"' in body          # 지금 보유는 싣는다
@@ -250,18 +251,6 @@ class TestCashflow:
         assert ip.diff_summary(_doc(), d) == "현금흐름 갱신"
 
 
-def test_대화는_글로_펴고_이미지는_따로():
-    from app.api.plan_v1 import _flatten
-    prompt, images = _flatten([
-        {"role": "system", "content": "지시"},
-        {"role": "assistant", "content": "이전 답"},
-        {"role": "user", "content": [{"type": "text", "text": "이걸 읽어 줘"},
-                                     {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]},
-    ])
-    assert prompt == "지시\n\n[상담가]\n이전 답\n\n[사용자]\n이걸 읽어 줘"
-    assert images == ["data:image/png;base64,AAAA"]
-
-
 class TestRetrospect:
     """복기 — 지난 이벤트의 가지마다 그때(이벤트 시각 시세)→지금(오늘 시세)."""
 
@@ -303,9 +292,9 @@ class TestNotes:
     def test_상담과_점검_프롬프트에_늘_싣는다(self):
         doc = ip.PlanDoc.model_validate({"rules": ["레버리지 ETF 안 씀"], "memory": ["상여는 1월·7월"]})
         now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
-        for prompt in (ip.system_prompt(doc, now), ip.daily_prompt(doc, now)):
+        for prompt in (ip.plan_prompt(doc), ip.daily_prompt(doc, now)):
             assert "- 레버리지 ETF 안 씀" in prompt and "- 상여는 1월·7월" in prompt
-        assert "(없음)" in ip.system_prompt(ip.PlanDoc(), now)
+        assert "(없음)" in ip.plan_prompt(ip.PlanDoc())
 
     def test_변경_요약(self):
         old = ip.PlanDoc()
@@ -419,9 +408,8 @@ def test_바뀐_것_줄():
 
 
 def test_원칙_기억_도구가_닫힌_상담은_프롬프트가_알린다():
-    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone(timedelta(hours=9)))
-    assert "원칙(기억)으로 남길까요?\" 하고 물어라" in ip.system_prompt(ip.PlanDoc(), now, notes_open=False)
-    assert "열려 있다" in ip.system_prompt(ip.PlanDoc(), now)
+    assert "원칙(기억)으로 남길까요?\" 하고 물어라" in ip.plan_prompt(ip.PlanDoc(), notes_open=False)
+    assert "열려 있다" in ip.plan_prompt(ip.PlanDoc())
 
 
 class TestAccountsDebts:

@@ -1,0 +1,407 @@
+/* ===========================================
+   AI 상담 시트(2026-10-19) — 모든 화면 아래(root 전용, `_assistant.html`)
+   ===========================================
+   투자 계획 화면의 상담(2026-10-10~)을 떼어 냈다. 생김새는 30.ai_center 대화 화면을 따른다(연보라 내 말풍선 ·
+   전폭 AI 카드 · 떠 있는 입력 상자). 평소엔 손잡이 줄만 보이고, 끌어올리거나 누르면 올라온다(삼성페이 카드 꺼내듯).
+
+   · 좁은 화면(64rem 미만): 폭 전체·90dvh, 열린 동안 뒤를 어둡게 덮고 멈춘다(11.web_design bottom-sheet.md).
+   · 넓은 화면: 가운데 48rem·70dvh, 덮지 않는다 — 보고 있는 화면을 같이 보며 묻게(사용자: "지금 보는 화면을 같이").
+   ⚠️ 화면 맨 아래는 휴대폰의 홈·뒤로 제스처 자리다 — 손잡이는 safe-area 위로 띄우고, 폭 전체·56px 를 누를 자리로 둔다.
+*/
+
+:root:has(.ai-sheet) {
+    --ai-grip-h: 3.5rem;
+    --ai-peek: calc(var(--ai-grip-h) + env(safe-area-inset-bottom, 0px));   /* 접혔을 때 보이는 높이 */
+}
+
+/* 접힌 손잡이 줄이 본문 끝·토스트·백테스트 진행 표시를 가리지 않게 그만큼 올린다 */
+:root:has(.ai-sheet) body { padding-block-end: var(--ai-peek); }
+:root:has(.ai-sheet) .c-toast-host { inset-block-end: calc(var(--ai-peek) + 0.5rem); }
+:root:has(.ai-sheet) .backtest-progress { inset-block-end: calc(var(--ai-peek) + 0.5rem); }
+
+.ai-sheet {
+    position: fixed;
+    z-index: 140;   /* 투자 계획 상세 시트(150) 아래 */
+    inset-block-end: 0;
+    inset-inline: 0;
+    display: flex;
+    flex-direction: column;
+    block-size: 90dvh;
+    overflow: hidden;
+    border: 1px solid var(--bae-border);
+    border-block-end: 0;
+    border-radius: 1rem 1rem 0 0;
+    background: var(--bae-bg);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);   /* 정본 서랍 그림자를 위로 — 체결 시트(stocks.css)와 같은 값 */
+    transform: translateY(calc(100% - var(--ai-peek)));
+    transition: transform 0.28s var(--ease);
+}
+
+.ai-sheet.is-open { transform: none; }
+.ai-sheet.is-dragging { transition: none; }
+/* 화면의 다른 시트(투자 계획 상세)가 떠 있으면 손잡이까지 내려 겹치지 않게 */
+.ai-sheet.is-away { transform: translateY(100%); }
+/* 접혀 있으면 손잡이 줄 아래로 대화 글이 비쳤다 — 끄는 동안·열려 있을 때만 보인다 */
+.ai-sheet:not(.is-open):not(.is-dragging) :is(.ai-log, .ai-form) { visibility: hidden; }
+
+@media (min-width: 64rem) {
+    .ai-sheet {
+        inset-inline: max(1rem, calc((100% - 48rem) / 2));
+        block-size: min(70dvh, 48rem);
+    }
+}
+
+@media (max-width: 63.99rem) {
+    /* 열린 동안 뒤 페이지는 멈춘다 — 짧은 가로 화면에서 깔개 위를 쓸면 뒤가 움직였다(체결 시트와 같은 방식) */
+    html:has(.ai-sheet.is-open) { overflow: hidden; }
+}
+
+.ai-dim {
+    position: fixed;
+    z-index: 139;
+    inset: 0;
+    background: var(--shadow-overlay);
+}
+
+.ai-dim[hidden] { display: none; }
+
+@media (min-width: 64rem) {
+    .ai-dim { display: none; }
+}
+
+/* ── 손잡이 ─────────────────────────────────────────────── */
+
+.ai-grip {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 100%;
+    block-size: var(--ai-grip-h);
+    padding: 0;
+    border: 0;
+    border-radius: 1rem 1rem 0 0;
+    background: none;
+    cursor: grab;
+    touch-action: none;   /* 끄는 동안 브라우저가 페이지를 스크롤하지 않게 */
+}
+
+.ai-grip__bar {
+    position: relative;
+    inline-size: 4.5rem;
+    block-size: 5px;
+    border-radius: 999px;
+    background: var(--bae-text-dim);
+}
+
+.ai-grip:hover .ai-grip__bar { background: var(--bae-text-muted); }
+.ai-grip:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -4px; }
+
+/* 접혀 있는 동안 온 답 — 손잡이 오른쪽 끝에 정본 알림 점(8px 위험색 + 1.5px 시트 바탕색 링) */
+.ai-grip.has-new .ai-grip__bar::after {
+    content: "";
+    position: absolute;
+    inset-block-start: -1.5px;
+    inset-inline-end: -14px;
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: var(--bae-danger);
+    box-shadow: 0 0 0 1.5px var(--bae-bg);   /* 링 = 시트 바탕색 — 11.web_design bottom-sheet.md */
+}
+
+/* ── 대화 ───────────────────────────────────────────────── */
+
+.ai-log {
+    flex: 1;
+    min-block-size: 0;
+    padding: var(--space-2) var(--space-2) 10rem;   /* 아래는 떠 있는 입력 상자 높이만큼 — assistant.js 가 실제 높이로 맞춘다 */
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* 끝에서 손가락으로 당겨도 페이지로 넘어가지 않게(휠은 assistant.js) */
+    scrollbar-width: none;
+}
+
+.ai-log::-webkit-scrollbar { display: none; }
+.ai-log > * + * { margin-block-start: 12px; }
+
+/* 내 말 — 오른쪽 연보라 말풍선, 원문 그대로 */
+.ai-msg--user { display: flex; justify-content: flex-end; }
+
+.ai-bubble {
+    max-inline-size: 85%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--user-bubble-bg);
+    color: var(--bae-accent-text);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+/* 내 말 위의 화면 표시(`[화면: …]`) — 말풍선 밖 작은 글자 */
+.ai-msg__where {
+    display: block;
+    margin-block-end: 2px;
+    color: var(--bae-text-dim);
+    font-size: 10px;
+    text-align: end;
+}
+
+.ai-msg--user > div { display: flex; flex-direction: column; align-items: flex-end; max-inline-size: 85%; }
+.ai-msg--user .ai-bubble { max-inline-size: 100%; }
+
+/* AI — 전폭 카드, 머리에 ASSISTANT · 시각 */
+.ai-msg--ai {
+    padding: 12px 16px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.ai-msg__head {
+    margin-block-end: 8px;
+    color: var(--bae-text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.ai-msg__time {
+    margin-inline-start: 8px;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0;
+    opacity: 0.7;
+}
+
+.ai-msg__body {
+    color: var(--bae-text-primary);
+    font-size: 14px;
+    line-height: 20px;
+    overflow-wrap: break-word;
+}
+
+/* 마크다운(marked) 결과 — 30.ai_center 의 .assistant-md 와 같은 톤. 첫·끝 요소의 바깥 여백은 카드 안쪽 여백과 겹치지 않게 뺀다. */
+.ai-msg__body.is-plain { white-space: pre-wrap; }
+.ai-msg__body > :first-child { margin-block-start: 0; }
+.ai-msg__body > :last-child { margin-block-end: 0; }
+.ai-msg__body p,
+.ai-msg__body ul,
+.ai-msg__body ol,
+.ai-msg__body blockquote,
+.ai-msg__body pre,
+.ai-md-table { margin-block: 0 10px; }
+.ai-msg__body ul,
+.ai-msg__body ol { padding-inline-start: 1.4em; }
+.ai-msg__body li + li { margin-block-start: 2px; }
+.ai-msg__body h1,
+.ai-msg__body h2,
+.ai-msg__body h3,
+.ai-msg__body h4 { margin-block: 14px 6px; font-size: 15px; line-height: 22px; font-weight: 700; }
+.ai-msg__body blockquote {
+    padding-inline-start: 10px;
+    border-inline-start: 3px solid var(--bae-border-hover);
+    color: var(--bae-text-muted);
+}
+.ai-msg__body pre {
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--bae-bg-alt);
+    overflow-x: auto;
+}
+.ai-msg__body pre code { padding: 0; background: none; }
+.ai-msg__body hr { border: 0; border-block-start: 1px solid var(--bae-border); margin-block: 12px; }
+
+/* 표는 좁은 화면에서 카드 밖으로 넘치지 않고 가로로 밀린다 */
+.ai-md-table { overflow-x: auto; }
+.ai-md-table table { border-collapse: collapse; font-size: 13px; line-height: 18px; }
+.ai-md-table th,
+.ai-md-table td {
+    padding: 5px 9px;
+    border: 1px solid var(--bae-border);
+    text-align: start;
+    vertical-align: top;
+}
+.ai-md-table th { background: var(--bae-surface-alt); font-weight: 600; white-space: nowrap; }
+
+.ai-msg__body a { color: var(--bae-accent-fg); text-decoration: underline; }
+.ai-msg__body a:hover { color: var(--bae-accent-fg-hover); }
+
+.ai-msg__body code {
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--bae-surface-alt);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
+}
+
+/* 모듈이 남긴 표시(계획 버전 #N 등) */
+.ai-msg__badge {
+    display: inline-block;
+    margin-block-start: 8px;
+    color: var(--bae-accent-fg);
+    font-size: 11px;
+}
+
+/* 대기 — 대화 끝 가운데 작은 글자, 뒤의 점이 1.6초 주기로 늘어난다 */
+.ai-wait {
+    color: var(--bae-text-dim);
+    font-size: 10px;
+    text-align: center;
+}
+
+.ai-wait::before,
+.ai-wait::after { content: ""; display: inline-block; inline-size: 1.5em; }
+.ai-wait::after { text-align: start; animation: ai-dots 1.6s linear infinite; }
+
+@keyframes ai-dots {
+    0%, 24.99% { content: "\00A0"; }
+    25%, 49.99% { content: "\00A0."; }
+    50%, 74.99% { content: "\00A0.."; }
+    75%, 100% { content: "\00A0..."; }
+}
+
+/* 빈 상태 — 가운데 ∅ */
+.ai-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 100%;
+    max-inline-size: 28rem;
+    margin-inline: auto;
+    color: var(--bae-text-dim);
+    font-size: 14px;
+    text-align: center;
+}
+
+.ai-empty p { margin: 0; }
+.ai-empty__mark { margin-block-end: 12px; font-size: 48px; line-height: 1; }
+
+/* ── 입력 — 시트 아래에 떠 있다. 대화가 뒤로 비친다. ─────── */
+
+.ai-form {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    padding: 0 var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));   /* 좌우·아래 8px — 말풍선과 같은 여백 */
+    pointer-events: none;
+}
+
+.ai-form > * { pointer-events: auto; }
+
+.ai-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 4px;
+}
+
+.ai-round {
+    display: grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    padding: 0;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 999px;
+    background: var(--bae-surface-alt);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: var(--bae-text-muted);
+    cursor: pointer;
+}
+
+.ai-round:hover { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+/* 입력 상자 위 원형 버튼은 정본의 1px 예외(button.md 포커스 링 — `#attach-btn`): 링 1px + 테두리 accent-fg */
+.ai-round:focus-visible { outline: none; border-color: var(--bae-accent-fg); box-shadow: 0 0 0 1px var(--bae-accent-fg); }
+.ai-round .c-ico { inline-size: 16px; block-size: 16px; }
+
+.ai-thumbs { display: contents; }
+.ai-thumbs[hidden] { display: none; }
+
+.ai-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-inline-size: 20rem;
+    padding: 2px 6px;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+    font-size: 12px;
+}
+
+.ai-chip img { inline-size: 20px; block-size: 20px; border-radius: 4px; object-fit: cover; }
+.ai-chip__size { color: var(--bae-text-dim); }
+
+.ai-chip__x {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bae-text-dim);
+    cursor: pointer;
+}
+
+.ai-chip__x:hover { color: var(--bae-danger); }
+.ai-chip__x .c-ico { inline-size: 12px; block-size: 12px; }
+
+.ai-composer {
+    position: relative;
+    border: 1.5px solid var(--bae-border-hover);
+    border-radius: 12px;
+    background: var(--bae-surface-alt);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.ai-composer:focus-within { border-color: var(--bae-accent-fg); }
+
+.ai-composer textarea {
+    display: block;
+    inline-size: 100%;
+    padding: 12px 48px 12px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--bae-text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 14px;
+    line-height: 20px;
+    resize: none;
+    outline: none;
+}
+
+.ai-composer textarea::placeholder { color: var(--bae-text-dim); }
+
+.ai-send {
+    position: absolute;
+    inset-inline-end: 8px;
+    inset-block-end: 8px;
+    display: grid;
+    place-items: center;
+    inline-size: 32px;
+    block-size: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--bae-accent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: var(--bae-accent-text);
+    cursor: pointer;
+}
+
+.ai-send:hover { background: var(--bae-accent-hover); }
+.ai-send:active { background: var(--bae-accent-press); }
+.ai-send:disabled { background: var(--bae-surface-hover); color: var(--bae-text-dim); cursor: default; }
+.ai-send .c-ico { inline-size: 16px; block-size: 16px; }
+
+@media (max-width: 63.99rem) {
+    /* 휴대폰 입력 — 16px 아래면 iOS 가 누를 때 화면을 키운다 */
+    .ai-composer textarea { font-size: 16px; line-height: 22px; }
+}
