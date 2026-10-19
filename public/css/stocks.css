@@ -1491,109 +1491,6 @@ details[open] > .config-section-title.clickable {
     padding: 10px 14px;
 }
 
-/* 프리셋 관리 */
-.preset-section {
-    margin-bottom: 0;
-    position: relative;
-}
-
-.preset-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
-}
-
-.preset-count {
-    font-size: 0.6875rem;
-    color: var(--bae-text-dim);
-}
-
-.preset-save-row {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 4px;
-}
-
-.preset-name-input {
-    flex: 1;
-    min-width: 0;
-}
-
-.preset-list {
-    display: flex;
-    flex-direction: column;
-    max-height: 200px;
-    overflow-y: auto;
-    /* 터치 기기 — 삭제(×) 버튼의 44px 누름 자리(ui.css `::after`)가 목록 밖으로 가로 5px·세로 3px 나와 가로 스크롤바가 생기고
-       옆으로 밀려 이름 앞이 잘렸다(2026-10-19 사용자). 가로는 막고, 아래 여백으로 세로 넘침을 받는다. */
-    overflow-x: hidden;
-    padding-block-end: 4px;
-}
-
-.preset-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--bae-border);
-    font-size: 0.8125rem;
-}
-
-.preset-item:last-child {
-    border-bottom: none;
-}
-
-.preset-item .portfolio-strategy-badge {
-    flex-shrink: 0;
-    margin-left: auto;   /* 이름이 늘어나지 않으므로 배지·삭제를 줄 끝으로 민다 — 연필은 이름 바로 뒤 */
-}
-
-.preset-item-name {
-    flex: 0 1 auto;
-    min-width: 0;
-    color: var(--bae-text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    cursor: pointer;
-}
-
-.preset-item-name:hover {
-    color: var(--bae-accent-fg);
-}
-
-.preset-item-name[hidden] { display: none; }
-
-/* 프리셋 이름 연필(정본 inline-edit.md) — 마우스 기기는 줄에 올렸을 때·포커스 때만, 손가락은 늘 보인다. */
-.preset-rename-btn {
-    display: inline-flex;
-    flex-shrink: 0;
-    padding: 4px;
-    border: none;
-    border-radius: var(--border-radius-sm);
-    background: none;
-    color: var(--bae-text-dim);
-    font-size: 14px;
-    cursor: pointer;
-}
-
-.preset-rename-btn:hover { color: var(--bae-text-primary); }
-.preset-rename-btn[hidden] { display: none; }
-
-@media (hover: hover) {
-    .preset-rename-btn { opacity: 0; }
-
-    .preset-item:hover .preset-rename-btn,
-    .preset-rename-btn:focus-visible { opacity: 1; }
-}
-
-.preset-rename-input {
-    flex: 1;
-    min-width: 0;
-    padding: 2px 8px;
-}
-
 .config-save-row {
     display: flex;
     align-items: center;
@@ -1747,11 +1644,13 @@ details[open] > .config-section-title.clickable {
 
 /* 공개/비공개 토글 — 이름 옆 작은 알약 버튼. 켜짐(공개)은 accent tint 로 표시한다.
    ⚠️ 색만으로 상태를 말하지 않는다 — 라벨(공개/비공개)이 함께 바뀐다. */
+/* 이름(늘어나지 않는다) 뒤 빈칸 — 공개 토글·ⓘ·목록 버튼을 줄 끝으로 민다(토글이 숨어도 목록 버튼은 끝에) */
+.portfolio-name-gap { flex: 1; }
+
 .portfolio-public-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-left: auto;  /* 이름이 늘어나지 않으므로 토글을 줄 끝으로 민다 */
     padding: 3px 10px;
     border: 1px solid var(--bae-border);
     border-radius: var(--border-radius-pill);
@@ -1773,6 +1672,88 @@ details[open] > .config-section-title.clickable {
     border-color: var(--bae-accent-fg);
     color: var(--bae-accent-fg);
 }
+
+/* ── 내 포트폴리오(2026-10-19 — 프리셋을 합쳤다) ── ☆ 줄 끝 목록 버튼이 여는 창(popover, top layer).
+   자리는 backtest.js 가 버튼 아래에 맞춘다. 줄 = [이름·종목 요약(누르면 불러오기)] [점수] [전략·공개] [지우기]. */
+.portfolio-list-btn { flex-shrink: 0; }
+
+.portfolio-menu {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    max-height: min(26rem, 70dvh);
+    padding: 0;
+    overflow: hidden auto;   /* 가로는 막는다 — 지우기 버튼의 44px 누름 자리가 넘쳐 가로 스크롤이 생겼다(프리셋 목록 때) */
+    overscroll-behavior: contain;   /* 목록 끝에서 더 굴려도 페이지가 따라 움직이지 않게 */
+    border: 1px solid var(--bae-border-hover);
+    border-radius: 0.75rem;
+    background: var(--bae-surface);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color: var(--bae-text-primary);
+}
+
+.portfolio-menu__head {
+    position: sticky;
+    z-index: 1;   /* 줄의 지우기 버튼(터치 기기는 누름 자리 때문에 relative)이 머리 위로 올라왔다 */
+    top: 0;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--bae-border);
+    background: var(--bae-surface);
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.portfolio-menu__count { color: var(--bae-text-dim); font-weight: 400; }
+
+.portfolio-menu__list { margin: 0; padding: 4px 0 6px; list-style: none; }
+
+.portfolio-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 8px 2px 4px;
+}
+
+.portfolio-menu__item + .portfolio-menu__item { border-top: 1px solid var(--bae-divider, var(--bae-border)); }
+.portfolio-menu__item.is-current { box-shadow: inset 3px 0 0 var(--bae-accent-fg); }
+
+.portfolio-menu__load {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: var(--border-radius-sm);
+    background: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.portfolio-menu__load:hover { background: var(--bae-surface-hover); }
+.portfolio-menu__load:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -2px; }
+
+.portfolio-menu__name,
+.portfolio-menu__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-menu__name { font-size: 0.8125rem; font-weight: 600; }
+.portfolio-menu__item.is-current .portfolio-menu__name { color: var(--bae-accent-fg); }
+.portfolio-menu__sub { color: var(--bae-text-dim); font-size: 0.6875rem; }
+
+.portfolio-menu__grade {
+    flex-shrink: 0;
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.portfolio-menu__grade.is-new { color: var(--bae-text-dim); }
+.portfolio-menu__tags { flex-shrink: 0; color: var(--bae-text-dim); font-size: 0.6875rem; }
+.portfolio-menu__del { flex-shrink: 0; color: var(--bae-text-dim); }
+.portfolio-menu__del:hover { color: var(--bae-danger); }
+
+.portfolio-menu__empty { padding: 14px; color: var(--bae-text-dim); font-size: 0.8125rem; text-align: center; }
 
 /* 진행률 — 토스트 자리(아래 가운데)에 떠 있는다. 본문 위에 끼우면 실행할 때마다 아래가
    밀렸다 내려왔다(2026-09-28 사용자 지적). 토스트와 달리 실행이 끝날 때까지 남아 있어야 해서

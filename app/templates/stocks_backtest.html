@@ -2,10 +2,10 @@
   포트폴리오 백테스팅 화면 — PHP `views/stock/backtest.php` 를 옮긴 것이다.
 
   ⚠️ **본문은 원본 HTML 그대로다.** 화면을 움직이는 것은 전부 `/js/backtest.js`(1,435줄)
-     이고, 그쪽이 여기 있는 id 로 DOM 을 찾는다(`runBacktest`·`endDate`·`presetList`·
+     이고, 그쪽이 여기 있는 id 로 DOM 을 찾는다(`runBacktest`·`endDate`·`portfolioMenu`·
      `signalRuleTemplate` 등). 클래스·id 를 손대면 조용히 죽는다.
-  ⚠️ 원본에서 동적인 곳은 **로그인 여부 여섯 군데뿐**이라 그것만 Jinja 로 바꿨다.
-     로그인하면 서버 프리셋(내 프리셋), 아니면 브라우저 저장(설정 저장/불러오기)이 뜬다.
+  ⚠️ 원본에서 동적인 곳은 로그인 여부뿐이라 그것만 Jinja 로 바꿨다. 로그인하면 ☆ 줄의 "내 포트폴리오"
+     (2026-10-19 프리셋을 합쳤다), 아니면 브라우저 저장(설정 저장/불러오기)이 뜬다.
   ⚠️ `window.__BACKTEST_USER_LOGGED_IN` 을 backtest.js 가 읽어 프리셋 UI 를 가른다.
 #}
 {% extends "layout.html" %}
@@ -36,6 +36,7 @@
 {#
   포트폴리오 이름 — 실행하면 자동 저장되고 이름이 채워진다. ⚠️ 처음부터 자리를 차지한다
   (`is-empty` 는 안내 문구만 보인다). 실행 뒤에야 나타나게 두면 그만큼 아래가 밀렸다(2026-09-28).
+  로그인했으면 줄 끝 목록 버튼이 "내 포트폴리오"를 연다 — 불러오기·지우기(2026-10-19, 프리셋을 여기로 합쳤다).
 #}
 <div class="portfolio-name-section is-empty" id="portfolioNameSection">
     <div class="portfolio-name-row">
@@ -50,6 +51,7 @@
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
         </button>
+        <span class="portfolio-name-gap"></span>
 
         {#
           공개 토글 — **내 포트폴리오일 때만** 보인다(JS 가 portfolioMine 을 보고 켠다).
@@ -69,8 +71,22 @@
         {# 공개가 무엇인지는 버튼 title 이 아니라 옆 ⓘ 에(2026-10-13 점검 — title 은 터치에서 안 보인다). 토글과 함께 보인다. #}
         <span class="metric-info config-info" id="portfolioPublicInfo" tabindex="0" hidden
             >ⓘ<span class="metric-tooltip">공개하면 주식 화면 랭킹에 보입니다.<br>비공개는 나만 봅니다.</span></span>
+        {% if user %}
+        <button type="button" class="c-btn portfolio-list-btn" id="portfolioListBtn" popovertarget="portfolioMenu"
+                aria-haspopup="true" aria-expanded="false">{{ icons.i('list') }}<span>내 포트폴리오</span></button>
+        {% endif %}
     </div>
 </div>
+{% if user %}
+{#
+  내 포트폴리오 — 실행하면 자동 저장되는 것들의 목록(같은 종목·비중·전략이면 한 줄). 고르면 그 설정을 불러오고
+  ☆ 줄이 그 포트폴리오가 된다(이름 바꾸기·공개는 ☆ 줄에서). `popover="auto"` 라 바깥·Esc 로 닫힌다. 채우기는 backtest.js.
+#}
+<div class="portfolio-menu" id="portfolioMenu" popover="auto" aria-label="내 포트폴리오">
+    <div class="portfolio-menu__head">내 포트폴리오<span class="portfolio-menu__count" id="portfolioMenuCount"></span></div>
+    <ul class="portfolio-menu__list" id="portfolioMenuList"></ul>
+</div>
+{% endif %}
 
 {# 진행률 — 아래 가운데에 떠 있다(`.backtest-progress`). 본문을 밀지 않는다. #}
 <div id="backtestProgress" class="backtest-progress" role="status" style="display:none">
@@ -354,33 +370,16 @@
             </details>
         </div>
 
-        <!-- 설정 저장/불러오기 -->
+        <!-- 설정 저장/불러오기 — 비로그인만(이 브라우저에). 로그인하면 ☆ 줄의 "내 포트폴리오"가 대신한다. -->
+        {% if not user %}
         <div class="config-section config-save-section">
-            {% if user %}
-            <!-- 로그인 사용자: 서버 프리셋 -->
-            <div class="preset-section">
-                <div class="preset-header">
-                    <h4 class="config-subsection-title">내 프리셋</h4>
-                    <span class="preset-count" id="presetCount"></span>
-                </div>
-                <div class="preset-save-row">
-                    <input type="text" id="presetNameInput" class="backtest-input preset-name-input" placeholder="프리셋 이름" maxlength="100">
-                    <button type="button" class="btn btn-sm btn-primary" id="savePresetBtn">{{ icons.i('save') }}<span>저장</span></button>
-                </div>
-                <p class="field-error" id="presetNameError" role="alert" hidden></p>
-                <div class="preset-list" id="presetList">
-                    <!-- JS에서 동적 렌더링 -->
-                </div>
-            </div>
-            {% endif %}
-            {% if not user %}
             <div class="config-save-row">
                 <button type="button" class="btn btn-sm btn-outline" id="saveConfig">{{ icons.i('save') }}<span>설정 저장</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="loadConfig">{{ icons.i('folder') }}<span>불러오기</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="clearConfig">{{ icons.i('trash') }}<span>초기화</span></button>
             </div>
-            {% endif %}
         </div>
+        {% endif %}
 
         <!-- 실행 버튼 -->
         <button type="button" id="runBacktest" class="btn btn-primary btn-lg btn-block">{{ icons.i('play') }}<span>백테스트 실행</span></button>

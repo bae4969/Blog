@@ -9,14 +9,14 @@
 
 - `/stocks/backtest` 화면(껍데기만 그린다 — 계산·차트는 `/js/backtest.js` 가 한다)
 - API 와 **함께 쓰는 계산 도우미** — `_norm_config`·`_load_prices`·`_save_portfolio`·
-  `_candle_date_range`·`_stock_summary`·`_finite`·`_backtest_slots`.
+  `_candle_date_range`·`_finite`·`_backtest_slots`.
   `backtest_v1` 이 이걸 임포트해 쓴다. 검증·정규화를 다시 짜면 화면과 결과가 갈라진다.
 
 ## 소유권은 계정이다
 
 - **포트폴리오**(`backtest_portfolio`) — 로그인해서 돌린 것은 `user_index` 가 주인이고
   **비공개로 시작**한다. 비로그인 것은 주인이 없어 **공개 고정**이다(아무도 못 고친다).
-- **프리셋**(`backtest_preset`) — `user_index` 로 가린다. 전부 로그인이 필요하다.
+- 프리셋(`backtest_preset`)은 2026-10-19 포트폴리오로 합쳤다([backtest_v1](../api/backtest_v1.py) 머리말).
 
 ⚠️ 예전에는 포트폴리오를 **IP 로** 갈랐다. 그런데 앞단(NPM)이 진짜 클라이언트 IP 를 안
    넘겨 **외부 요청이 전부 게이트웨이 하나로 보였다** — 즉 모두가 같은 주인이라 누구나
@@ -44,7 +44,6 @@ from app.ui.stocks import _level, _resolve_is_coin, _resolve_source, candle_rows
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
 
 
@@ -78,21 +77,6 @@ async def backtest_page(request: Request):
     return templates.TemplateResponse(
         request, "stocks_backtest.html",
         {**ctx, "is_stock_page": True, "hide_sidebar": True})
-
-
-def _stock_summary(stocks: list) -> str:
-    """"삼성전자 60% + SK하이닉스 40%" 꼴의 한 줄 요약. 5종목까지만 펴고 나머지는 센다.
-
-    ⚠️ 비중은 `:g` 로 찍는다. PHP 는 `round($w, 1)` 한 float 을 문자열에 이어 붙이는데
-       PHP 의 float→string 은 20.0 을 `20` 으로 준다. 파이썬 기본 포맷은 `20.0` 이라
-       그대로 두면 기존 데이터(`... 20% + ...`)와 모양이 어긋난다.
-    """
-    parts = [f"{s.get('name') or s.get('code')} {round(float(s.get('weight') or 0), 1):g}%"
-             for s in stocks[:5]]
-    summary = " + ".join(parts)[:200]
-    if len(stocks) > 5:
-        summary += f" 외 {len(stocks) - 5}종목"
-    return summary
 
 
 # ---------------------------------------------------------------------------
@@ -262,13 +246,17 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
     async with db_session() as db:
         # ⚠️ 주인이 있으면 주인 기준으로, 없으면(비로그인) 조합만 보고 합친다.
         #    옛 `ip_address` 기준은 쓰지 않는다 — 모두가 같은 IP 라 남의 것을 덮어썼다.
-        existing = (await db.execute(text(
-            "SELECT portfolio_id FROM backtest_portfolio WHERE config_hash = :hash AND "
-            + ("user_index = :owner" if owner is not None else "user_index IS NULL")),
-            params)).scalar()
+        found = (await db.execute(text(
+            "SELECT portfolio_id, portfolio_name FROM backtest_portfolio WHERE config_hash = :hash AND "
+            + ("user_index = :owner" if owner is not None else "user_index IS NULL")
+            + " ORDER BY updated_at DESC, portfolio_id DESC LIMIT 1"),
+            params)).first()
+        existing = found[0] if found else None
         if existing is not None:
+            # ⚠️ 이름은 덮지 않는다(2026-10-19) — 목록("내 포트폴리오")에서 붙인 이름이 다시 실행할 때마다 자동 이름으로 돌아갔다.
+            name = found[1]
             await db.execute(text(
-                "UPDATE backtest_portfolio SET portfolio_name = :name, config_json = :cfg, "
+                "UPDATE backtest_portfolio SET config_json = :cfg, "
                 "display_score = :ds, display_grade = :dg, ranking_score = :rs, "
                 "ranking_grade = :rg, metrics_json = :metrics, stock_summary = :summary, "
                 "strategy = :strategy, period_start = :ps, period_end = :pe, "

@@ -283,13 +283,12 @@ class TestWriteSchema:
 
 
 class TestBacktestRoutes:
-    """`/api/v1/backtest` — 실행은 공개, 프리셋은 Bearer."""
+    """`/api/v1/backtest` — 실행은 공개, 내 포트폴리오는 Bearer. 프리셋은 2026-10-19 포트폴리오로 합쳤다."""
 
     def test_등록된_경로(self):
         paths = set(app.openapi()["paths"])
-        assert {"/api/v1/backtest/run",
-                "/api/v1/backtest/presets",
-                "/api/v1/backtest/presets/{preset_id}"} <= paths
+        assert "/api/v1/backtest/run" in paths
+        assert not {p for p in paths if "/presets" in p}   # 걷었다 — 목록은 ☆ "내 포트폴리오" 하나
 
     @pytest.mark.parametrize("body", [
         {},                                                     # stocks 없음
@@ -299,22 +298,6 @@ class TestBacktestRoutes:
     ])
     def test_잘못된_입력은_422(self, client, body):
         assert client.post("/api/v1/backtest/run", json=body).status_code == 422
-
-    @pytest.mark.parametrize("method,url", [
-        ("get", "/api/v1/backtest/presets"),
-        ("delete", "/api/v1/backtest/presets/1"),
-    ])
-    def test_프리셋은_Bearer_가_필요하다(self, client, method, url):
-        assert client.request(method.upper(), url).status_code == 401
-
-    def test_프리셋_이름_바꾸기는_Bearer_가_필요하다(self, client):
-        """이름 바꾸기(2026-10-13) — 본문이 맞으면 토큰 검사에서 401."""
-        assert client.patch("/api/v1/backtest/presets/1", json={"name": "새 이름"}).status_code == 401
-
-    @pytest.mark.parametrize("body", [{}, {"name": ""}, {"name": "x" * 101}])
-    def test_프리셋_이름은_DB_전에_거른다(self, client, body):
-        r = client.patch("/api/v1/backtest/presets/1", json=body, headers={"Authorization": "Bearer x"})
-        assert r.status_code == 422
 
     def test_실행은_토큰_없이도_401_이_아니다(self, client):
         """계산은 공개다 — 여기서 401 이면 회귀다(422 는 입력 문제라 정상)."""
@@ -402,6 +385,7 @@ class TestPortfolioOwnership:
     @pytest.mark.parametrize("method,url", [
         ("get", "/api/v1/backtest/portfolios"),
         ("patch", "/api/v1/backtest/portfolios/1"),
+        ("delete", "/api/v1/backtest/portfolios/1"),
     ])
     def test_토큰_없으면_401(self, client, method, url):
         r = client.request(method.upper(), url, json={"is_public": True})
@@ -595,8 +579,6 @@ class TestBacktestRoutesMoved:
         assert {"/api/v1/auth/token",
                 "/api/v1/backtest/date-range",
                 "/api/v1/backtest/run",
-                "/api/v1/backtest/presets",
-                "/api/v1/backtest/presets/{preset_id}",
                 "/api/v1/backtest/portfolios",
                 "/api/v1/backtest/portfolios/{portfolio_id}"} <= paths
 

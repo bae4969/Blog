@@ -1055,7 +1055,7 @@
     /**
      * 포트폴리오 이름 편집 UI 업데이트
      */
-    function updatePortfolioNameUI(id, name, mine, isPublic) {
+    function updatePortfolioNameUI(id, name, mine, isPublic, ran) {
         currentPortfolioId = id;
         var section = document.getElementById('portfolioNameSection');
         var nameEl = document.getElementById('portfolioNameText');
@@ -1067,7 +1067,20 @@
         if (editBtn) editBtn.hidden = !mine;
         // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
         // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
-        renderPublicToggle(!!mine, !!isPublic);
+        // 실행 전(옛 프리셋에서 옮긴 것)은 점수가 없어 공개 토글을 숨긴다 — 0점이 랭킹에 오르지 않게. 실행하면 켜진다.
+        renderPublicToggle(!!mine && ran !== false, !!isPublic);
+    }
+
+    /** ☆ 줄을 처음(실행 전 안내) 상태로 — 지금 연 포트폴리오를 목록에서 지웠을 때. */
+    function clearPortfolioNameUI() {
+        currentPortfolioId = null;
+        var section = document.getElementById('portfolioNameSection');
+        var nameEl = document.getElementById('portfolioNameText');
+        var editBtn = document.getElementById('portfolioNameEdit');
+        if (section) section.classList.add('is-empty');
+        if (nameEl) nameEl.textContent = '실행하면 자동 저장됩니다';
+        if (editBtn) editBtn.hidden = true;
+        renderPublicToggle(false, false);
     }
 
     /**
@@ -1144,7 +1157,7 @@
             .then(function (json) {
                 if (!json || !json.config) return false;
                 applyConfig(json.config);
-                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public);
+                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public, json.ran);
                 return true;
             })
             .catch(function () { return false; });
@@ -1255,7 +1268,7 @@
     }
 
     /* =========================================
-       서버 프리셋 관리 (로그인 사용자 전용)
+       내 포트폴리오 (로그인 사용자 — 2026-10-19 프리셋을 여기로 합쳤다)
        ========================================= */
 
     /**
@@ -1273,178 +1286,131 @@
         return copy;
     }
 
-    // 프리셋 요약 풍선 — 마우스를 올린 항목 옆에 하나만 뜬다. 스크롤하면 항목만 움직이고 풍선은 남으므로 거둔다
-    // (2026-10-13 점검, capture 라 목록·문서 어느 스크롤이든).
-    var presetTip = null;
-    function removePresetTip() {
-        if (presetTip) { presetTip.remove(); presetTip = null; }
+    var STRATEGY_LABEL = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' };
+    var TRASH_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/>' +
+        '<path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+    /**
+     * ☆ 줄 끝 목록 버튼 → "내 포트폴리오"(popover). 열 때마다 서버에서 다시 읽는다(☆ 줄에서 이름·공개를 바꿨을 수 있다).
+     * 이름을 누르면 그 설정을 불러오고(기간은 화면 것 그대로 — withoutDates) ☆ 줄이 그 포트폴리오가 된다.
+     */
+    function initPortfolioMenu() {
+        var menu = document.getElementById('portfolioMenu');
+        var btn = document.getElementById('portfolioListBtn');
+        if (!menu || !btn) return;
+        // 목록 버튼 아래, 오른쪽 끝을 맞춘다(화면 밖으로 나가지 않게). 창은 화면에 고정(top layer)이라 페이지를 스크롤하면
+        // 버튼만 움직여 떨어졌다(2026-10-19 사용자) — 스크롤·창 크기가 바뀔 때마다 다시 붙이고, 버튼이 화면 밖으로 나가면 닫는다.
+        function place() {
+            var r = btn.getBoundingClientRect(), w = Math.min(416, window.innerWidth - 16);
+            if (r.bottom < 0 || r.top > window.innerHeight) { menu.hidePopover(); return; }
+            menu.style.width = w + 'px';
+            menu.style.top = Math.round(r.bottom + 6) + 'px';
+            menu.style.left = Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))) + 'px';
+        }
+        function follow(e) {
+            if (e && e.target && e.target !== document && menu.contains(e.target)) return;   // 목록 안의 스크롤은 무시
+            if (menu.matches(':popover-open')) place();
+        }
+        menu.addEventListener('beforetoggle', function (e) {
+            var open = e.newState === 'open';
+            btn.setAttribute('aria-expanded', String(open));
+            if (!open) return;
+            place();
+            renderPortfolioMenu();
+        });
+        document.addEventListener('scroll', follow, { capture: true, passive: true });
+        window.addEventListener('resize', follow);
     }
-    document.addEventListener('scroll', removePresetTip, true);
 
-    function loadPresetList() {
-        if (!window.__BACKTEST_USER_LOGGED_IN) return;
-        var listEl = document.getElementById('presetList');
-        var countEl = document.getElementById('presetCount');
-        if (!listEl) return;
-
-        apiFetch('/api/v1/backtest/presets')
+    function renderPortfolioMenu() {
+        var list = document.getElementById('portfolioMenuList');
+        var count = document.getElementById('portfolioMenuCount');
+        list.innerHTML = '<li class="portfolio-menu__empty">불러오는 중…</li>';
+        apiFetch('/api/v1/backtest/portfolios')
             .then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 return r.json();
             })
             .then(function (rows) {
-                if (countEl) countEl.textContent = rows.length + '/20';
-
-                if (rows.length === 0) {
-                    listEl.innerHTML = '<p class="empty-hint">저장된 프리셋이 없습니다</p>';
+                count.textContent = rows.length ? ' · ' + rows.length : '';
+                list.textContent = '';
+                if (!rows.length) {
+                    list.innerHTML = '<li class="portfolio-menu__empty">아직 없습니다 — 실행하면 자동으로 저장됩니다</li>';
                     return;
                 }
-
-                var html = '';
                 rows.forEach(function (p) {
-                    var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
-                    html += '<div class="preset-item" data-id="' + p.id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
-                        '<span class="preset-item-name preset-load-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</span>' +
-                        '<button type="button" class="preset-rename-btn" aria-label="이름 바꾸기">' + PENCIL_SVG + '</button>' +
-                        '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
-                        '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.id + '">&times;</button>' +
-                        '</div>';
-                });
-                listEl.innerHTML = html;
-
-                // floating tooltip for preset items
-                listEl.querySelectorAll('.preset-item[data-info]').forEach(function (item) {
-                    if (!item.dataset.info) return;
-                    item.addEventListener('mouseenter', function () {
-                        removePresetTip();
-                        var tip = document.createElement('div');
-                        tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
-                        tip.setAttribute('popover', 'manual');   // top layer — 크기를 재려면 먼저 띄운다
-                        tip.textContent = item.dataset.info;
-                        document.body.appendChild(tip);
-                        tip.showPopover();
-                        // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
-                        //    이름·삭제(×) 버튼을 덮어 목록을 못 읽는다(2026-08-23 사용자 제보).
-                        var rect = item.getBoundingClientRect();
-                        var left = rect.left - tip.offsetWidth - 8;
-                        if (left < 8) left = Math.max(8, window.innerWidth - tip.offsetWidth - 8);
-                        var top = rect.top + rect.height / 2 - tip.offsetHeight / 2;
-                        top = Math.max(8, Math.min(top, window.innerHeight - tip.offsetHeight - 8));
-                        tip.style.left = left + 'px';
-                        tip.style.top = top + 'px';
-                        presetTip = tip;
-                    });
-                    item.addEventListener('mouseleave', removePresetTip);
-                });
-
-                listEl.querySelectorAll('.preset-rename-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () { startPresetRename(btn.closest('.preset-item')); });
-                });
-                listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        loadPreset(parseInt(btn.dataset.id));
-                    });
-                });
-                listEl.querySelectorAll('.preset-delete-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        if (confirm('이 프리셋을 삭제하시겠습니까?')) {
-                            deletePreset(parseInt(btn.dataset.id));
-                        }
-                    });
+                    var li = document.createElement('li');
+                    li.className = 'portfolio-menu__item' + (p.id === currentPortfolioId ? ' is-current' : '');
+                    var load = document.createElement('button');
+                    load.type = 'button';
+                    load.className = 'portfolio-menu__load';
+                    var name = document.createElement('span');
+                    name.className = 'portfolio-menu__name';
+                    name.textContent = p.name;
+                    var sub = document.createElement('span');
+                    sub.className = 'portfolio-menu__sub';
+                    sub.textContent = p.stock_summary || '';
+                    load.appendChild(name);
+                    load.appendChild(sub);
+                    load.addEventListener('click', function () { openPortfolio(p.id); });
+                    var grade = document.createElement('span');
+                    grade.className = 'portfolio-menu__grade' + (p.ran ? '' : ' is-new');
+                    grade.textContent = p.ran ? (p.ranking_grade || '-') + ' ' + Math.round(p.ranking_score || 0) : '실행 전';
+                    var tags = document.createElement('span');
+                    tags.className = 'portfolio-menu__tags';
+                    tags.textContent = (STRATEGY_LABEL[p.strategy] || p.strategy || '') + (p.is_public ? ' · 공개' : '');
+                    var del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = 'c-btn portfolio-menu__del';
+                    del.innerHTML = TRASH_SVG + '<span>지우기</span>';
+                    del.addEventListener('click', function () { deletePortfolio(p); });
+                    li.appendChild(load);
+                    li.appendChild(grade);
+                    li.appendChild(tags);
+                    li.appendChild(del);
+                    list.appendChild(li);
                 });
             })
-            .catch(function () { /* 무시 */ });
+            .catch(function (err) {
+                list.innerHTML = '';
+                var li = document.createElement('li');
+                li.className = 'portfolio-menu__empty';
+                li.textContent = '목록을 불러오지 못했습니다: ' + (err.message || '');
+                list.appendChild(li);
+            });
     }
 
-    // 연필 — `_icons.html` 의 'edit' 과 같은 그림.
-    var PENCIL_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>' +
-        '<path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
-
-    /**
-     * 프리셋 이름 인라인 편집(정본 inline-edit.md, 2026-10-13 — 예전엔 지우고 다시 만들어야 했다).
-     * 연필로 연다(이름을 누르면 불러오기라 더블클릭 편집은 두지 않는다). Enter·blur = 저장, Esc = 취소,
-     * 빈 이름은 저장하지 않는다. 실패하면 원래 이름으로 되돌리고 오류 토스트.
-     */
-    function startPresetRename(item) {
-        if (!item || item.querySelector('.preset-rename-input')) return;
-        var nameEl = item.querySelector('.preset-item-name');
-        var btn = item.querySelector('.preset-rename-btn');
-        var prev = nameEl.textContent;
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'backtest-input preset-rename-input';
-        input.maxLength = 100;
-        input.value = prev;
-        input.setAttribute('aria-label', '프리셋 이름');
-        nameEl.hidden = true;
-        btn.hidden = true;
-        nameEl.after(input);
-        input.focus();
-        input.select();
-
-        var done = false;
-        function end(save) {
-            if (done) return;
-            done = true;
-            var next = input.value.trim();
-            input.remove();
-            nameEl.hidden = false;
-            btn.hidden = false;
-            if (!save || !next || next === prev) return;
-            nameEl.textContent = next;
-            apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(item.dataset.id), {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: next })
-            })
-                .then(function (r) {
-                    if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                    notify('프리셋 이름을 바꿨습니다.', 'success');
-                })
-                .catch(function (err) {
-                    if (nameEl.textContent === next) nameEl.textContent = prev;
-                    notify(err.message || '프리셋 이름을 바꾸지 못했습니다.');
-                });
-        }
-        input.addEventListener('blur', function () { end(true); });
-        input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') { e.preventDefault(); end(true); }
-            if (e.key === 'Escape') { e.preventDefault(); end(false); }
-        });
-    }
-
-    function savePreset() {
-        var nameInput = document.getElementById('presetNameInput');
-        if (!nameInput) return;
-        var name = nameInput.value.trim();
-        if (!name) { fieldError('presetNameError', '프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
-        fieldError('presetNameError', '');
-
-        var config = collectConfig();
-        if (!config) {
-            // 설정이 유효하지 않아도 현재 폼 상태를 저장 가능하도록 raw 수집
-            config = collectConfigRaw();
-            if (!config) { notify('종목을 1개 이상 추가하세요.'); return; }
-        }
-
-        apiFetch('/api/v1/backtest/presets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, config: withoutDates(config) })
-        })
+    function openPortfolio(id) {
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(id))
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                notify('"' + name + '" 프리셋을 저장했습니다.', 'success');
-                // 이름은 남겨 둔다 — 이어서 고쳐 다시 저장하면 같은 이름으로 덮어쓴다(서버: 계정+이름이 같으면 덮어쓰기)
-                loadPresetList();
+                return r.json();
             })
-            .catch(function (err) { notify(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
+            .then(function (json) {
+                if (!json.config) throw new Error('설정이 없는 포트폴리오입니다.');
+                applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다(2026-08-23 사용자 지시)
+                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public, json.ran);
+                document.getElementById('portfolioMenu').hidePopover();
+                notify('"' + json.name + '" 포트폴리오를 불러왔습니다.' + (json.ran ? '' : ' 실행하면 결과가 저장됩니다.'), 'success');
+            })
+            .catch(function (err) { notify(err.message || '포트폴리오를 불러오지 못했습니다.'); });
+    }
+
+    function deletePortfolio(p) {
+        if (!confirm('"' + p.name + '" 포트폴리오를 지울까요?' + (p.is_public ? ' 랭킹에서도 빠집니다.' : ''))) return;
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(p.id), { method: 'DELETE' })
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                if (p.id === currentPortfolioId) clearPortfolioNameUI();
+                notify('"' + p.name + '" 포트폴리오를 지웠습니다.', 'success');
+                renderPortfolioMenu();
+            })
+            .catch(function (err) { notify(err.message || '포트폴리오를 지우지 못했습니다.'); });
     }
 
     /**
-     * 유효성 검사 없이 현재 폼 상태를 수집 (프리셋 저장 용)
+     * 유효성 검사 없이 현재 폼 상태를 수집 (AI 상담 화면 맥락 — 저장 안 한 것 그대로)
      */
     function collectConfigRaw() {
         if (portfolio.length === 0) return null;
@@ -1481,34 +1447,6 @@
             },
             riskFreeRate: parseFloat(document.getElementById('riskFreeRate').value) || 3
         };
-    }
-
-    function loadPreset(id) {
-        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id))
-            .then(function (r) {
-                if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                return r.json();
-            })
-            .then(function (json) {
-                if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
-                applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
-                // 불러온 프리셋을 고쳐 바로 다시 저장할 수 있게 이름 칸을 채운다 — 비어 있어 "이름을 입력하세요"에 막혔다(2026-10-19 사용자)
-                var nameInput = document.getElementById('presetNameInput');
-                if (nameInput && json.name) { nameInput.value = json.name; fieldError('presetNameError', ''); }
-                notify('"' + (json.name || '') + '" 프리셋을 적용했습니다.', 'success');
-            })
-            .catch(function (err) { notify(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
-    }
-
-    function deletePreset(id) {
-        // 삭제 성공은 204 라 본문이 없다.
-        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id), { method: 'DELETE' })
-            .then(function (r) {
-                if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                notify('프리셋을 지웠습니다.', 'success');
-                loadPresetList();
-            })
-            .catch(function (err) { notify(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
     }
 
     /**
@@ -1659,17 +1597,7 @@
             if (confirm('저장된 설정을 삭제하시겠습니까?')) clearStoredConfig();
         });
 
-        // 서버 프리셋 (로그인 사용자)
-        var savePresetBtn = document.getElementById('savePresetBtn');
-        if (savePresetBtn) savePresetBtn.addEventListener('click', savePreset);
-        var presetNameInput = document.getElementById('presetNameInput');
-        if (presetNameInput) {
-            presetNameInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); savePreset(); }
-            });
-            presetNameInput.addEventListener('input', function () { fieldError('presetNameError', ''); });
-        }
-        if (window.__BACKTEST_USER_LOGGED_IN) loadPresetList();
+        initPortfolioMenu();
 
         var simParamIds = [
             'rebalancePeriod', 'signalCombine',
