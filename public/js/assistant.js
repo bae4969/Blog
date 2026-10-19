@@ -399,6 +399,7 @@
     function set(open) {
         if (open === isOpen()) return;
         sheetEl.classList.toggle('is-open', open);
+        fitKeyboard();
         dim.hidden = !open;
         grip.setAttribute('aria-expanded', String(open));
         grip.setAttribute('aria-label', open ? 'AI 상담 닫기' : 'AI 상담 열기');
@@ -452,6 +453,32 @@
         // 열린 모달(버전 기록 등)이 있으면 Esc 는 그 창 몫이다
         if (e.key === 'Escape' && isOpen() && !document.querySelector('dialog[open]')) set(false);
     });
+
+    // ── 휴대폰 키보드 ──────────────────────────────────────
+    //    키보드는 보이는 영역(visual viewport)만 줄인다 — fixed 시트의 바닥(입력칸)은 키보드 뒤에 남아, 브라우저가
+    //    스크롤해 주지 않으면 가렸다(드물게, 사용자 "매우 중요"). 열린 동안 키보드 높이만큼 바닥을 올리고 높이를 보이는
+    //    영역 안으로 줄인다(assistant.css --ai-kb·--ai-vh). 접혀 있을 땐 손대지 않는다(상단 검색칸 키보드에 손잡이가 따라 올라온다).
+    var vv = window.visualViewport;
+
+    function fitKeyboard() {
+        if (!vv) return;
+        var kb = isOpen() ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+        var atEnd = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 4;
+        if (kb > 0) {
+            sheetEl.style.setProperty('--ai-kb', kb + 'px');
+            sheetEl.style.setProperty('--ai-vh', Math.round(vv.height) + 'px');
+        } else {
+            sheetEl.style.removeProperty('--ai-kb');
+            sheetEl.style.removeProperty('--ai-vh');
+        }
+        if (atEnd) logEl.scrollTop = logEl.scrollHeight;   // 보던 마지막 말이 키보드에 밀려 올라가지 않게
+    }
+    if (vv) {
+        vv.addEventListener('resize', fitKeyboard);
+        vv.addEventListener('scroll', fitKeyboard);
+    }
+    // 키보드가 다 올라온 뒤 한 번 더 잰다 — resize 가 늦게 오거나 올라오는 도중 값만 오는 기기가 있다
+    input.addEventListener('focus', function () { setTimeout(fitKeyboard, 50); setTimeout(fitKeyboard, 350); });
 
     window.assistant = {
         /** 화면의 다른 아래 시트가 떠 있는 동안은 손잡이까지 내린다. */

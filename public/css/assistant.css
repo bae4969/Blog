@@ -22,11 +22,17 @@
 .ai-sheet {
     position: fixed;
     z-index: 140;   /* 투자 계획 상세 시트(150) 아래 */
-    inset-block-end: 0;
+    /*
+     * 휴대폰 키보드 — iOS Safari·Android Chrome(108+)은 키보드가 뜨면 **보이는 영역(visual viewport)만** 줄인다.
+     * fixed 바닥은 키보드 뒤에 남아, 브라우저가 입력칸까지 스크롤해 주길 바라야 했다(열린 동안 뒤 스크롤을 잠가 그게
+     * 가끔 실패해 입력칸이 가렸다 — 2026-10-19 사용자 "매우 중요"). 그래서 assistant.js 가 visualViewport 로 잰
+     * 키보드 높이(--ai-kb)만큼 바닥을 올리고, 높이는 보이는 영역(--ai-vh) 안으로 줄인다. 키보드가 없으면 둘 다 기본값이다.
+     */
+    inset-block-end: var(--ai-kb, 0px);
     inset-inline: 0;
     display: flex;
     flex-direction: column;
-    block-size: 90dvh;
+    block-size: min(90dvh, var(--ai-vh, 100dvh));
     overflow: hidden;
     border: 1px solid var(--bae-border);
     border-block-end: 0;
