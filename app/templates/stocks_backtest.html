@@ -9,6 +9,8 @@
   ⚠️ `window.__BACKTEST_USER_LOGGED_IN` 을 backtest.js 가 읽어 프리셋 UI 를 가른다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "backtest"} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}포트폴리오 백테스팅 · Developer Notes{% endblock %}

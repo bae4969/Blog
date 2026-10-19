@@ -9,6 +9,8 @@
      통화 표기를 끄고, `stockDataApiPrefix` 가 캔들을 `/api/v1/quotes` 에서 받게 한다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "quote", "code": item.code, "title": item.name} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}{{ item.name }} · Developer Notes{% endblock %}

@@ -7,6 +7,8 @@
   ⚠️ 시험 버튼은 **저장된 값**으로 시험한다. 고친 값은 먼저 저장할 것.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}외부 연동 · Developer Notes{% endblock %}

@@ -10,6 +10,8 @@
      보정이 엉뚱한 종목에 걸리기 때문이다.
 #}
 {% extends "layout.html" %}
+{# AI 상담에 보내는 화면 맥락(_assistant.html) #}
+{% set assistant_ctx = {"page": "admin", "section": admin_menu if admin_menu is defined else ""} %}
 {% import "_icons.html" as icons %}
 
 {% block title %}액면분할 관리 · Developer Notes{% endblock %}

@@ -1750,6 +1750,9 @@
         }
     }
 
+    // AI 상담 시트(assistant.js)에 보내는 화면 맥락 — 지금 폼의 설정(저장 안 한 것 그대로, 검사 없이)
+    window.assistantContext = function () { return { config: collectConfigRaw() }; };
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
