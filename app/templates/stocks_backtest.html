@@ -2,10 +2,10 @@
   포트폴리오 백테스팅 화면 — PHP `views/stock/backtest.php` 를 옮긴 것이다.
 
   ⚠️ **본문은 원본 HTML 그대로다.** 화면을 움직이는 것은 전부 `/js/backtest.js`(1,435줄)
-     이고, 그쪽이 여기 있는 id 로 DOM 을 찾는다(`runBacktest`·`endDate`·`presetList`·
+     이고, 그쪽이 여기 있는 id 로 DOM 을 찾는다(`runBacktest`·`endDate`·`portfolioMenu`·
      `signalRuleTemplate` 등). 클래스·id 를 손대면 조용히 죽는다.
-  ⚠️ 원본에서 동적인 곳은 **로그인 여부 여섯 군데뿐**이라 그것만 Jinja 로 바꿨다.
-     로그인하면 서버 프리셋(내 프리셋), 아니면 브라우저 저장(설정 저장/불러오기)이 뜬다.
+  ⚠️ 원본에서 동적인 곳은 로그인 여부뿐이라 그것만 Jinja 로 바꿨다. 로그인하면 ☆ 줄의 "내 포트폴리오"
+     (2026-10-19 프리셋을 합쳤다), 아니면 브라우저 저장(설정 저장/불러오기)이 뜬다.
   ⚠️ `window.__BACKTEST_USER_LOGGED_IN` 을 backtest.js 가 읽어 프리셋 UI 를 가른다.
 #}
 {% extends "layout.html" %}
@@ -36,6 +36,7 @@
 {#
   포트폴리오 이름 — 실행하면 자동 저장되고 이름이 채워진다. ⚠️ 처음부터 자리를 차지한다
   (`is-empty` 는 안내 문구만 보인다). 실행 뒤에야 나타나게 두면 그만큼 아래가 밀렸다(2026-09-28).
+  로그인했으면 줄 끝 목록 버튼이 "내 포트폴리오"를 연다 — 불러오기·지우기(2026-10-19, 프리셋을 여기로 합쳤다).
 #}
 <div class="portfolio-name-section is-empty" id="portfolioNameSection">
     <div class="portfolio-name-row">
@@ -50,6 +51,7 @@
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
         </button>
+        <span class="portfolio-name-gap"></span>
 
         {#
           공개 토글 — **내 포트폴리오일 때만** 보인다(JS 가 portfolioMine 을 보고 켠다).
@@ -69,8 +71,25 @@
         {# 공개가 무엇인지는 버튼 title 이 아니라 옆 ⓘ 에(2026-10-13 점검 — title 은 터치에서 안 보인다). 토글과 함께 보인다. #}
         <span class="metric-info config-info" id="portfolioPublicInfo" tabindex="0" hidden
             >ⓘ<span class="metric-tooltip">공개하면 주식 화면 랭킹에 보입니다.<br>비공개는 나만 봅니다.</span></span>
+        {# 구성 변경이 있으면 공개 토글 대신 — 결과를 알고 고른 일정으로 점수를 부풀릴 수 있어 랭킹에 올리지 않는다(2026-10-19) #}
+        <span class="metric-info config-info portfolio-rank-note" id="portfolioRankNote" tabindex="0" hidden
+            >ⓘ<span class="metric-tooltip">구성 변경이 있는 포트폴리오는<br>랭킹에 올리지 않습니다.</span></span>
+        {% if user %}
+        <button type="button" class="c-btn portfolio-list-btn" id="portfolioListBtn" popovertarget="portfolioMenu"
+                aria-haspopup="true" aria-expanded="false">{{ icons.i('list') }}<span>내 포트폴리오</span></button>
+        {% endif %}
     </div>
 </div>
+{% if user %}
+{#
+  내 포트폴리오 — 실행하면 자동 저장되는 것들의 목록(같은 종목·비중·전략이면 한 줄). 고르면 그 설정을 불러오고
+  ☆ 줄이 그 포트폴리오가 된다(이름 바꾸기·공개는 ☆ 줄에서). `popover="auto"` 라 바깥·Esc 로 닫힌다. 채우기는 backtest.js.
+#}
+<div class="portfolio-menu" id="portfolioMenu" popover="auto" aria-label="내 포트폴리오">
+    <div class="portfolio-menu__head">내 포트폴리오<span class="portfolio-menu__count" id="portfolioMenuCount"></span></div>
+    <ul class="portfolio-menu__list" id="portfolioMenuList"></ul>
+</div>
+{% endif %}
 
 {# 진행률 — 아래 가운데에 떠 있다(`.backtest-progress`). 본문을 밀지 않는다. #}
 <div id="backtestProgress" class="backtest-progress" role="status" style="display:none">
@@ -144,6 +163,8 @@
             <div class="backtest-chart-wrapper">
                 <canvas id="backtestChart"></canvas>
             </div>
+            {# 구간별 구성 — 구성 변경이 있을 때만. 폭 = 기간, 안 = 비중(종목 색). 차트의 세로 점선 번호와 짝이다. #}
+            <div class="phase-strip" id="phaseStrip" hidden></div>
         </div>
 
         <!-- 연도별 수익률 -->
@@ -169,6 +190,10 @@
         <div class="trade-summary-section">
             <h3 class="result-section-title">거래 요약</h3>
             <div class="trade-summary-grid" id="tradeSummary">
+                <div class="trade-stat" id="tradePhaseStat" hidden>
+                    <span class="trade-stat-label">구성 변경</span>
+                    <span class="trade-stat-value" id="tradePhaseCount">-</span>
+                </div>
                 <div class="trade-stat">
                     <span class="trade-stat-label">총 거래 횟수</span>
                     <span class="trade-stat-value" id="tradeTotalCount">-</span>
@@ -200,18 +225,25 @@
         <div class="config-section">
             <h3 class="config-section-title">종목 구성</h3>
             <div class="stock-picker">
-                <div class="stock-search-row">
-                    <input type="text" id="btStockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
-                    <div id="btStockSearchResults" class="stock-search-dropdown" popover="manual"></div>
-                </div>
-                <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span><button type="button" class="btn btn-sm btn-outline equalize-btn" id="equalizeWeights" style="display:none">{{ icons.i('balance') }}<span>균등 배분</span></button></h4>
+                {# 종목 추가는 작은 버튼 → 그 아래 떠 있는 검색창(btSearchPop) — 늘 펼쳐 둔 검색칸이 카드를 차지했다(2026-10-19 사용자) #}
+                <h4 class="picker-sub-title">포트폴리오 <span class="picker-sub-hint">(최대 10개)</span><span class="wt-tools">
+                    <button type="button" class="btn btn-sm btn-outline" data-open-search popovertarget="btSearchPop">{{ icons.i('add') }}<span>종목 추가</span></button>
+                    <button type="button" class="btn btn-sm btn-outline" id="phaseAdd" data-phase-add>{{ icons.i('calendar-plus') }}<span>시점 추가</span></button>
+                    <button type="button" class="btn btn-sm btn-outline" id="phaseExpand" hidden>{{ icons.i('expand') }}<span>크게 보기</span></button>
+                </span></h4>
+                {#
+                  비중 표(2026-10-19) — 행 = 종목, 열 = 시점("처음", 25.12.15…), 칸 = 비중(비우면 그 시점엔 안 담음). 열 머리를 누르면
+                  바꾸는 날·옮기는 방법 창. 열이 하나면 지금 목록과 같은 정보다. 채우기는 backtest.js `renderPortfolio`.
+                #}
                 <div id="selectedStocks" class="selected-stocks-list">
                     <p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>
                 </div>
                 {# 실행할 때 검증 오류는 그 칸 옆에(정본 toast.md D2 — 폼 검증은 토스트가 아니다). backtest.js `fieldError`. #}
                 <p class="field-error" id="btStocksError" role="alert" hidden></p>
                 <hr class="picker-divider">
-                <h4 class="picker-sub-title">벤치마크 <span class="picker-sub-hint">(선택, 최대 5개)</span></h4>
+                <h4 class="picker-sub-title">벤치마크 <span class="picker-sub-hint">(선택, 최대 5개)</span><span class="wt-tools">
+                    <button type="button" class="btn btn-sm btn-outline" data-open-search popovertarget="btSearchPop">{{ icons.i('add') }}<span>벤치마크 추가</span></button>
+                </span></h4>
                 <div id="selectedBenchmark" class="selected-benchmark"></div>
             </div>
         </div>
@@ -354,39 +386,59 @@
             </details>
         </div>
 
-        <!-- 설정 저장/불러오기 -->
+        <!-- 설정 저장/불러오기 — 비로그인만(이 브라우저에). 로그인하면 ☆ 줄의 "내 포트폴리오"가 대신한다. -->
+        {% if not user %}
         <div class="config-section config-save-section">
-            {% if user %}
-            <!-- 로그인 사용자: 서버 프리셋 -->
-            <div class="preset-section">
-                <div class="preset-header">
-                    <h4 class="config-subsection-title">내 프리셋</h4>
-                    <span class="preset-count" id="presetCount"></span>
-                </div>
-                <div class="preset-save-row">
-                    <input type="text" id="presetNameInput" class="backtest-input preset-name-input" placeholder="프리셋 이름" maxlength="100">
-                    <button type="button" class="btn btn-sm btn-primary" id="savePresetBtn">{{ icons.i('save') }}<span>저장</span></button>
-                </div>
-                <p class="field-error" id="presetNameError" role="alert" hidden></p>
-                <div class="preset-list" id="presetList">
-                    <!-- JS에서 동적 렌더링 -->
-                </div>
-            </div>
-            {% endif %}
-            {% if not user %}
             <div class="config-save-row">
                 <button type="button" class="btn btn-sm btn-outline" id="saveConfig">{{ icons.i('save') }}<span>설정 저장</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="loadConfig">{{ icons.i('folder') }}<span>불러오기</span></button>
                 <button type="button" class="btn btn-sm btn-outline" id="clearConfig">{{ icons.i('trash') }}<span>초기화</span></button>
             </div>
-            {% endif %}
         </div>
+        {% endif %}
 
         <!-- 실행 버튼 -->
         <button type="button" id="runBacktest" class="btn btn-primary btn-lg btn-block">{{ icons.i('play') }}<span>백테스트 실행</span></button>
     </div>
 </div>
 </div>{# .bt #}
+
+{# 종목·벤치마크 추가 — 작은 버튼 아래에 뜨는 검색창(popover="auto"). 고르면 입력칸을 비우고 열어 둔다(이어서 넣게). #}
+<div class="bt-search-pop" id="btSearchPop" popover="auto" aria-label="종목 검색">
+    <div class="stock-search-row">
+        <input type="text" id="btStockSearchInput" class="backtest-input" placeholder="종목명 또는 코드 검색..." autocomplete="off">
+        <div id="btStockSearchResults" class="stock-search-dropdown" popover="manual"></div>
+    </div>
+</div>
+{# 시점 편집 — 열 머리를 누르면 그 아래에 뜬다(popover="auto" — 바깥·Esc 로 닫힌다) #}
+<div class="phase-pop" id="phasePop" popover="auto" aria-label="시점">
+    <label class="config-label" for="phaseDate">바꾸는 날</label>
+    <input type="date" id="phaseDate" class="backtest-input">
+    <label class="config-label" for="phaseSpread">옮기는 방법</label>
+    <select id="phaseSpread" class="backtest-select">
+        <option value="1">한 번에</option>
+        <option value="5">5거래일 나눠서</option>
+        <option value="10">10거래일 나눠서</option>
+        <option value="20">20거래일 나눠서</option>
+        <option value="60">60거래일 나눠서</option>
+    </select>
+    <p class="field-error" id="phasePopError" role="alert" hidden></p>
+    <div class="phase-pop__foot">
+        <button type="button" class="btn btn-sm btn-outline" id="phaseDel">{{ icons.i('trash') }}<span>이 시점 지우기</span></button>
+    </div>
+</div>
+{# 크게 보기 — 시점이 많아 칸에 다 들어가지 않을 때, 같은 표를 넓은 창으로 #}
+{# 닫기 버튼은 두지 않는다 — 바깥·Esc 로 닫힌다(사용자). 표를 고치는 데 필요한 [종목 추가]·[시점 추가]는 여기에도. #}
+<dialog class="phase-dlg" id="phaseDlg" aria-label="종목 구성">
+    <header class="phase-dlg__head">
+        <h2>종목 구성</h2>
+        <span class="wt-tools">
+            <button type="button" class="btn btn-sm btn-outline" data-open-search popovertarget="btSearchPop">{{ icons.i('add') }}<span>종목 추가</span></button>
+            <button type="button" class="btn btn-sm btn-outline" data-phase-add>{{ icons.i('calendar-plus') }}<span>시점 추가</span></button>
+        </span>
+    </header>
+    <div class="phase-dlg__body" id="phaseDlgBody"></div>
+</dialog>
 
 <!-- 시그널 규칙 템플릿 -->
 <template id="signalRuleTemplate">

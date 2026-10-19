@@ -1,4 +1,4 @@
-"""`/api/v1/backtest` — 시뮬레이션과 프리셋.
+"""`/api/v1/backtest` — 시뮬레이션과 내 포트폴리오.
 
 기존 `/stocks/api/*` 의 백테스트 계열을 같은 규약으로 옮긴 것이다. 계산은 `_norm_config`
 와 `engine.run` 을 그대로 쓴다 — 검증 로직을 다시 짜면 화면과 결과가 갈라진다.
@@ -24,7 +24,12 @@
 ⚠️ 백테스트는 **돌리기만 해도 저장된다.** 그래서 로그인 사용자의 것을 비공개로 두지
    않으면 투자 조합이 본인도 모르게 랭킹에 뜬다 — 실제로 그렇게 돌고 있었다.
 
-프리셋(`backtest_preset`)은 원래 `user_index` 로 소유권을 봐서 그대로 옮겼다.
+## 프리셋은 포트폴리오로 합쳤다(2026-10-19, 사용자 결정)
+
+"실행하면 자동 저장되는 포트폴리오"와 "[저장]으로 남기는 프리셋"이 따로 놀아 헷갈렸다. 목록은 화면 위 ☆ 줄의
+"내 포트폴리오" 하나다 — 불러오기·이름 바꾸기·지우기·공개. 옛 프리셋은 마이그레이션 0007 이 실행 전 포트폴리오로
+옮겼고(`ran=false`) `/presets` API 는 걷었다(`backtest_preset` 표는 더하기만 규칙으로 남는다).
+⚠️ 다시 실행해도 **이름은 덮지 않는다**(`_save_portfolio`) — 목록에서 붙인 이름이 자동 이름으로 돌아갔다.
 """
 
 import asyncio
@@ -44,11 +49,9 @@ from app.ui.backtest import (
     _candle_date_range,
     _finite,
     _load_prices,
-    _MAX_PRESETS_PER_USER,
     _MAX_RANGE_CODES,
     _norm_config,
     _save_portfolio,
-    _stock_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,13 +89,9 @@ class BacktestRequest(BaseModel):
     dcaDefer: dict = Field(default_factory=dict, description="적립 유예 — `enabled`·`indicator`")
     fees: dict = Field(default_factory=dict, description="시장별 수수료(%) — `KR`·`US`·`COIN`")
     riskFreeRate: float = Field(3, description="무위험수익률(%) — 샤프·소르티노에 쓴다")
-
-
-class PresetSummary(BaseModel):
-    id: int
-    name: str
-    stock_summary: str | None = None
-    strategy: str | None = None
+    # ⚠️ 위의 회귀와 같은 자리 — 선언하지 않으면 구성 변경이 조용히 버려져 한 구성으로 돈다(2026-10-19 더함).
+    changes: list[dict] = Field(default_factory=list,
+                                description="구성 변경 — [{date, stocks:[{code,name,market,weight}], spreadDays}]. 날짜순, 시작일 뒤")
 
 
 async def _me(db, request: Request):
@@ -185,141 +184,6 @@ async def run(request: Request, body: BacktestRequest,
     return out
 
 
-@router.get("/presets", response_model=list[PresetSummary], summary="내 프리셋 목록")
-async def presets(request: Request):
-    async with db_session() as db:
-        me = await _me(db, request)
-        rows = (await db.execute(text(
-            "SELECT preset_id, preset_name, stock_summary, strategy "
-            "FROM backtest_preset WHERE user_index = :u ORDER BY updated_at DESC"),
-            {"u": me.user_index})).all()
-    return [PresetSummary(id=r[0], name=r[1], stock_summary=r[2], strategy=r[3]) for r in rows]
-
-
-class PresetDetail(PresetSummary):
-    config: dict | None = None
-
-
-class PresetSave(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    config: dict = Field(description="화면 폼 전체. `stocks` 가 비면 거절한다")
-
-
-@router.get("/presets/{preset_id}", response_model=PresetDetail, summary="프리셋 하나")
-async def preset(request: Request, preset_id: int):
-    """⚠️ 남의 것은 못 본다 — `user_index` 를 WHERE 에 함께 넣는다."""
-    async with db_session() as db:
-        me = await _me(db, request)
-        row = (await db.execute(text(
-            "SELECT preset_id, preset_name, config_json, stock_summary, strategy "
-            "FROM backtest_preset WHERE preset_id = :id AND user_index = :u"),
-            {"id": preset_id, "u": me.user_index})).first()
-    if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "프리셋을 찾을 수 없습니다")
-    try:
-        config = json.loads(row[2]) if row[2] else None
-    except (ValueError, TypeError):
-        config = None
-    return PresetDetail(id=row[0], name=row[1], config=config,
-                        stock_summary=row[3], strategy=row[4])
-
-
-@router.post("/presets", response_model=PresetSummary, status_code=status.HTTP_201_CREATED,
-             summary="프리셋 저장")
-async def save_preset(request: Request, body: PresetSave):
-    """⚠️ **같은 이름이면 덮어쓴다**(계정+이름이 UNIQUE). 새로 만드는 것만 개수 상한에 걸린다."""
-    stocks = body.config.get("stocks")
-    if not isinstance(stocks, list) or not stocks:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "설정에 종목이 있어야 합니다")
-
-    name = body.name.strip()[:100]
-    params = {
-        "cfg": json.dumps(body.config, ensure_ascii=False),
-        "sum": _stock_summary(stocks),
-        "st": str(body.config.get("strategy") or "buyhold")[:20],
-        "name": name,
-    }
-
-    async with db_session() as db:
-        me = await _me(db, request)
-        params["u"] = me.user_index
-        existing = (await db.execute(text(
-            "SELECT preset_id FROM backtest_preset WHERE user_index = :u AND preset_name = :name"),
-            params)).scalar()
-        if existing is not None:
-            await db.execute(text(
-                "UPDATE backtest_preset SET config_json = :cfg, stock_summary = :sum, "
-                "strategy = :st WHERE preset_id = :id"), {**params, "id": existing})
-            preset_id = int(existing)
-        else:
-            n = (await db.execute(text(
-                "SELECT COUNT(*) FROM backtest_preset WHERE user_index = :u"), params)).scalar() or 0
-            if n >= _MAX_PRESETS_PER_USER:
-                raise HTTPException(
-                    status.HTTP_409_CONFLICT,
-                    f"프리셋은 최대 {_MAX_PRESETS_PER_USER}개까지 저장할 수 있습니다")
-            res = await db.execute(text(
-                "INSERT INTO backtest_preset (user_index, preset_name, config_json, "
-                "stock_summary, strategy) VALUES (:u, :name, :cfg, :sum, :st)"), params)
-            preset_id = int(res.lastrowid)
-        await db.commit()
-
-    logger.info("프리셋 저장: user=%s id=%s name=%s", me.user_id, preset_id, name)
-    return PresetSummary(id=preset_id, name=name, stock_summary=params["sum"],
-                         strategy=params["st"])
-
-
-class PresetRename(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-
-
-@router.patch("/presets/{preset_id}", response_model=PresetSummary, summary="프리셋 이름 바꾸기")
-async def rename_preset(request: Request, preset_id: int, body: PresetRename):
-    """이름만 바꾼다(2026-10-13 — 예전엔 지우고 다시 만들어야 했다). 설정·순서(`updated_at`)는 그대로.
-
-    ⚠️ 이름은 계정 안에서 UNIQUE 다 — 다른 프리셋이 쓰는 이름이면 409. 남의 것은 404(삭제와 같다).
-    """
-    name = body.name.strip()[:100]
-    if not name:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이름을 입력하세요")
-    async with db_session() as db:
-        me = await _me(db, request)
-        taken = (await db.execute(text(
-            "SELECT preset_id FROM backtest_preset WHERE user_index = :u AND preset_name = :n AND preset_id <> :p"),
-            {"u": me.user_index, "n": name, "p": preset_id})).first()
-        if taken:
-            raise HTTPException(status.HTTP_409_CONFLICT, "같은 이름의 프리셋이 있습니다")
-        # 이름을 바꿨다고 목록 맨 위로 오지 않게 updated_at 은 그대로 둔다(ON UPDATE 를 막는다).
-        res = await db.execute(text(
-            "UPDATE backtest_preset SET preset_name = :n, updated_at = updated_at "
-            "WHERE preset_id = :p AND user_index = :u"),
-            {"n": name, "p": preset_id, "u": me.user_index})
-        row = (await db.execute(text(
-            "SELECT preset_id, preset_name, stock_summary, strategy FROM backtest_preset "
-            "WHERE preset_id = :p AND user_index = :u"), {"p": preset_id, "u": me.user_index})).first()
-        await db.commit()
-    if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "프리셋을 찾을 수 없습니다")
-    logger.info("프리셋 이름 변경: user=%s id=%s name=%s (rows=%s)", me.user_id, preset_id, name, res.rowcount)
-    return PresetSummary(id=row[0], name=row[1], stock_summary=row[2], strategy=row[3])
-
-
-@router.delete("/presets/{preset_id}", status_code=status.HTTP_204_NO_CONTENT,
-               summary="프리셋 삭제")
-async def delete_preset(request: Request, preset_id: int):
-    async with db_session() as db:
-        me = await _me(db, request)
-        # ⚠️ `user_index` 를 WHERE 에 함께 넣는다 — 소유권 검사와 삭제가 한 문장이라야
-        #    그 사이에 끼어들 틈이 없다. 남의 것은 rowcount 0 으로 떨어진다.
-        res = await db.execute(text(
-            "DELETE FROM backtest_preset WHERE preset_id = :p AND user_index = :u"),
-            {"p": preset_id, "u": me.user_index})
-        await db.commit()
-    if res.rowcount == 0:
-        # 남의 것이어도 404 다 — 403 을 주면 그 번호가 존재한다는 사실이 새어 나간다.
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "프리셋을 찾을 수 없습니다")
-
-
 class PortfolioOut(BaseModel):
     id: int
     name: str
@@ -327,6 +191,19 @@ class PortfolioOut(BaseModel):
     ranking_score: float | None = None
     ranking_grade: str | None = None
     stock_summary: str | None = None
+    strategy: str | None = None
+    ran: bool = Field(True, description="한 번이라도 실행했나 — 옛 프리셋에서 옮긴 것은 실행 전이라 점수가 없다")
+    phases: int = Field(1, description="구간 수 — 구성 변경이 있으면 2 이상(공개 랭킹에 올리지 않는다)")
+
+
+#: 목록·수정 응답이 함께 쓰는 칼럼 — 순서가 `_out` 과 짝이다.
+_OUT_COLS = ("portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, stock_summary, strategy, "
+             "metrics_json <> '{}' AS ran, 1 + COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) AS phases")
+
+
+def _out(r) -> PortfolioOut:
+    return PortfolioOut(id=r[0], name=r[1], is_public=bool(r[2]), ranking_score=r[3], ranking_grade=r[4],
+                        stock_summary=r[5], strategy=r[6], ran=bool(r[7]), phases=int(r[8] or 1))
 
 
 class PortfolioPatch(BaseModel):
@@ -355,11 +232,9 @@ async def portfolios(request: Request):
     async with db_session() as db:
         me = await _me(db, request)
         rows = (await db.execute(text(
-            "SELECT portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, "
-            "stock_summary FROM backtest_portfolio WHERE user_index = :u "
+            f"SELECT {_OUT_COLS} FROM backtest_portfolio WHERE user_index = :u "
             "ORDER BY updated_at DESC"), {"u": me.user_index})).all()
-    return [PortfolioOut(id=r[0], name=r[1], is_public=bool(r[2]), ranking_score=r[3],
-                         ranking_grade=r[4], stock_summary=r[5]) for r in rows]
+    return [_out(r) for r in rows]
 
 
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioDetail,
@@ -406,6 +281,8 @@ async def portfolio(request: Request, portfolio_id: int):
         period_start=str(row[12]) if row[12] else None,
         period_end=str(row[13]) if row[13] else None,
         mine=owner is not None and me is not None and owner == me,
+        ran=bool(_json(row[9])),
+        phases=1 + len((_json(row[4]) or {}).get("changes") or []),
     )
 
 
@@ -435,6 +312,14 @@ async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioP
     async with db_session() as db:
         me = await _me(db, request)
         params["u"] = me.user_index
+        if body.is_public:
+            # 구성 변경이 있으면 공개(랭킹)하지 않는다 — 결과를 알고 고른 일정으로 점수를 부풀릴 수 있다(2026-10-19)
+            n = (await db.execute(text(
+                "SELECT COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) FROM backtest_portfolio "
+                "WHERE portfolio_id = :id AND user_index = :u"), params)).scalar()
+            if n:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    "구성 변경이 있는 포트폴리오는 랭킹에 올리지 않습니다")
         # 소유권 검사와 갱신을 한 문장에 둔다 — 남의 것은 rowcount 0 으로 떨어진다.
         res = await db.execute(text(
             f"UPDATE backtest_portfolio SET {', '.join(sets)} "
@@ -443,8 +328,19 @@ async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioP
             raise HTTPException(status.HTTP_404_NOT_FOUND, "포트폴리오를 찾을 수 없습니다")
         await db.commit()
         row = (await db.execute(text(
-            "SELECT portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, "
-            "stock_summary FROM backtest_portfolio WHERE portfolio_id = :id"),
+            f"SELECT {_OUT_COLS} FROM backtest_portfolio WHERE portfolio_id = :id"),
             {"id": portfolio_id})).first()
-    return PortfolioOut(id=row[0], name=row[1], is_public=bool(row[2]), ranking_score=row[3],
-                        ranking_grade=row[4], stock_summary=row[5])
+    return _out(row)
+
+
+@router.delete("/portfolios/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT, summary="내 포트폴리오 지우기")
+async def delete_portfolio(request: Request, portfolio_id: int):
+    """⚠️ 내 것만 — 남의 것·주인 없는 것은 404(번호가 있다는 사실도 알리지 않는다). 공개였으면 랭킹에서도 빠진다."""
+    async with db_session() as db:
+        me = await _me(db, request)
+        res = await db.execute(text(
+            "DELETE FROM backtest_portfolio WHERE portfolio_id = :id AND user_index = :u"),
+            {"id": portfolio_id, "u": me.user_index})
+        if res.rowcount == 0:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "포트폴리오를 찾을 수 없습니다")
+        await db.commit()

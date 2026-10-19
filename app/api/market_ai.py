@@ -2,7 +2,7 @@
 
 화면이 쓰는 API 함수([stocks_v1](stocks_v1.py)·[quotes_v1](quotes_v1.py))를 그대로 부른다 — 같은 값이 화면과 AI 에
 다르게 나가지 않게(옛 `stock_price` 가 늦어 화면과 API 가 갈렸던 일, 2026-08-19). 개인 데이터(관심 종목·백테스트
-프리셋·포트폴리오)는 그 API 가 Bearer 요청을 받아서, 토큰이 묶인 사람(`user_index`)으로 직접 읽는다.
+포트폴리오)는 그 API 가 Bearer 요청을 받아서, 토큰이 묶인 사람(`user_index`)으로 직접 읽는다.
 
 ⚠️ 큰 응답은 줄여 낸다 — 캔들은 최대 200개·줄 하나를 배열로, 히트맵은 시총 상위·등락 상하위만. 답 하나가 수십 KB 를
    넘으면 다음 도구 호출과 답이 느려진다.
@@ -63,12 +63,11 @@ TOOLS = [
                          "days": {"type": "integer", "minimum": 1, "maximum": 3650}}, ["code"])},
     {"annotations": RO, "name": "watchlist_get", "description": "사용자의 관심 종목(정한 순서) — 코드·시장·이름·최신 종가·등락률.",
      "inputSchema": obj()},
-    {"annotations": RO, "name": "backtest_presets", "description": "사용자의 백테스트 프리셋 목록(이름·종목 요약·전략).",
+    {"annotations": RO, "name": "backtest_portfolios",
+     "description": "사용자의 백테스트 포트폴리오 목록(이름·점수·등급·종목 요약(첫 구간)·전략·공개 여부·실행 여부 ran·구간 수 phases) — 실행하면 자동 저장되고 화면 ☆ 목록에서 관리한다.",
      "inputSchema": obj()},
-    {"annotations": RO, "name": "backtest_preset_get", "description": "백테스트 프리셋 하나의 설정 전체(종목·비중·기간·전략·규칙).",
+    {"annotations": RO, "name": "backtest_portfolio_get", "description": "백테스트 포트폴리오 하나의 설정 전체(종목·비중·전략·규칙, 구성 변경 changes — [{date, spreadDays, stocks}])와 지표.",
      "inputSchema": obj({"id": {"type": "integer"}}, ["id"])},
-    {"annotations": RO, "name": "backtest_portfolios", "description": "사용자가 돌려 저장한 백테스트 포트폴리오(이름·점수·등급·종목 요약·공개 여부).",
-     "inputSchema": obj()},
 ]
 
 _MAX_ROWS = 200
@@ -188,22 +187,21 @@ async def call(db, user_index: int, name: str, args: dict):
             out.append({"code": r.stock_code, "market": r.market, "name": names.get((kind, r.stock_code)),
                         "close": q.get("close"), "change_pct": q.get("change_pct")})
         return out
-    if name == "backtest_presets":
-        rows = (await db.execute(text(
-            "SELECT preset_id, preset_name, stock_summary, strategy FROM backtest_preset WHERE user_index = :u "
-            "ORDER BY updated_at DESC"), {"u": user_index})).all()
-        return [{"id": r.preset_id, "name": r.preset_name, "stocks": r.stock_summary, "strategy": r.strategy} for r in rows]
-    if name == "backtest_preset_get":
-        row = (await db.execute(text(
-            "SELECT preset_name, config_json FROM backtest_preset WHERE preset_id = :id AND user_index = :u"),
-            {"id": int(args.get("id", 0)), "u": user_index})).first()
-        if row is None:
-            raise ValueError("없는 프리셋입니다")
-        return {"name": row.preset_name, "config": json.loads(row.config_json) if row.config_json else None}
     if name == "backtest_portfolios":
         rows = (await db.execute(text(
-            "SELECT portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, stock_summary "
-            "FROM backtest_portfolio WHERE user_index = :u ORDER BY updated_at DESC LIMIT 50"), {"u": user_index})).all()
+            "SELECT portfolio_id, portfolio_name, is_public, ranking_score, ranking_grade, stock_summary, strategy, "
+            "metrics_json <> '{}' AS ran, 1 + COALESCE(JSON_LENGTH(config_json, '$.changes'), 0) AS phases "
+            "FROM backtest_portfolio WHERE user_index = :u ORDER BY updated_at DESC LIMIT 50"),
+            {"u": user_index})).all()
         return [{"id": r.portfolio_id, "name": r.portfolio_name, "public": bool(r.is_public), "score": r.ranking_score,
-                 "grade": r.ranking_grade, "stocks": r.stock_summary} for r in rows]
+                 "grade": r.ranking_grade, "stocks": r.stock_summary, "strategy": r.strategy, "ran": bool(r.ran),
+                 "phases": int(r.phases or 1)} for r in rows]
+    if name == "backtest_portfolio_get":
+        row = (await db.execute(text(
+            "SELECT portfolio_name, config_json, metrics_json FROM backtest_portfolio WHERE portfolio_id = :id AND user_index = :u"),
+            {"id": int(args.get("id", 0)), "u": user_index})).first()
+        if row is None:
+            raise ValueError("없는 포트폴리오입니다")
+        return {"name": row.portfolio_name, "config": json.loads(row.config_json) if row.config_json else None,
+                "metrics": json.loads(row.metrics_json) if row.metrics_json and row.metrics_json != "{}" else None}
     raise ValueError(f"모르는 도구: {name}")

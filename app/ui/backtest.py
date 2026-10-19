@@ -9,14 +9,14 @@
 
 - `/stocks/backtest` 화면(껍데기만 그린다 — 계산·차트는 `/js/backtest.js` 가 한다)
 - API 와 **함께 쓰는 계산 도우미** — `_norm_config`·`_load_prices`·`_save_portfolio`·
-  `_candle_date_range`·`_stock_summary`·`_finite`·`_backtest_slots`.
+  `_candle_date_range`·`_finite`·`_backtest_slots`.
   `backtest_v1` 이 이걸 임포트해 쓴다. 검증·정규화를 다시 짜면 화면과 결과가 갈라진다.
 
 ## 소유권은 계정이다
 
 - **포트폴리오**(`backtest_portfolio`) — 로그인해서 돌린 것은 `user_index` 가 주인이고
   **비공개로 시작**한다. 비로그인 것은 주인이 없어 **공개 고정**이다(아무도 못 고친다).
-- **프리셋**(`backtest_preset`) — `user_index` 로 가린다. 전부 로그인이 필요하다.
+- 프리셋(`backtest_preset`)은 2026-10-19 포트폴리오로 합쳤다([backtest_v1](../api/backtest_v1.py) 머리말).
 
 ⚠️ 예전에는 포트폴리오를 **IP 로** 갈랐다. 그런데 앞단(NPM)이 진짜 클라이언트 IP 를 안
    넘겨 **외부 요청이 전부 게이트웨이 하나로 보였다** — 즉 모두가 같은 주인이라 누구나
@@ -44,7 +44,6 @@ from app.ui.stocks import _level, _resolve_is_coin, _resolve_source, candle_rows
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_MAX_PRESETS_PER_USER = 20
 _MAX_RANGE_CODES = 15
 
 
@@ -80,26 +79,15 @@ async def backtest_page(request: Request):
         {**ctx, "is_stock_page": True, "hide_sidebar": True})
 
 
-def _stock_summary(stocks: list) -> str:
-    """"삼성전자 60% + SK하이닉스 40%" 꼴의 한 줄 요약. 5종목까지만 펴고 나머지는 센다.
-
-    ⚠️ 비중은 `:g` 로 찍는다. PHP 는 `round($w, 1)` 한 float 을 문자열에 이어 붙이는데
-       PHP 의 float→string 은 20.0 을 `20` 으로 준다. 파이썬 기본 포맷은 `20.0` 이라
-       그대로 두면 기존 데이터(`... 20% + ...`)와 모양이 어긋난다.
-    """
-    parts = [f"{s.get('name') or s.get('code')} {round(float(s.get('weight') or 0), 1):g}%"
-             for s in stocks[:5]]
-    summary = " + ".join(parts)[:200]
-    if len(stocks) > 5:
-        summary += f" 외 {len(stocks) - 5}종목"
-    return summary
-
-
 # ---------------------------------------------------------------------------
 # 시뮬레이션 엔진
 # ---------------------------------------------------------------------------
 
 _MAX_STOCKS = 10
+#: 구성 변경(2026-10-19) — 구간 수 상한·모든 구간을 합친 종목 수 상한·나눠 바꾸는 거래일 상한
+_MAX_CHANGES = 12
+_MAX_UNIVERSE = 15
+_MAX_SPREAD_DAYS = 60
 _MAX_BENCHMARKS = 5
 _MAX_SIGNAL_RULES = 20
 _MAX_YEARS = 30
@@ -157,10 +145,13 @@ def _norm_config(body: dict) -> tuple[dict | None, str | None]:
 
     fees_in = body.get("fees") or {}
     defer_in = body.get("dcaDefer") or {}
+    stocks = _norm_stocks(stocks_in)
+    changes, err = _norm_changes(body.get("changes"), stocks, str(start), str(end))
+    if err:
+        return None, err
     return {
-        "stocks": [{"code": _s(s.get("code")), "name": _s(s.get("name"), _s(s.get("code"))),
-                    "market": _s(s.get("market")), "weight": _f(s.get("weight"))}
-                   for s in stocks_in[:_MAX_STOCKS] if isinstance(s, dict)],
+        "stocks": stocks,
+        "changes": changes,
         "benchmarks": [{"code": _s(b.get("code")), "market": _s(b.get("market")),
                         "name": _s(b.get("name"), _s(b.get("code")))}
                        for b in (benchmarks_in or [])[:_MAX_BENCHMARKS] if isinstance(b, dict)],
@@ -182,10 +173,64 @@ def _norm_config(body: dict) -> tuple[dict | None, str | None]:
     }, None
 
 
-def _config_hash(stocks: list, strategy: str) -> str:
-    """같은 조합을 다시 돌리면 새 행을 만들지 않고 덮어쓰기 위한 키(IP 와 짝을 이룬다)."""
-    parts = sorted(f"{s['code']}:{engine._php_round(s['weight'], 2):g}" for s in stocks)
-    return hashlib.md5(("|".join(parts) + "|" + strategy).encode()).hexdigest()
+def _norm_stocks(items) -> list[dict]:
+    return [{"code": _s(s.get("code")), "name": _s(s.get("name"), _s(s.get("code"))),
+             "market": _s(s.get("market")), "weight": _f(s.get("weight"))}
+            for s in (items or [])[:_MAX_STOCKS] if isinstance(s, dict)]
+
+
+def _norm_changes(items, stocks: list, start: str, end: str) -> tuple[list, str | None]:
+    """구성 변경 — [{date, stocks, spreadDays}]. 날짜순·기간 안(시작일 다음부터)·구간마다 비중 합 100·종목 1개 이상."""
+    if not items:
+        return [], None
+    if not isinstance(items, list):
+        return [], "changes must be a list"
+    if len(items) > _MAX_CHANGES:
+        return [], f"구성 변경은 {_MAX_CHANGES}번까지입니다"
+    out, prev = [], start
+    for i, c in enumerate(items, 1):
+        if not isinstance(c, dict):
+            return [], "changes must be a list of objects"
+        d = str(c.get("date") or "")
+        if not _DATE_RE.match(d):
+            return [], f"구성 변경 {i}: 날짜 형식이 틀렸습니다"
+        if not (prev < d <= end):
+            return [], f"구성 변경 {i}: 날짜는 앞 구간({prev})보다 뒤, 종료일({end})까지여야 합니다"
+        st = _norm_stocks(c.get("stocks"))
+        if not st or not all(s["code"] for s in st):
+            return [], f"구성 변경 {i}: 종목이 1개 이상 있어야 합니다"
+        if abs(sum(s["weight"] for s in st) - 100) > 0.5:
+            return [], f"구성 변경 {i}: 비중 합계가 100%여야 합니다"
+        spread = int(_clamp(_f(c.get("spreadDays"), 1), 1, _MAX_SPREAD_DAYS))
+        out.append({"date": d, "stocks": st, "spreadDays": spread})
+        prev = d
+    if len({s["code"] for s in stocks} | {s["code"] for c in out for s in c["stocks"]}) > _MAX_UNIVERSE:
+        return [], f"모든 구간을 합쳐 종목은 {_MAX_UNIVERSE}개까지입니다"
+    return out, None
+
+
+def universe(config: dict) -> list[dict]:
+    """모든 구간의 종목(코드 하나에 한 번) — 시세를 읽을 대상."""
+    seen, out = set(), []
+    for s in [*config["stocks"], *(x for c in config.get("changes") or [] for x in c["stocks"])]:
+        if s["code"] and s["code"] not in seen:
+            seen.add(s["code"])
+            out.append(s)
+    return out
+
+
+def _config_hash(stocks: list, strategy: str, changes: list | None = None) -> str:
+    """같은 조합을 다시 돌리면 새 행을 만들지 않고 덮어쓰기 위한 키(IP 와 짝을 이룬다).
+
+    구성 변경이 있으면 그 일정(날짜·나눠 바꾸는 거래일·구성)을 덧붙인다 — 없으면 예전 키 그대로라 옛 행과 마이그레이션 0007 의
+    SQL 키가 그대로 맞는다(2026-10-19).
+    """
+    def parts(st):
+        return sorted(f"{s['code']}:{engine._php_round(s['weight'], 2):g}" for s in st)
+    key = "|".join(parts(stocks)) + "|" + strategy
+    for c in changes or []:
+        key += f"|@{c['date']}~{c.get('spreadDays') or 1}:" + ",".join(parts(c["stocks"]))
+    return hashlib.md5(key.encode()).hexdigest()
 
 
 def _portfolio_name(stocks: list) -> str:
@@ -218,7 +263,7 @@ async def _load_prices(db, config: dict) -> tuple[dict, dict]:
             out[it["code"]] = engine.build_series(rows)
         return out
 
-    return await fetch(config["stocks"]), await fetch(config["benchmarks"])
+    return await fetch(universe(config)), await fetch(config["benchmarks"])
 
 
 async def _owner_index(request: Request) -> int | None:
@@ -249,8 +294,9 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
     score = engine.compute_score(result["metrics"])
     params = {
         "name": name,
-        "owner": owner, "pub": 0 if owner is not None else 1,
-        "hash": _config_hash(config["stocks"], config["strategy"]),
+        # 구성 변경이 있으면 공개(랭킹)하지 않는다 — 결과를 알고 "그때 갈아탔다"를 넣으면 점수를 부풀릴 수 있다(2026-10-19)
+        "owner": owner, "pub": 0 if owner is not None or config.get("changes") else 1,
+        "hash": _config_hash(config["stocks"], config["strategy"], config.get("changes")),
         "cfg": json.dumps(config, ensure_ascii=False),
         "ds": score["score"], "dg": score["grade"],
         "rs": result["rankingScore"], "rg": result["rankingGrade"],
@@ -262,13 +308,17 @@ async def _save_portfolio(request: Request, config: dict, result: dict) -> tuple
     async with db_session() as db:
         # ⚠️ 주인이 있으면 주인 기준으로, 없으면(비로그인) 조합만 보고 합친다.
         #    옛 `ip_address` 기준은 쓰지 않는다 — 모두가 같은 IP 라 남의 것을 덮어썼다.
-        existing = (await db.execute(text(
-            "SELECT portfolio_id FROM backtest_portfolio WHERE config_hash = :hash AND "
-            + ("user_index = :owner" if owner is not None else "user_index IS NULL")),
-            params)).scalar()
+        found = (await db.execute(text(
+            "SELECT portfolio_id, portfolio_name FROM backtest_portfolio WHERE config_hash = :hash AND "
+            + ("user_index = :owner" if owner is not None else "user_index IS NULL")
+            + " ORDER BY updated_at DESC, portfolio_id DESC LIMIT 1"),
+            params)).first()
+        existing = found[0] if found else None
         if existing is not None:
+            # ⚠️ 이름은 덮지 않는다(2026-10-19) — 목록("내 포트폴리오")에서 붙인 이름이 다시 실행할 때마다 자동 이름으로 돌아갔다.
+            name = found[1]
             await db.execute(text(
-                "UPDATE backtest_portfolio SET portfolio_name = :name, config_json = :cfg, "
+                "UPDATE backtest_portfolio SET config_json = :cfg, "
                 "display_score = :ds, display_grade = :dg, ranking_score = :rs, "
                 "ranking_grade = :rg, metrics_json = :metrics, stock_summary = :summary, "
                 "strategy = :strategy, period_start = :ps, period_end = :pe, "

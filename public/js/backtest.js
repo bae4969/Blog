@@ -10,8 +10,8 @@
      *     가리고, 백테스트처럼 값을 보며 고치는 작업에서는 매번 끊겼다.
      *     `toast` 는 안 막으므로 **호출부의 `return` 은 그대로 둬야 한다**(전부 가드절이다).
      */
-    function notify(message, type) {
-        if (window.toast) window.toast(message, type || 'error');
+    function notify(message, type, opts) {
+        if (window.toast) window.toast(message, type || 'error', opts);
         else if (window.console) console.warn(message);
     }
 
@@ -21,7 +21,14 @@
        ========================================= */
     var MAX_STOCKS = 10;
     var MAX_BENCHMARKS = 5;
-    var portfolio = [];    // [{ code, name, market, weight }]
+    var portfolio = [];    // [{ code, name, market, weight }] — ⚠️ 지금 **고른 구간**의 종목 목록(아래 phases)
+    // 구성 변경(2026-10-19) — 구간들. 구간 1(date null)은 시작일부터, 그다음은 그 날짜부터. 종목 추가·비중·균등 배분·지우기 같은
+    // 기존 편집은 `portfolio` 를 고치므로 고른 구간에 그대로 걸린다. 서버로는 stocks(구간 1) + changes(나머지)로 간다.
+    var phases = [{ date: null, spread: 1, stocks: portfolio }];
+    var selPhase = 0;
+    var MAX_CHANGES = 12;
+    var MAX_UNIVERSE = 15;
+    var lastRunPhases = null;   // 결과를 그릴 때 쓴 구간(실행 시점의 것)
     var benchmarks = [];   // [{ code, name, market }]
     var backtestChart = null;
     var scoreRadarChart = null;
@@ -118,7 +125,7 @@
     function updateDateRange() {
         clearTimeout(dateRangeTimer);
         dateRangeTimer = setTimeout(function () {
-            var allStocks = portfolio.concat(benchmarks);
+            var allStocks = phases[0].stocks.concat(benchmarks);
             var startEl = document.getElementById('startDate');
             var endEl = document.getElementById('endDate');
             if (!startEl || !endEl) return;
@@ -354,7 +361,7 @@
     /* =========================================
        차트 렌더러
        ========================================= */
-    function renderChart(series, benchmarkSeries) {
+    function renderChart(series, benchmarkSeries, changedAt) {
         var ctx = document.getElementById('backtestChart');
         if (!ctx) return;
 
@@ -431,8 +438,40 @@
         var textColor = rootStyle.getPropertyValue('--bae-text-muted').trim() || '#888';
         var gridColor = rootStyle.getPropertyValue('--bae-border').trim() || '#333';
 
+        // 구성 변경일 — 세로 점선과 번호(①②…). 차트 점은 솎아져 있어 그 날짜 이후 첫 점에 긋는다.
+        var accent = getComputedStyle(document.documentElement).getPropertyValue('--bae-accent-fg').trim() || '#a78bfa';
+        var markers = (changedAt || []).map(function (c, n) {
+            for (var k = 0; k < labels.length; k++) if (labels[k] >= c.date) return { idx: k, text: c.date.slice(2, 7).replace('-', '.'), color: accent };
+            return null;
+        }).filter(Boolean);
+        var phaseLines = {
+            id: 'phaseLines',
+            afterDatasetsDraw: function (chart) {
+                if (!markers.length) return;
+                var c = chart.ctx, area = chart.chartArea, xs = chart.scales.x;
+                c.save();
+                markers.forEach(function (m) {
+                    var x = xs.getPixelForValue(m.idx);
+                    c.strokeStyle = m.color;
+                    c.lineWidth = 1.5;
+                    c.setLineDash([4, 4]);
+                    c.beginPath(); c.moveTo(x, area.top); c.lineTo(x, area.bottom); c.stroke();
+                    c.setLineDash([]);
+                    c.font = '600 10px sans-serif';
+                    var tw = c.measureText(m.text).width + 10;
+                    c.fillStyle = m.color;
+                    c.beginPath(); c.roundRect(x - tw / 2, area.top + 1, tw, 16, 8); c.fill();
+                    c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bae-accent-text').trim() || '#000';
+                    c.textAlign = 'center'; c.textBaseline = 'middle';
+                    c.fillText(m.text, x, area.top + 9.5);
+                });
+                c.restore();
+            }
+        };
+
         backtestChart = new Chart(ctx, {
             type: 'line',
+            plugins: [phaseLines],
             data: { labels: labels, datasets: datasets },
             options: {
                 responsive: true,
@@ -606,67 +645,373 @@
         });
     }
 
-    // 포트폴리오 종목 렌더링
-    function renderPortfolio() {
-        var container = document.getElementById('selectedStocks');
-        if (!container) return;
-        fieldError('btStocksError', '');
-        if (portfolio.length === 0) {
-            container.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
-            return;
-        }
-        var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-        var weightOk = Math.abs(totalWeight - 100) <= 0.01;
-        var eqBtnHeader = document.getElementById('equalizeWeights');
-        if (eqBtnHeader) eqBtnHeader.style.display = portfolio.length > 0 ? '' : 'none';
-        var html = '';
-        portfolio.forEach(function (s, idx) {
-            html += '<div class="portfolio-stock-item">' +
-                '<span class="ps-name">' + escapeHtml(s.name) + '</span>' +
-                '<span class="ps-code">' + escapeHtml(s.code) + '</span>' +
-                '<span class="ps-market badge-' + escapeHtml(s.market.toLowerCase()) + '">' + escapeHtml(s.market) + '</span>' +
-                '<div class="ps-weight-wrap">' +
-                '<input type="number" class="backtest-input ps-weight" data-idx="' + idx + '" value="' + s.weight + '" min="0" max="100" step="1">' +
-                '<span class="input-unit">%</span>' +
-                '</div>' +
-                '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
-                '</div>';
-        });
-        html += '<div class="portfolio-weight-total">' +
-            '<span class="weight-total-text' + (weightOk ? '' : ' weight-warning') + '">합계: ' + totalWeight.toFixed(1) + '% ' + (weightOk ? '✓' : '✗') + '</span>' +
-            '</div>';
-        container.innerHTML = html;
+    /* =========================================
+       종목 구성 — 비중 표(2026-10-19)
+       ========================================= */
+    // 행 = 종목, 열 = 시점("처음", 25.12.15…), 칸 = 비중. 비운 칸은 "그 시점엔 안 담음". 띠·칩·탭을 거쳐(사용자: 직관적이지 않다)
+    // 표로 정했다. 칸을 고칠 때는 표를 다시 그리지 않고 색·합계만 고친다(refreshTable) — 다시 그리면 Tab 으로 옮기던 포커스가 날아갔다.
+    // 구조가 바뀔 때(행·열이 생기거나 사라질 때)만 다시 그린다(renderPortfolio).
 
-        container.querySelectorAll('.ps-weight').forEach(function (inp) {
-            inp.addEventListener('change', function () {
-                var idx = parseInt(this.dataset.idx);
-                portfolio[idx].weight = parseFloat(this.value) || 0;
-                renderPortfolio();
-                updateSignalTargets();
-                scheduleAutoRecalc();
+    //: 결과 구성 띠의 **종목** 색(같은 종목은 어느 시점이든 같은 색).
+    var PHASE_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9'];
+    var stockStarts = {};   // 코드 → 시세 첫날(시점보다 늦으면 그 칸에 !). 없으면 아직 안 물어봤다
+    var popPhase = null;    // 시점 창이 고치고 있는 열(객체 — 날짜순 정렬로 번호가 바뀌어도 따라간다)
+    //: 시점이 여럿일 때 검색으로 넣은 종목 — 빈 줄로 더하고 칸을 채우면 그 시점에 담긴다(어느 열에 넣을지 고르는 "고른 열"을 걷었다 —
+    //  보라 테두리로 표시해야 했고 사용자가 그 강조를 원하지 않았다). 아무 칸도 안 채우면 설정에 들어가지 않는다.
+    var extraRows = [];
+
+    function slimStocks(list) {
+        return list.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; });
+    }
+
+    function collectChanges() {
+        return phases.slice(1).map(function (p) { return { date: p.date, spreadDays: p.spread, stocks: slimStocks(p.stocks) }; });
+    }
+
+    /** 표의 행 — 시점에 담긴 종목 + 아직 칸을 안 채운 빈 줄. */
+    function tableRows() {
+        var rows = allPhaseStocks(), seen = {};
+        rows.forEach(function (s) { seen[s.code] = true; });
+        extraRows = extraRows.filter(function (s) { return !seen[s.code]; });
+        return rows.concat(extraRows);
+    }
+
+    /** 모든 시점의 종목(코드 하나에 한 번, 처음 나온 순서) — 시그널 대상·설정. */
+    function allPhaseStocks() {
+        var seen = {}, out = [];
+        phases.forEach(function (p) {
+            p.stocks.forEach(function (s) { if (!seen[s.code]) { seen[s.code] = true; out.push(s); } });
+        });
+        return out;
+    }
+
+    function shortDate(d) { return d ? d.slice(2).replace(/-/g, '.') : ''; }
+    function colName(i) { return i === 0 ? (phases.length > 1 ? '처음' : '비중') : (shortDate(phases[i].date) || '날짜?'); }
+    var SPREAD_LABEL = { 1: '한 번에', 5: '5일 분할', 10: '10일 분할', 20: '20일 분할', 60: '60일 분할' };
+
+    /** 열 고르기 — 마지막으로 만진 열(`portfolio` 가 이 열의 목록 — 열이 하나면 검색으로 넣는 종목이 여기에). */
+    function selectPhase(i) {
+        selPhase = Math.max(0, Math.min(i, phases.length - 1));
+        portfolio = phases[selPhase].stocks;
+        refreshTable();
+    }
+
+    function setPhases(list) {
+        phases = list.length ? list : [{ date: null, spread: 1, stocks: [] }];
+        extraRows = [];
+        selPhase = 0;
+        portfolio = phases[0].stocks;
+        renderPortfolio();
+        updateSignalTargets();
+    }
+
+    /** 시점(열)을 날짜순으로 — 날짜를 바꾸면 저절로 자리를 잡는다("앞 시점보다 뒤여야" 오류가 없다). 고른 열은 따라간다. */
+    function sortPhases() {
+        var cur = phases[selPhase];
+        var rest = phases.slice(1).sort(function (a, b) { return (a.date || '9999') < (b.date || '9999') ? -1 : (a.date || '9999') > (b.date || '9999') ? 1 : 0; });
+        phases = [phases[0]].concat(rest);
+        selPhase = Math.max(0, phases.indexOf(cur));
+        portfolio = phases[selPhase].stocks;
+    }
+
+    /** 시점 i 의 문제(없으면 null) — 종목 수·비중 합·날짜(기간 안, 같은 날짜 둘 없음). */
+    function phaseProblem(i) {
+        var p = phases[i];
+        if (!p.stocks.length) return '종목을 1개 이상 넣으세요.';
+        var total = p.stocks.reduce(function (a, b) { return a + b.weight; }, 0);
+        if (Math.abs(total - 100) > 0.5) return '비중 합계가 100%여야 합니다. (현재: ' + (Math.round(total * 100) / 100) + '%)';
+        if (i === 0) return null;
+        var start = document.getElementById('startDate').value, end = document.getElementById('endDate').value;
+        if (!p.date) return '바꾸는 날을 고르세요.';
+        if (start && p.date <= start) return '바꾸는 날은 시작일(' + start + ')보다 뒤여야 합니다.';
+        if (end && p.date > end) return '바꾸는 날은 종료일(' + end + ')까지여야 합니다.';
+        for (var k = 1; k < phases.length; k++) if (k !== i && phases[k].date === p.date) return '같은 날 바꾸는 시점이 이미 있습니다.';
+        return null;
+    }
+
+    function weightOf(list, code) {
+        for (var k = 0; k < list.length; k++) if (list[k].code === code) return list[k].weight;
+        return null;
+    }
+
+    function tableTargets() {
+        var out = [document.getElementById('selectedStocks')];
+        var dlg = document.getElementById('phaseDlg');
+        if (dlg && dlg.open) out.push(document.getElementById('phaseDlgBody'));
+        return out.filter(Boolean);
+    }
+
+    function buildTable() {
+        var rows = tableRows();
+        var wrap = document.createElement('div');
+        wrap.className = 'wt-wrap';
+        var t = document.createElement('table');
+        t.className = 'wt';
+        var h = '<thead><tr><th class="wt-name">종목</th>';
+        phases.forEach(function (p, i) {
+            h += '<th class="wt-col" data-col="' + i + '"><button type="button" class="wt-head" data-col="' + i + '">' +
+                '<b>' + escapeHtml(colName(i)) + '</b>' + (i > 0 ? '<small>' + escapeHtml(SPREAD_LABEL[p.spread] || p.spread + '일 분할') + '</small>' : '') +
+                '</button></th>';
+        });
+        h += '</tr></thead><tbody>';
+        rows.forEach(function (s) {
+            h += '<tr><td class="wt-name"><span class="wt-name__text"><b>' + escapeHtml(s.name) + '</b><small>' + escapeHtml(s.code) +
+                '<span class="ps-market badge-' + escapeHtml((s.market || '').toLowerCase()) + '">' + escapeHtml(s.market || '') + '</span></small></span>' +
+                // Tab 순서에서 뺀다 — 칸끼리만 옮겨 다니게(줄 끝에서 ✕ 로 갔다). 키보드는 칸을 비워 뺀다.
+                '<button type="button" class="wt-rm" tabindex="-1" data-code="' + escapeHtml(s.code) + '" aria-label="' + escapeHtml(s.name) + ' 빼기">&times;</button></td>';
+            phases.forEach(function (p, i) {
+                var w = weightOf(p.stocks, s.code);
+                h += '<td class="wt-td"><span class="wt-box"><input type="number" class="wt-cell" data-col="' + i + '" data-code="' + escapeHtml(s.code) + '" min="0" max="100" step="1"' +
+                    ' placeholder="—" value="' + (w === null ? '' : w) + '" aria-label="' + escapeHtml(s.name + ' · ' + colName(i)) + '"></span></td>';
+            });
+            h += '</tr>';
+        });
+        h += '</tbody><tfoot><tr><td class="wt-name">합계</td>';
+        phases.forEach(function (p, i) { h += '<td class="wt-sum" data-col="' + i + '"></td>'; });
+        h += '</tr></tfoot>';
+        t.innerHTML = h;
+        wrap.appendChild(t);
+        return wrap;
+    }
+
+    // 포트폴리오 표 그리기(구조가 바뀔 때)
+    function renderPortfolio() {
+        fieldError('btStocksError', '');
+        var rows = tableRows();
+        tableTargets().forEach(function (box) {
+            box.textContent = '';
+            if (!rows.length) {
+                box.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
+                return;
+            }
+            box.appendChild(buildTable());
+        });
+        refreshTable();
+        checkPhaseStarts();
+    }
+
+    /** 합계를 100% 로 — 비례로 맞춘다(직접 넣은 비율은 살린다 — 균등 배분은 그걸 지웠고 어느 열에 걸리는지도 애매했다, 사용자 A안). */
+    function fitColumn(i) {
+        var list = phases[i].stocks, total = list.reduce(function (a, b) { return a + b.weight; }, 0);
+        if (!list.length || total <= 0) return;
+        var big = 0;
+        list.forEach(function (s, k) {
+            s.weight = Math.round(s.weight * 10000 / total) / 100;
+            if (s.weight > list[big].weight) big = k;
+        });
+        var rest = Math.round((100 - list.reduce(function (a, b) { return a + b.weight; }, 0)) * 100) / 100;
+        list[big].weight = Math.round((list[big].weight + rest) * 100) / 100;   // 반올림 남은 것은 가장 큰 칸에
+        renderPortfolio();
+        updateRunButtonState();
+        scheduleAutoRecalc();
+    }
+
+    /** 표를 다시 그리지 않고 고친다 — 고른 열·오류 점·앞 열 대비 색·합계·! 표시·[크게 보기]. */
+    function refreshTable() {
+        tableTargets().forEach(function (box) {
+            box.querySelectorAll('.wt-col').forEach(function (th) {
+                th.classList.toggle('has-error', !!phaseProblem(+th.dataset.col));
+            });
+            box.querySelectorAll('.wt-cell').forEach(function (inp) {
+                var i = +inp.dataset.col, code = inp.dataset.code;
+                var w = weightOf(phases[i].stocks, code), prev = i > 0 ? weightOf(phases[i - 1].stocks, code) : undefined;
+                var cls = '';
+                if (i > 0 && w !== null) cls = prev === null ? 'is-new' : w > prev ? 'is-up' : w < prev ? 'is-down' : '';
+                inp.className = 'wt-cell' + (cls ? ' ' + cls : '');
+                var td = inp.parentNode, warn = td.querySelector('.wt-warn');
+                var start = stockStarts[code];
+                var late = i > 0 && w !== null && start && phases[i].date && start > phases[i].date;
+                if (late && !warn) {
+                    warn = document.createElement('span');
+                    warn.className = 'metric-info wt-warn';
+                    warn.tabIndex = 0;
+                    warn.innerHTML = '!<span class="metric-tooltip"></span>';
+                    td.appendChild(warn);
+                }
+                if (warn && !late) warn.remove();
+                else if (late) warn.querySelector('.metric-tooltip').textContent = start + '부터 시세 — 이 시점 구성은 그날 시작';
+            });
+            box.querySelectorAll('.wt-sum').forEach(function (td) {
+                var i = +td.dataset.col, total = phases[i].stocks.reduce(function (a, b) { return a + b.weight; }, 0);
+                var ok = Math.abs(total - 100) <= 0.5;
+                td.textContent = (Math.round(total * 100) / 100) + (ok ? ' ✓' : ' ✗');
+                td.classList.toggle('is-bad', !ok);
+                if (!ok && total > 0) {   // 100 이 아닌 열에만 — 누르면 비례로 맞춘다
+                    var fit = document.createElement('button');
+                    fit.type = 'button';
+                    fit.className = 'wt-fit';
+                    fit.dataset.col = String(i);
+                    fit.setAttribute('aria-label', '합계 100%로 맞추기');
+                    fit.innerHTML = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+                        ' stroke-linejoin="round" aria-hidden="true">' +
+                        '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>';   // 저울 — _icons.html 'balance'
+                    td.appendChild(fit);
+                }
             });
         });
-        container.querySelectorAll('.picker-remove').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                portfolio.splice(parseInt(this.dataset.idx), 1);
-                renderPortfolio();
-                updateSignalTargets();
-                updateRunButtonState();
-                updateDateRange();
-            });
-        });
-        if (eqBtnHeader && !eqBtnHeader._bound) {
-            eqBtnHeader._bound = true;
-            eqBtnHeader.addEventListener('click', function () {
-                var n = portfolio.length;
-                var base = Math.floor(10000 / n);
-                var remainder = 10000 - base * n;
-                portfolio.forEach(function (s, i) {
-                    s.weight = (base + (i < remainder ? 1 : 0)) / 100;
-                });
-                renderPortfolio();
-            });
+        // [크게 보기]는 칸에 다 들어가지 않을 때만
+        var wrap = document.querySelector('#selectedStocks .wt-wrap'), ex = document.getElementById('phaseExpand');
+        if (ex) ex.hidden = !(wrap && wrap.scrollWidth > wrap.clientWidth + 2);
+    }
+
+    /** 칸 하나 고치기 — 비우거나 0 이면 그 시점에서 뺀다. 행이 생기거나 사라지면 표를 다시 그린다(포커스는 지킨다). */
+    function setCell(code, i, raw) {
+        var list = phases[i].stocks, idx = -1;
+        for (var k = 0; k < list.length; k++) if (list[k].code === code) idx = k;
+        var v = parseFloat(raw);
+        var rowsBefore = tableRows().length;
+        if (!(v > 0)) {
+            if (idx >= 0) list.splice(idx, 1);
+        } else if (idx >= 0) {
+            list[idx].weight = v;
+        } else {
+            if (list.length >= MAX_STOCKS) { notify('한 시점에 ' + MAX_STOCKS + '개까지 담을 수 있습니다.'); renderPortfolio(); return; }
+            var info = tableRows().filter(function (s) { return s.code === code; })[0];
+            list.push({ code: code, name: info.name, market: info.market, weight: v });
         }
+        if (tableRows().length !== rowsBefore) renderPortfolio();
+        else refreshTable();
+        updateSignalTargets();
+        updateRunButtonState();
+        updateDateRange();
+        scheduleAutoRecalc();
+    }
+
+    /** 행 빼기 — 모든 시점에서. 묻지 않고 빼고 토스트 [되돌리기](되돌릴 수 있는 일). */
+    function removeRow(code) {
+        var snap = phases.map(function (p) { return { date: p.date, spread: p.spread, stocks: slimStocks(p.stocks) }; });
+        var snapExtra = extraRows.slice();
+        var name = (tableRows().filter(function (s) { return s.code === code; })[0] || {}).name || code;
+        phases.forEach(function (p) { p.stocks = p.stocks.filter(function (s) { return s.code !== code; }); });
+        extraRows = extraRows.filter(function (s) { return s.code !== code; });
+        portfolio = phases[selPhase].stocks;
+        renderPortfolio();
+        updateSignalTargets();
+        updateRunButtonState();
+        updateDateRange();
+        notify('"' + name + '"을 뺐습니다.', 'info', { action: { label: '되돌리기', onClick: function () {
+            phases = snap;
+            extraRows = snapExtra;
+            selPhase = Math.min(selPhase, phases.length - 1);
+            portfolio = phases[selPhase].stocks;
+            renderPortfolio();
+            updateSignalTargets();
+            updateRunButtonState();
+            updateDateRange();
+        } } });
+    }
+
+    /** 시점마다 늦게 시작하는 종목을 알기 위해 시세 첫날을 한 번씩 묻는다(코드별로 기억). */
+    function checkPhaseStarts() {
+        if (phases.length < 2) return;
+        allPhaseStocks().forEach(function (s) {
+            if (s.code in stockStarts) return;
+            stockStarts[s.code] = undefined;
+            fetch('/api/v1/backtest/date-range?codes=' + encodeURIComponent(s.code) + '&markets=' + encodeURIComponent(s.market || ''))
+                .then(function (r) { return r.ok ? r.json() : {}; })
+                .then(function (j) { stockStarts[s.code] = (j && j.min) || null; refreshTable(); })
+                .catch(function () { /* ! 만 못 띄운다 */ });
+        });
+    }
+
+    /** [＋ 시점] — 마지막 열 비중을 복사한 새 열(날짜 = 마지막 시점과 종료일의 가운데), 곧바로 그 열의 창을 연다. */
+    function addPhase() {
+        if (phases.length > MAX_CHANGES) { notify('시점은 ' + (MAX_CHANGES + 1) + '개까지입니다.'); return; }
+        var start = document.getElementById('startDate').value, end = document.getElementById('endDate').value;
+        var last = phases.length === 1 ? start : phases[phases.length - 1].date;
+        var a = Date.parse(last), b = Date.parse(end);
+        var mid = (!isNaN(a) && !isNaN(b) && b > a) ? new Date(a + Math.round((b - a) / 2 / 864e5) * 864e5).toISOString().slice(0, 10) : '';
+        var p = { date: mid, spread: 1, stocks: slimStocks(phases[phases.length - 1].stocks) };
+        phases.push(p);
+        selPhase = phases.length - 1;
+        portfolio = p.stocks;
+        renderPortfolio();
+        updateRunButtonState();
+        var head = document.querySelector('#' + (document.getElementById('phaseDlg').open ? 'phaseDlgBody' : 'selectedStocks') + ' .wt-head[data-col="' + selPhase + '"]');
+        if (head) { head.scrollIntoView({ block: 'nearest', inline: 'nearest' }); openPhasePop(p, head); }
+    }
+
+    /** 시점 지우기 — 묻지 않고 지우고 토스트 [되돌리기]. */
+    function removePhase(i) {
+        if (i <= 0 || i >= phases.length) return;
+        var gone = phases.splice(i, 1)[0];
+        selPhase = Math.min(selPhase, phases.length - 1);
+        portfolio = phases[selPhase].stocks;
+        renderPortfolio();
+        updateSignalTargets();
+        updateRunButtonState();
+        notify((gone.date ? shortDate(gone.date) + ' ' : '') + '시점을 지웠습니다.', 'info', { action: { label: '되돌리기', onClick: function () {
+            phases.push(gone);
+            sortPhases();
+            renderPortfolio();
+            updateSignalTargets();
+            updateRunButtonState();
+        } } });
+    }
+
+    /** 열 머리 아래에 시점 창(바꾸는 날·옮기는 방법·지우기). */
+    function openPhasePop(p, anchor) {
+        var pop = document.getElementById('phasePop');
+        popPhase = p;
+        var start = document.getElementById('startDate').value, end = document.getElementById('endDate').value;
+        var dateEl = document.getElementById('phaseDate');
+        dateEl.value = p.date || '';
+        dateEl.min = start || '';
+        dateEl.max = end || '';
+        document.getElementById('phaseSpread').value = String(p.spread || 1);
+        showPopError();
+        var r = anchor.getBoundingClientRect(), w = Math.min(240, window.innerWidth - 16);
+        pop.style.width = w + 'px';
+        pop.style.top = Math.round(r.bottom + 6) + 'px';
+        pop.style.left = Math.round(Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8))) + 'px';
+        if (!pop.matches(':popover-open')) pop.showPopover();
+    }
+
+    function showPopError() {
+        var i = phases.indexOf(popPhase), el = document.getElementById('phasePopError');
+        var prob = i > 0 ? phaseProblem(i) : null;
+        var dateProb = prob && /바꾸는 날|같은 날/.test(prob);
+        el.textContent = dateProb ? prob : '';
+        el.hidden = !dateProb;
+    }
+
+    /** 표 하나(카드·크게 보기 창)에 이벤트를 단다 — 칸 고치기·열 고르기·열 머리 창·행 빼기. 한 번만(위임). */
+    function bindTable(box) {
+        if (!box || box._wtBound) return;
+        box._wtBound = true;
+        box.addEventListener('change', function (e) {
+            var inp = e.target.closest && e.target.closest('.wt-cell');
+            if (inp) setCell(inp.dataset.code, +inp.dataset.col, inp.value);
+        });
+        box.addEventListener('focusin', function (e) {
+            var inp = e.target.closest && e.target.closest('.wt-cell');
+            if (!inp) return;
+            if (+inp.dataset.col !== selPhase) selectPhase(+inp.dataset.col);
+            // 들어가면 숫자 전체를 고른다(스프레드시트처럼) — 안 그러면 "60" 칸에 30 을 쳐 "3060" 이 됐다. 마우스 눌림이 선택을 풀지 않게 한 박자 뒤에.
+            setTimeout(function () { if (document.activeElement === inp) inp.select(); }, 0);
+        });
+        box.addEventListener('keydown', function (e) {   // Enter 는 아래 칸
+            var inp = e.target.closest && e.target.closest('.wt-cell');
+            if (!inp || e.key !== 'Enter') return;
+            e.preventDefault();
+            var cells = [].slice.call(box.querySelectorAll('.wt-cell[data-col="' + inp.dataset.col + '"]'));
+            var next = cells[cells.indexOf(inp) + 1];
+            inp.blur();
+            if (next) { next.focus(); next.select(); }
+        });
+        box.addEventListener('click', function (e) {
+            var head = e.target.closest && e.target.closest('.wt-head');
+            if (head) {
+                var i = +head.dataset.col;
+                selectPhase(i);
+                if (i > 0) openPhasePop(phases[i], head);
+                return;
+            }
+            var rm = e.target.closest && e.target.closest('.wt-rm');
+            if (rm) { removeRow(rm.dataset.code); return; }
+            var fit = e.target.closest && e.target.closest('.wt-fit');
+            if (fit) fitColumn(+fit.dataset.col);
+        });
     }
 
     // 시그널 타겟 옵션 업데이트
@@ -674,7 +1019,7 @@
         document.querySelectorAll('.signal-target').forEach(function (sel) {
             var currentVal = sel.value;
             sel.innerHTML = '';
-            portfolio.forEach(function (s) {
+            allPhaseStocks().forEach(function (s) {
                 var opt = document.createElement('option');
                 opt.value = s.code;
                 opt.textContent = s.name + ' (' + s.code + ')';
@@ -867,7 +1212,8 @@
         renderScoreRadar(radarLabels, radarDatasets);
 
         // 차트
-        renderChart(data.dailySeries, bmkResults);
+        renderChart(data.dailySeries, bmkResults, data.changedAt);
+        renderPhaseStrip(data.changedAt, data.dailySeries);
 
         // 연도별 수익률 테이블
         var tbody = document.querySelector('#annualReturnsTable tbody');
@@ -888,13 +1234,68 @@
         document.getElementById('tradeBuyCount').textContent = formatNumber(ts.buyCount);
         document.getElementById('tradeSellCount').textContent = formatNumber(ts.sellCount);
         document.getElementById('tradeTotalInvested').textContent = formatCurrency(ts.totalInvested);
+        var nChanges = (data.changedAt || []).length;
+        document.getElementById('tradePhaseStat').hidden = !nChanges;
+        document.getElementById('tradePhaseCount').textContent = nChanges + '회';
+    }
+
+    /**
+     * 구간별 구성 — 차트 아래 띠. 폭 = 실제 기간(바뀐 날 기준), 안 = 비중대로 나눈 막대(같은 종목은 어느 구간이든 같은 색).
+     * 번호는 차트의 세로 점선 번호와 같다. 구성 변경이 없으면 숨는다.
+     */
+    function renderPhaseStrip(changedAt, series) {
+        var box = document.getElementById('phaseStrip');
+        if (!box) return;
+        box.textContent = '';
+        var ph = lastRunPhases || [];
+        if (!changedAt || !changedAt.length || !series || !series.length || ph.length < 2) { box.hidden = true; return; }
+        box.hidden = false;
+        var row = document.createElement('div');
+        row.className = 'phase-strip__row';
+        box.appendChild(row);
+        var first = series[0].date, last = series[series.length - 1].date;
+        var starts = [first].concat(changedAt.map(function (c) { return c.date; }));
+        var colorOf = {}, nColor = 0;
+        ph.forEach(function (p) { p.stocks.forEach(function (s) { if (!(s.code in colorOf)) colorOf[s.code] = PHASE_COLORS[nColor++ % PHASE_COLORS.length]; }); });
+        starts.forEach(function (d0, i) {
+            var p = ph[changedAt[i - 1] ? changedAt[i - 1].phase : 0] || ph[i];
+            var d1 = starts[i + 1] || last;
+            var seg = document.createElement('div');
+            seg.className = 'phase-strip__seg';
+            seg.style.flexGrow = Math.max(1, (Date.parse(d1) - Date.parse(d0)) / 864e5);
+            var bar = document.createElement('div');
+            bar.className = 'phase-strip__bar';
+            p.stocks.forEach(function (s) {
+                var part = document.createElement('span');
+                part.style.flexGrow = s.weight;
+                part.style.background = colorOf[s.code];
+                bar.appendChild(part);
+            });
+            var cap = document.createElement('div');
+            cap.className = 'phase-strip__cap';
+            cap.textContent = shortDate(d0) + ' — ' + p.stocks.map(function (s) { return s.name + ' ' + s.weight + '%'; }).join(' · ');
+            seg.appendChild(bar);
+            seg.appendChild(cap);
+            row.appendChild(seg);
+        });
+        var legend = document.createElement('div');
+        legend.className = 'phase-strip__legend';
+        Object.keys(colorOf).forEach(function (code) {
+            var st = null;
+            ph.forEach(function (p) { p.stocks.forEach(function (s) { if (s.code === code && !st) st = s; }); });
+            var item = document.createElement('span');
+            var dot = document.createElement('i');
+            dot.style.background = colorOf[code];
+            item.appendChild(dot);
+            item.appendChild(document.createTextNode((st && st.name) || code));
+            legend.appendChild(item);
+        });
+        box.appendChild(legend);
     }
 
     // 설정 수집
     function collectConfig() {
-        if (portfolio.length === 0) return null;
-        var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-        if (Math.abs(totalWeight - 100) > 0.5) return null;
+        for (var pi = 0; pi < phases.length; pi++) if (phaseProblem(pi)) return null;
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
         if (!startDate || !endDate || startDate >= endDate) return null;
@@ -914,7 +1315,8 @@
         }
 
         return {
-            stocks: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
+            stocks: slimStocks(phases[0].stocks),
+            changes: collectChanges(),
             benchmarks: benchmarks.map(function (b) { return { code: b.code, market: b.market, name: b.name }; }),
             startDate: startDate,
             endDate: endDate,
@@ -956,13 +1358,17 @@
     // 설정 수집 + 유효성 검사 (오류는 칸 옆에)
     function collectConfigWithAlert() {
         clearRunErrors();
-        if (portfolio.length === 0) {
-            fieldError('btStocksError', '종목을 1개 이상 추가하세요.');
+        if (allPhaseStocks().length > MAX_UNIVERSE) {
+            fieldError('btStocksError', '모든 구간을 합쳐 종목은 ' + MAX_UNIVERSE + '개까지입니다.');
             return null;
         }
-        var totalWeight = portfolio.reduce(function (a, b) { return a + b.weight; }, 0);
-        if (Math.abs(totalWeight - 100) > 0.5) {
-            fieldError('btStocksError', '종목 비중 합계가 100%여야 합니다. (현재: ' + totalWeight.toFixed(1) + '%)');
+        // 문제 있는 첫 시점을 골라 표 아래에 보인다(시점이 하나면 예전과 같은 문구)
+        for (var pi = 0; pi < phases.length; pi++) {
+            var prob = phaseProblem(pi);
+            if (!prob) continue;
+            if (pi !== selPhase) selectPhase(pi);
+            var where = phases.length > 1 ? colName(pi) + ': ' : '';
+            fieldError('btStocksError', where + (prob.indexOf('비중') === 0 ? '종목 ' + prob : prob.replace('넣으세요', '추가하세요')));
             return null;
         }
         var startDate = document.getElementById('startDate').value;
@@ -1000,6 +1406,7 @@
         var btn = document.getElementById('runBacktest');
         btn.disabled = true;
         setRunLabel(btn, '실행 중...');
+        var runPhases = phases.map(function (p) { return { date: p.date, spread: p.spread, stocks: slimStocks(p.stocks) }; });
 
         var progressDiv = document.getElementById('backtestProgress');
         var progressFill = document.getElementById('progressFill');
@@ -1023,12 +1430,13 @@
                 progressFill.style.width = '100%';
                 progressDiv.style.display = 'none';
                 // ⚠️ 결과가 한 겹 더 감싸여 있지 않다 — 엔진 결과 위에 `portfolio` 만 얹혀 온다.
+                lastRunPhases = runPhases;
                 displayResults(json);
 
                 // 저장이 실패해도 계산 결과는 온다(그때는 `portfolio` 가 없다).
                 if (json.portfolio && json.portfolio.id) {
                     updatePortfolioNameUI(json.portfolio.id, json.portfolio.name || '',
-                                          json.portfolio.mine, json.portfolio.is_public);
+                                          json.portfolio.mine, json.portfolio.is_public, true, runPhases.length);
                 }
 
                 hasRunOnce = true;
@@ -1055,7 +1463,7 @@
     /**
      * 포트폴리오 이름 편집 UI 업데이트
      */
-    function updatePortfolioNameUI(id, name, mine, isPublic) {
+    function updatePortfolioNameUI(id, name, mine, isPublic, ran, phaseCount) {
         currentPortfolioId = id;
         var section = document.getElementById('portfolioNameSection');
         var nameEl = document.getElementById('portfolioNameText');
@@ -1067,7 +1475,26 @@
         if (editBtn) editBtn.hidden = !mine;
         // 공개 토글은 **내 것일 때만** 보인다. 비로그인이 돌린 것은 주인이 없어
         // 공개로 고정이고, 바꿀 수단을 주면 눌러도 403 만 돌아온다.
-        renderPublicToggle(!!mine, !!isPublic);
+        // 실행 전(옛 프리셋에서 옮긴 것)은 점수가 없어 공개 토글을 숨긴다 — 0점이 랭킹에 오르지 않게. 실행하면 켜진다.
+        // 구성 변경이 있으면 랭킹에 올리지 않는다 — 토글 대신 ⓘ 로 이유를 보인다(서버도 막는다)
+        var staged = (phaseCount || 1) > 1;
+        renderPublicToggle(!!mine && ran !== false && !staged, !!isPublic);
+        var note = document.getElementById('portfolioRankNote');
+        if (note) note.hidden = !(mine && staged);
+    }
+
+    /** ☆ 줄을 처음(실행 전 안내) 상태로 — 지금 연 포트폴리오를 목록에서 지웠을 때. */
+    function clearPortfolioNameUI() {
+        currentPortfolioId = null;
+        var section = document.getElementById('portfolioNameSection');
+        var nameEl = document.getElementById('portfolioNameText');
+        var editBtn = document.getElementById('portfolioNameEdit');
+        if (section) section.classList.add('is-empty');
+        if (nameEl) nameEl.textContent = '실행하면 자동 저장됩니다';
+        if (editBtn) editBtn.hidden = true;
+        renderPublicToggle(false, false);
+        var note = document.getElementById('portfolioRankNote');
+        if (note) note.hidden = true;
     }
 
     /**
@@ -1144,7 +1571,7 @@
             .then(function (json) {
                 if (!json || !json.config) return false;
                 applyConfig(json.config);
-                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public);
+                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public, json.ran, json.phases);
                 return true;
             })
             .catch(function () { return false; });
@@ -1166,7 +1593,8 @@
         });
 
         var data = {
-            portfolio: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
+            portfolio: slimStocks(phases[0].stocks),
+            changes: collectChanges(),
             benchmark: benchmarks.length > 0 ? { code: benchmarks[0].code, name: benchmarks[0].name, market: benchmarks[0].market } : null,
             benchmarks: benchmarks.map(function (b) { return { code: b.code, name: b.name, market: b.market }; }),
             strategy: activeTab ? activeTab.dataset.strategy : 'buyhold',
@@ -1198,10 +1626,12 @@
             if (!raw) { notify('저장된 설정이 없습니다.'); return; }
             var data = JSON.parse(raw);
 
-            portfolio = (data.portfolio || []).map(function (s) {
+            setPhases([{ date: null, spread: 1, stocks: (data.portfolio || []).map(function (s) {
                 return { code: s.code, name: s.name, market: s.market, weight: s.weight };
-            });
-            renderPortfolio();
+            }) }].concat((data.changes || []).map(function (c) {
+                return { date: c.date, spread: c.spreadDays || 1, stocks: c.stocks.map(function (s) {
+                    return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }) };
+            })));
 
             if (data.benchmarks && data.benchmarks.length > 0) {
                 benchmarks = data.benchmarks.map(function (b) {
@@ -1255,7 +1685,7 @@
     }
 
     /* =========================================
-       서버 프리셋 관리 (로그인 사용자 전용)
+       내 포트폴리오 (로그인 사용자 — 2026-10-19 프리셋을 여기로 합쳤다)
        ========================================= */
 
     /**
@@ -1273,181 +1703,136 @@
         return copy;
     }
 
-    // 프리셋 요약 풍선 — 마우스를 올린 항목 옆에 하나만 뜬다. 스크롤하면 항목만 움직이고 풍선은 남으므로 거둔다
-    // (2026-10-13 점검, capture 라 목록·문서 어느 스크롤이든).
-    var presetTip = null;
-    function removePresetTip() {
-        if (presetTip) { presetTip.remove(); presetTip = null; }
+    var STRATEGY_LABEL = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' };
+    var TRASH_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/>' +
+        '<path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+    /**
+     * ☆ 줄 끝 목록 버튼 → "내 포트폴리오"(popover). 열 때마다 서버에서 다시 읽는다(☆ 줄에서 이름·공개를 바꿨을 수 있다).
+     * 이름을 누르면 그 설정을 불러오고(기간은 화면 것 그대로 — withoutDates) ☆ 줄이 그 포트폴리오가 된다.
+     */
+    function initPortfolioMenu() {
+        var menu = document.getElementById('portfolioMenu');
+        var btn = document.getElementById('portfolioListBtn');
+        if (!menu || !btn) return;
+        // 목록 버튼 아래, 오른쪽 끝을 맞춘다(화면 밖으로 나가지 않게). 창은 화면에 고정(top layer)이라 페이지를 스크롤하면
+        // 버튼만 움직여 떨어졌다(2026-10-19 사용자) — 스크롤·창 크기가 바뀔 때마다 다시 붙이고, 버튼이 화면 밖으로 나가면 닫는다.
+        function place() {
+            var r = btn.getBoundingClientRect(), w = Math.min(416, window.innerWidth - 16);
+            if (r.bottom < 0 || r.top > window.innerHeight) { menu.hidePopover(); return; }
+            menu.style.width = w + 'px';
+            menu.style.top = Math.round(r.bottom + 6) + 'px';
+            menu.style.left = Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))) + 'px';
+        }
+        function follow(e) {
+            // 목록 안의 스크롤은 무시. ⚠️ resize 는 대상이 window 라 Node 인지 먼저 본다(contains 가 던졌다)
+            if (e && e.target instanceof Node && e.target !== document && menu.contains(e.target)) return;
+            if (menu.matches(':popover-open')) place();
+        }
+        menu.addEventListener('beforetoggle', function (e) {
+            var open = e.newState === 'open';
+            btn.setAttribute('aria-expanded', String(open));
+            if (!open) return;
+            place();
+            renderPortfolioMenu();
+        });
+        document.addEventListener('scroll', follow, { capture: true, passive: true });
+        window.addEventListener('resize', follow);
     }
-    document.addEventListener('scroll', removePresetTip, true);
 
-    function loadPresetList() {
-        if (!window.__BACKTEST_USER_LOGGED_IN) return;
-        var listEl = document.getElementById('presetList');
-        var countEl = document.getElementById('presetCount');
-        if (!listEl) return;
-
-        apiFetch('/api/v1/backtest/presets')
+    function renderPortfolioMenu() {
+        var list = document.getElementById('portfolioMenuList');
+        var count = document.getElementById('portfolioMenuCount');
+        list.innerHTML = '<li class="portfolio-menu__empty">불러오는 중…</li>';
+        apiFetch('/api/v1/backtest/portfolios')
             .then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
                 return r.json();
             })
             .then(function (rows) {
-                if (countEl) countEl.textContent = rows.length + '/20';
-
-                if (rows.length === 0) {
-                    listEl.innerHTML = '<p class="empty-hint">저장된 프리셋이 없습니다</p>';
+                count.textContent = rows.length ? ' · ' + rows.length : '';
+                list.textContent = '';
+                if (!rows.length) {
+                    list.innerHTML = '<li class="portfolio-menu__empty">아직 없습니다 — 실행하면 자동으로 저장됩니다</li>';
                     return;
                 }
-
-                var html = '';
                 rows.forEach(function (p) {
-                    var strategyLabel = { buyhold: 'B&H', rebalance: '리밸', signal: '시그널' }[p.strategy] || p.strategy;
-                    html += '<div class="preset-item" data-id="' + p.id + '" data-info="' + escapeHtml(p.stock_summary || '') + '">' +
-                        '<span class="preset-item-name preset-load-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</span>' +
-                        '<button type="button" class="preset-rename-btn" aria-label="이름 바꾸기">' + PENCIL_SVG + '</button>' +
-                        '<span class="portfolio-strategy-badge">' + escapeHtml(strategyLabel) + '</span>' +
-                        '<button type="button" class="btn btn-sm btn-danger picker-remove preset-delete-btn" data-id="' + p.id + '">&times;</button>' +
-                        '</div>';
-                });
-                listEl.innerHTML = html;
-
-                // floating tooltip for preset items
-                listEl.querySelectorAll('.preset-item[data-info]').forEach(function (item) {
-                    if (!item.dataset.info) return;
-                    item.addEventListener('mouseenter', function () {
-                        removePresetTip();
-                        var tip = document.createElement('div');
-                        tip.className = 'c-tip is-on';   // 겉모양은 버튼 이름 풍선(tooltip.js)과 같다
-                        tip.setAttribute('popover', 'manual');   // top layer — 크기를 재려면 먼저 띄운다
-                        tip.textContent = item.dataset.info;
-                        document.body.appendChild(tip);
-                        tip.showPopover();
-                        // ⚠️ 항목 **왼쪽 바깥**에 띄운다. 예전처럼 바로 아래에 두면 다음 줄의
-                        //    이름·삭제(×) 버튼을 덮어 목록을 못 읽는다(2026-08-23 사용자 제보).
-                        var rect = item.getBoundingClientRect();
-                        var left = rect.left - tip.offsetWidth - 8;
-                        if (left < 8) left = Math.max(8, window.innerWidth - tip.offsetWidth - 8);
-                        var top = rect.top + rect.height / 2 - tip.offsetHeight / 2;
-                        top = Math.max(8, Math.min(top, window.innerHeight - tip.offsetHeight - 8));
-                        tip.style.left = left + 'px';
-                        tip.style.top = top + 'px';
-                        presetTip = tip;
-                    });
-                    item.addEventListener('mouseleave', removePresetTip);
-                });
-
-                listEl.querySelectorAll('.preset-rename-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () { startPresetRename(btn.closest('.preset-item')); });
-                });
-                listEl.querySelectorAll('.preset-load-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        loadPreset(parseInt(btn.dataset.id));
-                    });
-                });
-                listEl.querySelectorAll('.preset-delete-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        if (confirm('이 프리셋을 삭제하시겠습니까?')) {
-                            deletePreset(parseInt(btn.dataset.id));
-                        }
-                    });
+                    var li = document.createElement('li');
+                    li.className = 'portfolio-menu__item' + (p.id === currentPortfolioId ? ' is-current' : '');
+                    var load = document.createElement('button');
+                    load.type = 'button';
+                    load.className = 'portfolio-menu__load';
+                    var name = document.createElement('span');
+                    name.className = 'portfolio-menu__name';
+                    name.textContent = p.name;
+                    var sub = document.createElement('span');
+                    sub.className = 'portfolio-menu__sub';
+                    sub.textContent = p.stock_summary || '';
+                    load.appendChild(name);
+                    load.appendChild(sub);
+                    load.addEventListener('click', function () { openPortfolio(p.id); });
+                    var grade = document.createElement('span');
+                    grade.className = 'portfolio-menu__grade' + (p.ran ? '' : ' is-new');
+                    grade.textContent = p.ran ? (p.ranking_grade || '-') + ' ' + Math.round(p.ranking_score || 0) : '실행 전';
+                    var tags = document.createElement('span');
+                    tags.className = 'portfolio-menu__tags';
+                    tags.textContent = (STRATEGY_LABEL[p.strategy] || p.strategy || '') + (p.phases > 1 ? ' · 구성 변경 ' + (p.phases - 1) + '회' : '')
+                        + (p.is_public ? ' · 공개' : '');
+                    var del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = 'c-btn portfolio-menu__del';
+                    del.innerHTML = TRASH_SVG + '<span>지우기</span>';
+                    del.addEventListener('click', function () { deletePortfolio(p); });
+                    li.appendChild(load);
+                    li.appendChild(grade);
+                    li.appendChild(tags);
+                    li.appendChild(del);
+                    list.appendChild(li);
                 });
             })
-            .catch(function () { /* 무시 */ });
+            .catch(function (err) {
+                list.innerHTML = '';
+                var li = document.createElement('li');
+                li.className = 'portfolio-menu__empty';
+                li.textContent = '목록을 불러오지 못했습니다: ' + (err.message || '');
+                list.appendChild(li);
+            });
     }
 
-    // 연필 — `_icons.html` 의 'edit' 과 같은 그림.
-    var PENCIL_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>' +
-        '<path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
-
-    /**
-     * 프리셋 이름 인라인 편집(정본 inline-edit.md, 2026-10-13 — 예전엔 지우고 다시 만들어야 했다).
-     * 연필로 연다(이름을 누르면 불러오기라 더블클릭 편집은 두지 않는다). Enter·blur = 저장, Esc = 취소,
-     * 빈 이름은 저장하지 않는다. 실패하면 원래 이름으로 되돌리고 오류 토스트.
-     */
-    function startPresetRename(item) {
-        if (!item || item.querySelector('.preset-rename-input')) return;
-        var nameEl = item.querySelector('.preset-item-name');
-        var btn = item.querySelector('.preset-rename-btn');
-        var prev = nameEl.textContent;
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'backtest-input preset-rename-input';
-        input.maxLength = 100;
-        input.value = prev;
-        input.setAttribute('aria-label', '프리셋 이름');
-        nameEl.hidden = true;
-        btn.hidden = true;
-        nameEl.after(input);
-        input.focus();
-        input.select();
-
-        var done = false;
-        function end(save) {
-            if (done) return;
-            done = true;
-            var next = input.value.trim();
-            input.remove();
-            nameEl.hidden = false;
-            btn.hidden = false;
-            if (!save || !next || next === prev) return;
-            nameEl.textContent = next;
-            apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(item.dataset.id), {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: next })
-            })
-                .then(function (r) {
-                    if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                    notify('프리셋 이름을 바꿨습니다.', 'success');
-                })
-                .catch(function (err) {
-                    if (nameEl.textContent === next) nameEl.textContent = prev;
-                    notify(err.message || '프리셋 이름을 바꾸지 못했습니다.');
-                });
-        }
-        input.addEventListener('blur', function () { end(true); });
-        input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') { e.preventDefault(); end(true); }
-            if (e.key === 'Escape') { e.preventDefault(); end(false); }
-        });
-    }
-
-    function savePreset() {
-        var nameInput = document.getElementById('presetNameInput');
-        if (!nameInput) return;
-        var name = nameInput.value.trim();
-        if (!name) { fieldError('presetNameError', '프리셋 이름을 입력하세요.'); nameInput.focus(); return; }
-        fieldError('presetNameError', '');
-
-        var config = collectConfig();
-        if (!config) {
-            // 설정이 유효하지 않아도 현재 폼 상태를 저장 가능하도록 raw 수집
-            config = collectConfigRaw();
-            if (!config) { notify('종목을 1개 이상 추가하세요.'); return; }
-        }
-
-        apiFetch('/api/v1/backtest/presets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, config: withoutDates(config) })
-        })
+    function openPortfolio(id) {
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(id))
             .then(function (r) {
                 if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                notify('"' + name + '" 프리셋을 저장했습니다.', 'success');
-                nameInput.value = '';
-                loadPresetList();
+                return r.json();
             })
-            .catch(function (err) { notify(err.message || '프리셋 저장 중 오류가 발생했습니다.'); });
+            .then(function (json) {
+                if (!json.config) throw new Error('설정이 없는 포트폴리오입니다.');
+                applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다(2026-08-23 사용자 지시)
+                updatePortfolioNameUI(json.id, json.name, json.mine, json.is_public, json.ran, json.phases);
+                document.getElementById('portfolioMenu').hidePopover();
+                notify('"' + json.name + '" 포트폴리오를 불러왔습니다.' + (json.ran ? '' : ' 실행하면 결과가 저장됩니다.'), 'success');
+            })
+            .catch(function (err) { notify(err.message || '포트폴리오를 불러오지 못했습니다.'); });
+    }
+
+    function deletePortfolio(p) {
+        if (!confirm('"' + p.name + '" 포트폴리오를 지울까요?' + (p.is_public ? ' 랭킹에서도 빠집니다.' : ''))) return;
+        apiFetch('/api/v1/backtest/portfolios/' + encodeURIComponent(p.id), { method: 'DELETE' })
+            .then(function (r) {
+                if (!r.ok) return apiError(r).then(function (e) { throw e; });
+                if (p.id === currentPortfolioId) clearPortfolioNameUI();
+                notify('"' + p.name + '" 포트폴리오를 지웠습니다.', 'success');
+                renderPortfolioMenu();
+            })
+            .catch(function (err) { notify(err.message || '포트폴리오를 지우지 못했습니다.'); });
     }
 
     /**
-     * 유효성 검사 없이 현재 폼 상태를 수집 (프리셋 저장 용)
+     * 유효성 검사 없이 현재 폼 상태를 수집 (AI 상담 화면 맥락 — 저장 안 한 것 그대로)
      */
     function collectConfigRaw() {
-        if (portfolio.length === 0) return null;
+        if (phases[0].stocks.length === 0) return null;
         var activeTab = document.querySelector('.strategy-tab.active');
         var strategy = activeTab ? activeTab.dataset.strategy : 'buyhold';
         var signalRules = [];
@@ -1460,7 +1845,8 @@
             });
         }
         return {
-            stocks: portfolio.map(function (s) { return { code: s.code, name: s.name, market: s.market, weight: s.weight }; }),
+            stocks: slimStocks(phases[0].stocks),
+            changes: collectChanges(),
             benchmarks: benchmarks.map(function (b) { return { code: b.code, market: b.market, name: b.name }; }),
             startDate: document.getElementById('startDate').value,
             endDate: document.getElementById('endDate').value,
@@ -1483,39 +1869,16 @@
         };
     }
 
-    function loadPreset(id) {
-        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id))
-            .then(function (r) {
-                if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                return r.json();
-            })
-            .then(function (json) {
-                if (!json.config) throw new Error('프리셋에 설정이 없습니다.');
-                applyConfig(withoutDates(json.config));   // 기간은 화면 것을 그대로 둔다
-                notify('"' + (json.name || '') + '" 프리셋을 적용했습니다.', 'success');
-            })
-            .catch(function (err) { notify(err.message || '프리셋 불러오기 중 오류가 발생했습니다.'); });
-    }
-
-    function deletePreset(id) {
-        // 삭제 성공은 204 라 본문이 없다.
-        apiFetch('/api/v1/backtest/presets/' + encodeURIComponent(id), { method: 'DELETE' })
-            .then(function (r) {
-                if (!r.ok) return apiError(r).then(function (e) { throw e; });
-                notify('프리셋을 지웠습니다.', 'success');
-                loadPresetList();
-            })
-            .catch(function (err) { notify(err.message || '프리셋 삭제 중 오류가 발생했습니다.'); });
-    }
-
     /**
      * config 객체를 UI에 반영하는 공통 함수
      */
     function applyConfig(cfg) {
-        portfolio = (cfg.stocks || []).map(function (s) {
-            return { code: s.code, name: s.name || s.code, market: s.market, weight: s.weight };
-        });
-        renderPortfolio();
+        var map = function (list) {
+            return (list || []).map(function (s) { return { code: s.code, name: s.name || s.code, market: s.market, weight: s.weight }; });
+        };
+        setPhases([{ date: null, spread: 1, stocks: map(cfg.stocks) }].concat((cfg.changes || []).map(function (c) {
+            return { date: c.date, spread: c.spreadDays || 1, stocks: map(c.stocks) };
+        })));
 
         benchmarks = (cfg.benchmarks || []).map(function (b) {
             return { code: b.code, name: b.name || b.code, market: b.market };
@@ -1603,8 +1966,23 @@
         // ⚠️ 상단바 종목 검색(layout.html)이 stockSearchInput·stockSearchResults 를 쓴다 — 같은 id 를 쓰면 이쪽이 상단바에 붙는다.
         initStockSearch('btStockSearchInput', 'btStockSearchResults',
             function (stock) {
+                if (phases.length > 1) {
+                    // 시점이 여럿이면 빈 줄로 — 칸마다 직접 비중을 넣는다(마지막 시점 칸에 커서)
+                    if (tableRows().some(function (s) { return s.code === stock.code; })) { notify('이미 추가된 종목입니다.'); return; }
+                    if (tableRows().length >= MAX_UNIVERSE) { notify('모든 시점을 합쳐 종목은 ' + MAX_UNIVERSE + '개까지입니다.'); return; }
+                    extraRows.push({ code: stock.code, name: stock.name, market: stock.market });
+                    renderPortfolio();
+                    document.getElementById('btSearchPop').hidePopover();
+                    var where = document.getElementById('phaseDlg').open ? '#phaseDlgBody' : '#selectedStocks';
+                    var cellEl = document.querySelector(where + ' .wt-cell[data-code="' + stock.code + '"][data-col="' + (phases.length - 1) + '"]');
+                    if (cellEl) { cellEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); cellEl.focus(); }
+                    return;
+                }
                 if (portfolio.length >= MAX_STOCKS) { notify('최대 ' + MAX_STOCKS + '개까지 추가 가능합니다.'); return; }
                 if (portfolio.some(function (s) { return s.code === stock.code; })) { notify('이미 추가된 종목입니다.'); return; }
+                if (!allPhaseStocks().some(function (s) { return s.code === stock.code; }) && allPhaseStocks().length >= MAX_UNIVERSE) {
+                    notify('모든 구간을 합쳐 종목은 ' + MAX_UNIVERSE + '개까지입니다.'); return;
+                }
                 var n = portfolio.length + 1;
                 var base = Math.floor(10000 / n);
                 var remainder = 10000 - base * n;
@@ -1617,6 +1995,9 @@
                 updateSignalTargets();
                 updateRunButtonState();
                 updateDateRange();
+                var si = document.getElementById('btStockSearchInput');
+                si.value = '';
+                si.focus();
             },
             function (stock) {
                 if (benchmarks.length >= MAX_BENCHMARKS) { notify('벤치마크는 최대 ' + MAX_BENCHMARKS + '개까지 추가 가능합니다.'); return; }
@@ -1625,10 +2006,100 @@
                 renderBenchmark();
                 updateRunButtonState();
                 updateDateRange();
+                var si = document.getElementById('btStockSearchInput');
+                si.value = '';
+                si.focus();
             }
         );
 
         initStrategyTabs();
+
+        // 종목 추가 — 작은 버튼 아래에 뜨는 검색창. 누른 버튼을 기억해 그 아래에 둔다(click 이 popovertarget 보다 먼저 온다).
+        var searchPop = document.getElementById('btSearchPop'), searchAnchor = null;
+        var searchInput = document.getElementById('btStockSearchInput');
+        // 버튼 아래, 오른쪽 끝을 맞추되 화면 안으로(좁은 화면에서 왼쪽 밖으로 잘렸다)
+        var setSearchPlace = function () {
+            var r = searchAnchor.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 16);
+            searchPop.style.width = w + 'px';
+            searchPop.style.top = Math.round(r.bottom + 6) + 'px';
+            searchPop.style.left = Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))) + 'px';
+        };
+        var placeSearch = function () {
+            if (!searchAnchor || !searchPop.matches(':popover-open')) return;
+            var r = searchAnchor.getBoundingClientRect();
+            if (r.bottom < 0 || r.top > window.innerHeight) { searchPop.hidePopover(); return; }
+            setSearchPlace();
+        };
+        if (searchPop) {
+            document.querySelectorAll('[data-open-search]').forEach(function (b) {
+                b.addEventListener('click', function () { searchAnchor = b; });
+            });
+            searchPop.addEventListener('beforetoggle', function (e) {
+                if (e.newState !== 'open') { window.TopLayer.hide(document.getElementById('btStockSearchResults')); return; }
+                if (searchAnchor) setSearchPlace();
+            });
+            searchPop.addEventListener('toggle', function (e) { if (e.newState === 'open') { searchInput.focus(); searchInput.select(); } });
+            document.addEventListener('scroll', function (e) {
+                if (!(e.target instanceof Node) || !searchPop.contains(e.target)) placeSearch();
+            }, { capture: true, passive: true });
+            window.addEventListener('resize', placeSearch);
+        }
+
+        // 비중 표 — 시점 추가·시점 창·크게 보기
+        bindTable(document.getElementById('selectedStocks'));
+        bindTable(document.getElementById('phaseDlgBody'));
+        document.querySelectorAll('[data-phase-add]').forEach(function (b) { b.addEventListener('click', addPhase); });
+        var phaseDel = document.getElementById('phaseDel');
+        if (phaseDel) phaseDel.addEventListener('click', function () {
+            document.getElementById('phasePop').hidePopover();
+            removePhase(phases.indexOf(popPhase));
+        });
+        var phaseDate = document.getElementById('phaseDate');
+        if (phaseDate) phaseDate.addEventListener('change', function () {
+            if (!popPhase) return;
+            popPhase.date = phaseDate.value;
+            selPhase = phases.indexOf(popPhase);
+            sortPhases();               // 날짜순으로 자리를 잡는다
+            renderPortfolio();
+            showPopError();
+            var head = document.querySelector('#' + (document.getElementById('phaseDlg').open ? 'phaseDlgBody' : 'selectedStocks') +
+                                              ' .wt-head[data-col="' + phases.indexOf(popPhase) + '"]');
+            if (head) openPhasePop(popPhase, head);   // 창을 옮겨 간 열 아래로
+            updateRunButtonState();
+            scheduleAutoRecalc();
+        });
+        var phaseSpread = document.getElementById('phaseSpread');
+        if (phaseSpread) phaseSpread.addEventListener('change', function () {
+            if (!popPhase) return;
+            popPhase.spread = parseInt(phaseSpread.value, 10) || 1;
+            renderPortfolio();
+            updateRunButtonState();
+            scheduleAutoRecalc();
+        });
+        var dlg = document.getElementById('phaseDlg');
+        if (dlg) {
+            window.TopLayer.bindModal(dlg);
+            // ⚠️ 모달이 열리면 창 밖은 눌리지 않는다(inert) — 검색창·시점 창을 창 안으로 옮겼다가 닫히면 제자리로
+            var floating = ['btSearchPop', 'phasePop'].map(function (id) {
+                var el = document.getElementById(id);
+                return { el: el, home: el.parentNode };
+            });
+            document.getElementById('phaseExpand').addEventListener('click', function () {
+                floating.forEach(function (f) { if (f.el.matches(':popover-open')) f.el.hidePopover(); dlg.appendChild(f.el); });
+                window.TopLayer.openModal(dlg);
+                renderPortfolio();
+            });
+            dlg.addEventListener('close', function () {
+                floating.forEach(function (f) { if (f.el.matches(':popover-open')) f.el.hidePopover(); f.home.appendChild(f.el); });
+                document.getElementById('phaseDlgBody').textContent = '';
+                renderPortfolio();
+            });
+        }
+        window.addEventListener('resize', refreshTable);
+        ['startDate', 'endDate'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', refreshTable);
+        });
 
         var dcaDeferSel = document.getElementById('dcaDeferIndicator');
         if (dcaDeferSel) dcaDeferSel.addEventListener('change', updateDcaDeferHint);
@@ -1656,17 +2127,7 @@
             if (confirm('저장된 설정을 삭제하시겠습니까?')) clearStoredConfig();
         });
 
-        // 서버 프리셋 (로그인 사용자)
-        var savePresetBtn = document.getElementById('savePresetBtn');
-        if (savePresetBtn) savePresetBtn.addEventListener('click', savePreset);
-        var presetNameInput = document.getElementById('presetNameInput');
-        if (presetNameInput) {
-            presetNameInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); savePreset(); }
-            });
-            presetNameInput.addEventListener('input', function () { fieldError('presetNameError', ''); });
-        }
-        if (window.__BACKTEST_USER_LOGGED_IN) loadPresetList();
+        initPortfolioMenu();
 
         var simParamIds = [
             'rebalancePeriod', 'signalCombine',

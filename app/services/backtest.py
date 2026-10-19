@@ -329,8 +329,60 @@ def _should_rebalance(date: str, last: str | None, period: str) -> bool:
     return False
 
 
+def phases_of(config: dict) -> list[dict]:
+    """구간들 — 첫 구간은 `stocks`(시작일부터), 그다음은 `changes` 의 날짜부터(2026-10-19). `spread` 는 나눠 바꿀 거래일 수."""
+    out = [{"date": None, "stocks": config["stocks"], "spread": 1}]
+    for c in config.get("changes") or []:
+        out.append({"date": c["date"], "stocks": c["stocks"], "spread": max(1, int(c.get("spreadDays") or 1))})
+    return out
+
+
+def effective_phases(phases: list[dict], stock_data: dict) -> list[dict]:
+    """구간마다 **실제로 시작하는 날** — 요청한 날 이후, 그 구간 종목이 모두 값을 가진 첫날. 그 전에는 앞 구간이 이어진다.
+
+    요청한 날짜 그대로 두면 나중에 상장한 종목을 넣은 구간에서 그 종목 시세가 생길 때까지의 날들이 통째로 빠졌다(2026-10-19 화면 검증 —
+    KODEX 200 을 넣은 구간에서 10개월이 결과에서 사라졌다). 끝까지 값이 안 맞으면 그 구간은 오지 않는다.
+    """
+    sets = {code: set(d["dates"]) for code, d in stock_data.items() if d}
+    every = sorted(set().union(*sets.values())) if sets else []
+    out = [phases[0]]
+    for ph in phases[1:]:
+        codes = [s["code"] for s in ph["stocks"]]
+        start = next((d for d in every if d >= ph["date"] and all(d in sets.get(c, ()) for c in codes)), "9999-12-31")
+        out.append({**ph, "date": max(start, out[-1]["date"] or "")})
+    return out
+
+
+def _phase_at(phases: list[dict], date: str) -> int:
+    i = 0
+    for k in range(1, len(phases)):
+        if date >= phases[k]["date"]:
+            i = k
+    return i
+
+
+def phase_dates(phases: list[dict], stock_data: dict) -> list[str]:
+    """구간이 여럿일 때의 거래일 — 그날의 구간에 든 종목이 **모두** 값을 가진 날.
+
+    전부의 교집합을 쓰면 나중 구간에만 넣는 늦게 상장한 종목이 시작일 전체를 밀어냈다. 휴장인 변경일은 다음 거래일에 바뀐다.
+    """
+    sets = {code: set(d["dates"]) for code, d in stock_data.items() if d}
+    every = sorted(set().union(*sets.values())) if sets else []
+    out = []
+    for d in every:
+        codes = [s["code"] for s in phases[_phase_at(phases, d)]["stocks"]]
+        if codes and all(d in sets.get(c, ()) for c in codes):
+            out.append(d)
+    return out
+
+
 def simulate(config: dict) -> dict | None:
-    """하루씩 걸으며 매매하고 자산가치를 기록한다."""
+    """하루씩 걸으며 매매하고 자산가치를 기록한다.
+
+    구성 변경(`changes`, 2026-10-19)이 있으면 변경일에 그날 종가로 새 비중으로 옮긴다 — 빠진 종목은 팔고, `spreadDays` 가 N 이면
+    N 거래일 동안 매일 같은 몫씩 다가간다(그동안 정기 리밸런싱은 쉰다). 적립·정기 리밸런싱·시그널 매수는 지금 구간의 비중을 쓴다.
+    ⚠️ 구성 변경이 없으면 예전과 **한 자리도 다르지 않아야** 한다 — 아래 기존 경로는 `stocks` 를 `active` 로만 바꿨다.
+    """
     stocks = config["stocks"]
     data = config["stockData"]
     full_dates = config["commonDates"]
@@ -340,8 +392,21 @@ def simulate(config: dict) -> dict | None:
 
     strategy = config.get("strategy") or "buyhold"
     fees = config.get("fees") or {}
+    phases = config.get("phases") or phases_of(config)   # run() 이 실제 시작일로 고친 구간을 넘긴다
+    # 모든 구간의 종목(처음 구간 순서 그대로, 새 종목은 나온 순서로 뒤에) — 구성 변경이 없으면 `stocks` 와 같다
+    universe, seen = [], set()
+    for ph in phases:
+        for s in ph["stocks"]:
+            if s["code"] not in seen:
+                seen.add(s["code"])
+                universe.append(s)
+    cur_phase = _phase_at(phases, all_dates[0]) if len(phases) > 1 else 0   # 시작일이 휴장이면 첫 거래일이 이미 다음 구간일 수 있다
+    active = phases[cur_phase]["stocks"]
+    shift = None            # 나눠 바꾸는 중 — {"from", "to", "n", "k"}
+    changed_at: list = []   # 실제로 바뀐 날(휴장이면 다음 거래일)
+    last_px: dict = {}      # 값이 없는 날(빠지는 중인 종목)의 평가는 직전 종가로
 
-    closes_map = {s["code"]: [_price(data, s["code"], d) or None for d in full_dates] for s in stocks}
+    closes_map = {s["code"]: [_price(data, s["code"], d) or None for d in full_dates] for s in universe}
 
     signal_map = {}
     if strategy == "signal" and config.get("signalRules"):
@@ -357,11 +422,11 @@ def simulate(config: dict) -> dict | None:
     if (config.get("dcaDefer") or {}).get("enabled"):
         ind = (config.get("dcaDefer") or {}).get("indicator") or ""
         defer_map = {s["code"]: generate_dca_defer(closes_map[s["code"]], ind)
-                     for s in stocks if s["code"] in closes_map}
+                     for s in universe if s["code"] in closes_map}
 
     cash = float(config.get("initialCapital") or 0)
-    holdings = {s["code"]: 0.0 for s in stocks}
-    deferred = {s["code"]: 0.0 for s in stocks}
+    holdings = {s["code"]: 0.0 for s in universe}
+    deferred = {s["code"]: 0.0 for s in universe}
     total_fees = 0.0
     total_invested = float(config.get("initialCapital") or 0)
     trades: list = []
@@ -372,7 +437,7 @@ def simulate(config: dict) -> dict | None:
 
     # 초기 매수 — 시그널 전략은 시그널이 날 때까지 현금으로 들고 있는다.
     if strategy != "signal" and cash > 0:
-        total_fees += _buy_by_weight(stocks, data, all_dates[0], holdings, fees, cash, trades)
+        total_fees += _buy_by_weight(active, data, all_dates[0], holdings, fees, cash, trades)
         cash = 0.0
 
     # ⚠️ 원본 결함 수정(2026-08-15). PHP 는 이 값을 null 로 두고 **리밸런싱이 실행될 때만**
@@ -383,6 +448,55 @@ def simulate(config: dict) -> dict | None:
         last_rebalance = all_dates[0]
 
     monthly_dca = float(config.get("monthlyDCA") or 0)
+
+    def _mark(code, date):
+        """평가 가격 — 그날 값이 없으면(빠지는 중인 종목이 쉬는 날) 직전 종가."""
+        px = _price(data, code, date)
+        if px > 0:
+            last_px[code] = px
+            return px
+        return last_px.get(code, 0.0)
+
+    def _value(date):
+        return sum(holdings[s["code"]] * _mark(s["code"], date) for s in universe)
+
+    def _shift_step(date):
+        """나눠 바꾸기 한 걸음 — 목표 비중(전체 평가 대비) = 출발 + (도착 − 출발) × k/n. 넘는 것을 먼저 팔고 모자란 것을 산다."""
+        nonlocal cash, total_fees
+        shift["k"] += 1
+        f = min(1.0, shift["k"] / shift["n"])
+        total = cash + _value(date)
+        goal = {c: shift["from"].get(c, 0.0) + (shift["to"].get(c, 0.0) - shift["from"].get(c, 0.0)) * f
+                for c in set(shift["from"]) | set(shift["to"])}
+        for s in universe:   # 먼저 판다 — 현금을 만들어야 산다
+            price = _price(data, s["code"], date)
+            if price <= 0:
+                continue   # 그날 값이 없으면 다음 걸음에 몰아서(목표가 누적이라 따라잡는다)
+            cur_v = holdings[s["code"]] * price
+            target = total * goal.get(s["code"], 0.0)
+            if cur_v > target + 1e-9:
+                excess = cur_v - target
+                fee = excess * _fee_rate(s.get("market") or "", fees)
+                qty = excess / price
+                holdings[s["code"]] = max(0.0, holdings[s["code"]] - qty)
+                cash += excess - fee
+                total_fees += fee
+                trades.append({"date": date, "code": s["code"], "type": "sell", "qty": qty, "price": price, "fee": fee})
+        for s in universe:
+            price = _price(data, s["code"], date)
+            if price <= 0 or cash <= 0:
+                continue
+            cur_v = holdings[s["code"]] * price
+            target = total * goal.get(s["code"], 0.0)
+            if cur_v < target:
+                deficit = min(target - cur_v, cash)
+                fee = deficit * _fee_rate(s.get("market") or "", fees)
+                qty = (deficit - fee) / price
+                if qty > 0:
+                    holdings[s["code"]] += qty
+                    cash -= deficit
+                    total_fees += fee
+                    trades.append({"date": date, "code": s["code"], "type": "buy", "qty": qty, "price": price, "fee": fee})
 
     def _invest(s, amount, date):
         """유예가 풀린 적립금을 실제로 넣는다. (현금 증가분, 수수료) 를 돌려준다."""
@@ -404,11 +518,28 @@ def simulate(config: dict) -> dict | None:
         full_idx = idx_of.get(date, -1)
         month = date[:7]
 
+        # 0) 구성 변경 — 새 구간의 첫 거래일. 지금 평가 비중에서 새 비중으로 옮기기 시작한다.
+        pi = _phase_at(phases, date) if len(phases) > 1 else 0
+        if pi != cur_phase:
+            cur_phase, active = pi, phases[pi]["stocks"]
+            changed_at.append({"date": date, "phase": pi})
+            now_codes = {s["code"] for s in active}
+            for code in deferred:   # 빠진 종목에 미뤄 둔 적립금은 현금으로 돌려 새 비중에 넣는다
+                if code not in now_codes and deferred[code] > 0:
+                    cash += deferred[code]
+                    total_invested += deferred[code]
+                    deferred[code] = 0.0
+            total = cash + _value(date)
+            shift = {"from": {s["code"]: (holdings[s["code"]] * _mark(s["code"], date)) / total if total > 0 else 0.0
+                              for s in universe},
+                     "to": {s["code"]: s["weight"] / 100 for s in active},
+                     "n": phases[pi]["spread"], "k": 0}
+
         # 1) 적립: 그 달의 첫 거래일에 넣는다
         if monthly_dca > 0 and month != last_dca_month:
             last_dca_month = month
             if defer_map is not None:
-                for s in stocks:
+                for s in active:
                     part = monthly_dca * (s["weight"] / 100)
                     is_deferred = (s["code"] in defer_map and full_idx >= 0
                                    and defer_map[s["code"]][full_idx])
@@ -425,12 +556,12 @@ def simulate(config: dict) -> dict | None:
                 cash += monthly_dca
                 total_invested += monthly_dca
                 if strategy != "signal" and cash > 0:
-                    total_fees += _buy_by_weight(stocks, data, date, holdings, fees, cash, trades)
+                    total_fees += _buy_by_weight(active, data, date, holdings, fees, cash, trades)
                     cash = 0.0
 
         # 유예가 풀렸으면 밀어둔 적립금을 넣는다
         if defer_map is not None and full_idx >= 0:
-            for s in stocks:
+            for s in active:
                 if deferred[s["code"]] > 0 and s["code"] in defer_map \
                         and not defer_map[s["code"]][full_idx]:
                     amount = deferred[s["code"]]
@@ -440,13 +571,20 @@ def simulate(config: dict) -> dict | None:
                     cash += back
                     total_fees += fee
 
-        # 2) 전략별 매매
-        if strategy == "rebalance":
+        # 2) 전략별 매매 — 구성을 옮기는 중이면 그 걸음이 그날의 매매다(정기 리밸런싱·시그널은 쉰다)
+        if shift is not None:
+            _shift_step(date)
+            # 다 옮겼다 = n 걸음을 다 했고 빠진 종목이 남지 않았다(값이 없던 날 못 판 것은 다음 거래일에 마저 판다)
+            if shift["k"] >= shift["n"] and not any(holdings[c] > 0 for c, w in shift["to"].items() if w == 0) \
+                    and not any(holdings[c] > 0 for c in shift["from"] if c not in shift["to"]):
+                shift = None
+                last_rebalance = date   # 정기 리밸런싱은 옮기기를 마친 날부터 다시 센다
+        elif strategy == "rebalance":
             if _should_rebalance(date, last_rebalance, config.get("rebalancePeriod") or "quarterly"):
                 last_rebalance = date
-                total_value = cash + _portfolio_value(stocks, data, date, holdings)
+                total_value = cash + _portfolio_value(active, data, date, holdings)
                 # 먼저 초과분을 판다 — 현금을 만들어야 부족분을 살 수 있다.
-                for s in stocks:
+                for s in active:
                     price = _price(data, s["code"], date)
                     if price <= 0:
                         continue
@@ -460,7 +598,7 @@ def simulate(config: dict) -> dict | None:
                         total_fees += fee
                         trades.append({"date": date, "code": s["code"], "type": "sell",
                                        "qty": excess / price, "price": price, "fee": fee})
-                for s in stocks:
+                for s in active:
                     price = _price(data, s["code"], date)
                     if price <= 0:
                         continue
@@ -477,7 +615,7 @@ def simulate(config: dict) -> dict | None:
                             trades.append({"date": date, "code": s["code"], "type": "buy",
                                            "qty": qty, "price": price, "fee": fee})
         elif strategy == "signal":
-            for s in stocks:
+            for s in active:
                 sig = signal_map.get(s["code"])
                 if not sig:
                     continue
@@ -506,15 +644,18 @@ def simulate(config: dict) -> dict | None:
                     trades.append({"date": date, "code": s["code"], "type": "sell",
                                    "qty": qty, "price": price, "fee": fee})
             if cash > 0 and di == 0:
-                total_fees += _buy_by_weight(stocks, data, date, holdings, fees, cash, trades)
+                total_fees += _buy_by_weight(active, data, date, holdings, fees, cash, trades)
                 cash = 0.0
 
         series.append({"date": date,
-                       "value": cash + _portfolio_value(stocks, data, date, holdings),
+                       "value": cash + (_portfolio_value(stocks, data, date, holdings) if len(phases) == 1 else _value(date)),
                        "cash": cash, "invested": total_invested})
 
-    return {"dailySeries": series, "trades": trades,
-            "totalFees": total_fees, "totalInvested": total_invested}
+    out = {"dailySeries": series, "trades": trades,
+           "totalFees": total_fees, "totalInvested": total_invested}
+    if len(phases) > 1:
+        out["changedAt"] = changed_at
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -830,15 +971,19 @@ def run(config: dict, stock_data: dict, benchmark_data: dict) -> dict | None:
     if (d1 - d0).total_seconds() / (365.25 * 86400) > MAX_YEARS:
         return None
 
-    # 공통 거래일 = 모든 **포트폴리오** 종목이 값을 가진 날(벤치마크는 빠진다).
+    # 공통 거래일 = 모든 **포트폴리오** 종목이 값을 가진 날(벤치마크는 빠진다). 구성 변경이 있으면 그날 구간의 종목끼리.
     date_sets = [set(d["dates"]) for d in stock_data.values() if d]
     if not date_sets:
         return None
-    common = sorted(set.intersection(*date_sets))
+    phases = phases_of(config)
+    if len(phases) > 1:
+        phases = effective_phases(phases, stock_data)
+    common = sorted(set.intersection(*date_sets)) if len(phases) == 1 else phase_dates(phases, stock_data)
     if not common:
         return None
 
-    result = simulate({**config, "stockData": stock_data, "commonDates": common})
+    result = simulate({**config, "stockData": stock_data, "commonDates": common,
+                       **({"phases": phases} if len(phases) > 1 else {})})
     if not result or not result["dailySeries"]:
         return None
 
@@ -859,4 +1004,5 @@ def run(config: dict, stock_data: dict, benchmark_data: dict) -> dict | None:
         "benchmarks": simulate_benchmarks(config, result, benchmark_data, risk_free),
         "rankingScore": ranking["score"],
         "rankingGrade": ranking["grade"],
+        **({"changedAt": result["changedAt"]} if "changedAt" in result else {}),
     }

@@ -27,6 +27,7 @@
     var fileInput = document.getElementById('aiFile');
     var thumbsEl = document.getElementById('aiThumbs');
     var sendBtn = document.getElementById('aiSend');
+    var expandBtn = document.getElementById('aiExpand');
 
     var MAX_IMAGES = 4;
     var IMAGE_SIDE = 1600;
@@ -282,6 +283,7 @@
         var mine = addMessage({ role: 'user', content: shown });
         input.value = '';
         store.removeItem('ai-draft');
+        expand(false);   // 크게 편 채 보내면 큰 입력창이 대화를 가린다 — 접는다(30.ai_center 와 같다)
         images = [];
         renderChips();
         setBusy(true);
@@ -379,6 +381,17 @@
     fileInput.addEventListener('change', function () { addFiles(fileInput.files); fileInput.value = ''; });
     if (coarse.matches) input.placeholder = '메시지 입력';
 
+    /** 입력창 확장/축소 — 30.ai_center 처럼 행 수만 3 ↔ 12. */
+    function expand(on) {
+        input.rows = on ? 12 : 3;
+        expandBtn.setAttribute('aria-pressed', String(on));
+        expandBtn.setAttribute('aria-label', on ? '입력창 축소' : '입력창 확장');
+    }
+    expandBtn.addEventListener('click', function () {
+        expand(expandBtn.getAttribute('aria-pressed') !== 'true');
+        input.focus();
+    });
+
     // 시트 위의 휠은 페이지를 움직이지 않고 대화 기록만(넘치는 입력칸 위에서는 입력칸 먼저) 움직인다.
     // ⚠️ preventDefault 를 쓰려면 passive: false 여야 한다. 확대·축소(ctrl+휠)는 브라우저에 맡긴다.
     sheetEl.addEventListener('wheel', function (e) {
@@ -389,9 +402,28 @@
     }, { passive: false });
 
     // ── 시트 ───────────────────────────────────────────────
-    //    끄는 동안은 손가락(마우스)을 따라 움직이고, 40px 넘게 움직였으면 그 방향으로 열고 닫는다.
+    //    위아래로 끄는 동안은 손가락(마우스)을 따라 움직이고, 40px 넘게 움직였으면 그 방향으로 열고 닫는다.
+    //    누르기로 여닫기: 손가락은 한 번, 넓은 화면의 마우스는 더블클릭, 키보드는 Enter·Space.
+    //    넓은 화면에서는 좌우로 끌면 시트가 옆으로 옮겨진다(2026-10-19 사용자) — 처음 움직인 방향이 더 큰 쪽으로 가른다.
+    //    옮긴 자리는 기억하고(localStorage `ai-x`, 화면을 옮겨도 그대로), 가운데 근처(32px)에 놓으면 가운데에 붙는다.
+    //    (두 번 누르기로 가운데를 주려 했으나, 첫 누르기에 시트가 열고 닫히며 손잡이가 움직여 두 번째가 빗나갔다.)
 
     var drag = null, closedY = 0, swallowClick = false;
+    var wide = window.matchMedia('(min-width: 64rem)');
+    var sheetX = 0;   // 가운데에서 옆으로 옮긴 거리(px)
+
+    /** 화면 안(좌우 1rem 여백)으로 맞춰 옮긴다. 좁은 화면은 CSS 가 무시한다(폭 전체). */
+    function placeX(x, save) {
+        if (!wide.matches) return;
+        var r = sheetEl.getBoundingClientRect(), left0 = r.left - sheetX;   // 옮기기 전 자리
+        sheetX = Math.round(Math.min(window.innerWidth - 16 - r.width - left0, Math.max(16 - left0, x)));
+        sheetEl.style.setProperty('--ai-x', sheetX + 'px');
+        if (save) localStorage.setItem('ai-x', String(sheetX));
+    }
+    placeX(+localStorage.getItem('ai-x') || 0);
+    // 창이 좁아졌다 다시 넓어지면 기억한 자리로 — 좁을 때 맞춘 자리에 머물지 않게
+    window.addEventListener('resize', function () { placeX(+localStorage.getItem('ai-x') || 0); });
+    wide.addEventListener('change', function () { if (wide.matches) placeX(+localStorage.getItem('ai-x') || 0); });
 
     function isOpen() { return sheetEl.classList.contains('is-open'); }
     function translateY() { return new DOMMatrix(getComputedStyle(sheetEl).transform).m42; }
@@ -420,34 +452,45 @@
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         swallowClick = false;
         if (!isOpen()) closedY = translateY();   // 접힌 자리 — 열린 채 끌기 시작하면 앞서 잰 값을 쓴다
-        drag = { y: e.clientY, base: translateY(), open: isOpen(), moved: false };
+        drag = { x: e.clientX, y: e.clientY, base: translateY(), baseX: sheetX, open: isOpen(), axis: null, mouse: e.pointerType === 'mouse' };
         grip.setPointerCapture(e.pointerId);
         sheetEl.classList.add('is-dragging');
     });
     grip.addEventListener('pointermove', function (e) {
         if (!drag) return;
-        var dy = e.clientY - drag.y;
-        if (Math.abs(dy) > 6) drag.moved = true;
-        var max = closedY || sheetEl.offsetHeight;
-        sheetEl.style.transform = 'translateY(' + Math.min(max, Math.max(0, drag.base + dy)) + 'px)';
+        var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (!drag.axis && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+            drag.axis = wide.matches && Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        }
+        if (drag.axis === 'x') {
+            placeX(drag.baseX + dx);
+        } else if (drag.axis === 'y') {
+            var max = closedY || sheetEl.offsetHeight;
+            sheetEl.style.transform = 'translateY(' + Math.min(max, Math.max(0, drag.base + dy)) + 'px)';
+        }
     });
     function end(e) {
         if (!drag) return;
-        var dy = e.clientY - drag.y, was = drag.open, moved = drag.moved;
+        var dy = e.clientY - drag.y, was = drag.open, axis = drag.axis, mouse = drag.mouse;
         drag = null;
         sheetEl.classList.remove('is-dragging');
         sheetEl.style.transform = '';
         // 누르기는 여기서 연다/닫는다 — 손잡이에 포인터를 잡아 둔 터치에서는 click 이 오지 않는다(browserless 실측).
         // 오는 기기도 있어 뒤따르는 click 한 번은 삼킨다(다음 pointerdown 이 표시를 지운다). click 은 키보드 몫이다.
         swallowClick = true;
-        set(!moved ? !was : dy < -40 ? true : dy > 40 ? false : was);
+        if (axis === 'x') { placeX(Math.abs(sheetX) < 32 ? 0 : sheetX, true); return; }
+        if (axis === 'y') { set(dy < -40 ? true : dy > 40 ? false : was); return; }
+        // 넓은 화면의 마우스는 한 번 누르기로 여닫지 않는다 — 더블클릭으로(2026-10-19 사용자). 좌우로 옮기려 잡았다 놓을 때
+        // 열리고 닫히지 않게도 된다. 손가락(휴대폰·터치 노트북)은 한 번 누르기 그대로다.
+        if (!(mouse && wide.matches)) set(!was);
     }
     grip.addEventListener('pointerup', end);
     grip.addEventListener('pointercancel', end);
     grip.addEventListener('click', function () {
         if (swallowClick) { swallowClick = false; return; }
-        set(!isOpen());
+        set(!isOpen());   // 키보드(Enter·Space)
     });
+    grip.addEventListener('dblclick', function () { if (wide.matches) set(!isOpen()); });
     dim.addEventListener('click', function () { set(false); });
     document.addEventListener('keydown', function (e) {
         // 열린 모달(버전 기록 등)이 있으면 Esc 는 그 창 몫이다

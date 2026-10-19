@@ -46,7 +46,7 @@ def test_초기화와_도구_목록():
                           "rules_set", "memory_set"]
     assert set(plan_ai.WRITE_TOOLS) == set(names[4:13]) == set(mcp.write_tools())
     assert {"quotes_get", "stock_search", "stock_candles", "stock_disclosures", "market_heatmap", "index_quotes",
-            "watchlist_get", "backtest_presets", "post_search", "post_get"} <= set(names[13:])
+            "watchlist_get", "backtest_portfolios", "backtest_portfolio_get", "post_search", "post_get"} <= set(names[13:])
     assert len(names) == len(set(names))   # 모듈끼리 이름이 겹치지 않는다
     mcp.revoke(t)
 
