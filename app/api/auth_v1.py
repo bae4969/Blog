@@ -56,8 +56,10 @@ async def session_token(request: Request, response: Response):
 
     ⚠️ **쿠키만 본다.** 이미 Bearer 로 부르는 소비자는 토큰이 있으므로 여기 올 일이 없고,
        헤더를 받아 주면 남의 토큰을 되돌려 주는 통로가 하나 더 생길 뿐이다.
+    ⚠️ 세션 쿠키(10분)가 사라져 미들웨어가 기기 쿠키로 **이번 요청에서** 갱신했으면 그 토큰을 준다 —
+       요청 쿠키만 보면 401 이 나고 새 쿠키는 응답에만 실려, 화면이 한 번 더 눌러야 됐다(2026-10-21).
     """
-    token = request.cookies.get(settings.cookie_name)
+    token = getattr(request.state, "renewed_token", None) or request.cookies.get(settings.cookie_name)
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "로그인이 필요합니다")
 
