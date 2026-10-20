@@ -100,6 +100,8 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
                 logger.info("세션 자동 갱신: uid=%s", user.uid)
 
         request.state.user = user
+        #: 이번 요청에서 갱신한 토큰 — 요청 쿠키엔 아직 옛것(또는 없음)이라 토큰 창구(auth_v1)가 이걸 본다
+        request.state.renewed_token = renewed[0] if renewed else None
         response = await call_next(request)
         if renewed is not None:
             attach_session(response, *renewed)

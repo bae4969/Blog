@@ -570,6 +570,32 @@ class TestSessionTokenBridge:
         # ⚠️ 자격증명이다. 중간 캐시에 남으면 다음 사람이 받아 간다.
         assert r.headers.get("cache-control") == "no-store"
 
+    def test_세션이_만료돼_갱신했으면_첫_요청에_새_토큰을_준다(self, client, monkeypatch):
+        """세션 쿠키(10분)가 사라진 뒤 미들웨어가 기기 쿠키로 갱신한 요청 — 요청의 쿠키는 비어 있다.
+
+        ⚠️ 쿠키만 보면 401 이 나고 새 쿠키는 응답에만 실려, 상담·☆ 가 한 번 더 눌러야 됐다(2026-10-21).
+        """
+        import time
+
+        from app import main
+        from app.api import auth_v1
+        from app.core.config import settings
+        from app.core.security import AuthUser
+
+        exp = int(time.time()) + 600
+
+        async def renewed(request):
+            return AuthUser(uid="u"), "renewed-jwt", "new-device"
+
+        monkeypatch.setattr(main, "refresh_session", renewed)
+        monkeypatch.setattr(auth_v1, "verify_token", lambda t: {"sub": "u", "exp": exp})
+
+        r = client.post("/api/v1/auth/token", cookies={settings.device_cookie_name: "old-device"})
+        client.cookies.clear()   # 응답 쿠키가 모듈 공용 client 에 남아 뒤 테스트가 진짜 auth 를 부르지 않게
+        assert r.status_code == 200
+        assert r.json()["access_token"] == "renewed-jwt"
+        assert f"{settings.cookie_name}=renewed-jwt" in r.headers.get("set-cookie", "")   # 다음 요청부터는 쿠키로
+
 
 class TestBacktestRoutesMoved:
     """옛 `/stocks/api/*` 백테스트 계열을 걷어낸 자리."""
