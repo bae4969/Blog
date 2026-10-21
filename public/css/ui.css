@@ -1568,9 +1568,11 @@
         pointer-events: none;
     }
 
-    /* 전역 clearfix 유령(blog.css:12 `div::after`)이 맨 아래 flex 칸 + gap 8px 를 먹어 토스트가 바닥(AI 시트가 열리면 입력 상자)에서
-       8px 더 떠 있었다 — 호스트는 body 직속이라 `body.blog-page #blog` 해제에 안 걸린다. */
-    .c-toast-host::after {
+    /* 전역 clearfix 유령(blog.css:12 `div::after`)이 flex 칸 + gap 을 먹었다 — 호스트는 맨 아래 칸 + 8px 라 토스트가 바닥(AI 시트가
+       열리면 입력 상자)에서 8px 더 떠 있었고, 토스트 자신은 끝 칸 + 12px 라 오른쪽 여백이 넓었다. body 직속이라
+       `body.blog-page #blog` 해제에 안 걸린다. */
+    .c-toast-host::after,
+    .c-toast::after {
         content: none;
     }
 
