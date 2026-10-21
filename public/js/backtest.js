@@ -827,11 +827,15 @@
                     warn = document.createElement('span');
                     warn.className = 'metric-info wt-warn';
                     warn.tabIndex = 0;
+                    warn.setAttribute('role', 'img');   // 이름 — 보이는 글자는 "!" 뿐이다
                     warn.innerHTML = '!<span class="metric-tooltip"></span>';
                     td.appendChild(warn);
                 }
                 if (warn && !late) warn.remove();
-                else if (late) warn.querySelector('.metric-tooltip').textContent = start + '부터 시세 — 이 시점 구성은 그날 시작';
+                else if (late) {
+                    warn.querySelector('.metric-tooltip').textContent = start + '부터 시세 — 이 시점 구성은 그날 시작';
+                    warn.setAttribute('aria-label', '늦게 시작하는 시세: ' + start + '부터');
+                }
             });
             box.querySelectorAll('.wt-sum').forEach(function (td) {
                 var i = +td.dataset.col, total = phases[i].stocks.reduce(function (a, b) { return a + b.weight; }, 0);

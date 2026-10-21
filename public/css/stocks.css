@@ -1714,7 +1714,7 @@ details[open] > .config-section-title.clickable {
 .wt-name__text { display: block; overflow: hidden; padding-right: 16px; }
 .wt-name__text b { display: block; overflow: hidden; color: var(--bae-text-primary); font-weight: 500; text-overflow: ellipsis; }
 .wt-name__text small { color: var(--bae-text-dim); font-size: 0.625rem; }
-.wt-name__text .ps-market { margin-left: 3px; font-size: 0.5625rem; }
+.wt-name__text .ps-market { margin-left: 3px; font-size: 0.625rem; }   /* 배지 단계 10px(typography.md — 9px 는 쓰지 않는다) */
 
 .wt-rm {   /* 모든 시점에서 빼기 — 마우스 기기는 줄에 올렸을 때만, 손가락은 늘 */
     position: absolute;
@@ -1811,13 +1811,13 @@ details[open] > .config-section-title.clickable {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--bae-warning, #c98500);
-    color: #000;
+    background: var(--bae-warn);
+    color: var(--bae-accent-text);
     font-size: 10px;
     font-weight: 700;
     cursor: help;
 }
-.metric-info.wt-warn:hover { background: var(--bae-warning, #c98500); color: #000; }
+.metric-info.wt-warn:hover { background: var(--bae-warn); color: var(--bae-accent-text); }
 
 .wt-sum.is-bad { color: var(--bae-danger); font-weight: 600; }
 .wt-fit {   /* 합계가 100 이 아닌 열에만 — 비례로 100% 에 맞춘다 */
@@ -1847,25 +1847,25 @@ details[open] > .config-section-title.clickable {
     inset: auto;
     margin: 0;
     padding: 8px;
-    border: 1px solid var(--bae-border-hover);
-    border-radius: 10px;
+    border: 1px solid var(--bae-border);   /* 버튼 옆 메뉴(float-menu) — float-panel-menu.md */
+    border-radius: 8px;
     background: var(--bae-surface);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow-lg);
     overflow: visible;
 }
 
 .bt-search-pop .backtest-input { width: 100%; }
 
-/* 시점 창 — 열 머리 아래(popover, top layer) */
+/* 시점 창 — 열 머리 아래 편집 패널(popover, top layer — float-panel 면) */
 .phase-pop {
     position: fixed;
     inset: auto;
     margin: 0;
     padding: 12px;
-    border: 1px solid var(--bae-border-hover);
-    border-radius: 10px;
+    border: 1px solid rgba(var(--bae-accent-rgb), 0.55);
+    border-radius: 8px;
     background: var(--bae-surface);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow-lg);
     color: var(--bae-text-primary);
 }
 
@@ -1874,22 +1874,27 @@ details[open] > .config-section-title.clickable {
 .phase-pop .field-error { margin: -4px 0 8px; }
 .phase-pop__foot { display: flex; justify-content: flex-end; }
 
-/* 크게 보기 — 같은 표를 넓은 창으로 */
+/* 크게 보기 — 같은 표를 넓은 창으로(modal.md — 넓은 표를 보는 창이라 높이 상한 90vh, 본문만 안쪽 스크롤) */
 .phase-dlg {
     width: min(960px, calc(100vw - 32px));
-    max-height: calc(100dvh - 64px);
+    max-height: 90vh;
     padding: 0;
-    border: 1px solid var(--bae-border-hover);
+    border: 1px solid var(--bae-border);
     border-radius: 12px;
-    background: var(--bae-bg-alt);
+    background: var(--bae-surface);
+    box-shadow: var(--shadow-xl);
     color: var(--bae-text-primary);
+    overflow: hidden;
+    --bt-card: var(--bae-surface);   /* 표의 고정 칸·머리 줄 바탕도 창과 같게 */
 }
+
+.phase-dlg[open] { display: flex; flex-direction: column; }   /* [open] 으로만 — 닫힌 dialog 의 display:none 을 덮지 않게 */
 
 .phase-dlg::backdrop { background: var(--shadow-overlay); }
 .phase-dlg:focus { outline: none; }   /* 열 때 창 자신에 포커스가 가서 테두리가 강조됐다 — 다른 창처럼 없앤다 */
-.phase-dlg__head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--bae-border); }
-.phase-dlg__head h2 { margin: 0; font-size: 0.9375rem; }
-.phase-dlg__body { padding: 14px; overflow: auto; }
+.phase-dlg__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--bae-border); }
+.phase-dlg__head h2 { margin: 0; font-size: 0.875rem; font-weight: 500; }
+.phase-dlg__body { flex: 1; min-height: 0; padding: 14px; overflow: auto; overscroll-behavior: contain; }
 
 /* 결과 — 구간별 구성 띠(차트 아래). 폭 = 실제 기간, 안 = 비중. 번호는 차트 세로 점선의 번호. */
 .phase-strip { margin-top: 10px; }
@@ -1921,14 +1926,14 @@ details[open] > .config-section-title.clickable {
     position: fixed;
     inset: auto;
     margin: 0;
-    max-height: min(26rem, 70dvh);
+    max-height: min(26rem, var(--float-max));
     padding: 0;
     overflow: hidden auto;   /* 가로는 막는다 — 지우기 버튼의 44px 누름 자리가 넘쳐 가로 스크롤이 생겼다(프리셋 목록 때) */
     overscroll-behavior: contain;   /* 목록 끝에서 더 굴려도 페이지가 따라 움직이지 않게 */
-    border: 1px solid var(--bae-border-hover);
-    border-radius: 0.75rem;
+    border: 1px solid var(--bae-border);   /* 버튼 옆 메뉴(float-menu) — float-panel-menu.md */
+    border-radius: 8px;
     background: var(--bae-surface);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow-lg);
     color: var(--bae-text-primary);
 }
 
@@ -2783,4 +2788,37 @@ details[open] > .config-section-title.clickable {
         height: 6px;
     }
 
+}
+
+/* 비중 표의 작은 버튼 — 터치 누를 자리 44px(button.md, 보이는 크기는 그대로).
+   ✕(.wt-rm)는 마우스 기기에서 hover 때만 보이므로 `pointer: coarse` 에만 — 터치 노트북에서 안 보이는 판정 영역이 옆 칸 입력을 가로채지 않게.
+   이미 absolute 라 position 을 덮지 않는다. */
+@media (pointer: coarse) {
+    .wt-rm::after {
+        content: "";
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: 50%;
+        inline-size: 100%;
+        block-size: 100%;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (any-pointer: coarse) {
+    .wt-fit { position: relative; }
+    .wt-fit::after {
+        content: "";
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: 50%;
+        inline-size: 100%;
+        block-size: 100%;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        transform: translate(-50%, -50%);
+    }
+    .wt-wrap { padding-block-end: 6px; }   /* 마지막 행(합계) ::after 의 세로 넘침을 받는다 — 안 받으면 표 틀에 세로 스크롤이 생긴다 */
 }
