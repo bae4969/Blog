@@ -420,11 +420,6 @@
     .admin-table.category-table .order-cell {
         width: auto;
     }
-
-    .admin-table.category-table .order-buttons {
-        flex-direction: row;
-        gap: 6px;
-    }
 }
 
 .action-buttons {
@@ -434,54 +429,21 @@
 }
 
 /* ===========================================
-   순서 화살표
+   순서 손잡이
    =========================================== */
 .order-cell {
     width: 50px;
     text-align: center;
 }
 
-.order-buttons {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-}
-
-.btn-arrow {
+/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 마우스·손가락 모두 손잡이를 끈다(sortable.js —
+   Pointer Events, 결정 #14로 터치 전용 ↑↓ 를 없앴다). `touch-action: none` 은 손잡이에만 — 행·표를 짚은 손가락은 스크롤이다.
+   놓을 자리 선은 공용 `.c-drop-line`(ui.css). 지수 카드 손잡이(.qc-grip)도 같은 값이다. */
+.cat-grip,
+.qc-grip {
+    position: relative;
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 16px;
-    font-size: 10px;
-    background: var(--bae-surface-alt);
-    color: var(--bae-text-primary);
-    border: none;
-    border-radius: var(--border-radius-xs);
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    transition: var(--transition);
-}
-
-.btn-arrow:hover {
-    background: var(--bae-accent);
-    color: var(--bae-accent-text);
-}
-
-.btn-arrow.disabled {
-    opacity: 0.25;
-    cursor: default;
-    pointer-events: none;
-}
-
-/* 손잡이 끌기 — 정본 drag-reorder.md "목록 정렬 표준"(2026-10-13). 주 포인터가 손가락인 기기(pointer: coarse —
-   폰·태블릿)만 손잡이 대신 ↑↓ 를 쓴다(HTML5 끌기가 터치에 없다). 마우스가 주 포인터면 손잡이와 키보드뿐이다.
-   ⚠️ any-pointer: coarse 로 판정했더니 터치스크린이 없는 Windows PC 에서도 참이라 손잡이와 ↑↓ 가 함께 떴다
-   (2026-10-13 사용자 스크린샷 — 정본 D7 되돌림). */
-.cat-grip {
-    display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     width: 16px;
@@ -489,49 +451,21 @@
     color: var(--bae-text-dim);
     font-size: 16px;
     cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
-.cat-grip:active { cursor: grabbing; }
+.cat-grip:active,
+.qc-grip:active { cursor: grabbing; }
 
 .category-table tr.is-dragging { opacity: 0.45; }
 
-.cat-drop-line {
-    position: fixed;
-    z-index: 60;
-    height: 2px;
-    border-radius: 1px;
-    background: var(--bae-accent);
-    box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
-    pointer-events: none;
-}
-
-.cat-drop-line[hidden] { display: none; }
-
-@media not all and (pointer: coarse) {
-    .order-buttons { display: none; }
-}
-
-/* ↑↓ 는 가로로, 보이는 크기는 28px 이고 누르는 자리만 44px 다(정본 button.md 터치 타깃 보정).
-   ⚠️ 보이는 크기를 44px 로 키워 위아래로 쌓았더니 행이 43→125px 로 커졌다(2026-10-13). */
-@media (pointer: coarse) {
-    .cat-grip { display: none; }
-    .order-cell { width: 1%; white-space: nowrap; }   /* 내용 폭만큼만 */
-
-    .order-cell .order-buttons {
-        display: inline-flex;
-        flex-direction: row;
-        gap: 2px;
-        vertical-align: middle;
-    }
-
-    .btn-arrow {
-        position: relative;
-        width: 28px;
-        height: 28px;
-        font-size: 16px;
-    }
-
-    .btn-arrow::after {
+/* 터치 기기 — 손잡이 누를 자리 44px(보이는 크기 그대로, 정본 button.md 터치 타깃 보정) */
+@media (any-pointer: coarse) {
+    .cat-grip::after,
+    .qc-grip::after {
         content: "";
         position: absolute;
         top: 50%;
@@ -543,7 +477,7 @@
 }
 
 /* 주식 홈 카드 구성(`/js/quote_cards_admin.js`, 지수·환율 구독 화면) — 세트 셋을 나란히(좁으면 한 줄씩).
-   손잡이·↑↓ 보이는 조건은 카테고리 순서와 같다. 놓을 자리 선은 `.cat-drop-line` 을 같이 쓴다. */
+   손잡이는 카테고리 순서와 같다(위 .cat-grip). */
 .qc-sets {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
@@ -581,20 +515,6 @@
 .qc-item.is-dragging { opacity: 0.45; }
 .qc-item.is-off .qc-name { color: var(--bae-text-dim); }
 
-.qc-grip {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 20px;
-    color: var(--bae-text-dim);
-    font-size: 16px;
-    cursor: grab;
-}
-
-.qc-grip:active { cursor: grabbing; }
-
 .qc-name {
     flex: 1;
     min-width: 0;
@@ -607,7 +527,6 @@
 .qc-code { color: var(--bae-text-dim); font-size: 12px; }
 .qc-off { color: var(--bae-danger); font-size: 12px; }
 
-.qc-mv,
 .qc-rm {
     display: inline-flex;
     flex-shrink: 0;
@@ -624,9 +543,7 @@
     cursor: pointer;
 }
 
-.qc-mv:not(:disabled):hover,
 .qc-rm:hover { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
-.qc-mv:disabled { opacity: 0.3; cursor: default; }
 
 /* 카드 추가 — 앱 모양 select(custom_select.js 가 이 class 를 버튼에 준다). 겉모양은 표 안 고르기(.inline-select)와 같게 */
 .qc-add {
@@ -641,15 +558,10 @@
 .qc-add:focus { outline: none; box-shadow: var(--shadow-focus); }
 .qc-add:disabled { color: var(--bae-text-dim); }
 
-@media not all and (pointer: coarse) {
-    .qc-mv { display: none; }   /* ↑↓ 는 주 포인터가 손가락인 기기에서만(카테고리 순서와 같다) */
-}
-
 @media (any-pointer: coarse) {
     /* 누르는 자리 44px — 보이는 크기는 28px(정본 button.md 터치 타깃 보정) */
-    .qc-mv, .qc-rm { position: relative; }
+    .qc-rm { position: relative; }
 
-    .qc-mv::after,
     .qc-rm::after {
         content: "";
         position: absolute;
@@ -659,10 +571,6 @@
         min-height: 44px;
         transform: translate(-50%, -50%);
     }
-}
-
-@media (pointer: coarse) {
-    .qc-grip { display: none; }
 }
 
 /* ===========================================

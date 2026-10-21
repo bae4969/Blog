@@ -111,23 +111,12 @@
 
     var ICON = {
         cancel: [['path', { d: 'M18 6 6 18' }], ['path', { d: 'm6 6 12 12' }]],
-        up: [['path', { d: 'm6 15 6-6 6 6' }]],
-        down: [['path', { d: 'm6 9 6 6 6-6' }]],
         grip: [[9, 5], [15, 5], [9, 12], [15, 12], [9, 19], [15, 19]].map(function (c) {
             return ['circle', { cx: c[0], cy: c[1], r: 1 }];
         })
     };
 
     function key(item) { return item.market + ':' + item.code; }
-
-    function iconButton(cls, label, name, onClick) {
-        var b = el('button', cls);
-        b.type = 'button';
-        b.setAttribute('aria-label', label);
-        b.appendChild(icon(ICON[name]));
-        b.addEventListener('click', onClick);
-        return b;
-    }
 
     function render() {
         countEl.textContent = items && items.length ? String(items.length) : '';
@@ -142,14 +131,14 @@
         var focusCls = focused ? document.activeElement.className : null;
 
         var ul = el('ul', 'c-watch');
-        items.forEach(function (item, idx) {
+        items.forEach(function (item) {
             var li = el('li', 'c-watch__item');
             li.dataset.key = key(item);
 
-            // 순서 — 손잡이만 끈다(행은 링크라 통째로 끌면 링크가 끌린다). 정본 drag-reorder.md 정렬 표준.
+            // 순서 — 손잡이만 끈다(행은 링크라 통째로 끌면 링크가 끌린다). 정본 drag-reorder.md 정렬 표준 · 터치도(sortable.js).
             var grip = el('span', 'c-watch__grip');
-            grip.draggable = true;
             grip.tabIndex = 0;
+            grip.setAttribute('role', 'button');
             grip.title = '끌어서 순서 변경';
             grip.setAttribute('aria-label', '순서 변경 (위·아래 방향키)');
             grip.appendChild(icon(ICON.grip));
@@ -172,14 +161,6 @@
             rm.appendChild(icon(ICON.cancel));
             rm.addEventListener('click', function () { setWatched(item, false); });
             li.appendChild(rm);
-
-            // 주 포인터가 손가락인 기기는 끌기가 없어 ↑↓ 를 둔다(CSS 가 pointer: coarse 에서만 보인다).
-            var up = iconButton('c-watch__mv c-watch__mv--up', '위로', 'up', function () { move(li, -1, up); });
-            var down = iconButton('c-watch__mv c-watch__mv--down', '아래로', 'down', function () { move(li, 1, down); });
-            up.disabled = idx === 0;
-            down.disabled = idx === items.length - 1;
-            li.appendChild(up);
-            li.appendChild(down);
             ul.appendChild(li);
         });
         wireReorder(ul);
@@ -192,24 +173,19 @@
     }
 
     /* ── 순서 바꾸기 ───────────────────────────────────────────────── */
-    // 화면 먼저 바꾸고(낙관적) 400ms 모아 마지막 순서만 보낸다. 저장 중·끄는 중에는 1분 갱신이 다시 그리지 않는다.
-    var dragLi = null;
-    var dropLine = null;
+    // 화면 먼저 바꾸고(낙관적) 400ms 모아 마지막 순서만 보낸다. 저장 중·끄는 중에는 1분 갱신이 다시 그리지 않는다
+    // (붙잡은 행이 문서에서 빠지면 끌기가 굳는다).
+    var dragging = false;
     var saveTimer = null;
     var saving = false;
 
-    function busy() { return !!dragLi || !!saveTimer || saving; }
+    function busy() { return dragging || !!saveTimer || saving; }
 
-    /** DOM 의 행 순서를 `items` 에 옮기고 ↑↓ 비활성을 맞춘다. */
+    /** DOM 의 행 순서를 `items` 에 옮긴다. */
     function syncOrder(ul) {
         var byKey = {};
         items.forEach(function (it) { byKey[key(it)] = it; });
-        var lis = Array.prototype.slice.call(ul.children);
-        items = lis.map(function (li) { return byKey[li.dataset.key]; });
-        lis.forEach(function (li, i) {
-            li.querySelector('.c-watch__mv--up').disabled = i === 0;
-            li.querySelector('.c-watch__mv--down').disabled = i === lis.length - 1;
-        });
+        items = Array.prototype.map.call(ul.children, function (li) { return byKey[li.dataset.key]; });
     }
 
     function scheduleSave() {
@@ -234,80 +210,20 @@
         }, 400);
     }
 
-    /** 한 칸 옮긴다(↑↓ 버튼·방향키). 옮긴 뒤 같은 항목의 같은 조작 요소에 포커스를 둔다. */
-    function move(li, dir, focusEl) {
-        var ul = li.parentNode;
-        var to = dir < 0 ? li.previousElementSibling : li.nextElementSibling;
-        if (!to) return;
-        ul.insertBefore(li, dir < 0 ? to : to.nextSibling);
-        syncOrder(ul);
-        // 누른 ↑ 가 맨 위로 와서 꺼지면 같은 행의 ↓, 그것도 안 되면 손잡이(보일 때)로.
-        var next = [focusEl, li.querySelector('.c-watch__mv--' + (dir < 0 ? 'down' : 'up')), li.querySelector('.c-watch__grip')]
-            .filter(function (n) { return n && !n.disabled && n.offsetParent !== null; })[0];
-        if (next) next.focus();
-        scheduleSave();
-    }
-
-    // 놓을 자리 = 커서 Y 가 넘은 (끄는 행을 뺀) 행 중앙선 수. 제자리면 옮길 곳이 없다.
-    function computeDrop(ul, y) {
-        var others = Array.prototype.filter.call(ul.children, function (n) { return n !== dragLi; });
-        var idx = 0;
-        others.forEach(function (n) {
-            var b = n.getBoundingClientRect();
-            if (y > b.top + b.height / 2) idx++;
-        });
-        if (idx === Array.prototype.indexOf.call(ul.children, dragLi)) return null;
-        return idx < others.length ? { anchor: others[idx], before: true } : { anchor: others[others.length - 1], before: false };
-    }
-
-    function showLine(drop) {
-        if (!dropLine) { dropLine = el('div', 'c-watch__drop'); document.body.appendChild(dropLine); }
-        var r = drop.anchor.getBoundingClientRect();
-        dropLine.style.left = r.left + 'px';
-        dropLine.style.width = r.width + 'px';
-        dropLine.style.top = (drop.before ? r.top : r.bottom) - 1 + 'px';
-        dropLine.hidden = false;
-    }
-
-    function hideLine() { if (dropLine) dropLine.hidden = true; }
-
+    // 손잡이 끌기(마우스·손가락)와 손잡이 ↑/↓ 키 — 공용 sortable.js
     function wireReorder(ul) {
-        ul.addEventListener('dragstart', function (e) {
-            var grip = e.target.closest && e.target.closest('.c-watch__grip');
-            if (!grip) return;
-            dragLi = grip.closest('li');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', dragLi.dataset.key);   // Firefox 는 데이터가 없으면 끌기를 시작하지 않는다
-            e.dataTransfer.setDragImage(dragLi, 8, 16);
-            dragLi.classList.add('is-dragging');
-        });
-        ul.addEventListener('dragover', function (e) {
-            if (!dragLi) return;
-            var drop = computeDrop(ul, e.clientY);
-            if (!drop) { hideLine(); e.dataTransfer.dropEffect = 'none'; return; }   // preventDefault 없음 → 금지 커서
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            showLine(drop);
-        });
-        ul.addEventListener('drop', function (e) {
-            if (!dragLi) return;
-            var drop = computeDrop(ul, e.clientY);
-            if (!drop) return;
-            e.preventDefault();
-            ul.insertBefore(dragLi, drop.before ? drop.anchor : drop.anchor.nextSibling);
-            syncOrder(ul);
-            scheduleSave();
-        });
-        ul.addEventListener('dragend', function () {
-            if (dragLi) dragLi.classList.remove('is-dragging');
-            dragLi = null;
-            hideLine();
-        });
-        ul.addEventListener('keydown', function (e) {
-            var grip = e.target.closest && e.target.closest('.c-watch__grip');
-            if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-            e.preventDefault();   // 레일이 스크롤되지 않게
-            move(grip.closest('li'), e.key === 'ArrowUp' ? -1 : 1, grip);
+        window.makeSortable(ul, {
+            rowSelector: '.c-watch__item',
+            gripSelector: '.c-watch__grip',
+            onStart: function () { dragging = true; },
+            onEnd: function () { dragging = false; },
+            onMove: function (from, to) {
+                var li = ul.children[from];
+                ul.removeChild(li);
+                ul.insertBefore(li, ul.children[to] || null);
+                syncOrder(ul);
+                scheduleSave();
+            }
         });
     }
 

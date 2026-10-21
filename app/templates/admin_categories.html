@@ -111,30 +111,8 @@
                         {% for cat in rows %}
                             <tr data-id="{{ cat.category_index }}">
                                 <td class="order-cell">
-                                    {# 순서는 손잡이를 끌어 바꾼다(아래 스크립트). 주 포인터가 손가락인 기기(pointer: coarse)는 끌기가 없어 손잡이 대신 ↑↓ 를 보인다(admin.css). #}
-                                    <span class="cat-grip" draggable="true" tabindex="0" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
-                                    <div class="order-buttons">
-                                        {% if not loop.first %}
-                                            <form method="post" action="/admin/categories/reorder" class="inline-form">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                                <input type="hidden" name="direction" value="up">
-                                                <button type="submit" class="btn-arrow" aria-label="위로">{{ icons.i('up') }}</button>
-                                            </form>
-                                        {% else %}
-                                            <span class="btn-arrow disabled" aria-hidden="true">{{ icons.i('up') }}</span>
-                                        {% endif %}
-                                        {% if not loop.last %}
-                                            <form method="post" action="/admin/categories/reorder" class="inline-form">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <input type="hidden" name="category_index" value="{{ cat.category_index }}">
-                                                <input type="hidden" name="direction" value="down">
-                                                <button type="submit" class="btn-arrow" aria-label="아래로">{{ icons.i('down') }}</button>
-                                            </form>
-                                        {% else %}
-                                            <span class="btn-arrow disabled" aria-hidden="true">{{ icons.i('down') }}</span>
-                                        {% endif %}
-                                    </div>
+                                    {# 순서는 손잡이를 끌어 바꾼다(마우스·손가락 — 아래 스크립트, 공용 sortable.js). 손잡이에 포커스를 두고 ↑/↓ 로도. #}
+                                    <span class="cat-grip" tabindex="0" role="button" title="끌어서 순서 변경" aria-label="순서 변경 (위·아래 방향키)">{{ icons.i('grip') }}</span>
                                 </td>
                                 <td data-label="이름">
                                     {# 행을 끌어 옮기면 칸을 가로지른 폼 소속이 풀린다 — 다른 칸의 선택·저장 버튼은 `form=` 으로 묶는다. #}
@@ -210,45 +188,17 @@ document.querySelectorAll('.category-save-btn').forEach(function (btn) {
     });
 });
 
-// 순서 — 손잡이(점 2×3)만 끌 수 있고 놓으면 전체 순서를 한 번에 저장한다(2026-10-13 점검, 정본 drag-reorder.md
-// "목록 정렬 표준"). 놓을 자리는 커서 Y 가 넘은 행 중앙선 수로 정하고, 표시선과 놓기가 같은 계산을 쓴다.
-// 키보드는 손잡이에 포커스를 두고 ↑/↓ 로 한 칸씩 옮긴다(같은 저장 경로). 연달아 옮겨도 마지막 순서 한 번만
+// 순서 — 손잡이(점 2×3)만 끌 수 있고 놓으면 전체 순서를 한 번에 저장한다(정본 drag-reorder.md "목록 정렬 표준").
+// 끌기는 공용 sortable.js(Pointer Events — 손가락도, 결정 #14): 놓을 자리는 커서 Y 가 넘은 행 중앙선 수, 표시선과 놓기가
+// 같은 계산이다. 키보드는 손잡이에 포커스를 두고 ↑/↓ 로 한 칸씩(같은 저장 경로). 연달아 옮겨도 마지막 순서 한 번만
 // 보내도록 400ms 모아 저장한다. 저장이 실패해도 화면 순서는 두고 오류 토스트로 알린다.
-(function () {
+// ⚠️ 이 스크립트는 본문에서 바로 돌고 sortable.js 는 defer 라 — 문서를 다 읽은 뒤에 붙인다.
+document.addEventListener('DOMContentLoaded', function () {
     var tbody = document.querySelector('.category-table tbody');
     if (!tbody) return;
-    var dragRow = null;
-    var line = null;
     var saveTimer = null;
 
     function rows() { return Array.prototype.slice.call(tbody.children); }
-
-    function computeDrop(y) {
-        var others = rows().filter(function (r) { return r !== dragRow; });
-        var idx = 0;
-        others.forEach(function (r) {
-            var b = r.getBoundingClientRect();
-            if (y > b.top + b.height / 2) idx++;
-        });
-        if (idx === rows().indexOf(dragRow)) return null;   // 제자리 — 옮길 곳이 없다
-        return idx < others.length ? { anchor: others[idx], before: true } : { anchor: others[others.length - 1], before: false };
-    }
-
-    function showLine(drop) {
-        if (!line) { line = document.createElement('div'); line.className = 'cat-drop-line'; document.body.appendChild(line); }
-        var r = drop.anchor.getBoundingClientRect();
-        line.style.left = r.left + 'px';
-        line.style.width = r.width + 'px';
-        line.style.top = (drop.before ? r.top : r.bottom) - 1 + 'px';
-        line.hidden = false;
-    }
-
-    function hideLine() { if (line) line.hidden = true; }
-
-    function saveOrder() {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(postOrder, 400);
-    }
 
     function postOrder() {
         var fd = new FormData();
@@ -262,47 +212,17 @@ document.querySelectorAll('.category-save-btn').forEach(function (btn) {
             .catch(function () { window.toast('카테고리 순서를 저장하지 못했습니다 — 새로고침해 확인하세요', 'error'); });
     }
 
-    tbody.addEventListener('dragstart', function (e) {
-        var grip = e.target.closest && e.target.closest('.cat-grip');
-        if (!grip) return;
-        dragRow = grip.closest('tr');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', dragRow.dataset.id);   // Firefox 는 데이터가 없으면 끌기를 시작하지 않는다
-        e.dataTransfer.setDragImage(dragRow, 8, 16);
-        dragRow.classList.add('is-dragging');
+    window.makeSortable(tbody, {
+        rowSelector: 'tr',
+        gripSelector: '.cat-grip',
+        onMove: function (from, to) {
+            var row = tbody.children[from];
+            tbody.removeChild(row);
+            tbody.insertBefore(row, tbody.children[to] || null);
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(postOrder, 400);
+        }
     });
-    tbody.addEventListener('dragover', function (e) {
-        if (!dragRow) return;
-        var drop = computeDrop(e.clientY);
-        if (!drop) { hideLine(); e.dataTransfer.dropEffect = 'none'; return; }   // preventDefault 없음 → 금지 커서
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        showLine(drop);
-    });
-    tbody.addEventListener('drop', function (e) {
-        if (!dragRow) return;
-        var drop = computeDrop(e.clientY);
-        if (!drop) return;
-        e.preventDefault();
-        tbody.insertBefore(dragRow, drop.before ? drop.anchor : drop.anchor.nextSibling);
-        saveOrder();
-    });
-    tbody.addEventListener('keydown', function (e) {
-        var grip = e.target.closest && e.target.closest('.cat-grip');
-        if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-        e.preventDefault();   // 문서가 스크롤되지 않게
-        var row = grip.closest('tr');
-        var to = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
-        if (!to) return;
-        tbody.insertBefore(row, e.key === 'ArrowUp' ? to : to.nextSibling);
-        grip.focus();   // 행을 옮기면 문서에서 잠깐 빠져 포커스가 풀린다 — 같은 손잡이로 되돌린다
-        saveOrder();
-    });
-    tbody.addEventListener('dragend', function () {
-        if (dragRow) dragRow.classList.remove('is-dragging');
-        dragRow = null;
-        hideLine();
-    });
-})();
+});
 </script>
 {% endblock %}

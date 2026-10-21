@@ -951,8 +951,8 @@
     .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
 
     /* 순서(2026-10-13, 정본 drag-reorder.md 정렬 표준) — 행 왼쪽 손잡이(점 2×3, 16×20)만 끈다(행은 링크다).
-       주 포인터가 손가락인 기기(pointer: coarse — 폰·태블릿)는 끌 수 없어 손잡이 대신 오른쪽에 ↑↓ 를 둔다.
-       마우스가 주 포인터면 손잡이와 키보드뿐(any-pointer 로 판정하면 터치스크린 없는 Windows PC 도 참이었다). 끄는 행은 흐리게, 놓을 자리는 accent 가로선(`.c-watch__drop`). */
+       마우스·손가락 모두 손잡이 끌기(sortable.js — Pointer Events, 결정 #14로 터치 전용 ↑↓ 를 없앴다) + 키보드 ↑/↓.
+       `touch-action: none` 은 손잡이에만 — 행을 짚은 손가락은 레일 스크롤이다. 끄는 행은 흐리게, 놓을 자리는 `.c-drop-line`. */
     .c-watch__grip {
         position: absolute;
         inset-block-start: 50%;
@@ -965,6 +965,10 @@
         color: var(--bae-text-dim);
         cursor: grab;
         transform: translateY(-50%);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
     }
 
     .c-watch__grip:active { cursor: grabbing; }
@@ -972,46 +976,9 @@
     .c-watch__row { padding-inline-start: 1.75rem; }
     .c-watch__item.is-dragging { opacity: 0.45; }
 
-    .c-watch__drop {
-        position: fixed;
-        z-index: 60;
-        block-size: 2px;
-        border-radius: 1px;
-        background: var(--bae-accent);
-        box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
-        pointer-events: none;
-    }
-
-    .c-watch__drop[hidden] { display: none; }
-
-    .c-watch__mv {
-        position: absolute;
-        inset-block-start: 50%;
-        display: none;
-        place-items: center;
-        inline-size: 2rem;
-        block-size: 2rem;
-        border: 0;
-        border-radius: var(--r-ctl);
-        background: none;
-        color: var(--bae-text-dim);
-        cursor: pointer;
-        transform: translateY(-50%);
-    }
-
-    .c-watch__mv--down { inset-inline-end: calc(var(--space-1) + 2.125rem); }
-    .c-watch__mv--up   { inset-inline-end: calc(var(--space-1) + 4.25rem); }
-    .c-watch__mv:disabled { opacity: 0.3; cursor: default; }
-    .c-watch__mv .c-ico { inline-size: 1rem; block-size: 1rem; }
-
-    .c-watch__mv:not(:disabled):hover,
-    .c-watch__mv:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
-
-    @media (pointer: coarse) {
-        .c-watch__mv { display: grid; }
-        .c-watch__row { padding-inline-end: 6.75rem; }
-        /* 누르는 자리 44px — 보이는 크기는 32px(정본 button.md 터치 타깃 보정) */
-        .c-watch__mv::after {
+    /* 터치 기기 — 손잡이 누를 자리 44px(보이는 크기 그대로, 이미 absolute 라 position 을 덮지 않는다) */
+    @media (any-pointer: coarse) {
+        .c-watch__grip::after {
             content: "";
             position: absolute;
             inset-block-start: 50%;
@@ -1022,10 +989,19 @@
         }
     }
 
-    @media (pointer: coarse) {
-        .c-watch__grip { display: none; }
-        .c-watch__row { padding-inline-start: var(--space-3); }
+    /* 끌기 놓을 자리 선 — 정본 `.sidebar-drop-line` 값. sortable.js 가 하나를 만들어 다시 쓴다(관심 종목·관리자 목록 공용). */
+    .c-drop-line {
+        position: fixed;
+        z-index: 60;
+        margin: 0;
+        block-size: 2px;
+        border-radius: 1px;
+        background: var(--bae-accent);
+        box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
+        pointer-events: none;
     }
+
+    .c-drop-line[hidden] { display: none; }
 
     /* ☆ — 켜지면(레일이 열림 · 관심에 담김) 별을 채운다. 노랑은 "즐겨찾기" 관례이고 등락 색과 겹치지 않는다. */
     /* ⚠️ 레일 버튼은 `aria-expanded`(스크립트가 나중에 맞춘다)가 아니라 `html.rail-open` 을 본다 —
