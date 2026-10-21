@@ -18,9 +18,15 @@
     :root:has(.ai-sheet) { --ai-grip-h: 1.75rem; }   /* 마우스 — 28px 면 충분하다 */
 }
 
-/* 접힌 손잡이 줄이 본문 끝·토스트·백테스트 진행 표시를 가리지 않게 그만큼 올린다 */
+@media (min-width: 64rem) and (any-pointer: coarse) {
+    :root:has(.ai-sheet) { --ai-grip-h: 2.75rem; }   /* 넓은 터치 화면 — 손가락은 한 번 누르기로 여닫으니 누를 자리 44px(button.md) */
+}
+
+/* 접힌 손잡이 줄이 본문 끝·관심 종목 레일 끝·토스트·백테스트 진행 표시를 가리지 않게 그만큼 올린다.
+   시트가 열린 동안 토스트는 입력 상자 위 8px(--ai-toast-lift, assistant.js liftToast — 정본 toast.md) */
 :root:has(.ai-sheet) body { padding-block-end: var(--ai-peek); }
-:root:has(.ai-sheet) .c-toast-host { inset-block-end: calc(var(--ai-peek) + 0.5rem); }
+:root:has(.ai-sheet) .c-rail { padding-block-end: var(--ai-peek); }   /* --ai-peek 에 safe-area 가 들어 있다 */
+:root:has(.ai-sheet) .c-toast-host { inset-block-end: var(--ai-toast-lift, calc(var(--ai-peek) + 0.5rem)); }
 :root:has(.ai-sheet) .backtest-progress { inset-block-end: calc(var(--ai-peek) + 0.5rem); }
 
 .ai-sheet {
@@ -425,9 +431,13 @@
 .ai-expand[aria-pressed="true"] .ai-expand__open,
 .ai-expand[aria-pressed="false"] .ai-expand__close { display: none; }
 
-/* 터치 기기 — 누르는 자리만 44px(정본 button.md). 이미 absolute 라 ui.css 공용 목록(relative 를 덮는다)에 넣지 않는다 */
+/* 터치 기기 — 누르는 자리만 44px(정본 button.md). .ai-expand·.ai-send 는 이미 absolute 라 ui.css 공용 목록(relative 를 덮는다)에
+   넣지 않는다 — 첨부 칩 ✕ 만 relative 를 준다 */
 @media (any-pointer: coarse) {
-    .ai-expand::after {
+    .ai-chip__x { position: relative; }
+    .ai-expand::after,
+    .ai-send::after,
+    .ai-chip__x::after {
         content: "";
         position: absolute;
         inset-block-start: 50%;
