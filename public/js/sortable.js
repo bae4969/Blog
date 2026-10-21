@@ -75,8 +75,10 @@
         g.querySelectorAll('select').forEach(function (n) { n.setAttribute('data-native', ''); });
         g.removeAttribute('id');
         g.setAttribute('aria-hidden', 'true');
+        // ⚠️ transition·animation 은 끈다 — 원본 class 의 transition 을 물려받으면 복제가 포인터보다 뒤처진다(정본 drag-reorder.md "이동")
         g.style.cssText += ';position:fixed;left:0;top:0;margin:0;width:' + r.width + 'px;pointer-events:none;z-index:1000;' +
-            'opacity:.9;background:var(--bae-surface-alt);box-shadow:0 4px 12px rgba(0,0,0,.35);will-change:transform;';
+            'opacity:.9;background:var(--bae-surface-alt);box-shadow:0 4px 12px rgba(0,0,0,.35);will-change:transform;' +
+            'transition:none !important;animation:none !important;';
         return g;
     }
 
