@@ -97,7 +97,7 @@
                     '</li>';
             }).join('');
             // 더 고를 수 있는 것 — 구독 중 · 이 세트 분류 · 아직 안 쓴 것.
-            var add = box.querySelector('.qc-add');
+            var add = box.querySelector('select.qc-add');
             var free = data.options.filter(function (o) { return kinds[i].indexOf(o.category) >= 0 && !used[o.code]; });
             add.innerHTML = '<option value="">' + (codes.length >= size ? '6장을 다 골랐습니다' : '+ 카드 추가') + '</option>' +
                 free.map(function (o) { return '<option value="' + esc(o.code) + '">' + esc(o.name) + ' (' + esc(o.code) + ')</option>'; }).join('');
@@ -196,7 +196,7 @@
             else if (btn.dataset.role === 'down') move(i, k, k + 1);
             else if (btn.dataset.role === 'rm') { sets[i].splice(k, 1); changed(i); }
         });
-        box.querySelector('.qc-add').addEventListener('change', function () {
+        box.querySelector('select.qc-add').addEventListener('change', function () {
             if (!this.value) return;
             sets[i].push(this.value);
             changed(i);

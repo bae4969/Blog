@@ -1053,7 +1053,7 @@
 
     // 시그널 타겟 옵션 업데이트
     function updateSignalTargets() {
-        document.querySelectorAll('.signal-target').forEach(function (sel) {
+        document.querySelectorAll('select.signal-target').forEach(function (sel) {
             var currentVal = sel.value;
             sel.innerHTML = '';
             allPhaseStocks().forEach(function (s) {
@@ -1076,8 +1076,8 @@
         updateSignalTargets();
         var rules = container.querySelectorAll('.signal-rule');
         var lastRule = rules[rules.length - 1];
-        lastRule.querySelector('.signal-indicator').addEventListener('change', scheduleAutoRecalc);
-        lastRule.querySelector('.signal-target').addEventListener('change', scheduleAutoRecalc);
+        lastRule.querySelector('select.signal-indicator').addEventListener('change', scheduleAutoRecalc);
+        lastRule.querySelector('select.signal-target').addEventListener('change', scheduleAutoRecalc);
         container.querySelectorAll('.signal-remove').forEach(function (btn) {
             btn.onclick = function () { btn.closest('.signal-rule').remove(); scheduleAutoRecalc(); };
         });
@@ -1344,8 +1344,8 @@
         if (strategy === 'signal') {
             document.querySelectorAll('.signal-rule').forEach(function (rule) {
                 signalRules.push({
-                    indicator: rule.querySelector('.signal-indicator').value,
-                    targetCode: rule.querySelector('.signal-target').value
+                    indicator: rule.querySelector('select.signal-indicator').value,
+                    targetCode: rule.querySelector('select.signal-target').value
                 });
             });
             if (signalRules.length === 0) return null;
@@ -1624,8 +1624,8 @@
         var signalRules = [];
         document.querySelectorAll('.signal-rule').forEach(function (rule) {
             signalRules.push({
-                indicator: rule.querySelector('.signal-indicator').value,
-                targetCode: rule.querySelector('.signal-target').value
+                indicator: rule.querySelector('select.signal-indicator').value,
+                targetCode: rule.querySelector('select.signal-target').value
             });
         });
 
@@ -1704,9 +1704,9 @@
                 addSignalRule();
                 var rules = document.querySelectorAll('.signal-rule');
                 var last = rules[rules.length - 1];
-                last.querySelector('.signal-indicator').value = rule.indicator;
+                last.querySelector('select.signal-indicator').value = rule.indicator;
                 updateSignalTargets();
-                if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
+                if (rule.targetCode) last.querySelector('select.signal-target').value = rule.targetCode;
             });
 
             notify('저장해 둔 설정을 불러왔습니다.', 'success');
@@ -1863,8 +1863,8 @@
         if (strategy === 'signal') {
             document.querySelectorAll('.signal-rule').forEach(function (rule) {
                 signalRules.push({
-                    indicator: rule.querySelector('.signal-indicator').value,
-                    targetCode: rule.querySelector('.signal-target').value
+                    indicator: rule.querySelector('select.signal-indicator').value,
+                    targetCode: rule.querySelector('select.signal-target').value
                 });
             });
         }
@@ -1938,9 +1938,9 @@
             addSignalRule();
             var rules = document.querySelectorAll('.signal-rule');
             var last = rules[rules.length - 1];
-            last.querySelector('.signal-indicator').value = rule.indicator;
+            last.querySelector('select.signal-indicator').value = rule.indicator;
             updateSignalTargets();
-            if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
+            if (rule.targetCode) last.querySelector('select.signal-target').value = rule.targetCode;
         });
 
         updateDateRange();

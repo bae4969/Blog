@@ -217,7 +217,7 @@
    좁은 폭에서는 16px 아래로 내리지 않는다 — iOS 는 16px 미만 입력칸에 포커스하면 화면을 확대하고 되돌리지 않는다.
    ⚠️ 레이어 밖 화면 CSS(stocks·admin·plan)가 입력칸 글자를 따로 정해도 이겨야 해서 레이어 밖 + `!important` 다. */
 @media (pointer: coarse), (max-width: 47.99rem) {
-    :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+    :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea, .cs-btn) {
         font-size: max(1rem, 1em) !important;
     }
 }

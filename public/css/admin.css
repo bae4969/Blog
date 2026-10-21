@@ -628,7 +628,18 @@
 .qc-rm:hover { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
 .qc-mv:disabled { opacity: 0.3; cursor: default; }
 
-.qc-add { width: 100%; }
+/* 카드 추가 — 앱 모양 select(custom_select.js 가 이 class 를 버튼에 준다). 겉모양은 표 안 고르기(.inline-select)와 같게 */
+.qc-add {
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+}
+
+.qc-add:focus { outline: none; box-shadow: var(--shadow-focus); }
+.qc-add:disabled { color: var(--bae-text-dim); }
 
 @media not all and (pointer: coarse) {
     .qc-mv { display: none; }   /* ↑↓ 는 주 포인터가 손가락인 기기에서만(카테고리 순서와 같다) */
@@ -803,7 +814,8 @@
 }
 
 .admin-form-field input,
-.admin-form-field select {
+.admin-form-field select,
+.admin-form-field .cs-btn {   /* select 를 대신 그리는 버튼(custom_select.js) */
     width: 100%;
     padding: 10px 14px;
     background: var(--bae-surface-alt);
@@ -816,7 +828,8 @@
 }
 
 .admin-form-field input:focus,
-.admin-form-field select:focus {
+.admin-form-field select:focus,
+.admin-form-field .cs-btn:focus {
     outline: none;
     box-shadow: var(--shadow-focus);
     background: var(--bae-surface-alt);
