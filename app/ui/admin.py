@@ -257,71 +257,6 @@ async def category_delete(
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.post("/categories/reorder", include_in_schema=False)
-async def category_reorder(
-    request: Request,
-    csrf_token: str = Form(""),
-    category_index: int = Form(-1),
-    direction: str = Form(""),
-):
-    """순서를 한 칸 위/아래로. 이웃과 `category_order` 를 맞바꾼다.
-
-    ⚠️ `category_order` 는 **UNIQUE** 라 두 행을 곧바로 맞바꾸면 중간에 값이 겹쳐
-    실패한다. 아무도 안 쓰는 임시값을 거쳐 3단계로 옮긴다(PHP `swapOrder` 와 같다).
-    """
-    if not csrf.valid(request, csrf_token):
-        return _deny("csrf_invalid", "/admin/categories")
-    if direction not in ("up", "down"):
-        return _deny("bad_direction", "/admin/categories")
-
-    async with db_session() as db:
-        if await _require_admin(request, db) is None:
-            return _deny("not_admin reorder")
-
-        cur = (
-            await db.execute(
-                text("SELECT category_order FROM category_list WHERE category_index = :i"),
-                {"i": category_index},
-            )
-        ).scalar()
-        if cur is None:
-            return _deny(f"not_found id={category_index}", "/admin/categories")
-
-        # 바로 위/아래 이웃 하나만 찾는다. 사이에 빈 번호가 있어도 자연스럽게 건너뛴다.
-        if direction == "up":
-            sql = ("SELECT category_index, category_order FROM category_list "
-                   "WHERE category_order < :o ORDER BY category_order DESC LIMIT 1")
-        else:
-            sql = ("SELECT category_index, category_order FROM category_list "
-                   "WHERE category_order > :o ORDER BY category_order ASC LIMIT 1")
-        nb = (await db.execute(text(sql), {"o": cur})).first()
-        if nb is None:
-            return RedirectResponse("/admin/categories",
-                                    status_code=status.HTTP_303_SEE_OTHER)
-
-        nb_index, nb_order = int(nb[0]), int(nb[1])
-
-        # 쓰이지 않는 임시 번호를 찾는다(255 부터 내려가며).
-        used = {
-            int(r[0]) for r in (
-                await db.execute(text("SELECT category_order FROM category_list"))
-            ).all()
-        }
-        tmp = 255
-        while tmp in used:
-            tmp -= 1
-
-        upd = text("UPDATE category_list SET category_order = :o WHERE category_index = :i")
-        await db.execute(upd, {"o": tmp, "i": category_index})
-        await db.execute(upd, {"o": cur, "i": nb_index})
-        await db.execute(upd, {"o": nb_order, "i": category_index})
-        await db.commit()
-
-    logger.info("카테고리 순서 변경: id=%s %s", category_index, direction)
-    return RedirectResponse("/admin/categories",
-                            status_code=status.HTTP_303_SEE_OTHER)
-
-
 @router.post("/categories/order", include_in_schema=False)
 async def category_order(request: Request, csrf_token: str = Form(""), order: str = Form("")):
     """순서를 한 번에 — 화면에서 손잡이로 끌어 놓은 순서(`category_index` 를 쉼표로)를 그대로 저장한다.
@@ -330,7 +265,7 @@ async def category_order(request: Request, csrf_token: str = Form(""), order: st
     목록은 **지금 있는 카테고리 전부**여야 한다 — 그사이 누가 더하거나 지웠으면 거부한다.
     쓰던 번호들을 새 순서대로 다시 나눠 준다(빈 번호도 그대로 남는다).
     ⚠️ `category_order` 는 **UNIQUE**(tinyint) 라 곧바로 바꾸면 중간에 겹친다 — 아무도 안 쓰는 번호로
-       모두 비켜 놓은 뒤 제자리에 놓는다(`category_reorder` 의 임시 번호와 같은 까닭).
+       모두 비켜 놓은 뒤 제자리에 놓는다(PHP `swapOrder` 의 임시 번호와 같은 까닭).
     """
     if not csrf.valid(request, csrf_token):
         return JSONResponse({"detail": "csrf"}, status_code=status.HTTP_403_FORBIDDEN)
