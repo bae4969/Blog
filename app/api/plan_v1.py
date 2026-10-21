@@ -9,6 +9,7 @@ AI 와 상담하며 이벤트 분기 계획을 짜고, 보유 자산 이미지�
 ⚠️ 개인 자산 데이터라 읽기도 Bearer 다(관심 종목과 같은 규칙 — [watchlist_v1](watchlist_v1.py)).
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -42,11 +43,10 @@ async def owner(db, request: Request):
 
 #: 사용자별 쓰기 잠금 — MCP 쓰기·원칙 저장·[실행함]·되돌리기가 "최신을 읽고 고쳐 새 버전으로 쌓는" 사이에 서로 끼지
 #: 않게 한다(끼면 한쪽 변경이 사라졌다, 2026-10-14 검토). 앱 워커가 하나라 프로세스 안 잠금이면 충분하다.
-_WRITE_LOCKS: dict[int, "asyncio.Lock"] = {}
+_WRITE_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def write_lock(user_index: int):
-    import asyncio
     return _WRITE_LOCKS.setdefault(user_index, asyncio.Lock())
 
 
@@ -270,7 +270,6 @@ def _send(cfg: dict, msg) -> None:
 
 async def mail_tick(now: datetime) -> int:
     """한 번 훑는다. 보낸 메일 수를 돌려준다."""
-    import asyncio
     from app.services import plan_mail
 
     async with db_session() as db:
@@ -331,7 +330,6 @@ _daily_tasks: set = set()   # 돌고 있는 점검 — 참조를 쥐고 있어�
 
 async def daily_tick(now: datetime) -> int:
     """점검할 때면 사람마다 그날 몫을 차지하고 점검을 띄운다. 띄운 수를 돌려준다."""
-    import asyncio
     from app.services import plan_mail
 
     async with db_session() as db:
@@ -360,7 +358,6 @@ async def daily_tick(now: datetime) -> int:
 async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: datetime) -> bool:
     """codex 로 한 번 점검하고, 알릴 일이 있으면 메일·상담 기록. 점검을 못 했으면(로그인·실행 실패, 답 형식 깨짐)
     "점검 실패" 메일을 보낸다 — 조용한 날과 구분한다. 메일을 보냈으면 True."""
-    import asyncio
     from app.services import plan_mail
 
     page = f"https://blog.{settings.base_domain}/stocks/plan"
@@ -399,7 +396,6 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
 
 
 async def mail_loop() -> None:
-    import asyncio
     await asyncio.sleep(20)   # 기동 직후 DB·공개키 준비를 기다린다
     while True:
         now = datetime.now(_KST)
