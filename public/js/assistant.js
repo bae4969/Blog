@@ -360,6 +360,17 @@
         var bottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 4;
         logEl.style.paddingBottom = (form.offsetHeight + 4) + 'px';
         if (bottom) logEl.scrollTop = logEl.scrollHeight;
+        liftToast();
+    }
+
+    // 열린 동안 토스트는 입력 상자 위 8px 에 뜬다(정본 toast.md — 접힌 손잡이만큼만 올리면 쓰는 칸을 가렸다).
+    // 여닫는 중엔 transform 이 움직이므로 화면 좌표 대신 시트 바닥에서 상자 위까지의 거리 + 키보드 높이로 잰다.
+    function liftToast() {
+        var root = document.documentElement.style;
+        if (!isOpen()) { root.removeProperty('--ai-toast-lift'); return; }
+        var kb = parseFloat(sheetEl.style.getPropertyValue('--ai-kb')) || 0;
+        var lift = kb + sheetEl.getBoundingClientRect().bottom - form.getBoundingClientRect().top + 8;
+        root.setProperty('--ai-toast-lift', Math.round(lift) + 'px');
     }
     if (window.ResizeObserver) new ResizeObserver(fitLogPadding).observe(form);
 
@@ -393,9 +404,10 @@
     });
 
     // 시트 위의 휠은 페이지를 움직이지 않고 대화 기록만(넘치는 입력칸 위에서는 입력칸 먼저) 움직인다.
-    // ⚠️ preventDefault 를 쓰려면 passive: false 여야 한다. 확대·축소(ctrl+휠)는 브라우저에 맡긴다.
+    // ⚠️ preventDefault 를 쓰려면 passive: false 여야 한다. 확대·축소(ctrl+휠)와 가로 휠(shift+휠·트랙패드 옆으로)은
+    //    브라우저에 맡긴다 — 대화 안 코드 블록·표를 옆으로 밀 수 없었다.
     sheetEl.addEventListener('wheel', function (e) {
-        if (e.ctrlKey) return;
+        if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
         e.preventDefault();
         var t = e.target.closest('textarea'), box = t && t.scrollHeight > t.clientHeight ? t : logEl;
         box.scrollTop += e.deltaY * (e.deltaMode === 1 ? 16 : 1);
@@ -435,6 +447,7 @@
         dim.hidden = !open;
         grip.setAttribute('aria-expanded', String(open));
         grip.setAttribute('aria-label', open ? 'AI 상담 닫기' : 'AI 상담 열기');
+        liftToast();
         if (open) {
             grip.classList.remove('has-new');
             document.dispatchEvent(new CustomEvent('assistant:open'));
@@ -493,8 +506,8 @@
     grip.addEventListener('dblclick', function () { if (wide.matches) set(!isOpen()); });
     dim.addEventListener('click', function () { set(false); });
     document.addEventListener('keydown', function (e) {
-        // 열린 모달(버전 기록 등)이 있으면 Esc 는 그 창 몫이다
-        if (e.key === 'Escape' && isOpen() && !document.querySelector('dialog[open]')) set(false);
+        // 열린 모달(버전 기록 등)·떠 있는 창(popover=auto — 넓은 화면은 덮개가 없어 같이 열린다)이 있으면 Esc 는 그 창 몫이다(한 겹씩)
+        if (e.key === 'Escape' && isOpen() && !document.querySelector('dialog[open], [popover="auto"]:popover-open')) set(false);
     });
 
     // ── 휴대폰 키보드 ──────────────────────────────────────
@@ -515,6 +528,7 @@
             sheetEl.style.removeProperty('--ai-vh');
         }
         if (atEnd) logEl.scrollTop = logEl.scrollHeight;   // 보던 마지막 말이 키보드에 밀려 올라가지 않게
+        liftToast();
     }
     if (vv) {
         vv.addEventListener('resize', fitKeyboard);

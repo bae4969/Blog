@@ -133,7 +133,7 @@
      *    뒤에는 되돌아오지 않아 가로 스크롤이 생긴 것처럼 보인다 — 손가락·좁은 폭의 16px 하한은
      *    `common.css` 에 있다(레이어 밖 화면 CSS 가 입력칸 크기를 따로 정해도 이겨야 해서).
      */
-    input, select, textarea {
+    input, select, textarea, .cs-btn {
         font-size: 0.875rem;
     }
 
@@ -951,8 +951,8 @@
     .c-watch__rm .c-ico { inline-size: 1rem; block-size: 1rem; }
 
     /* 순서(2026-10-13, 정본 drag-reorder.md 정렬 표준) — 행 왼쪽 손잡이(점 2×3, 16×20)만 끈다(행은 링크다).
-       주 포인터가 손가락인 기기(pointer: coarse — 폰·태블릿)는 끌 수 없어 손잡이 대신 오른쪽에 ↑↓ 를 둔다.
-       마우스가 주 포인터면 손잡이와 키보드뿐(any-pointer 로 판정하면 터치스크린 없는 Windows PC 도 참이었다). 끄는 행은 흐리게, 놓을 자리는 accent 가로선(`.c-watch__drop`). */
+       마우스·손가락 모두 손잡이 끌기(sortable.js — Pointer Events, 결정 #14로 터치 전용 ↑↓ 를 없앴다) + 키보드 ↑/↓.
+       `touch-action: none` 은 손잡이에만 — 행을 짚은 손가락은 레일 스크롤이다. 끄는 행은 흐리게, 놓을 자리는 `.c-drop-line`. */
     .c-watch__grip {
         position: absolute;
         inset-block-start: 50%;
@@ -965,6 +965,10 @@
         color: var(--bae-text-dim);
         cursor: grab;
         transform: translateY(-50%);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
     }
 
     .c-watch__grip:active { cursor: grabbing; }
@@ -972,46 +976,9 @@
     .c-watch__row { padding-inline-start: 1.75rem; }
     .c-watch__item.is-dragging { opacity: 0.45; }
 
-    .c-watch__drop {
-        position: fixed;
-        z-index: 60;
-        block-size: 2px;
-        border-radius: 1px;
-        background: var(--bae-accent);
-        box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
-        pointer-events: none;
-    }
-
-    .c-watch__drop[hidden] { display: none; }
-
-    .c-watch__mv {
-        position: absolute;
-        inset-block-start: 50%;
-        display: none;
-        place-items: center;
-        inline-size: 2rem;
-        block-size: 2rem;
-        border: 0;
-        border-radius: var(--r-ctl);
-        background: none;
-        color: var(--bae-text-dim);
-        cursor: pointer;
-        transform: translateY(-50%);
-    }
-
-    .c-watch__mv--down { inset-inline-end: calc(var(--space-1) + 2.125rem); }
-    .c-watch__mv--up   { inset-inline-end: calc(var(--space-1) + 4.25rem); }
-    .c-watch__mv:disabled { opacity: 0.3; cursor: default; }
-    .c-watch__mv .c-ico { inline-size: 1rem; block-size: 1rem; }
-
-    .c-watch__mv:not(:disabled):hover,
-    .c-watch__mv:focus-visible { color: var(--bae-text-primary); background: var(--bae-surface-hover); }
-
-    @media (pointer: coarse) {
-        .c-watch__mv { display: grid; }
-        .c-watch__row { padding-inline-end: 6.75rem; }
-        /* 누르는 자리 44px — 보이는 크기는 32px(정본 button.md 터치 타깃 보정) */
-        .c-watch__mv::after {
+    /* 터치 기기 — 손잡이 누를 자리 44px(보이는 크기 그대로, 이미 absolute 라 position 을 덮지 않는다) */
+    @media (any-pointer: coarse) {
+        .c-watch__grip::after {
             content: "";
             position: absolute;
             inset-block-start: 50%;
@@ -1022,10 +989,19 @@
         }
     }
 
-    @media (pointer: coarse) {
-        .c-watch__grip { display: none; }
-        .c-watch__row { padding-inline-start: var(--space-3); }
+    /* 끌기 놓을 자리 선 — 정본 `.sidebar-drop-line` 값. sortable.js 가 하나를 만들어 다시 쓴다(관심 종목·관리자 목록 공용). */
+    .c-drop-line {
+        position: fixed;
+        z-index: 60;
+        margin: 0;
+        block-size: 2px;
+        border-radius: 1px;
+        background: var(--bae-accent);
+        box-shadow: 0 0 4px rgba(var(--bae-accent-rgb), 0.7);
+        pointer-events: none;
     }
+
+    .c-drop-line[hidden] { display: none; }
 
     /* ☆ — 켜지면(레일이 열림 · 관심에 담김) 별을 채운다. 노랑은 "즐겨찾기" 관례이고 등락 색과 겹치지 않는다. */
     /* ⚠️ 레일 버튼은 `aria-expanded`(스크립트가 나중에 맞춘다)가 아니라 `html.rail-open` 을 본다 —
@@ -1490,6 +1466,58 @@
         color: var(--bae-text-muted);
     }
 
+    /* ── 값 고르기 select (`/js/custom_select.js`) ─────────────────────
+     * 정본 float-panel-menu.md "값 고르기 목록"(결정 #13) — 숨은 select 앞에 select 의 class 를 그대로 받은 버튼(`.cs-btn`),
+     * 그 아래 `popover="auto"` 목록(`.cs-menu`). 버튼 겉모양(바탕·테두리·여백)은 select 의 class 가 정한다 — 여기는 뼈대만.
+     * 목록 면 = float-menu(surface · 1px border · 8px · shadow-lg · 높이 상한 70vh 와 flip 자리 `--float-room`),
+     * 항목 = px 12 · py 8 · 14px · muted(hover 바탕 + 글자), 고른 항목 = badge-info.
+     * ⚠️ `display:none !important` 는 레이어 안이라 레이어 밖 화면 CSS 의 `!important` 보다도 세다(레이어 important 는 거꾸로 센다).
+     */
+    select.cs-native { display: none !important; }
+    /* 줄 높이 1.25 고정 — 버튼의 normal(한글 글꼴 ~1.45)이라 네이티브 select 보다 2px 컸다(24.home_iot 와 같은 처리) */
+    .cs-btn { display: inline-flex; align-items: center; gap: 0.5rem; line-height: 1.25; text-align: left; cursor: pointer; }
+    .cs-btn[hidden] { display: none; }
+    .cs-btn:disabled { cursor: not-allowed; }
+    .cs-label { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+    .cs-opt { grid-area: 1 / 1; display: flex; align-items: center; gap: 0.5rem; min-width: 0; visibility: hidden; }
+    .cs-opt.cs-cur { visibility: visible; }
+    .cs-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cs-chevron { flex-shrink: 0; inline-size: 16px; block-size: 16px; }
+
+    .cs-menu {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        padding: 4px 0;
+        max-height: min(var(--float-max), var(--float-room, var(--float-max)));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        border: 1px solid var(--bae-border);
+        border-radius: 8px;
+        background: var(--bae-surface);
+        box-shadow: var(--shadow-lg);
+        color: var(--bae-text-primary);
+    }
+
+    .cs-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        inline-size: 100%;
+        padding: 8px 12px;
+        border: 0;
+        background: none;
+        color: var(--bae-text-muted);
+        font-size: 0.875rem;
+        text-align: left;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .cs-item:hover { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+    .cs-item[aria-selected="true"] { background: rgba(var(--bae-accent-rgb), 0.22); color: var(--bae-accent-fg); }
+    .cs-item:disabled { color: var(--bae-text-dim); cursor: not-allowed; }
+
     /* ── 툴팁 (`/js/tooltip.js`) ──────────────────────────────────────
      * 아이콘만 있는 버튼의 이름. `body` 에 붙는 풍선 하나를 버튼 위(자리가 없으면 아래)로 옮긴다.
      * 값은 정본 tooltip.md(`.tv-tip`) — 지연·페이드 없이 바로 뜬다. 글자만 띄우는 다른 풍선(백테스트
@@ -1539,6 +1567,14 @@
         padding-inline: var(--space-4);
         /* 호스트는 클릭을 가로채지 않는다 — 토스트 자체만 받는다. */
         pointer-events: none;
+    }
+
+    /* 전역 clearfix 유령(blog.css:12 `div::after`)이 flex 칸 + gap 을 먹었다 — 호스트는 맨 아래 칸 + 8px 라 토스트가 바닥(AI 시트가
+       열리면 입력 상자)에서 8px 더 떠 있었고, 토스트 자신은 끝 칸 + 12px 라 오른쪽 여백이 넓었다. body 직속이라
+       `body.blog-page #blog` 해제에 안 걸린다. */
+    .c-toast-host::after,
+    .c-toast::after {
+        content: none;
     }
 
     .c-toast {

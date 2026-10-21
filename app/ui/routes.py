@@ -527,8 +527,10 @@ async def post_update(
 
 async def _state_change(request: Request, post_id: int, csrf_token: str,
                         *, new_state: int, need_admin: bool = False):
-    """숨김(1)·복구(0) 공통 처리. 권한 기준은 PHP `enable`/`disable` 과 같다:
-    **본인 글이거나** 그 카테고리에 쓰기 권한이 있으면 된다.
+    """숨김(1)·복구(0) 공통 처리. **본인 글이거나** 그 카테고리에 쓰기 권한이 있으면 된다.
+
+    숨김은 PHP `disable` 과 같다. 복구는 PHP `enable`(작성자 본인만)보다 넓다 — 의도다: PHP 는 관리자가
+    남의 글을 숨기면 아무도 되돌리지 못했다.
     """
     if not csrf.valid(request, csrf_token):
         return _reject("csrf_invalid", f"/reader.php?posting_index={post_id}")

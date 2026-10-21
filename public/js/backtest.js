@@ -749,7 +749,9 @@
         t.className = 'wt';
         var h = '<thead><tr><th class="wt-name">종목</th>';
         phases.forEach(function (p, i) {
-            h += '<th class="wt-col" data-col="' + i + '"><button type="button" class="wt-head" data-col="' + i + '">' +
+            var popOpen = i > 0 && p === popPhase && document.getElementById('phasePop').matches(':popover-open');
+            h += '<th class="wt-col" data-col="' + i + '"><button type="button" class="wt-head" data-col="' + i + '"' +
+                (i > 0 ? ' aria-haspopup="dialog" aria-expanded="' + popOpen + '"' : '') + '>' +
                 '<b>' + escapeHtml(colName(i)) + '</b>' + (i > 0 ? '<small>' + escapeHtml(SPREAD_LABEL[p.spread] || p.spread + '일 분할') + '</small>' : '') +
                 '</button></th>';
         });
@@ -825,11 +827,15 @@
                     warn = document.createElement('span');
                     warn.className = 'metric-info wt-warn';
                     warn.tabIndex = 0;
+                    warn.setAttribute('role', 'img');   // 이름 — 보이는 글자는 "!" 뿐이다
                     warn.innerHTML = '!<span class="metric-tooltip"></span>';
                     td.appendChild(warn);
                 }
                 if (warn && !late) warn.remove();
-                else if (late) warn.querySelector('.metric-tooltip').textContent = start + '부터 시세 — 이 시점 구성은 그날 시작';
+                else if (late) {
+                    warn.querySelector('.metric-tooltip').textContent = start + '부터 시세 — 이 시점 구성은 그날 시작';
+                    warn.setAttribute('aria-label', '늦게 시작하는 시세: ' + start + '부터');
+                }
             });
             box.querySelectorAll('.wt-sum').forEach(function (td) {
                 var i = +td.dataset.col, total = phases[i].stocks.reduce(function (a, b) { return a + b.weight; }, 0);
@@ -960,11 +966,31 @@
         dateEl.max = end || '';
         document.getElementById('phaseSpread').value = String(p.spread || 1);
         showPopError();
-        var r = anchor.getBoundingClientRect(), w = Math.min(240, window.innerWidth - 16);
-        pop.style.width = w + 'px';
-        pop.style.top = Math.round(r.bottom + 6) + 'px';
-        pop.style.left = Math.round(Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8))) + 'px';
-        if (!pop.matches(':popover-open')) pop.showPopover();
+        document.querySelectorAll('.wt-head[aria-expanded="true"]').forEach(function (h) { h.setAttribute('aria-expanded', 'false'); });
+        anchor.setAttribute('aria-expanded', 'true');
+        if (pop.matches(':popover-open')) rePhasePop();   // 열린 채 다른 열(날짜를 바꿔 옮겨 간 열)로
+        else pop.showPopover();
+    }
+
+    /** 시점 창이 붙는 열 머리 — 표는 고칠 때마다 다시 그려지므로 그때그때 찾는다(카드 또는 크게 보기 창). */
+    function phaseHead() {
+        var i = phases.indexOf(popPhase), dlg = document.getElementById('phaseDlg');
+        if (i < 1) return null;
+        return document.querySelector('#' + (dlg && dlg.open ? 'phaseDlgBody' : 'selectedStocks') + ' .wt-head[data-col="' + i + '"]');
+    }
+
+    // 시점 창은 연 열 머리를 따라간다(공용 TopLayer.follow — 스크롤·상단바 뒤로 들어가면 닫힌다).
+    var rePhasePop = function () {};
+    function initPhasePop() {
+        var pop = document.getElementById('phasePop');
+        if (!pop) return;
+        rePhasePop = window.TopLayer.follow(pop, phaseHead, function () {
+            return { side: 'below', align: 'left', gap: 6, minWidth: Math.min(240, window.innerWidth - 16) };
+        });
+        pop.addEventListener('toggle', function (e) {
+            if (e.newState !== 'closed') return;
+            document.querySelectorAll('.wt-head[aria-expanded="true"]').forEach(function (h) { h.setAttribute('aria-expanded', 'false'); });
+        });
     }
 
     function showPopError() {
@@ -999,11 +1025,22 @@
             inp.blur();
             if (next) { next.focus(); next.select(); }
         });
+        // 같은 머리를 다시 누르면 닫힌다(float-panel-menu.md) — light dismiss 가 누를 때 먼저 닫으므로 그 직전에 열려 있었는지 기억한다
+        var closedBy = null;
+        box.addEventListener('pointerdown', function (e) {
+            var head = e.target.closest && e.target.closest('.wt-head');
+            var pop = document.getElementById('phasePop');
+            closedBy = head && head === phaseHead() && pop.matches(':popover-open') ? head : null;
+        }, true);
         box.addEventListener('click', function (e) {
             var head = e.target.closest && e.target.closest('.wt-head');
+            var was = closedBy;
+            closedBy = null;
             if (head) {
-                var i = +head.dataset.col;
+                var i = +head.dataset.col, pop = document.getElementById('phasePop');
                 selectPhase(i);
+                // 마우스·손가락은 light dismiss 가 이미 닫았다(was), 키보드(Enter·Space)는 열린 채 온다
+                if (was === head || (head === phaseHead() && pop.matches(':popover-open'))) { window.TopLayer.hide(pop); return; }
                 if (i > 0) openPhasePop(phases[i], head);
                 return;
             }
@@ -1016,7 +1053,7 @@
 
     // 시그널 타겟 옵션 업데이트
     function updateSignalTargets() {
-        document.querySelectorAll('.signal-target').forEach(function (sel) {
+        document.querySelectorAll('select.signal-target').forEach(function (sel) {
             var currentVal = sel.value;
             sel.innerHTML = '';
             allPhaseStocks().forEach(function (s) {
@@ -1039,8 +1076,8 @@
         updateSignalTargets();
         var rules = container.querySelectorAll('.signal-rule');
         var lastRule = rules[rules.length - 1];
-        lastRule.querySelector('.signal-indicator').addEventListener('change', scheduleAutoRecalc);
-        lastRule.querySelector('.signal-target').addEventListener('change', scheduleAutoRecalc);
+        lastRule.querySelector('select.signal-indicator').addEventListener('change', scheduleAutoRecalc);
+        lastRule.querySelector('select.signal-target').addEventListener('change', scheduleAutoRecalc);
         container.querySelectorAll('.signal-remove').forEach(function (btn) {
             btn.onclick = function () { btn.closest('.signal-rule').remove(); scheduleAutoRecalc(); };
         });
@@ -1307,8 +1344,8 @@
         if (strategy === 'signal') {
             document.querySelectorAll('.signal-rule').forEach(function (rule) {
                 signalRules.push({
-                    indicator: rule.querySelector('.signal-indicator').value,
-                    targetCode: rule.querySelector('.signal-target').value
+                    indicator: rule.querySelector('select.signal-indicator').value,
+                    targetCode: rule.querySelector('select.signal-target').value
                 });
             });
             if (signalRules.length === 0) return null;
@@ -1587,8 +1624,8 @@
         var signalRules = [];
         document.querySelectorAll('.signal-rule').forEach(function (rule) {
             signalRules.push({
-                indicator: rule.querySelector('.signal-indicator').value,
-                targetCode: rule.querySelector('.signal-target').value
+                indicator: rule.querySelector('select.signal-indicator').value,
+                targetCode: rule.querySelector('select.signal-target').value
             });
         });
 
@@ -1667,9 +1704,9 @@
                 addSignalRule();
                 var rules = document.querySelectorAll('.signal-rule');
                 var last = rules[rules.length - 1];
-                last.querySelector('.signal-indicator').value = rule.indicator;
+                last.querySelector('select.signal-indicator').value = rule.indicator;
                 updateSignalTargets();
-                if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
+                if (rule.targetCode) last.querySelector('select.signal-target').value = rule.targetCode;
             });
 
             notify('저장해 둔 설정을 불러왔습니다.', 'success');
@@ -1716,29 +1753,16 @@
         var menu = document.getElementById('portfolioMenu');
         var btn = document.getElementById('portfolioListBtn');
         if (!menu || !btn) return;
-        // 목록 버튼 아래, 오른쪽 끝을 맞춘다(화면 밖으로 나가지 않게). 창은 화면에 고정(top layer)이라 페이지를 스크롤하면
-        // 버튼만 움직여 떨어졌다(2026-10-19 사용자) — 스크롤·창 크기가 바뀔 때마다 다시 붙이고, 버튼이 화면 밖으로 나가면 닫는다.
-        function place() {
-            var r = btn.getBoundingClientRect(), w = Math.min(416, window.innerWidth - 16);
-            if (r.bottom < 0 || r.top > window.innerHeight) { menu.hidePopover(); return; }
-            menu.style.width = w + 'px';
-            menu.style.top = Math.round(r.bottom + 6) + 'px';
-            menu.style.left = Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))) + 'px';
-        }
-        function follow(e) {
-            // 목록 안의 스크롤은 무시. ⚠️ resize 는 대상이 window 라 Node 인지 먼저 본다(contains 가 던졌다)
-            if (e && e.target instanceof Node && e.target !== document && menu.contains(e.target)) return;
-            if (menu.matches(':popover-open')) place();
-        }
+        // 목록 버튼 아래, 오른쪽 끝을 맞춘다(화면 안으로). 창은 화면에 고정(top layer)이라 페이지를 스크롤하면 버튼만 움직여
+        // 떨어졌다(2026-10-19 사용자) — 공용 TopLayer.follow 가 따라가고, 버튼이 화면 밖·상단바 뒤로 가면 닫는다.
+        window.TopLayer.follow(menu, btn, function () {
+            return { side: 'below', align: 'right', gap: 6, minWidth: Math.min(416, window.innerWidth - 16) };
+        });
         menu.addEventListener('beforetoggle', function (e) {
             var open = e.newState === 'open';
             btn.setAttribute('aria-expanded', String(open));
-            if (!open) return;
-            place();
-            renderPortfolioMenu();
+            if (open) renderPortfolioMenu();
         });
-        document.addEventListener('scroll', follow, { capture: true, passive: true });
-        window.addEventListener('resize', follow);
     }
 
     function renderPortfolioMenu() {
@@ -1839,8 +1863,8 @@
         if (strategy === 'signal') {
             document.querySelectorAll('.signal-rule').forEach(function (rule) {
                 signalRules.push({
-                    indicator: rule.querySelector('.signal-indicator').value,
-                    targetCode: rule.querySelector('.signal-target').value
+                    indicator: rule.querySelector('select.signal-indicator').value,
+                    targetCode: rule.querySelector('select.signal-target').value
                 });
             });
         }
@@ -1914,9 +1938,9 @@
             addSignalRule();
             var rules = document.querySelectorAll('.signal-rule');
             var last = rules[rules.length - 1];
-            last.querySelector('.signal-indicator').value = rule.indicator;
+            last.querySelector('select.signal-indicator').value = rule.indicator;
             updateSignalTargets();
-            if (rule.targetCode) last.querySelector('.signal-target').value = rule.targetCode;
+            if (rule.targetCode) last.querySelector('select.signal-target').value = rule.targetCode;
         });
 
         updateDateRange();
@@ -2017,32 +2041,18 @@
         // 종목 추가 — 작은 버튼 아래에 뜨는 검색창. 누른 버튼을 기억해 그 아래에 둔다(click 이 popovertarget 보다 먼저 온다).
         var searchPop = document.getElementById('btSearchPop'), searchAnchor = null;
         var searchInput = document.getElementById('btStockSearchInput');
-        // 버튼 아래, 오른쪽 끝을 맞추되 화면 안으로(좁은 화면에서 왼쪽 밖으로 잘렸다)
-        var setSearchPlace = function () {
-            var r = searchAnchor.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 16);
-            searchPop.style.width = w + 'px';
-            searchPop.style.top = Math.round(r.bottom + 6) + 'px';
-            searchPop.style.left = Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))) + 'px';
-        };
-        var placeSearch = function () {
-            if (!searchAnchor || !searchPop.matches(':popover-open')) return;
-            var r = searchAnchor.getBoundingClientRect();
-            if (r.bottom < 0 || r.top > window.innerHeight) { searchPop.hidePopover(); return; }
-            setSearchPlace();
-        };
+        // 버튼 아래, 오른쪽 끝을 맞추되 화면 안으로(좁은 화면에서 왼쪽 밖으로 잘렸다) — 공용 TopLayer.follow
         if (searchPop) {
             document.querySelectorAll('[data-open-search]').forEach(function (b) {
                 b.addEventListener('click', function () { searchAnchor = b; });
             });
+            window.TopLayer.follow(searchPop, function () { return searchAnchor; }, function () {
+                return { side: 'below', align: 'right', gap: 6, minWidth: Math.min(320, window.innerWidth - 16) };
+            });
             searchPop.addEventListener('beforetoggle', function (e) {
-                if (e.newState !== 'open') { window.TopLayer.hide(document.getElementById('btStockSearchResults')); return; }
-                if (searchAnchor) setSearchPlace();
+                if (e.newState !== 'open') window.TopLayer.hide(document.getElementById('btStockSearchResults'));
             });
             searchPop.addEventListener('toggle', function (e) { if (e.newState === 'open') { searchInput.focus(); searchInput.select(); } });
-            document.addEventListener('scroll', function (e) {
-                if (!(e.target instanceof Node) || !searchPop.contains(e.target)) placeSearch();
-            }, { capture: true, passive: true });
-            window.addEventListener('resize', placeSearch);
         }
 
         // 비중 표 — 시점 추가·시점 창·크게 보기
@@ -2128,6 +2138,7 @@
         });
 
         initPortfolioMenu();
+        initPhasePop();
 
         var simParamIds = [
             'rebalancePeriod', 'signalCombine',
