@@ -25,7 +25,9 @@
      *   place.side  — 'below'(앵커 아래) | 'above'
      *   place.align — 'left' | 'right'(그 변을 맞춘다) | 'stretch'(앵커와 같은 폭)
      *   place.gap   — 앵커와 사이(px)
-     *   place.minWidth — 'stretch'·'right' 에서 폭을 max(앵커 폭, minWidth) 로(옛 `max(100%, 24rem)`)
+     *   place.minWidth — 폭을 max(앵커 폭, minWidth) 로 고정(옛 `max(100%, 24rem)`). 'stretch' 가 아니면 화면 안(양끝 8px)으로 민다
+     *   place.flip  — 아래 자리가 모자라고 위가 넓으면 위로 연다(정본 `_placeFlip`, `follow` 가 처리). `margin`(화면 끝과
+     *                 띄울 거리, 기본 8) · `minBelow`(아래가 이만큼 남으면 다 안 들어가도 아래 — 안쪽 스크롤). 높이 상한은 `--float-room`
      */
     TL.place = function (pop, anchor, place) {
         var b = anchor.getBoundingClientRect();
@@ -41,11 +43,12 @@
         }
         // ⚠️ 오른쪽 맞춤은 폭을 알면 `left` 로 준다 — fixed 의 `right` 기준은 스크롤바 자리(`scrollbar-gutter: stable`)
         //    만큼 어긋났다(1600px 에서 15px).
-        if (place.align === 'right') {
-            if (w !== null) st.left = (r.right - w) + 'px';
-            else st.right = (vw - r.right) + 'px';
+        if (place.align === 'right' && w === null) {
+            st.right = (vw - r.right) + 'px';
         } else {
-            st.left = r.left + 'px';
+            var x = place.align === 'right' ? r.right - w : r.left;
+            if (w !== null && place.align !== 'stretch') x = Math.max(8, Math.min(x, vw - w - 8));   // 좁은 화면에서 밖으로 잘렸다
+            st.left = x + 'px';
         }
         var gap = place.gap || 0;
         if (place.side === 'above') st.bottom = (vh - r.top + gap) + 'px';
@@ -79,28 +82,58 @@
      * 앵커가 보이지 않게 되면(스크롤로 화면·상단바 뒤로) 닫는다 — 앵커 없이 상단바 위에 떠 있었다(2026-10-13 D14).
      * 닫힘 정리가 필요한 쪽은 popover `toggle`(newState 'closed')을 듣는다.
      */
+    /** 정본 `_placeFlip` — 상한을 뗀 채 아래에 놓고 재서, 내용이 아래에 안 들어가고 위가 더 넓으면(아래가 minBelow 미만) 위로. */
+    function placeFlip(pop, anchor, place) {
+        pop.style.removeProperty('--float-room');
+        TL.place(pop, anchor, place);
+        var vh = document.documentElement.clientHeight, b = anchor.getBoundingClientRect();
+        var gap = place.gap || 0, m = place.margin || 8;
+        var below = vh - b.bottom - gap - m, above = b.top - gap - m;
+        var up = pop.offsetHeight > below && above > below && !(place.minBelow && below >= place.minBelow);
+        if (up) TL.place(pop, anchor, Object.assign({}, place, { side: 'above' }));
+        pop.style.setProperty('--float-room', Math.max(0, up ? above : below) + 'px');
+    }
+
+    /**
+     * 열린 동안 자리를 따라간다. `anchor` 는 요소이거나 열 때마다 다른 버튼에 붙는 창이면 그것을 돌려주는 함수,
+     * `getPlace` 는 열 때마다 부르는 함수(화면 폭에 따라 자리가 바뀌는 곳)이거나 값. 연 뒤에는 토스트를 다시 올린다.
+     * 앵커가 보이지 않게 되면(스크롤로 화면·상단바 뒤로) 닫는다 — 앵커 없이 상단바 위에 떠 있었다(2026-10-13 D14).
+     * 떠 있는 것 자신의 안쪽 스크롤로는 다시 잡지 않는다(정본 — flip 상한이 잠깐 풀려 스크롤이 0 으로 돌아갔다).
+     * 닫힘 정리가 필요한 쪽은 popover `toggle`(newState 'closed')을 듣는다. 돌려주는 함수를 부르면 지금 자리를 다시 잡는다.
+     */
     TL.follow = function (pop, anchor, getPlace) {
+        function anc() { return typeof anchor === 'function' ? anchor() : anchor; }
         function cur() { return typeof getPlace === 'function' ? getPlace() : getPlace; }
-        function re() {
-            if (!pop.matches(':popover-open')) return;
-            if (anchorHidden(anchor)) { TL.hide(pop); return; }
-            TL.place(pop, anchor, cur());
+        var watched = null;
+        function put(a) {
+            var p = cur();
+            if (watched !== a) { ro.disconnect(); ro.observe(a); if (p.flip) ro.observe(pop); watched = a; }
+            (p.flip ? placeFlip : TL.place)(pop, a, p);
         }
+        function re() {
+            var a = anc();
+            if (!pop.matches(':popover-open') || !a) return;
+            if (anchorHidden(a)) { TL.hide(pop); return; }
+            put(a);
+        }
+        function onScroll(e) { if (!pop.contains(e.target)) re(); }
         var ro = new ResizeObserver(re);
         // beforetoggle 은 보이기 직전(동기)이라 첫 그림부터 제자리다.
         pop.addEventListener('beforetoggle', function (e) {
-            if (e.newState === 'open') {
-                TL.place(pop, anchor, cur());
-                ro.observe(anchor);
+            var a = anc();
+            if (e.newState === 'open' && a) {
+                TL.place(pop, a, cur());
                 window.addEventListener('resize', re);
-                document.addEventListener('scroll', re, true);
+                document.addEventListener('scroll', onScroll, true);
             } else {
                 ro.disconnect();
+                watched = null;
                 window.removeEventListener('resize', re);
-                document.removeEventListener('scroll', re, true);
+                document.removeEventListener('scroll', onScroll, true);
             }
         });
-        pop.addEventListener('toggle', function (e) { if (e.newState === 'open') TL.changed(); });
+        // 보인 뒤에 크기를 알면 flip 하고 크기 감시를 건다
+        pop.addEventListener('toggle', function (e) { if (e.newState === 'open') { re(); TL.changed(); } });
         return re;
     };
 
@@ -118,8 +151,12 @@
             var r = dlg.getBoundingClientRect();
             return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
         }
+        // 한 겹씩(D6) — 창 안의 떠 있는 창(검색창·시점 창·select 목록, popover=auto)이 열린 채 막을 누르면 그것만 닫힌다
+        // (브라우저 light dismiss). 그 누름에서는 창을 닫지 않는다.
         var downOut = false;
-        dlg.addEventListener('pointerdown', function (e) { downOut = outside(e); });
+        dlg.addEventListener('pointerdown', function (e) {
+            downOut = outside(e) && !dlg.querySelector('[popover="auto"]:popover-open');
+        });
         dlg.addEventListener('click', function (e) {
             if (downOut && outside(e)) dlg.close();
             downOut = false;
