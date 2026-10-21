@@ -1474,7 +1474,8 @@
      * ⚠️ `display:none !important` 는 레이어 안이라 레이어 밖 화면 CSS 의 `!important` 보다도 세다(레이어 important 는 거꾸로 센다).
      */
     select.cs-native { display: none !important; }
-    .cs-btn { display: inline-flex; align-items: center; gap: 0.5rem; text-align: left; cursor: pointer; }
+    /* 줄 높이 1.25 고정 — 버튼의 normal(한글 글꼴 ~1.45)이라 네이티브 select 보다 2px 컸다(24.home_iot 와 같은 처리) */
+    .cs-btn { display: inline-flex; align-items: center; gap: 0.5rem; line-height: 1.25; text-align: left; cursor: pointer; }
     .cs-btn[hidden] { display: none; }
     .cs-btn:disabled { cursor: not-allowed; }
     .cs-label { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
