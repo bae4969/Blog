@@ -23,7 +23,7 @@ from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
 from app.db.session import db_session
-from app.services import codex_runner
+from app.services import codex_runner, plan_assets
 from app.services import invest_plan as ip
 from app.ui.stocks import _candle_candidates, _latest_quotes
 
@@ -105,18 +105,53 @@ async def _closes_at(db, items: list[tuple[str, str, bool]], at: datetime) -> di
 
 async def prices(db, doc: ip.PlanDoc) -> tuple[dict, dict, float | None]:
     """(종목 종가, 코인 종가, 원/달러) — 오늘 시세. 평가(`ip.valuate`)에 그대로 넣는다."""
+    return _price_maps(await _quotes(db, doc))
+
+
+async def _quotes(db, doc: ip.PlanDoc) -> dict:
     stocks, coins = ip.price_pairs(doc)
     sq = await _latest_quotes(db, [(c, "s") for c in stocks])
     cq = await _latest_quotes(db, [(c, "c") for c in coins])
     fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
-    return ({k: v["close"] for k, v in sq.items()}, {k: v["close"] for k, v in cq.items()}, fx["close"] if fx else None)
+    return {"stocks": sq, "coins": cq, "fx": fx}
+
+
+def _price_maps(quotes: dict, field: str = "close") -> tuple[dict, dict, float | None]:
+    return ({k: q[field] for k, q in quotes["stocks"].items() if q.get(field) is not None},
+            {k: q[field] for k, q in quotes["coins"].items() if q.get(field) is not None},
+            (quotes["fx"] or {}).get(field))
+
+
+def _assets(doc: ip.PlanDoc, row, quotes: dict, current: dict) -> dict:
+    root_doc = doc.model_copy(update={"nodes": []})
+    previous = ip.valuate(root_doc, *_price_maps(quotes, "prev_close"))["root"]
+    rows = []
+    for holding in current["rows"]:
+        quote = (quotes["coins"] if holding["market"] == "COIN" else quotes["stocks"]).get(holding["code"], {})
+        at = quote.get("as_of") if holding["price"] is not None else None
+        quote_at = (at.replace(tzinfo=_ET if holding["market"] == "US" else _KST).astimezone(_KST).isoformat()
+                    if at else None)
+        rows.append({**holding, "quote_at": quote_at})
+    result = plan_assets.summarize(root_doc, {**current, "rows": rows}, previous)
+    return {**result, "rev_id": row.rev_id if row else None,
+            "holdings_as_of": doc.as_of.isoformat() if doc.as_of else None,
+            "checked_at": datetime.now(_KST).isoformat()}
+
+
+async def asset_view(db, row) -> dict:
+    """현재 보유만 평가한다 — 30초 갱신에 미래 가지·이벤트 복기 조회를 반복하지 않는다."""
+    doc = _doc_of(row).model_copy(update={"nodes": []})
+    quotes = await _quotes(db, doc)
+    current = ip.valuate(doc, *_price_maps(quotes))["root"]
+    return _assets(doc, row, quotes, current)
 
 
 async def plan_view(db, row) -> dict:
     """문서 + 노드마다 원화 평가(미래 노드도 오늘 시세 — 비율을 보라는 뜻), 지난 이벤트의 복기, 월 현금흐름 합계와 이벤트까지의 예상 적립."""
     doc = _doc_of(row)
     stocks, coins = ip.price_pairs(doc)
-    stock_px, coin_px, usdkrw = await prices(db, doc)
+    quotes = await _quotes(db, doc)
+    stock_px, coin_px, usdkrw = _price_maps(quotes)
     values = ip.valuate(doc, stock_px, coin_px, usdkrw)
 
     # 복기 — 지난 이벤트마다 그 시각의 종가로 다시 평가한다(같은 시각의 이벤트는 한 번만 읽는다).
@@ -137,6 +172,7 @@ async def plan_view(db, row) -> dict:
         "usdkrw": usdkrw,
         "doc": doc.model_dump(mode="json"),
         "values": values,
+        "assets": _assets(doc, row, quotes, values["root"]),
         "retro": ip.retrospect(doc, values, then_values),
         "cashflow": ip.cashflow_summary(doc),
         "accrual": ip.accruals(doc, datetime.now(_KST).date()),
@@ -152,6 +188,13 @@ async def get_plan(request: Request):
     async with db_session() as db:
         me = await owner(db, request)
         return await plan_view(db, await latest_rev(db, me.user_index))
+
+
+@router.get("/assets", summary="내 자산 — 현재 보유와 연결 대출의 최신 평가")
+async def get_assets(request: Request):
+    async with db_session() as db:
+        me = await owner(db, request)
+        return await asset_view(db, await latest_rev(db, me.user_index))
 
 
 @router.get("/revisions", summary="계획 버전(최근 것부터)")

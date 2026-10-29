@@ -14,8 +14,9 @@ import re
 from sqlalchemy import text
 
 from app.api.mcp import RO, RW, RW_DEL, obj
-from app.api.plan_v1 import _doc_of, _save_rev, latest_rev, plan_view, prices, write_lock
+from app.api.plan_v1 import _doc_of, _save_rev, asset_view, latest_rev, plan_view, prices, write_lock
 from app.services import invest_plan as ip
+from app.services import plan_assets
 
 #: 쓰기 도구 이름 — codex_runner 가 상담이 연 것에만 자동 승인을 건다.
 WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
@@ -199,11 +200,12 @@ def tools_for(message: str, last_reply: str = "") -> tuple:
 async def begin(db, user_index: int) -> dict:
     """상담 직전 계획 — 프롬프트에 싣고, 끝난 뒤 무엇이 바뀌었는지 견준다."""
     row = await latest_rev(db, user_index)
-    return {"row": row, "doc": _doc_of(row)}
+    return {"row": row, "doc": _doc_of(row), "assets": await asset_view(db, row)}
 
 
 def prompt(state: dict, now, allow: tuple) -> str:
-    return ip.plan_prompt(state["doc"], "rules_set" in allow)
+    base = ip.plan_prompt(state["doc"], "rules_set" in allow)
+    return base + "\n\n" + plan_assets.prompt(state["assets"])
 
 
 async def finish(db, user_index: int, state: dict, made: list[dict]) -> dict | None:

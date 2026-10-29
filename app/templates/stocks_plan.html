@@ -13,6 +13,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="/css/plan.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/plan_assets.css?v={{ static_v }}">
 {% endblock %}
 
 {% block content %}
@@ -48,6 +49,33 @@
             <div class="plan-float__body" id="planDetail"></div>
         </aside>
     </section>
+    <aside class="plan-assets" id="planAssets" aria-labelledby="planAssetsTitle">
+        <div class="plan-assets__head">
+            <h2 id="planAssetsTitle">내 자산</h2>
+            <div class="plan-assets__actions">
+                <button type="button" class="c-btn" id="planAssetsHide" aria-pressed="false">{{ icons.i('eye') }}<span>금액 숨기기</span></button>
+                <button type="button" class="c-btn" id="planAssetsRefresh">{{ icons.i('refresh') }}<span>자산 새로고침</span></button>
+            </div>
+        </div>
+        <div class="plan-assets__hero">
+            <p class="plan-assets__label">총자산</p>
+            <p class="plan-assets__total" id="planAssetsTotal">—</p>
+            <p class="plan-assets__change" id="planAssetsChange" hidden></p>
+            <p class="plan-assets__time" id="planAssetsTime">불러오는 중…</p>
+        </div>
+        <div id="planAssetsGroups"></div>
+        <div class="plan-assets__other" id="planAssetsOther" hidden></div>
+        <p class="plan-assets__status" id="planAssetsStatus" hidden></p>
+        <div class="plan-assets__foot" id="planAssetsFoot"></div>
+        <template id="planAssetIcons">
+            <span data-icon="cash">{{ icons.i('bank') }}</span>
+            <span data-icon="saving">{{ icons.i('wallet') }}</span>
+            <span data-icon="invest">{{ icons.i('line') }}</span>
+            <span data-icon="pension">{{ icons.i('shield') }}</span>
+            <span data-icon="housing">{{ icons.i('home') }}</span>
+            <span data-icon="chevron">{{ icons.i('down') }}</span>
+        </template>
+    </aside>
 </div>
 
 <dialog class="plan-history" id="planHistory" aria-label="계획 버전 기록">
@@ -86,5 +114,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="/js/plan_assets.js?v={{ static_v }}" defer></script>
 <script src="/js/plan.js?v={{ static_v }}" defer></script>
 {% endblock %}
