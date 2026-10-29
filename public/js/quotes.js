@@ -441,23 +441,30 @@
 
     /* ── 지수·환율 카드 ────────────────────────────────────────────────── */
 
-    /** 스파크라인. 값이 2개 미만이면 선이 안 되므로 그리지 않는다. */
-    function sparkSvg(values, cls) {
-        if (!values || values.length < 2) return '';
+    /** 지수는 개장~마감의 실제 시간 위치, 환율은 기존처럼 점 개수로 폭을 채운다. */
+    function sparkSvg(values, positions, cls) {
+        if (!values || !values.length) return '';
+        if (values.length === 1 && (!positions || !positions.length)) return '';
         var w = 104, h = 30, pad = 2;
         var min = Math.min.apply(null, values);
         var max = Math.max.apply(null, values);
         var span = max - min;
         // 하루 종일 같은 값이면(FX 가 실제로 그렇다) 가운데 평평한 선으로 둔다.
         var pts = values.map(function (v, i) {
-            var x = pad + (i / (values.length - 1)) * (w - pad * 2);
+            var ratio = positions && positions.length === values.length ? positions[i]
+                : (values.length > 1 ? i / (values.length - 1) : 0);
+            var x = pad + ratio * (w - pad * 2);
             var y = span > 0 ? h - pad - ((v - min) / span) * (h - pad * 2) : h / 2;
             return x.toFixed(1) + ',' + y.toFixed(1);
         });
         return '<svg class="quote-spark ' + cls + '" viewBox="0 0 ' + w + ' ' + h + '" '
             + 'preserveAspectRatio="none" aria-hidden="true">'
-            + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" '
-            + 'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" /></svg>';
+            + (pts.length === 1
+                ? '<circle cx="' + pts[0].split(',')[0] + '" cy="' + pts[0].split(',')[1]
+                    + '" r="1.5" fill="currentColor" />'
+                : '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" '
+                    + 'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />')
+            + '</svg>';
     }
 
     function cardHtml(item) {
@@ -471,7 +478,7 @@
             + '<span class="quote-card-price">' + quoteValue(item.price) + '</span>'
             + '<span class="quote-card-pct ' + cls + '">' + pctText(item.change_pct) + '</span>'
             + '</div>'
-            + sparkSvg(item.spark, cls)
+            + sparkSvg(item.spark, item.spark_x, cls)
             + '</div>'
             + '</a>';
     }
