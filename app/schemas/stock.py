@@ -207,3 +207,4 @@ class QuoteOut(BaseModel):
     change_pct: float | None = Field(default=None, description="수집 이력이 하루뿐이면 null")
     at: datetime | None = Field(default=None, description="마지막 값의 시각. 미국·세계지수는 현지시각")
     spark: list[float] = Field(default_factory=list, description="마지막 거래일 종가 열 — 스파크라인용")
+    spark_x: list[float] = Field(default_factory=list, description="spark 각 점의 정규장 내 위치(개장 0~마감 1). 환율·시간 미지정 지수는 빈 배열")

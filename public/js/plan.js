@@ -85,6 +85,14 @@
         });
     }
 
+    var assetsPanel = window.PlanAssets(document.getElementById('planAssets'), function () {
+        return api('GET', '/api/v1/plan/assets');
+    }, function (next) {
+        if (plan && next.rev_id !== plan.rev_id && (next.rev_id || 0) > (plan.rev_id || 0)) {
+            api('GET', '/api/v1/plan').then(setPlan).catch(function () {});
+        }
+    });
+
     // ── 도우미 ─────────────────────────────────────────────
 
     function el(tag, className, text) {
@@ -1254,7 +1262,9 @@
     }
 
     function setPlan(next) {
+        if (plan && (next.rev_id || 0) < (plan.rev_id || 0)) return;
         plan = next;
+        assetsPanel.setData(next.assets);
         render();
     }
 

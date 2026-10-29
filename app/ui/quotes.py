@@ -12,6 +12,7 @@
 import json
 import logging
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -36,6 +37,41 @@ router = APIRouter()
 #: 스파크라인에 실을 최대 점 개수. 환율은 하루 130점(10분봉)이라 그대로 두면 카드 폭에
 #: 비해 과하다. 뒤에서부터 이만큼만 남긴다.
 _SPARK_POINTS = 80
+
+# 홈 카드의 X축은 정규장 전체다. 한투 분봉은 각 시장의 현지시각이므로 KST/UTC 로
+# 변환하지 않는다(미국·유럽의 서머타임에도 현지 개장·마감 시각은 같다).
+# 한국·미국은 분류 공통, 세계지수는 현재 수집 중인 시장별로 지정한다.
+# 정규장 기준이며 휴일별 조기 폐장 달력은 적용하지 않는다.
+_INDEX_SESSIONS = {
+    "INDEX_KR": (9 * 60, 15 * 60 + 30),
+    "INDEX_EX": (9 * 60 + 30, 16 * 60),
+    "JPNI225": (9 * 60, 15 * 60 + 30),
+    "SHANG": (9 * 60 + 30, 15 * 60),
+    "HKHS": (9 * 60 + 30, 16 * 60 + 10),  # 종가 경매 포함
+    "TWWT": (9 * 60, 13 * 60 + 30),
+    "INBOMBAY": (9 * 60 + 15, 15 * 60 + 30),
+    "SX5E": (9 * 60, 17 * 60 + 30),
+    "GRDAX": (9 * 60, 17 * 60 + 30),
+    "GBFTSE": (8 * 60, 16 * 60 + 30),
+}
+
+
+def _spark_data(code: str, category: str, points: list[tuple[datetime, float]]) -> tuple[list[float], list[float]]:
+    """종가와 X축 위치(개장 0~마감 1). 미래 가격을 채우지 않는다."""
+    session = _INDEX_SESSIONS.get(category) or _INDEX_SESSIONS.get(code)
+    if session is None:
+        return [value for _, value in points[-_SPARK_POINTS:]], []
+
+    # SENSEX 는 분봉 없이 KST 20시 종가 스냅샷 하나만 온다. 장중 선을 꾸미지 않고
+    # 마감 위치에 점 하나를 놓는다. 분봉이 생기면 아래의 실제 시각 계산을 쓴다.
+    if code == "INBOMBAY" and len(points) == 1 and points[0][0].hour == 20:
+        return [points[0][1]], [1.0]
+
+    opened, closed = session
+    trading_points = [(at.hour * 60 + at.minute, value) for at, value in points
+                      if opened <= at.hour * 60 + at.minute <= closed][-_SPARK_POINTS:]
+    return ([value for _, value in trading_points],
+            [(minute - opened) / (closed - opened) for minute, _ in trading_points])
 
 #: 화면에 쓸 지수 이름. `quote_info` 는 **업종 카탈로그** 기준이라 코스피 종합지수가
 #: "종합" 으로 들어 있다(카탈로그로서는 맞는 이름이다). 여기 없으면 `quote_info` 이름으로
@@ -278,10 +314,10 @@ async def _quote_rows(db) -> list[dict]:
         f"FROM `candle`.`{p['table']}` WHERE execution_datetime >= {_change_base_sql(p['table'])}"
         for p in picked
     )
-    spark: dict[str, list] = {}
+    spark: dict[str, list[tuple[datetime, float]]] = {}
     for code, at, close in (await db.execute(text(series + "\nORDER BY code, at"))).all():
         if close is not None:
-            spark.setdefault(code, []).append(float(close))
+            spark.setdefault(code, []).append((at, float(close)))
 
     out: list[dict] = []
     for p in picked:
@@ -290,6 +326,7 @@ async def _quote_rows(db) -> list[dict]:
             continue
         price = float(row[1])
         prev_price = None if row[2] is None else float(row[2])
+        spark_values, spark_x = _spark_data(p["code"], p["category"], spark.get(p["code"], []))
         out.append({
             "code": p["code"],
             "name": p["name"],
@@ -300,7 +337,8 @@ async def _quote_rows(db) -> list[dict]:
             #    채우면 "보합"으로 읽히므로 없는 채로 내보내고 화면이 `-` 를 띄운다.
             "change_pct": None if not prev_price else (price / prev_price - 1) * 100,
             "at": row[3],
-            "spark": spark.get(p["code"], [])[-_SPARK_POINTS:],
+            "spark": spark_values,
+            "spark_x": spark_x,
         })
     out.sort(key=_quote_sort_key)
     return out
