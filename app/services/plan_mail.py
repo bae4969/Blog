@@ -47,12 +47,13 @@ def _mix(state: dict) -> str:
 def _trade_line(t: dict) -> str:
     """매매표 한 줄 — 화면 `tradeTable` 과 같은 말(현금은 증가·감소, 종목은 매수·매도 + 수량)."""
     acc = t["account"] or "—"
-    if t["qty"] is None:
+    if t.get("kind") == "cash" or t["qty"] is None:
         return f"{acc} · {t['name']} {'증가' if t['side'] == 'buy' else '감소'} {_won(t['value'] or 0)}"
     code = f"({t['code']})" if t.get("code") and t["code"] != t["name"] else ""
     qty = f"{t['qty']:,.4f}".rstrip("0").rstrip(".")
     value = f" · 약 {_won(t['value'])}" if t["value"] is not None else ""
-    return f"{acc} · {'매수' if t['side'] == 'buy' else '매도'} {t['name']}{code} {qty}주{value}"
+    unit = t.get("quantity_unit") or "주"
+    return f"{acc} · {'매수' if t['side'] == 'buy' else '매도'} {t['name']}{code} {qty}{unit}{value}"
 
 
 def event_text(doc: PlanDoc, view: dict, event) -> str:

@@ -9,6 +9,7 @@
 """
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -28,7 +29,9 @@ _TF = {"type": "string", "enum": ["1h", "3h", "6h", "1d", "1w", "1M"], "descript
 TOOLS = [
     {"annotations": RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률과 그 값의 시각(as_of — 마지막 10분봉, KR·COIN 은 KST·US 는 미국 동부 현지시각). 장중이면 확정 종가가 아니다. market 은 KR·US·COIN. KRX 금현물은 code=M04020000, market=KR로 네이버 원/g 시세와 시각·갱신 지연(stale)을 받는다. 원/달러 환율도 함께 준다.",
      "inputSchema": obj({"items": {"type": "array", "maxItems": 30, "items": obj(
-         {"code": {"type": "string"}, "market": _MARKET}, ["code", "market"])}}, ["items"])},
+         {"code": {"type": "string"}, "market": _MARKET}, ["code", "market"])},
+         "currencies": {"type": "array", "maxItems": 20, "items": {"type": "string", "pattern": "^[A-Z]{3}$"},
+                        "description": "외화 통화별 1단위의 원화 환율(예: USD·JPY·EUR). 시세가 없으면 close=null"}}, ["items"])},
     {"annotations": RO, "name": "stock_search", "description": "종목 이름·코드로 검색(최대 10개) — 코드를 모를 때 쓴다. market 을 비우면 한국+미국.",
      "inputSchema": obj({"q": {"type": "string"}, "market": _MARKET}, ["q"])},
     {"annotations": RO, "name": "stock_candles",
@@ -127,8 +130,21 @@ async def call(db, user_index: int, name: str, args: dict):
             if q.get("as_of"):
                 q["as_of"] = f"{q['as_of']:%Y-%m-%d %H:%M} {'ET' if i.get('market') == 'US' else 'KST'}"
             return {"code": i["code"], "market": i.get("market"), **q}
-        fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
-        return {"usdkrw": fx["close"] if fx else None, "quotes": [one(i) for i in items]}
+        currencies = args.get("currencies") or []
+        if not isinstance(currencies, list) or len(currencies) > 20 or any(not isinstance(c, str) or not re.fullmatch(r"[A-Z]{3}", c) for c in currencies):
+            raise ValueError("currencies는 ISO 통화 코드 목록입니다")
+        wanted = sorted(set(currencies) | {"USD"})
+        rates = await _latest_quotes(db, [("KRW" + c, "f") for c in wanted if c != "KRW"])
+        fx = rates.get("KRWUSD")
+        fxs = {}
+        for currency in wanted:
+            q = dict(rates.get("KRW" + currency) or {"close": None})
+            if currency == "KRW":
+                q = {"close": 1, "source": "fixed"}
+            if q.get("as_of"):
+                q["as_of"] = f"{q['as_of']:%Y-%m-%d %H:%M} KST"
+            fxs[currency] = {**q, "unit": "원/" + currency}
+        return {"usdkrw": fx["close"] if fx else None, "fx_rates": fxs, "quotes": [one(i) for i in items]}
     if name == "stock_search":
         q = str(args.get("q", "")).strip()[:50]
         if not q:

@@ -23,7 +23,8 @@
         function money(value, options) {
             options = options || {};
             var node = el(options.tag || 'span', options.cls);
-            var number = value == null ? '—' : Math.round(value).toLocaleString('ko-KR');
+            var number = value == null ? '—' : options.decimals == null ? Math.round(value).toLocaleString('ko-KR')
+                : value.toLocaleString('ko-KR', { maximumFractionDigits: options.decimals });
             node.dataset.assetMoney = (options.positive && value > 0 ? '+' : '') + number
                 + (value == null || options.unit === false ? '' : '원');
             node.textContent = hidden ? '••••••' : node.dataset.assetMoney;
@@ -40,28 +41,57 @@
             node.appendChild(icons.querySelector('[data-icon="' + name + '"] svg').cloneNode(true));
             return node;
         }
-        function change(value) {
-            return money(value, { cls: value > 0 ? 'plan-assets__up' : value < 0 ? 'plan-assets__down' : '', positive: true });
-        }
-        function localTime(iso) {
-            // 서버가 시세를 KST로 바꿔 준다. 브라우저의 현지 시간대에 다시 맞추지 않는다.
-            return iso ? iso.slice(5, 16).replace('T', ' ') : '';
+        function change(value, balance) {
+            if (value == null || balance == null || balance - value <= 0) return null;
+            var pct = value / (balance - value) * 100;
+            if (!Number.isFinite(pct)) return null;
+            var rounded = Number(pct.toFixed(2)) || 0;
+            var text = (rounded > 0 ? '+' : '') + rounded.toLocaleString('ko-KR', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            }) + '%';
+            var node = el('span', rounded > 0 ? 'plan-assets__up' : rounded < 0 ? 'plan-assets__down' : '', text);
+            node.dataset.assetMoney = text;
+            return node;
         }
         function holdingRow(row) {
             var node = el('div', 'plan-assets__holding');
-            var name = el('span', null, row.name);
-            var info = [];
-            if (row.qty != null) info.push(row.qty.toLocaleString('ko-KR', { maximumFractionDigits: 8 }) + (row.quantity_unit || (row.market === 'COIN' ? '개' : '주')));
-            if (row.code) info.push(row.code);
-            if (info.length) name.appendChild(el('small', 'plan-assets__meta', info.join(' · ')));
-            var value = el('span');
-            value.appendChild(money(row.value));
-            var source = row.quote_at ? (row.quote_source === 'naver_krx_gold' ? '네이버 KRX ' : '시세 ') + localTime(row.quote_at)
-                : '입력 평가액' + (data.holdings_as_of ? ' · ' + data.holdings_as_of : '');
-            if (row.value == null) source = '시세 미확인';
-            if (row.quote_stale) source += ' · 갱신 지연';
-            value.appendChild(el('small', 'plan-assets__meta', source));
-            node.append(name, value);
+            var title = el('div', 'plan-assets__holding-title');
+            title.appendChild(el('span', 'plan-assets__holding-name', row.name));
+            if (row.code) title.appendChild(el('span', 'plan-assets__holding-code', row.code));
+            node.appendChild(title);
+
+            var unit = row.quantity_unit === 'KRW' ? '원' : row.quantity_unit || (row.market === 'COIN' ? '개' : '주');
+            var separator = /^[A-Z]{3}$/.test(unit) ? ' ' : '';
+            var position = el('div', 'plan-assets__holding-position');
+            var quantityText = row.valuation === 'fixed' ? '원화 잔액' : row.qty == null ? '수량 미확인'
+                : row.qty.toLocaleString('ko-KR', { maximumFractionDigits: 8 }) + separator + unit;
+            var quantity = el('span', 'plan-assets__holding-quantity', quantityText);
+            if (row.qty == null) quantity.classList.add('is-missing');
+            if (row.kind === 'cash' && row.qty != null && row.valuation !== 'fixed') quantity.dataset.assetMoney = quantityText;
+            position.appendChild(quantity);
+            if (row.unit_value_krw != null && row.valuation !== 'fixed') {
+                var priceLabel = /^[A-Z]{3}$/.test(unit) ? '1 ' + unit + ' = ' : unit + '당 ';
+                var price = el('span', 'plan-assets__holding-price', priceLabel);
+                price.appendChild(money(row.unit_value_krw, { decimals: row.valuation === 'fx' || unit === '개' ? 6 : 2 }));
+                position.appendChild(price);
+            }
+            var amount = el('div', 'plan-assets__holding-amount');
+            amount.appendChild(money(row.value, { cls: 'plan-assets__holding-value' }));
+            var movement = change(row.change, row.value);
+            if (movement) {
+                movement.classList.add('plan-assets__holding-change');
+                amount.appendChild(movement);
+            }
+            node.append(position, amount);
+
+            var sourceLabel = row.value == null ? '시세 미확인' : row.valuation === 'input' ? '입력 평가액'
+                : row.quote_source === 'naver_krx_gold' ? '네이버 KRX' : '';
+            if (sourceLabel || row.quote_stale) {
+                var source = el('div', 'plan-assets__holding-source');
+                if (sourceLabel) source.appendChild(el('span', null, sourceLabel));
+                if (row.quote_stale) source.appendChild(el('span', 'plan-assets__holding-delayed', '갱신 지연'));
+                node.appendChild(source);
+            }
             return node;
         }
         function housingDisplay(item) {
@@ -98,9 +128,10 @@
             row.appendChild(name);
             var amount = el('span', 'plan-assets__amount');
             amount.appendChild(money(item.value));
-            if (item.change != null) {
+            var accountChange = change(item.change, item.value);
+            if (accountChange) {
                 var daily = el('small');
-                daily.appendChild(change(item.change));
+                daily.appendChild(accountChange);
                 amount.appendChild(daily);
             }
             row.appendChild(amount);
@@ -156,17 +187,21 @@
             var unit = el('small', null, '원');
             unit.dataset.assetUnit = '';
             totalEl.appendChild(unit);
-            changeEl.hidden = data.change == null;
+            var totalChange = change(data.change, data.total);
+            changeEl.hidden = !totalChange;
             changeEl.replaceChildren(el('span', null, '시세 변동'));
-            if (data.change != null) changeEl.appendChild(change(data.change));
-            timeEl.textContent = '갱신 ' + localTime(data.checked_at);
+            if (totalChange) changeEl.appendChild(totalChange);
+            timeEl.hidden = !data.stale;
+            timeEl.textContent = data.stale ? '일부 시세 갱신 지연' : '';
             renderGroups();
             otherEl.hidden = !data.other_debt;
             otherEl.replaceChildren(el('span', null, '기타 부채'), money(-data.other_debt));
             var messages = [];
             if (data.missing) messages.push('시세 미확인 ' + data.missing + '개');
             if (data.estimated) messages.push('입력 평가액 사용 ' + data.estimated + '개');
+            if (data.quantity_missing) messages.push('수량 확인 필요 ' + data.quantity_missing + '개');
             if (data.stale) messages.push('금현물 시세 갱신 지연');
+            if (data.consistency && data.consistency.length) messages.push('기억과 계획의 금액·일정 확인 필요');
             statusEl.hidden = !messages.length;
             statusEl.textContent = messages.join(' · ');
             var have = data.groups.some(function (g) { return g.items.length; });
@@ -183,6 +218,7 @@
                 changed(next);
                 if (manual) window.toast('자산 평가액을 갱신했습니다', 'success');
             }).catch(function () {
+                timeEl.hidden = false;
                 timeEl.textContent = data ? '갱신 지연 · 마지막 평가액' : '자산을 불러오지 못했습니다';
                 if (manual) window.toast('자산을 갱신하지 못했습니다', 'error');
             }).then(function () { busy = false; refreshBtn.disabled = false; });
@@ -196,6 +232,7 @@
         refreshBtn.addEventListener('click', function () { refresh(true); });
         setInterval(function () { refresh(false); }, 30000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
+        window.addEventListener('focus', function () { refresh(false); });
         return { setData: setData };
     };
 })();

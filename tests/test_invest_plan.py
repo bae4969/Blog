@@ -189,7 +189,7 @@ class TestTrades:
         assert [(x["account"], x["code"] or x["name"], x["side"], x["qty"], x["value"]) for x in t["b"]] == [
             ("ISA", "102110", "sell", 20, 200_000.0),
             ("ISA", "484790", "buy", 300, 2_400_000.0),
-            ("ISA", "ISA 현금", "sell", None, 2_200_000.0)]
+            ("ISA", "ISA 현금", "sell", 2_200_000.0, 2_200_000.0)]
 
     def test_시세_없는_종목은_직전_단가로(self):
         h = lambda q: {"kind": "bond", "name": "국채", "code": "999999", "market": "KR", "qty": q, "amount": 800_000, "account": "ISA"}
@@ -205,7 +205,7 @@ class TestTrades:
     def test_팔아서_없어진_종목(self):
         after = [{"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": 37, "account": "IRP"},
                  {"kind": "cash", "name": "ISA 현금", "amount": 6_000_000, "account": "ISA"}]
-        assert [(x["account"], x["side"], x["qty"]) for x in self._doc(after)["b"]] == [("ISA", "sell", 100), ("ISA", "buy", None)]
+        assert [(x["account"], x["side"], x["qty"]) for x in self._doc(after)["b"]] == [("ISA", "sell", 100), ("ISA", "buy", 1_000_000)]
 
     def test_실행일_칸은_옛_문서에서_비어_있고_뼈대에_실린다(self):
         d = _doc()

@@ -27,14 +27,15 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
     for i, value in enumerate(current["rows"]):
         row = dict(value)
         prior = previous["rows"][i]
-        row["estimated"] = bool(row["code"] and row["qty"] is not None and row["price"] is None
+        row["estimated"] = bool((row["code"] or row.get("quantity_missing")) and row["price"] is None
                                 and row["value"] is not None)
-        row["valuation"] = "quote" if row["price"] is not None else "input" if row["value"] is not None else "missing"
+        row["valuation"] = ("missing" if row["value"] is None else "quote" if row["price"] is not None else
+                            "fx" if row["kind"] == "cash" and row["currency"] != "KRW" else
+                            "fixed" if row["kind"] == "cash" and row["qty"] is not None else "input")
         # 전일 시세가 없을 때 amount 대체값으로 손익을 만들어 내지 않는다.
-        priced = row["code"] and row["qty"] is not None
         row["change"] = (row["value"] - prior["value"]
                          if (row["price"] is not None and prior["price"] is not None
-                             or not priced and row["currency"] == "USD")
+                             or row["kind"] == "cash" and row["currency"] != "KRW")
                          and row["value"] is not None and prior["value"] is not None else None)
         rows.append(row)
         group = asset_group(row)
@@ -66,7 +67,7 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
             other_debt += debt.balance
 
     def change_of(holdings):
-        priced = [r for r in holdings if r["code"] and r["qty"] is not None or r["currency"] == "USD"]
+        priced = [r for r in holdings if r["code"] or r["kind"] == "cash" and r["currency"] != "KRW"]
         return (sum(r["change"] for r in priced)
                 if priced and all(r["change"] is not None for r in priced) else None)
 
@@ -87,6 +88,7 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
     return {"total": total, "known_total": current["net"], "change": change_of(rows),
             "groups": list(groups.values()), "other_debt": other_debt, "missing": missing,
             "estimated": sum(r["estimated"] for r in rows),
+            "quantity_missing": sum(r.get("quantity_missing", False) for r in rows),
             "stale": sum(bool(r.get("quote_stale")) for r in rows), "stocks": stocks,
             "stock_total": stock_total,
             "stock_weight_pct": round(stock_total / total * 100, 2)
@@ -98,6 +100,10 @@ def prompt(assets: dict) -> str:
     compact = {k: assets[k] for k in ("total", "known_total", "stock_total", "stock_weight_pct", "other_debt", "missing", "estimated",
                                      "holdings_as_of", "checked_at")}
     compact["groups"] = [{"label": g["label"], "value": g["value"]} for g in assets["groups"]]
+    compact["holdings"] = [{k: r.get(k) for k in ("name", "account", "code", "qty", "quantity_unit", "currency",
+                                                  "unit_value_krw", "value", "valuation", "quantity_missing", "quote_at", "fx_rate")}
+                           for g in assets["groups"] for item in g["items"] for r in item["rows"]]
+    compact["consistency"] = assets.get("consistency", [])
     compact["stocks"] = [{k: r[k] for k in ("name", "code", "market", "account", "qty", "value", "price",
                                             "weight", "estimated", "valuation", "quote_at")} for r in assets["stocks"]]
     compact["gold"] = [{k: r[k] for k in ("name", "code", "account", "qty", "quantity_unit", "value", "price",
@@ -110,6 +116,9 @@ def prompt(assets: dict) -> str:
             "투자 질문은 먼저 사용자가 실제 가진 주식의 수량·계좌·평가액·비중으로 계산한다. "
             "시장 전망을 이 보유 종목과 전체 자산에 미치는 원화 영향으로 연결한다. "
             "주식 비중은 서버가 계산한 stock_weight_pct(%)를 그대로 사용한다. "
+            "모든 보유는 수량×단위당 원화 가치로 평가한다. 원화 1원은 1개, 외화는 원통화 잔액×해당 통화 환율이다. "
+            "수량·통화 미확인은 입력 평가액에서 역산하지 말고 실제 수량을 확인한다. "
+            "기억과 계획의 금액·일정이 다르면 현재 계획을 우선하고 불일치를 알린다. 기억을 임의로 고치지 않는다. "
             "시세가 있는 종목은 서버가 수량×수집된 최신 시세×환율로 계산했다. valuation=input은 등록된 입력 평가액이며 최신 시세로 계산한 값이 아니다. "
             "금현물(gold)은 주식에 포함하지 않으며 qty는 g, price는 네이버 KRX 원/g 시세다. "
             "금현물 평가액은 qty×price이고 quote_stale=true이면 갱신 지연 중인 마지막 평가액이다. "

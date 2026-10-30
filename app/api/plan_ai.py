@@ -14,9 +14,9 @@ import re
 from sqlalchemy import text
 
 from app.api.mcp import RO, RW, RW_DEL, obj
-from app.api.plan_v1 import _doc_of, _save_rev, asset_view, latest_rev, plan_view, prices, write_lock
+from app.api.plan_v1 import _assets, _doc_of, _price_maps, _quotes, _save_rev, latest_rev, plan_view, prices, resolved_doc, write_lock
 from app.services import invest_plan as ip
-from app.services import plan_assets
+from app.services import plan_assets, plan_reconcile
 
 #: 쓰기 도구 이름 — codex_runner 가 상담이 연 것에만 자동 승인을 건다.
 WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
@@ -79,7 +79,8 @@ async def call(db, user_index: int, name: str, args: dict):
         node = next((n for n in view["doc"]["nodes"] if n["id"] == args.get("id")), None)
         if node is None:
             raise ValueError(f"없는 노드입니다: {args.get('id')}")
-        return {"node": node, "value": view["values"].get(node["id"]), "retro": view["retro"].get(node["id"]),
+        return {"node": node, "value": view["values"].get(node["id"]),
+                "before": view["execution_before"].get(node["id"]), "retro": view["retro"].get(node["id"]),
                 "accrual": view["accrual"].get(node["id"]), "trades": view["trades"].get(node["id"])}
     if name == "plan_revisions":
         rows = (await db.execute(text(
@@ -117,7 +118,7 @@ async def _write(db, user_index: int, name: str, args: dict) -> dict:
 async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
     from pydantic import ValidationError
 
-    old = _doc_of(await latest_rev(db, user_index))
+    old = await resolved_doc(db, await latest_rev(db, user_index))
     data = old.model_dump(mode="json")
     nodes = data["nodes"]
     if name == "node_add":
@@ -168,15 +169,32 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
         new = ip.PlanDoc.model_validate(data)
     except ValidationError as e:
         raise ValueError(f"계획 형식 오류 — 저장하지 않았습니다: {e}") from e
+    if errs := plan_reconcile.quantity_errors(old, new):
+        raise ValueError("수량 확인 필요 — 저장하지 않았습니다: " + "; ".join(errs[:8]))
+    if old.holdings != new.holdings:
+        new.holdings = [ip.as_quantity(h) for h in new.holdings]
+    # 실행 이력·기준 잔고는 서버만 쓴다. AI 입력으로 과거 이력을 바꾸지 않는다.
+    old_nodes = {n.id: n for n in old.nodes}
+    for n in new.nodes:
+        previous = old_nodes.get(n.id)
+        if n.holdings is not None and (previous is None or previous.holdings != n.holdings):
+            n.holdings = [ip.as_quantity(h) for h in n.holdings]
+        n.execution = previous.execution.model_copy(deep=True) if previous and previous.execution else None
+        n.basis = previous.basis if previous else None
+    plan_reconcile.capture_execution(old, new)
     ip.stamp_branches(old, new)
+    px = await prices(db, new) if ip.changed_branches(old, new) or old.holdings != new.holdings else None
+    if px is not None:
+        plan_reconcile.rebase(new, px)
     if ip.changed_branches(old, new):
-        if errs := ip.funding_errors(old, new, ip.valuate(new, *await prices(db, new))):
+        if errs := ip.funding_errors(old, new, ip.valuate(new, *px)):
             raise ValueError("재원 초과 — 저장하지 않았습니다: " + "; ".join(errs))
     if new == old:
         return {"saved": False, "summary": "변경 없음"}
     rev_id = await _save_rev(db, user_index, new, what)
     await db.commit()
-    return {"saved": True, "rev_id": rev_id, "summary": what}
+    return {"saved": True, "rev_id": rev_id, "summary": what,
+            "consistency": plan_reconcile.memory_conflicts(new)}
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +218,12 @@ def tools_for(message: str, last_reply: str = "") -> tuple:
 async def begin(db, user_index: int) -> dict:
     """상담 직전 계획 — 프롬프트에 싣고, 끝난 뒤 무엇이 바뀌었는지 견준다."""
     row = await latest_rev(db, user_index)
-    return {"row": row, "doc": _doc_of(row), "assets": await asset_view(db, row)}
+    doc = await resolved_doc(db, row)
+    quotes = await _quotes(db, doc)
+    px = _price_maps(quotes)
+    plan_reconcile.rebase(doc, px)
+    assets = _assets(doc, row, quotes, ip.valuate(doc, *px)["root"])
+    return {"row": row, "doc": doc, "assets": assets}
 
 
 def prompt(state: dict, now, allow: tuple) -> str:
