@@ -46,7 +46,7 @@ TOOLS = [
      "description": "노드 하나와 그 아래 노드를 모두 지운다.",
      "inputSchema": obj({"id": {"type": "string"}}, ["id"])},
     {"annotations": RW, "name": "holdings_set",
-     "description": "지금 보유(holdings) 목록을 통째로 바꾼다(이미지로 잔고를 읽었을 때 등). as_of 는 기준일 YYYY-MM-DD.",
+     "description": "지금 보유(holdings) 목록을 통째로 바꾼다. buy_cost_krw는 현재 보유 전체의 총 매수비용(원), 미확인은 null. 수량 변경 시 매수비용도 확인한다. as_of 는 기준일 YYYY-MM-DD.",
      "inputSchema": obj({"holdings": {"type": "array", "items": {"type": "object"}}, "as_of": {"type": "string"}},
                         ["holdings"])},
     {"annotations": RW, "name": "cashflow_set",
@@ -169,6 +169,13 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
         new = ip.PlanDoc.model_validate(data)
     except ValidationError as e:
         raise ValueError(f"계획 형식 오류 — 저장하지 않았습니다: {e}") from e
+    if name == "holdings_set":
+        for raw, holding in zip(args["holdings"], new.holdings):
+            previous = [h for h in old.holdings if plan_reconcile.key(h) == plan_reconcile.key(holding)]
+            # 같은 잔고를 다시 보낸 상담이 매수비용 칸을 생략해도 확인된 비용은 잃지 않는다.
+            # 수량이 바뀌었으면 새 비용을 확인해야 하므로 생략된 비용은 미확인으로 둔다.
+            if "buy_cost_krw" not in raw and len(previous) == 1 and ip.canonical(previous[0]).qty == ip.canonical(holding).qty:
+                holding.buy_cost_krw = previous[0].buy_cost_krw
     if errs := plan_reconcile.quantity_errors(old, new):
         raise ValueError("수량 확인 필요 — 저장하지 않았습니다: " + "; ".join(errs[:8]))
     if old.holdings != new.holdings:

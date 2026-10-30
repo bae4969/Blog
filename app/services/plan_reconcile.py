@@ -66,7 +66,7 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
     costs, cash_changes = {}, {}
     for k in dict.fromkeys([*before, *after]):
         b, a = before.get(k), after.get(k)
-        if b == a:
+        if b == a or b and a and b.model_dump(exclude={"buy_cost_krw"}) == a.model_dump(exclude={"buy_cost_krw"}):
             continue
         if any(h.qty is None for h in (a, b) if h is not None):
             raise ValueError("수량 미확인")
@@ -81,7 +81,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         qty = (current.qty if current else 0) + delta
         if qty < -1e-8:
             raise ValueError("보유보다 큰 매도")
-        updated = (current or ref).model_copy(update={"qty": max(0, qty), "amount": None})
+        updated = (current or ref).model_copy(update={"qty": max(0, qty), "amount": None,
+                                                       "buy_cost_krw": None if delta else (current or ref).buy_cost_krw})
         if a and b and a.unit_price != b.unit_price:
             updated.unit_price = a.unit_price
         result[k] = updated
@@ -96,7 +97,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         current = result.get(k)
         if current is None or current.qty is None or current.qty + delta < -1e-8:
             raise ValueError("현금 수량 미확인 또는 부족")
-        result[k] = current.model_copy(update={"qty": max(0, current.qty + delta), "amount": None})
+        result[k] = current.model_copy(update={"qty": max(0, current.qty + delta), "amount": None,
+                                               "buy_cost_krw": None if delta else current.buy_cost_krw})
     for account, cost in costs.items():
         cash = [(k, h) for k, h in result.items() if h.account == account and h.kind == "cash"]
         if len(cash) != 1 or cash[0][1].qty is None:
@@ -105,7 +107,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         fx = ip.fx_rate(prices[2], h.currency)
         if not fx or h.qty - cost / fx < -1e-8:
             raise ValueError("환율 미확인 또는 현금 부족")
-        result[k] = h.model_copy(update={"qty": max(0, h.qty - cost / fx), "amount": None})
+        result[k] = h.model_copy(update={"qty": max(0, h.qty - cost / fx), "amount": None,
+                                         "buy_cost_krw": None if cost else h.buy_cost_krw})
     return list(result.values())
 
 

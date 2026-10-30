@@ -47,6 +47,8 @@ class Holding(BaseModel):
     unit: str | None = Field(default=None, min_length=1, max_length=12, description="수량 단위(주·g·건 등). 현금은 currency")
     unit_price: float | None = Field(default=None, ge=0, allow_inf_nan=False, description="별도 시세가 없는 자산의 단가(currency 기준)")
     amount: float | None = Field(default=None, ge=0, description="옛 입력 평가액(currency 기준). 새 자료는 qty와 unit_price")
+    buy_cost_krw: float | None = Field(default=None, ge=0, allow_inf_nan=False,
+                                      description="현재 보유 수량 전체의 총 매수비용(원). 주당 단가·현재 평가액·계좌 납입원금이 아니다")
     currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$", description="원통화 ISO 코드. 외화를 원화 환산액으로 저장하지 않는다")
     account: str | None = Field(default=None, max_length=30,
                                 description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
@@ -431,6 +433,8 @@ def holdings_stamp(hs: list[Holding]) -> str:
     """보유 목록의 지문 — 줄 순서는 따지지 않는다."""
     def fields(h):
         data = h.model_dump(mode="json")
+        # 매수비용을 확인하는 것은 보유 수량 변경이나 새 매매가 아니다.
+        data.pop("buy_cost_krw")
         # 새 선택 칸이 없는 옛 자료의 지문은 기존과 같아야 버전에서 기준 잔고를 찾을 수 있다.
         for name in ("unit", "unit_price"):
             if data[name] is None:
@@ -696,7 +700,8 @@ PLAN_PROMPT = """# 투자 계획
     saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
   - 화면은 이벤트마다 "그때까지 예상 적립"(달 수 × 계좌별 납입)을 따로 보인다 — 가지 holdings 에 적립을 미리 더하지 않는다.
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
-  "qty": 수량, "unit": 단위, "unit_price": 입력단가|null, "currency": "KRW|USD|JPY|EUR|…"(ISO 통화), "account": 계좌|null,
+  "qty": 수량, "unit": 단위, "unit_price": 입력단가|null, "buy_cost_krw": 현재 보유 전체의 총 매수비용(원)|null,
+  "currency": "KRW|USD|JPY|EUR|…"(ISO 통화), "account": 계좌|null,
   "type": "cash|saving|invest|pension|housing"|null, "region": "KR|GLOBAL"|null}}
   - account 는 계좌 목록(accounts)의 name 이다. 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
     이름(name)에는 계좌를 붙이지 않는다. 가지의 holdings 에서도 계좌를 그대로 이어 쓰고, 계좌를 옮기는 매매는 하지 않는다.
@@ -707,6 +712,8 @@ PLAN_PROMPT = """# 투자 계획
   - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). unit은 주·개이며 단가는 서버가 시세로 계산한다.
   - KRX 금현물은 kind=other, code=M04020000, market=KR, currency=KRW, qty=그램(g) 수량으로 쓴다. 네이버 KRX 원/g 시세로 평가한다(금 ETF·은행 금과 다르다).
   - 원화 현금·예적금은 qty=원 잔액, currency=KRW, unit_price=1이다(1원=1개). 외화는 qty=원통화 실제 잔액, currency=USD·JPY 등, unit_price=1이다.
+  - buy_cost_krw는 현재 보유 수량 전체에 해당하는 총 매수비용이며 unit_price·amount·계좌 principal과 다르다. 사용자가 제공한 원화 비용만 기록한다.
+    수량 변경 시 총 매수비용도 다시 확인한다. 모르면 null로 두고 시세나 예전 수익률로 역산하지 않는다. holdings_set에서 생략은 같은 수량의 기존 비용을 유지하고 명시한 null은 미확인으로 바꾼다.
     외화 계좌는 통화별로 나눠 저장하고 서버가 환율로 평가한다. 원화 환산액을 외화 수량으로 저장하지 않는다.
   - 별도 시세가 없는 자산은 qty+unit+unit_price를 쓴다. 예: 부동산·보증금 1건×전액 단가(대출은 debts), 직접 보유 채권은 명시된 단위 수량×입력 단가.
   - 옛 자료에 주식 수·외화 종류나 잔액이 없으면 그대로 보존하고 '수량 확인 필요'를 알린다. 현재 시세나 환율로 역산하지 말고 실제 잔고를 묻는다.

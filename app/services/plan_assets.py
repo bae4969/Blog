@@ -37,6 +37,10 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
                          if (row["price"] is not None and prior["price"] is not None
                              or row["kind"] == "cash" and row["currency"] != "KRW")
                          and row["value"] is not None and prior["value"] is not None else None)
+        cost = row["buy_cost_krw"]
+        row["pnl"] = (row["value"] - cost if cost is not None and not row["quantity_missing"]
+                      and (row["valuation"] not in ("input", "missing") or row["qty"] == 0) else None)
+        row["pnl_pct"] = row["pnl"] / cost * 100 if row["pnl"] is not None and cost else None
         rows.append(row)
         group = asset_group(row)
         name = row["account"] or row["name"]
@@ -77,6 +81,14 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
                              if all(r["value"] is not None for r in item["rows"]) else None)
             item["value"] = item["gross"] - item["debt"] if item["gross"] is not None else None
             item["change"] = change_of(item["rows"])
+            # 매수 대비 수익은 보유 종목끼리 합산한다. 원화 현금은 매수비용·수익률 분모에 넣지 않는다.
+            # 납입원금이나 일부 종목 비용으로 계좌 전체의 수익률을 추정하지 않는다.
+            invested = [r for r in item["rows"] if not (r["kind"] == "cash" and r["currency"] == "KRW")
+                        and not (r["qty"] == 0 and r["buy_cost_krw"] is None)]
+            complete = bool(invested) and all(r["pnl"] is not None for r in invested)
+            item["buy_cost_krw"] = sum(r["buy_cost_krw"] for r in invested) if complete else None
+            item["pnl"] = sum(r["pnl"] for r in invested) if complete else None
+            item["pnl_pct"] = item["pnl"] / item["buy_cost_krw"] * 100 if item["buy_cost_krw"] else None
         group["value"] = (sum(item["value"] for item in group["items"])
                           if all(item["value"] is not None for item in group["items"]) else None)
 
@@ -101,8 +113,11 @@ def prompt(assets: dict) -> str:
                                      "holdings_as_of", "checked_at")}
     compact["groups"] = [{"label": g["label"], "value": g["value"]} for g in assets["groups"]]
     compact["holdings"] = [{k: r.get(k) for k in ("name", "account", "code", "qty", "quantity_unit", "currency",
-                                                  "unit_value_krw", "value", "valuation", "quantity_missing", "quote_at", "fx_rate")}
+                                                  "unit_value_krw", "value", "valuation", "quantity_missing", "quote_at", "fx_rate",
+                                                  "buy_cost_krw", "pnl", "pnl_pct")}
                            for g in assets["groups"] for item in g["items"] for r in item["rows"]]
+    compact["account_returns"] = [{k: item[k] for k in ("name", "buy_cost_krw", "pnl", "pnl_pct")}
+                                  for g in assets["groups"] for item in g["items"] if item["buy_cost_krw"] is not None]
     compact["consistency"] = assets.get("consistency", [])
     compact["stocks"] = [{k: r[k] for k in ("name", "code", "market", "account", "qty", "value", "price",
                                             "weight", "estimated", "valuation", "quote_at")} for r in assets["stocks"]]
@@ -118,6 +133,9 @@ def prompt(assets: dict) -> str:
             "주식 비중은 서버가 계산한 stock_weight_pct(%)를 그대로 사용한다. "
             "모든 보유는 수량×단위당 원화 가치로 평가한다. 원화 1원은 1개, 외화는 원통화 잔액×해당 통화 환율이다. "
             "수량·통화 미확인은 입력 평가액에서 역산하지 말고 실제 수량을 확인한다. "
+            "buy_cost_krw는 현재 보유 전체의 총 매수비용(원)이며 pnl·pnl_pct는 그 비용 대비 평가손익·수익률이다. "
+            "change는 전일 대비 시세 변동이므로 매수 대비 수익과 혼동하지 않는다. 매수비용이 없으면 수익률을 추정하지 않는다. "
+            "계좌 매수 대비 수익률은 보유 종목의 손익 합계÷매수비용 합계이며 원화 현금은 분모에 넣지 않는다. 계좌 납입원금 대비 수익과 구분한다. "
             "기억과 계획의 금액·일정이 다르면 현재 계획을 우선하고 불일치를 알린다. 기억을 임의로 고치지 않는다. "
             "시세가 있는 종목은 서버가 수량×수집된 최신 시세×환율로 계산했다. valuation=input은 등록된 입력 평가액이며 최신 시세로 계산한 값이 아니다. "
             "금현물(gold)은 주식에 포함하지 않으며 qty는 g, price는 네이버 KRX 원/g 시세다. "
