@@ -41,10 +41,22 @@
 .plan-assets__amount small { display: block; margin-block-start: 2px; font-size: 10px; font-weight: 400; }
 .plan-assets__account > summary > .plan-assets__chevron { rotate: -90deg; }
 .plan-assets__account[open] > summary > .plan-assets__chevron { rotate: 0deg; }
-.plan-assets__holdings { padding: 1px 0 9px 45px; }
-.plan-assets__holding { display: flex; align-items: start; justify-content: space-between; gap: 10px; padding-block: 8px; font-size: 11px; color: var(--bae-text-muted); }
-.plan-assets__holding > span:first-child { min-inline-size: 0; overflow-wrap: anywhere; }
-.plan-assets__holding > span:last-child { flex: none; text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plan-assets__holdings { margin-block: 2px 12px !important; padding-inline: 12px; border-radius: 12px; background: var(--bae-surface-alt); }
+.plan-assets__holding { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 12px; min-inline-size: 0; padding-block: 13px; }
+.plan-assets__holding + .plan-assets__holding { border-block-start: 1px solid var(--bae-border); }
+.plan-assets__holding-title { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-inline-size: 0; }
+.plan-assets__holding-name { min-inline-size: 0; flex: 1; color: var(--bae-text-primary); font-size: 13px; font-weight: 550; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+.plan-assets__holding-code { flex: none; color: var(--bae-text-dim); font-size: 10px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-position { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-inline-size: 0; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-quantity { color: var(--bae-text-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.plan-assets__holding-quantity.is-missing { color: var(--bae-warn); font-size: 11px; }
+.plan-assets__holding-price { color: var(--bae-text-dim); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.plan-assets__holding-price::before { content: '·'; margin-inline-end: 6px; }
+.plan-assets__holding-amount { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-value { color: var(--bae-text-primary); font-size: 14px; font-weight: 650; line-height: 1.5; text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-change { font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
+.plan-assets__holding-source { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; color: var(--bae-text-dim); font-size: 10px; line-height: 1.6; }
+.plan-assets__holding-delayed { color: var(--bae-warn); }
 .plan-assets__housing-calc { margin: 0 0 6px 45px !important; display: grid; gap: 7px; font-size: 11px; color: var(--bae-text-dim); }
 .plan-assets__housing-calc > div, .plan-assets__other { display: flex; justify-content: space-between; gap: 8px; }
 .plan-assets__other { margin-block-start: 18px !important; padding-block-start: 12px; border-block-start: 1px solid var(--bae-border); font-size: 12px; color: var(--bae-text-muted); }
