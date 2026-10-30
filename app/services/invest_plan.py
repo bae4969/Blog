@@ -37,15 +37,17 @@ GOLD_CODE = "M04020000"  # 네이버 KRX 금현물, 원/g
 
 
 class Holding(BaseModel):
-    """보유 자산 한 줄. 시세가 있는 종목은 `code`+`qty`, 없는 것(예금·채권 직접 보유)은 `amount`."""
+    """보유 수량·단위·원통화. 단가는 시세 또는 unit_price, amount는 옛 자료를 읽는 호환 칸이다."""
 
     kind: AssetClass
     name: str = Field(max_length=100)
     code: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._/-]{1,32}$")
     market: Literal["KR", "US", "COIN"] | None = None
-    qty: float | None = Field(default=None, ge=0)
-    amount: float | None = Field(default=None, ge=0, description="시세가 없을 때의 평가액(currency 기준)")
-    currency: Literal["KRW", "USD"] = "KRW"
+    qty: float | None = Field(default=None, ge=0, allow_inf_nan=False, description="보유 수량 — 원화는 원 수, 외화는 원통화 잔액")
+    unit: str | None = Field(default=None, min_length=1, max_length=12, description="수량 단위(주·g·건 등). 현금은 currency")
+    unit_price: float | None = Field(default=None, ge=0, allow_inf_nan=False, description="별도 시세가 없는 자산의 단가(currency 기준)")
+    amount: float | None = Field(default=None, ge=0, description="옛 입력 평가액(currency 기준). 새 자료는 qty와 unit_price")
+    currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$", description="원통화 ISO 코드. 외화를 원화 환산액으로 저장하지 않는다")
     account: str | None = Field(default=None, max_length=30,
                                 description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
     type: AssetType | None = Field(default=None, description="유형(현금성·저축성·투자성·연금성·주택) — 화면 유형별 비중. 2026-10-11")
@@ -114,6 +116,13 @@ class Link(BaseModel):
     url: str = Field(pattern=r"^https?://\S{1,500}$")
 
 
+class Execution(BaseModel):
+    """실제 잔고 변경으로 확인된 매매 전후 수량. 서버가 채우며 현재 잔고와 별도로 보존한다."""
+
+    before: list[Holding] = Field(max_length=_MAX_HOLDINGS)
+    after: list[Holding] = Field(max_length=_MAX_HOLDINGS)
+
+
 class Node(BaseModel):
     """이벤트·가지 공용. 이벤트 전용 칸(`at`·`about`·`expect`·`links`)과 가지 전용 칸(`condition`·`actions`·`holdings`)이 섞여 있다.
 
@@ -135,6 +144,8 @@ class Node(BaseModel):
     status: Literal["pending", "realized", "dropped"] = "pending"
     executed_at: date | None = Field(default=None, description="가지의 매매를 실제로 한 날(화면 [실행함]) — 2026-10-11")
     base: str | None = Field(default=None, description="가지 보유를 쓸 때의 직전 보유 지문 — 서버가 채운다(`stamp_branches`). 2026-10-14")
+    basis: list[Holding] | None = Field(default=None, max_length=_MAX_HOLDINGS, description="계획 작성 당시 기준 보유 — 서버 전용")
+    execution: Execution | None = Field(default=None, description="잔고로 확인한 실제 매매 전후 — 서버 전용")
 
 
 #: 원칙·기억 한 줄 — 앞뒤 공백을 떼고, 빈 줄은 받지 않는다.
@@ -226,6 +237,71 @@ def _all_holdings(doc: PlanDoc):
         yield from n.holdings or []
 
 
+def canonical(h: Holding) -> Holding:
+    """옛 금액 자료를 읽는 어댑터. 명시된 잔액만 수량으로 옮기며 주식 수·외화 잔액을 역산하지 않는다."""
+    h = h.model_copy(deep=True)
+    if (grams := gold_grams(h)) is not None:
+        h.code, h.market, h.qty, h.unit = GOLD_CODE, "KR", grams, "g"
+    elif h.kind == "cash":
+        unknown_fx = h.currency == "KRW" and re.search(r"원화\s*환산", h.name) and any(s in h.name for s in ("외화", "외환"))
+        if unknown_fx and h.qty is None:
+            h.unit = "미확인"
+            return h
+        if h.qty is None:
+            h.qty = h.amount
+        h.unit, h.unit_price = h.currency, 1.0
+    elif h.kind in ("stock", "bond", "crypto") and (h.code or h.kind in ("stock", "crypto")):
+        h.unit = h.unit or ("개" if h.market == "COIN" else "주")
+    elif h.qty is None and h.amount is not None:
+        h.qty, h.unit_price = 1.0, h.amount
+        h.unit = h.unit or ("건" if h.type == "housing" else "개")
+    if h.qty is not None and h.unit_price is None and h.amount is not None and h.qty > 0:
+        h.unit_price = h.amount / h.qty
+    if h.qty is not None and h.unit is None:
+        h.unit = "건" if h.type == "housing" else "개"
+    return h
+
+
+def as_quantity(h: Holding) -> Holding:
+    h = canonical(h)
+    if h.qty is not None:
+        h.amount = None
+    return h
+
+
+def fx_rate(rates: float | dict | None, currency: str) -> float | None:
+    if currency == "KRW":
+        return 1.0
+    rate = rates.get(currency) if isinstance(rates, dict) else rates if currency == "USD" else None
+    return rate if rate is not None and math.isfinite(rate) and rate > 0 else None
+
+
+def currencies(doc: PlanDoc) -> list[str]:
+    return sorted({h.currency for h in _all_holdings(doc) if h.currency != "KRW"}
+                  | {"USD"})  # 기존 미국 종목·상담 환율도 함께 유지
+
+
+def quantity_doc(doc: PlanDoc) -> PlanDoc:
+    """API·상담에 보여 주는 통일된 수량 형식. 원본 버전은 수정하지 않는다."""
+    result = doc.model_copy(deep=True)
+    account_types = {a.name: a.type for a in doc.accounts}
+    def convert(holdings):
+        rows = [as_quantity(h) for h in holdings]
+        for original, h in zip(holdings, rows):
+            if original.unit is None and (h.type or account_types.get(h.account)) == "housing":
+                h.unit = "건"
+        return rows
+    result.holdings = convert(result.holdings)
+    for n in result.nodes:
+        if n.holdings is not None:
+            n.holdings = convert(n.holdings)
+        if n.basis is not None:
+            n.basis = convert(n.basis)
+        if n.execution:
+            n.execution.before, n.execution.after = convert(n.execution.before), convert(n.execution.after)
+    return result
+
+
 def gold_grams(h: Holding) -> float | None:
     """명시된 KRX 금현물 g 수량. 옛 이름의 g도 읽되 문서에 저장하거나 평가액에서 역산하지 않는다."""
     if h.kind != "other" or h.currency != "KRW" or h.market not in (None, "KR"):
@@ -249,19 +325,24 @@ def price_pairs(doc: PlanDoc) -> tuple[list[str], list[str]]:
     return sorted(stocks), sorted(coins)
 
 
-def _value(h: Holding, stock_px: dict, coin_px: dict, usdkrw: float | None) -> tuple[float | None, float | None]:
+def _value(h: Holding, stock_px: dict, coin_px: dict, usdkrw: float | dict | None) -> tuple[float | None, float | None]:
     """(원화 평가액, 쓴 시세). 값을 낼 수 없으면 평가액이 None — 0 으로 두면 "없음"과 "0원"이 섞인다."""
-    fx = {"KRW": 1.0, "USD": usdkrw}
+    h = canonical(h)
+    if h.qty == 0:
+        return 0.0, (coin_px if h.market == "COIN" else stock_px).get(h.code)
     grams = gold_grams(h)
     if grams is not None and (px := stock_px.get(GOLD_CODE)) is not None:
         return grams * px, px
     if h.code and h.code != GOLD_CODE and h.qty is not None:
         px = (coin_px if h.market == "COIN" else stock_px).get(h.code)
         if px is not None:
-            rate = usdkrw if h.market == "US" else 1.0
+            rate = fx_rate(usdkrw, "USD" if h.market == "US" else "KRW")
             return (None if rate is None else h.qty * px * rate), px
-    if h.amount is not None and fx[h.currency] is not None:
-        return h.amount * fx[h.currency], None
+    rate = fx_rate(usdkrw, h.currency)
+    if h.qty is not None and h.unit_price is not None and rate is not None:
+        return h.qty * h.unit_price * rate, None
+    if h.amount is not None and rate is not None:
+        return h.amount * rate, None
     return None, None
 
 
@@ -275,7 +356,9 @@ def states(doc: PlanDoc) -> dict[str, list[Holding]]:
             return doc.holdings
         if nid not in out:
             n = by_id[nid]
-            out[nid] = n.holdings if n.holdings is not None else of(n.parent)
+            parent = by_id.get(n.parent)
+            out[nid] = (doc.holdings if n.kind == "event" and parent and parent.execution else
+                        n.execution.after if n.execution else n.holdings if n.holdings is not None else of(n.parent))
         return out[nid]
 
     for n in doc.nodes:
@@ -283,7 +366,7 @@ def states(doc: PlanDoc) -> dict[str, list[Holding]]:
     return out
 
 
-def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -> dict[str, dict]:
+def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | dict | None) -> dict[str, dict]:
     """`{노드 id | "root": {total, rows: [보유 + value·price]}}`. 미래 노드도 **오늘 시세**로 환산한다."""
     out, acc_type = {}, {a.name: a.type for a in doc.accounts}
     debt = sum(d.balance for d in doc.debts)
@@ -291,9 +374,13 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
         rows, total = [], 0.0
         for h in hs:
             v, px = _value(h, stock_px, coin_px, usdkrw)
-            row = {**h.model_dump(), "type": h.type or acc_type.get(h.account), "group": group(h), "value": v, "price": px}
-            if (grams := gold_grams(h)) is not None:
-                row.update(code=GOLD_CODE, qty=grams, market="KR", quantity_unit="g")
+            c = canonical(h)
+            if h.unit is None and (h.type or acc_type.get(h.account)) == "housing":
+                c.unit = "건"
+            row = {**c.model_dump(), "type": h.type or acc_type.get(h.account), "group": group(h), "value": v, "price": px,
+                   "quantity_unit": c.unit or "개", "quantity_missing": c.qty is None,
+                   "unit_value_krw": _value(c.model_copy(update={"qty": 1.0, "amount": None}), stock_px, coin_px, usdkrw)[0]
+                   if c.qty is not None else None}
             rows.append(row)
             total += v or 0.0
         # net = 순자산(보유 − 부채). 부채는 계획 전체에 하나라 가지마다 같은 값을 뺀다(가지는 대출을 바꾸지 않는다).
@@ -320,7 +407,7 @@ def _by_key(rows: list[dict]) -> dict[tuple, dict]:
     """평가 줄을 (계좌, 코드|이름) 으로 합친다 — 수량은 수량이 있는 줄만, 평가액은 하나라도 없으면 None."""
     out: dict[tuple, dict] = {}
     for r in rows:
-        k = (r.get("account") or "", r.get("code") or r["name"])
+        k = (r.get("account") or "", r.get("market"), r.get("code") or r["name"], r.get("currency"))
         hit = out.setdefault(k, {**r, "qty": None, "value": 0.0})
         if r.get("qty") is not None:
             hit["qty"] = (hit["qty"] or 0.0) + r["qty"]
@@ -342,7 +429,14 @@ FUND_SLACK = 0.02
 
 def holdings_stamp(hs: list[Holding]) -> str:
     """보유 목록의 지문 — 줄 순서는 따지지 않는다."""
-    rows = sorted(json.dumps(h.model_dump(mode="json"), sort_keys=True, ensure_ascii=False) for h in hs)
+    def fields(h):
+        data = h.model_dump(mode="json")
+        # 새 선택 칸이 없는 옛 자료의 지문은 기존과 같아야 버전에서 기준 잔고를 찾을 수 있다.
+        for name in ("unit", "unit_price"):
+            if data[name] is None:
+                data.pop(name)
+        return data
+    rows = sorted(json.dumps(fields(h), sort_keys=True, ensure_ascii=False) for h in hs)
     return hashlib.sha1("\n".join(rows).encode()).hexdigest()[:16]
 
 
@@ -362,13 +456,16 @@ def stamp_branches(old: PlanDoc, new: PlanDoc) -> None:
         if n.kind != "branch":
             continue
         n.base = holdings_stamp(st[n.parent]) if n.id in fresh else (olds[n.id].base if n.id in olds else None)
+        n.basis = ([h.model_copy(deep=True) for h in st[n.parent]] if n.id in fresh
+                   else olds[n.id].basis if n.id in olds else None)
 
 
 def stale_branches(doc: PlanDoc) -> set[str]:
     """직전 보유가 가지를 짤 때와 달라진 가지 — 매매표가 엉뚱한 매도·매수를 낼 수 있다. 지문이 없는 옛 가지는 모른다(빼지 않는다)."""
     st = states(doc)
     return {n.id for n in doc.nodes
-            if n.kind == "branch" and n.holdings is not None and n.base and n.base != holdings_stamp(st[n.parent])}
+            if n.kind == "branch" and not n.execution and n.holdings is not None and n.base
+            and n.base != holdings_stamp(st[n.parent])}
 
 
 def _account_totals(rows: list[dict]) -> dict[str, float | None]:
@@ -384,6 +481,8 @@ def funding_errors(old: PlanDoc, new: PlanDoc, values: dict[str, dict]) -> list[
     """바뀐 가지마다 계좌별로 판 것보다 많이 샀는지. 옛 가지는 시세가 움직여 걸릴 수 있어 보지 않는다."""
     errs = []
     for n in changed_branches(old, new):
+        if n.execution:
+            continue
         before, after = _account_totals(values[n.parent]["rows"]), _account_totals(values[n.id]["rows"])
         for acc, a in after.items():
             b = before.get(acc, 0.0)
@@ -401,10 +500,18 @@ def trades(doc: PlanDoc, values: dict[str, dict]) -> dict[str, list[dict]]:
     평가액으로 적은 것(현금·예금 등)은 금액 차이. 계좌가 나온 순서로, 계좌 안에서는 매도 → 매수 → 현금 순이다(팔아야 살 돈이 생긴다).
     """
     out = {}
+    def confirmed_rows(holdings):
+        rows = []
+        for h in holdings:
+            c = canonical(h)
+            rows.append({**c.model_dump(), "quantity_unit": c.unit or "개", "price": None,
+                         "value": c.qty if c.kind == "cash" and c.currency == "KRW" else None})
+        return rows
     for n in doc.nodes:
         if n.kind != "branch" or n.holdings is None:
             continue
-        before, after = _by_key(values[n.parent]["rows"]), _by_key(values[n.id]["rows"])
+        before = _by_key(confirmed_rows(n.execution.before) if n.execution else values[n.parent]["rows"])
+        after = _by_key(confirmed_rows(n.execution.after) if n.execution else values[n.id]["rows"])
         lines = []
         for k in list(before) + [k for k in after if k not in before]:
             b, a = before.get(k), after.get(k)
@@ -427,7 +534,8 @@ def trades(doc: PlanDoc, values: dict[str, dict]) -> dict[str, list[dict]]:
                     continue
                 qty, value = None, abs(d)
             lines.append({"account": k[0] or None, "name": ref["name"], "code": ref.get("code"), "kind": ref["kind"],
-                          "side": "buy" if d > 0 else "sell", "qty": qty, "value": value})
+                          "side": "buy" if d > 0 else "sell", "qty": qty, "value": value,
+                          "quantity_unit": ref.get("quantity_unit") or ref.get("unit") or "개", "confirmed": bool(n.execution)})
         accounts = list(dict.fromkeys(x["account"] for x in lines))
         lines.sort(key=lambda x: (accounts.index(x["account"]), x["kind"] == "cash", x["side"] == "buy"))
         out[n.id] = lines
@@ -588,16 +696,23 @@ PLAN_PROMPT = """# 투자 계획
     saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
   - 화면은 이벤트마다 "그때까지 예상 적립"(달 수 × 계좌별 납입)을 따로 보인다 — 가지 holdings 에 적립을 미리 더하지 않는다.
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
-  "qty": 수량|null, "amount": 평가액|null, "currency": "KRW|USD", "account": 계좌|null,
+  "qty": 수량, "unit": 단위, "unit_price": 입력단가|null, "currency": "KRW|USD|JPY|EUR|…"(ISO 통화), "account": 계좌|null,
   "type": "cash|saving|invest|pension|housing"|null, "region": "KR|GLOBAL"|null}}
   - account 는 계좌 목록(accounts)의 name 이다. 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
     이름(name)에는 계좌를 붙이지 않는다. 가지의 holdings 에서도 계좌를 그대로 이어 쓰고, 계좌를 옮기는 매매는 하지 않는다.
   - type 은 유형이다 — cash 현금성(입출금·파킹·외화예금), saving 저축성(적금·청약), invest 투자성(ISA·일반 계좌·금현물),
-    pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — amount 는 **전액**, 대출·차입은 debts 에). 비면 계좌의 type 을 쓴다.
+    pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — qty×unit_price 는 **전액**, 대출·차입은 debts 에). 비면 계좌의 type 을 쓴다.
   - region 은 주식·채권의 투자 대상이다 — 국내 상장이라도 미국·중국·인도 등을 담으면 "GLOBAL"(예: TIGER 미국S&P500). 그 밖의 자산은 비운다.
-  - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). 금액은 서버가 시세로 계산하니 amount 는 비운다.
+  - 모든 자산은 **수량×단가**로 관리한다. 새로 등록·변경하는 보유는 qty를 명시한다. amount는 옛 입력 평가액을 읽기 위한 호환 칸이다.
+  - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). unit은 주·개이며 단가는 서버가 시세로 계산한다.
   - KRX 금현물은 kind=other, code=M04020000, market=KR, currency=KRW, qty=그램(g) 수량으로 쓴다. 네이버 KRX 원/g 시세로 평가한다(금 ETF·은행 금과 다르다).
-  - 예금·현금·직접 보유 채권처럼 시세가 없는 것만 amount(+currency).
+  - 원화 현금·예적금은 qty=원 잔액, currency=KRW, unit_price=1이다(1원=1개). 외화는 qty=원통화 실제 잔액, currency=USD·JPY 등, unit_price=1이다.
+    외화 계좌는 통화별로 나눠 저장하고 서버가 환율로 평가한다. 원화 환산액을 외화 수량으로 저장하지 않는다.
+  - 별도 시세가 없는 자산은 qty+unit+unit_price를 쓴다. 예: 부동산·보증금 1건×전액 단가(대출은 debts), 직접 보유 채권은 명시된 단위 수량×입력 단가.
+  - 옛 자료에 주식 수·외화 종류나 잔액이 없으면 그대로 보존하고 '수량 확인 필요'를 알린다. 현재 시세나 환율로 역산하지 말고 실제 잔고를 묻는다.
+  - 실제 매수 후에는 확인된 보유 수량·원통화 현금과 실행한 가지를 갱신한다. 서버가 매매 전후를 보존하고 후속 계획은 기존 매수·매도 수량을 유지해 기준 잔고를 갱신한다.
+    execution·basis·base는 서버 전용이다. 체결 단가가 없으면 현재가를 실제 체결가로 말하지 않는다. 후속 계획 재계산에 필요한 단가·현금이 없으면 확인 필요로 남긴다.
+  - 일정·매수 금액은 현재 계획을 정본으로 쓴다. 기억의 옛 금액·일정과 다르면 충돌을 알리고 현재 계획을 우선한다. 기억 수정은 기존 승인 규칙을 따른다.
   - 채권 ETF(TLT·IEF 등)는 kind "bond" 로 둔다.
 - 노드: {{"id": 영문·숫자·-_ 32자 이내(한 번 정하면 바꾸지 않는다), "parent": 부모 id|null, "kind": "event|branch",
   "title": 짧은 제목, "note": 근거·메모, "status": "pending|realized|dropped", ...종류별 칸}}
@@ -647,7 +762,7 @@ def outline(doc: PlanDoc) -> dict:
     계획 전체를 실으면 노드 160개에서 147KB 였다(깊이 시험 2026-10-10). 상세는 AI 가 MCP(node_get·plan_get)로 꺼낸다.
     """
     return {"as_of": doc.as_of and doc.as_of.isoformat(),
-            "holdings": [h.model_dump(mode="json", exclude_none=True) for h in doc.holdings],
+            "holdings": [as_quantity(h).model_dump(mode="json", exclude_none=True) for h in doc.holdings],
             "accounts": [a.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for a in doc.accounts],
             "debts": [d.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for d in doc.debts],
             "cashflow": [f.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for f in doc.cashflow],
@@ -723,7 +838,7 @@ def change_lines(old: PlanDoc, new: PlanDoc) -> list[str]:
                 for k in list(ka) + [k for k in kb if k not in ka] if ka.get(k) != kb.get(k)]
 
     def keyed(hs):
-        return {(h.account or "", h.code or h.name): h for h in hs}
+        return {(h.account or "", h.market, h.code or h.name, h.currency): h for h in hs}
     ko, kn = keyed(old.holdings), keyed(new.holdings)
     for k in list(ko) + [k for k in kn if k not in ko]:
         h, g = ko.get(k), kn.get(k)

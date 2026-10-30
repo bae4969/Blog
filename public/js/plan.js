@@ -67,7 +67,7 @@
 
     function api(method, url, body) {
         return authToken().then(function (t) {
-            var opt = { method: method, headers: { Authorization: 'Bearer ' + t } };
+            var opt = { method: method, cache: 'no-store', headers: { Authorization: 'Bearer ' + t } };
             if (body !== undefined) {
                 opt.headers['Content-Type'] = 'application/json';
                 opt.body = JSON.stringify(body);
@@ -143,7 +143,7 @@
     function baseOf(id) {
         if (id === 'root') return null;
         var n = nodesById()[id];
-        return n && n.kind === 'branch' ? plan.values[n.parent] : null;
+        return n && n.kind === 'branch' ? (plan.execution_before || {})[id] || plan.values[n.parent] : null;
     }
 
     /** 자산군별 합계 [{key, label, value, color}] — 값이 없는(시세 없음) 줄은 뺀다. */
@@ -173,10 +173,11 @@
         state.rows.forEach(function (r) {
             if (r.kind !== kind) return;
             var key = r.code || r.name;
-            if (!map[key]) { map[key] = { key: key, label: r.name, value: 0, qty: null, unpriced: false }; keys.push(key); }
+            if (!map[key]) { map[key] = { key: key, label: r.name, value: 0, qty: null, quantityMissing: false, unit: r.quantity_unit || '', unpriced: false }; keys.push(key); }
             map[key].value += r.value || 0;
             // 수량은 수량이 있는 줄만 더한다 — 평가액으로만 넣은 줄(DC 등)이 끼면 "0" 이 아니라 아는 만큼만 보인다
             if (r.qty != null) map[key].qty = (map[key].qty || 0) + r.qty;
+            else map[key].quantityMissing = true;
             if (r.value == null) map[key].unpriced = true;
         });
         var list = order[kind] || [];
@@ -252,14 +253,15 @@
         var thead = el('thead'); thead.appendChild(head); table.appendChild(thead);
         var tbody = el('tbody');
         list.forEach(function (t) {
-            var row = el('tr'), buy = t.side === 'buy', cash = t.qty == null;
+            var row = el('tr'), buy = t.side === 'buy', cash = t.kind === 'cash';
             row.appendChild(el('td', null, t.account || '—'));
             var name = el('td', 'plan-trades__name', t.name);
             if (t.code && t.code !== t.name) name.appendChild(el('small', null, ' ' + t.code));
             row.appendChild(name);
             row.appendChild(el('td', buy ? 'q-up' : 'q-down', cash ? (buy ? '증가' : '감소') : (buy ? '매수' : '매도')));
-            row.appendChild(el('td', null, cash ? '' : String(+t.qty.toFixed(4))));
-            row.appendChild(el('td', null, (cash ? '' : '약 ') + won(t.value)));
+            var unit = t.quantity_unit === 'KRW' ? '원' : t.quantity_unit || '';
+            row.appendChild(el('td', null, t.qty == null ? '' : String(+t.qty.toFixed(4)) + unit));
+            row.appendChild(el('td', null, t.confirmed && !cash ? '체결금액 미확인' : (cash ? '' : '약 ') + won(t.value)));
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -966,7 +968,7 @@
                 });
             }
             if (!items.length) return;
-            var cols = [{ head: '수량', cell: function (it) { return it.qty == null ? '' : String(+it.qty.toFixed(4)); } }];
+            var cols = [{ head: '수량', cell: function (it) { return it.quantityMissing ? '수량 미확인' : it.qty == null ? '' : String(+it.qty.toFixed(4)) + (it.unit || ''); } }];
             if (before) cols.push({ head: '변화(%p)', cell: function (it) { return delta(shareOf(items, it.key) - shareOf(before, it.key)); } });
             box.appendChild(pie(CLASS_LABEL[kind] + ' 종목별', items, cols));
         });
@@ -1085,7 +1087,9 @@
 
         if (n) {
             section('조건', n.condition);
-            var tradeSec = section('매매', tradeTable(n.id));
+            if ((plan.rebased || []).indexOf(n.id) >= 0) section('기준 잔고', '현재 보유 수량을 반영했습니다. 매매 금액은 현재 시세 기준 예상액입니다.');
+            if (n.executed_at && !n.execution) section('실행 확인', '실행 표시가 있습니다. 실제 매매 수량은 잔고 확인이 필요합니다.');
+            var tradeSec = section(n.execution ? '확인된 매매' : '예상 매매', tradeTable(n.id));
             if (tradeSec && !isStale(n.id) && n.status === 'realized' && !n.executed_at) {
                 // [실행함] 은 제목 줄 오른쪽에 — 표 위에 따로 두면 버튼 하나가 한 줄을 차지했다
                 var h = tradeSec.firstChild;

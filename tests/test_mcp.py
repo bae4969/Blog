@@ -103,8 +103,8 @@ class TestWrite:
         out = run("node_delete", {"id": "b"})           # 아래 e2 까지 함께
         assert out["summary"] == "노드 삭제: b 외 1개"
         assert [n.id for n in state["doc"].nodes] == ["e", "h"]
-        run("holdings_set", {"holdings": [{"kind": "cash", "name": "예금", "amount": 100}], "as_of": "2026-10-10"})
-        assert state["doc"].holdings[0].amount == 100 and len(saved) == 4
+        run("holdings_set", {"holdings": [{"kind": "cash", "name": "예금", "qty": 100}], "as_of": "2026-10-10"})
+        assert state["doc"].holdings[0].qty == 100 and len(saved) == 4
 
     def test_계좌_칸이_쓰기_뒤에도_남는다(self, monkeypatch):
         run, state, _ = self._store(monkeypatch, self.BASE)
@@ -148,7 +148,7 @@ class TestWrite:
 
     def _branch(self, cash, qty, account="ISA"):
         return {"id": "b", "parent": "e", "kind": "branch", "title": "인하", "holdings": [
-            {"kind": "cash", "name": "예수금", "amount": cash, "account": "ISA"},
+            {"kind": "cash", "name": "예수금", "qty": cash, "account": "ISA"},
             {"kind": "stock", "name": "TIGER 200", "code": "102110", "market": "KR", "qty": qty, "account": account}]}
 
     def test_판_것보다_많이_사면_거절(self, monkeypatch):
@@ -166,7 +166,7 @@ class TestWrite:
         with pytest.raises(ValueError, match="IRP"):
             run("node_add", {"node": self._branch(1_000_000, 10, account="IRP")})
 
-    def test_잔고가_바뀌면_가지는_다시_짜야_함(self, monkeypatch):
+    def test_매매없는_계획은_변경된_보유를_그대로_이어받는다(self, monkeypatch):
         from app.services import invest_plan as ip
         run, state, _ = self._store(monkeypatch, self.FUND)
         run("node_add", {"node": {**self._branch(1_000_000, 10), "base": "AI가_보낸_값"}})
@@ -176,7 +176,8 @@ class TestWrite:
         assert state["doc"].nodes[1].base == b.base
         run("holdings_set", {"holdings": self.FUND["holdings"] + [
             {"kind": "stock", "name": "삼성전자", "code": "005930", "market": "KR", "qty": 1, "account": "ISA"}]})
-        assert ip.stale_branches(state["doc"]) == {"b"}
+        assert ip.stale_branches(state["doc"]) == set()
+        assert state["doc"].nodes[1].holdings[-1].code == "005930"
 
     def test_원칙_기억_쓰기(self, monkeypatch):
         run, state, saved = self._store(monkeypatch, self.BASE)
