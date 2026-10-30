@@ -51,14 +51,15 @@
             var node = el('div', 'plan-assets__holding');
             var name = el('span', null, row.name);
             var info = [];
-            if (row.qty != null) info.push(row.qty.toLocaleString('ko-KR', { maximumFractionDigits: 8 }) + (row.market === 'COIN' ? '개' : '주'));
+            if (row.qty != null) info.push(row.qty.toLocaleString('ko-KR', { maximumFractionDigits: 8 }) + (row.quantity_unit || (row.market === 'COIN' ? '개' : '주')));
             if (row.code) info.push(row.code);
             if (info.length) name.appendChild(el('small', 'plan-assets__meta', info.join(' · ')));
             var value = el('span');
             value.appendChild(money(row.value));
-            var source = row.quote_at ? '시세 ' + localTime(row.quote_at)
+            var source = row.quote_at ? (row.quote_source === 'naver_krx_gold' ? '네이버 KRX ' : '시세 ') + localTime(row.quote_at)
                 : '입력 평가액' + (data.holdings_as_of ? ' · ' + data.holdings_as_of : '');
             if (row.value == null) source = '시세 미확인';
+            if (row.quote_stale) source += ' · 갱신 지연';
             value.appendChild(el('small', 'plan-assets__meta', source));
             node.append(name, value);
             return node;
@@ -165,6 +166,7 @@
             var messages = [];
             if (data.missing) messages.push('시세 미확인 ' + data.missing + '개');
             if (data.estimated) messages.push('입력 평가액 사용 ' + data.estimated + '개');
+            if (data.stale) messages.push('금현물 시세 갱신 지연');
             statusEl.hidden = !messages.length;
             statusEl.textContent = messages.join(' · ');
             var have = data.groups.some(function (g) { return g.items.length; });

@@ -86,7 +86,8 @@ def summarize(doc: ip.PlanDoc, current: dict, previous: dict) -> dict:
     stock_total = sum(r["value"] for r in stocks) if all(r["value"] is not None for r in stocks) else None
     return {"total": total, "known_total": current["net"], "change": change_of(rows),
             "groups": list(groups.values()), "other_debt": other_debt, "missing": missing,
-            "estimated": sum(r["estimated"] for r in rows), "stocks": stocks,
+            "estimated": sum(r["estimated"] for r in rows),
+            "stale": sum(bool(r.get("quote_stale")) for r in rows), "stocks": stocks,
             "stock_total": stock_total,
             "stock_weight_pct": round(stock_total / total * 100, 2)
             if total and total > 0 and stock_total is not None else None}
@@ -99,6 +100,9 @@ def prompt(assets: dict) -> str:
     compact["groups"] = [{"label": g["label"], "value": g["value"]} for g in assets["groups"]]
     compact["stocks"] = [{k: r[k] for k in ("name", "code", "market", "account", "qty", "value", "price",
                                             "weight", "estimated", "valuation", "quote_at")} for r in assets["stocks"]]
+    compact["gold"] = [{k: r[k] for k in ("name", "code", "account", "qty", "quantity_unit", "value", "price",
+                                          "estimated", "valuation", "quote_at", "quote_source", "quote_stale")}
+                       for g in assets["groups"] for item in g["items"] for r in item["rows"] if r.get("quantity_unit") == "g"]
     ratio = f"{assets['stock_weight_pct']:.2f}%" if assets["stock_weight_pct"] is not None else "계산 불가"
     return ("## 이번 상담의 실제 보유 자산 평가\n"
             f"현재 주식 비중(전체 순자산 기준): {ratio}. 이 값을 그대로 인용한다. "
@@ -106,8 +110,10 @@ def prompt(assets: dict) -> str:
             "투자 질문은 먼저 사용자가 실제 가진 주식의 수량·계좌·평가액·비중으로 계산한다. "
             "시장 전망을 이 보유 종목과 전체 자산에 미치는 원화 영향으로 연결한다. "
             "주식 비중은 서버가 계산한 stock_weight_pct(%)를 그대로 사용한다. "
-            "시세가 있는 종목은 서버가 수량×수집된 최신 시세×환율로 계산했다. valuation=input은 등록된 입력 평가액이고 "
-            "최신 주가로 계산한 값이 아니다. 아래 값은 미래 계획 가지의 보유가 아니다. "
+            "시세가 있는 종목은 서버가 수량×수집된 최신 시세×환율로 계산했다. valuation=input은 등록된 입력 평가액이며 최신 시세로 계산한 값이 아니다. "
+            "금현물(gold)은 주식에 포함하지 않으며 qty는 g, price는 네이버 KRX 원/g 시세다. "
+            "금현물 평가액은 qty×price이고 quote_stale=true이면 갱신 지연 중인 마지막 평가액이다. "
+            "아래 값은 미래 계획 가지의 보유가 아니다. "
             "아래 평가 요약의 부동산 금액과 total은 이미 대출을 차감한 순액이므로 대출을 다시 빼지 않는다. "
             "시세 시각(quote_at)·보유 기준일을 확인하고, 입력 평가액 대체(estimated)·미확인(missing)을 "
             "실시간 확정값으로 말하지 않는다. 추가 확인이나 상담 중 보유 변경 뒤에는 plan_get으로 다시 조회한다.\n"

@@ -16,6 +16,8 @@ from sqlalchemy import bindparam, text
 
 from app.api import quotes_v1, stocks_v1
 from app.api.mcp import RO, obj
+from app.services import naver_gold
+from app.services.invest_plan import GOLD_CODE
 from app.ui.stocks import _latest_quotes, _stock_page
 
 WRITE_TOOLS: tuple = ()
@@ -24,7 +26,7 @@ _MARKET = {"type": "string", "enum": ["KR", "US", "COIN"]}
 _TF = {"type": "string", "enum": ["1h", "3h", "6h", "1d", "1w", "1M"], "description": "봉 하나의 길이(기본 1d)"}
 
 TOOLS = [
-    {"annotations": RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률과 그 값의 시각(as_of — 마지막 10분봉, KR·COIN 은 KST·US 는 미국 동부 현지시각). 장중이면 확정 종가가 아니다. market 은 KR·US·COIN. 원/달러 환율도 함께 준다.",
+    {"annotations": RO, "name": "quotes_get", "description": "종목 최신 종가·직전 종가·등락률과 그 값의 시각(as_of — 마지막 10분봉, KR·COIN 은 KST·US 는 미국 동부 현지시각). 장중이면 확정 종가가 아니다. market 은 KR·US·COIN. KRX 금현물은 code=M04020000, market=KR로 네이버 원/g 시세와 시각·갱신 지연(stale)을 받는다. 원/달러 환율도 함께 준다.",
      "inputSchema": obj({"items": {"type": "array", "maxItems": 30, "items": obj(
          {"code": {"type": "string"}, "market": _MARKET}, ["code", "market"])}}, ["items"])},
     {"annotations": RO, "name": "stock_search", "description": "종목 이름·코드로 검색(최대 10개) — 코드를 모를 때 쓴다. market 을 비우면 한국+미국.",
@@ -115,10 +117,13 @@ async def call(db, user_index: int, name: str, args: dict):
         items = args.get("items") or []
         stocks = [i["code"] for i in items if i.get("market") != "COIN"]
         coins = [i["code"] for i in items if i.get("market") == "COIN"]
-        sq = await _latest_quotes(db, [(c, "s") for c in stocks])
+        sq = await _latest_quotes(db, [(c, "s") for c in stocks if c != GOLD_CODE])
+        await naver_gold.add_quote([i["code"] for i in items if i.get("market") == "KR"], sq)
         cq = await _latest_quotes(db, [(c, "c") for c in coins])
         def one(i):
             q = dict((cq if i.get("market") == "COIN" else sq).get(i["code"]) or {"close": None})
+            if i["code"] == GOLD_CODE and i.get("market") != "KR":
+                q = {"close": None}
             if q.get("as_of"):
                 q["as_of"] = f"{q['as_of']:%Y-%m-%d %H:%M} {'ET' if i.get('market') == 'US' else 'KST'}"
             return {"code": i["code"], "market": i.get("market"), **q}
