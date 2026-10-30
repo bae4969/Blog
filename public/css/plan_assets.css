@@ -39,22 +39,21 @@
 .plan-assets__meta { display: block; margin-block-start: 2px; font-size: 10px; font-weight: 400; color: var(--bae-text-dim); line-height: 1.6; }
 .plan-assets__amount { margin-inline-start: auto; font-size: 13px; font-weight: 550; white-space: nowrap; text-align: end; font-variant-numeric: tabular-nums; }
 .plan-assets__amount small { display: block; margin-block-start: 2px; font-size: 10px; font-weight: 400; }
+.plan-assets__account-return { display: block; margin-block-start: 2px; }
 .plan-assets__account > summary > .plan-assets__chevron { rotate: -90deg; }
 .plan-assets__account[open] > summary > .plan-assets__chevron { rotate: 0deg; }
 .plan-assets__holdings { margin-block: 2px 12px !important; padding-inline: 12px; border-radius: 12px; background: var(--bae-surface-alt); }
-.plan-assets__holding { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 12px; min-inline-size: 0; padding-block: 13px; }
+.plan-assets__holding { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 12px; min-inline-size: 0; padding-block: 13px; }
 .plan-assets__holding + .plan-assets__holding { border-block-start: 1px solid var(--bae-border); }
-.plan-assets__holding-title { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-inline-size: 0; }
-.plan-assets__holding-name { min-inline-size: 0; flex: 1; color: var(--bae-text-primary); font-size: 13px; font-weight: 550; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
-.plan-assets__holding-code { flex: none; color: var(--bae-text-dim); font-size: 10px; line-height: 1.5; font-variant-numeric: tabular-nums; }
-.plan-assets__holding-position { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-inline-size: 0; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-title { grid-column: 1; grid-row: 1; display: flex; align-items: baseline; gap: 8px; min-inline-size: 0; }
+.plan-assets__holding-name { min-inline-size: 0; flex: 1; color: var(--bae-text-primary); font-size: 13px; font-weight: 550; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-assets__holding-position { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-inline-size: 0; font-variant-numeric: tabular-nums; }
 .plan-assets__holding-quantity { color: var(--bae-text-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .plan-assets__holding-quantity.is-missing { color: var(--bae-warn); font-size: 11px; }
 .plan-assets__holding-price { color: var(--bae-text-dim); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .plan-assets__holding-price::before { content: '·'; margin-inline-end: 6px; }
-.plan-assets__holding-amount { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; }
-.plan-assets__holding-value { color: var(--bae-text-primary); font-size: 14px; font-weight: 650; line-height: 1.5; text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.plan-assets__holding-change { font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
+.plan-assets__holding-value { grid-column: 2; grid-row: 1; color: var(--bae-text-primary); font-size: 14px; font-weight: 650; line-height: 1.5; text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plan-assets__holding-change { grid-column: 2; grid-row: 2; justify-self: end; font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .plan-assets__holding-source { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; color: var(--bae-text-dim); font-size: 10px; line-height: 1.6; }
 .plan-assets__holding-delayed { color: var(--bae-warn); }
 .plan-assets__housing-calc { margin: 0 0 6px 45px !important; display: grid; gap: 7px; font-size: 11px; color: var(--bae-text-dim); }

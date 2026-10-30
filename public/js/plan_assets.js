@@ -43,7 +43,9 @@
         }
         function change(value, balance) {
             if (value == null || balance == null || balance - value <= 0) return null;
-            var pct = value / (balance - value) * 100;
+            return percentage(value / (balance - value) * 100);
+        }
+        function percentage(pct) {
             if (!Number.isFinite(pct)) return null;
             var rounded = Number(pct.toFixed(2)) || 0;
             var text = (rounded > 0 ? '+' : '') + rounded.toLocaleString('ko-KR', {
@@ -53,11 +55,21 @@
             node.dataset.assetMoney = text;
             return node;
         }
+        function movement(row) {
+            var profit = row.pnl_pct != null;
+            var node = profit ? percentage(row.pnl_pct) : row.buy_cost_krw != null ? null : change(row.change, row.value);
+            if (node) {
+                node.dataset.assetMoney = (profit ? '매수 대비 ' : '전일 ') + node.dataset.assetMoney;
+                node.textContent = node.dataset.assetMoney;
+            }
+            return node;
+        }
         function holdingRow(row) {
             var node = el('div', 'plan-assets__holding');
             var title = el('div', 'plan-assets__holding-title');
-            title.appendChild(el('span', 'plan-assets__holding-name', row.name));
-            if (row.code) title.appendChild(el('span', 'plan-assets__holding-code', row.code));
+            var holdingName = el('span', 'plan-assets__holding-name', row.name);
+            holdingName.title = row.name;
+            title.appendChild(holdingName);
             node.appendChild(title);
 
             var unit = row.quantity_unit === 'KRW' ? '원' : row.quantity_unit || (row.market === 'COIN' ? '개' : '주');
@@ -75,17 +87,14 @@
                 price.appendChild(money(row.unit_value_krw, { decimals: row.valuation === 'fx' || unit === '개' ? 6 : 2 }));
                 position.appendChild(price);
             }
-            var amount = el('div', 'plan-assets__holding-amount');
-            amount.appendChild(money(row.value, { cls: 'plan-assets__holding-value' }));
-            var movement = change(row.change, row.value);
-            if (movement) {
-                movement.classList.add('plan-assets__holding-change');
-                amount.appendChild(movement);
+            node.append(money(row.value, { cls: 'plan-assets__holding-value' }), position);
+            var rowChange = movement(row);
+            if (rowChange) {
+                rowChange.classList.add('plan-assets__holding-change');
+                node.appendChild(rowChange);
             }
-            node.append(position, amount);
 
-            var sourceLabel = row.value == null ? '시세 미확인' : row.valuation === 'input' ? '입력 평가액'
-                : row.quote_source === 'naver_krx_gold' ? '네이버 KRX' : '';
+            var sourceLabel = row.value == null ? '시세 미확인' : row.valuation === 'input' ? '입력 평가액' : '';
             if (sourceLabel || row.quote_stale) {
                 var source = el('div', 'plan-assets__holding-source');
                 if (sourceLabel) source.appendChild(el('span', null, sourceLabel));
@@ -116,31 +125,35 @@
         function account(item, group) {
             var housing = group.key === 'housing';
             if (housing) item = housingDisplay(item);
-            var node = el(housing ? 'div' : 'details', 'plan-assets__account');
+            var node = el('details', 'plan-assets__account');
             node.dataset.assetKey = group.key + ':' + item.name;
-            var row = el(housing ? 'div' : 'summary', 'plan-assets__row');
+            var row = el('summary', 'plan-assets__row');
             var type = housing ? 'housing' : item.type === 'saving' ? 'saving'
                 : item.type === 'pension' ? 'pension' : group.key;
             row.appendChild(icon(type, 'plan-assets__mark plan-assets__mark--' + type));
             var name = el('span', 'plan-assets__name', item.displayName || (housing && item.rows.length === 1 ? item.rows[0].name : item.name));
-            var meta = housing ? '차감 후 내 금액' : item.institution || (item.rows.length + '개 자산');
+            var meta = housing ? '차감 후 내 금액' : (item.institution || '').split(/[（(]/)[0].trim() || (item.rows.length + '개 자산');
             name.appendChild(el('small', 'plan-assets__meta', meta));
             row.appendChild(name);
             var amount = el('span', 'plan-assets__amount');
             amount.appendChild(money(item.value));
-            var accountChange = change(item.change, item.value);
-            if (accountChange) {
+            var accountChange = movement(item);
+            if (accountChange || item.pnl != null) {
                 var daily = el('small');
-                daily.appendChild(accountChange);
+                if (item.pnl != null) {
+                    daily.appendChild(money(item.pnl, { positive: true, cls: item.pnl > 0 ? 'plan-assets__up' : item.pnl < 0 ? 'plan-assets__down' : '' }));
+                    if (accountChange) accountChange.classList.add('plan-assets__account-return');
+                }
+                if (accountChange) daily.appendChild(accountChange);
                 amount.appendChild(daily);
             }
             row.appendChild(amount);
-            if (!housing) row.appendChild(icon('chevron', 'plan-assets__chevron'));
+            row.appendChild(icon('chevron', 'plan-assets__chevron'));
             node.appendChild(row);
             if (housing) {
                 var calc = el('div', 'plan-assets__housing-calc');
                 var gross = el('div');
-                gross.append(el('span', null, item.grossLabel || '원래 금액'), money(item.gross));
+                gross.append(el('span', null, item.grossLabel || item.displayName || (item.rows.length === 1 ? item.rows[0].name : '원래 금액')), money(item.gross));
                 calc.appendChild(gross);
                 item.debts.forEach(function (debt) {
                     var line = el('div');
