@@ -16,6 +16,8 @@ AI 는 MCP 쓰기 도구로 노드·보유를 고치고, 서버가 그때마다 
 
 import hashlib
 import json
+import math
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
 
@@ -31,6 +33,7 @@ TYPE_LABEL = {"cash": "현금성", "saving": "저축성", "invest": "투자성",
 
 _MAX_NODES = 200
 _MAX_HOLDINGS = 100
+GOLD_CODE = "M04020000"  # 네이버 KRX 금현물, 원/g
 
 
 class Holding(BaseModel):
@@ -223,11 +226,25 @@ def _all_holdings(doc: PlanDoc):
         yield from n.holdings or []
 
 
+def gold_grams(h: Holding) -> float | None:
+    """명시된 KRX 금현물 g 수량. 옛 이름의 g도 읽되 문서에 저장하거나 평가액에서 역산하지 않는다."""
+    if h.kind != "other" or h.currency != "KRW" or h.market not in (None, "KR"):
+        return None
+    if h.code == GOLD_CODE and h.qty is not None:
+        return h.qty if math.isfinite(h.qty) else None
+    if h.code is not None:
+        return None
+    match = re.fullmatch(r"KRX\s*금현물\s+(\d+(?:\.\d+)?)\s*g(?:\s*\([^)]*\))?", h.name.strip(), re.IGNORECASE)
+    return float(match[1]) if match else None
+
+
 def price_pairs(doc: PlanDoc) -> tuple[list[str], list[str]]:
     """시세가 필요한 (주식 코드, 코인 코드). 둘을 나누는 이유는 `_latest_quotes` 가 코드로 사전을 만들어서다."""
     stocks, coins = set(), set()
     for h in _all_holdings(doc):
-        if h.code and h.qty is not None:
+        if gold_grams(h) is not None:
+            stocks.add(GOLD_CODE)
+        elif h.code and h.code != GOLD_CODE and h.qty is not None:
             (coins if h.market == "COIN" else stocks).add(h.code)
     return sorted(stocks), sorted(coins)
 
@@ -235,7 +252,10 @@ def price_pairs(doc: PlanDoc) -> tuple[list[str], list[str]]:
 def _value(h: Holding, stock_px: dict, coin_px: dict, usdkrw: float | None) -> tuple[float | None, float | None]:
     """(원화 평가액, 쓴 시세). 값을 낼 수 없으면 평가액이 None — 0 으로 두면 "없음"과 "0원"이 섞인다."""
     fx = {"KRW": 1.0, "USD": usdkrw}
-    if h.code and h.qty is not None:
+    grams = gold_grams(h)
+    if grams is not None and (px := stock_px.get(GOLD_CODE)) is not None:
+        return grams * px, px
+    if h.code and h.code != GOLD_CODE and h.qty is not None:
         px = (coin_px if h.market == "COIN" else stock_px).get(h.code)
         if px is not None:
             rate = usdkrw if h.market == "US" else 1.0
@@ -271,7 +291,10 @@ def valuate(doc: PlanDoc, stock_px: dict, coin_px: dict, usdkrw: float | None) -
         rows, total = [], 0.0
         for h in hs:
             v, px = _value(h, stock_px, coin_px, usdkrw)
-            rows.append({**h.model_dump(), "type": h.type or acc_type.get(h.account), "group": group(h), "value": v, "price": px})
+            row = {**h.model_dump(), "type": h.type or acc_type.get(h.account), "group": group(h), "value": v, "price": px}
+            if (grams := gold_grams(h)) is not None:
+                row.update(code=GOLD_CODE, qty=grams, market="KR", quantity_unit="g")
+            rows.append(row)
             total += v or 0.0
         # net = 순자산(보유 − 부채). 부채는 계획 전체에 하나라 가지마다 같은 값을 뺀다(가지는 대출을 바꾸지 않는다).
         out[key] = {"total": total, "net": total - debt, "rows": rows}
@@ -573,6 +596,7 @@ PLAN_PROMPT = """# 투자 계획
     pension 연금성(IRP·DC·연금저축), housing 주택(전·월세 보증금·집 — amount 는 **전액**, 대출·차입은 debts 에). 비면 계좌의 type 을 쓴다.
   - region 은 주식·채권의 투자 대상이다 — 국내 상장이라도 미국·중국·인도 등을 담으면 "GLOBAL"(예: TIGER 미국S&P500). 그 밖의 자산은 비운다.
   - 상장 종목·ETF·코인은 code+market+qty 를 쓴다(국내 6자리 코드, 미국 티커, 코인 심볼). 금액은 서버가 시세로 계산하니 amount 는 비운다.
+  - KRX 금현물은 kind=other, code=M04020000, market=KR, currency=KRW, qty=그램(g) 수량으로 쓴다. 네이버 KRX 원/g 시세로 평가한다(금 ETF·은행 금과 다르다).
   - 예금·현금·직접 보유 채권처럼 시세가 없는 것만 amount(+currency).
   - 채권 ETF(TLT·IEF 등)는 kind "bond" 로 둔다.
 - 노드: {{"id": 영문·숫자·-_ 32자 이내(한 번 정하면 바꾸지 않는다), "parent": 부모 id|null, "kind": "event|branch",

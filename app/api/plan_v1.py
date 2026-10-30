@@ -23,7 +23,7 @@ from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
 from app.db.session import db_session
-from app.services import codex_runner, plan_assets
+from app.services import codex_runner, naver_gold, plan_assets
 from app.services import invest_plan as ip
 from app.ui.stocks import _candle_candidates, _latest_quotes
 
@@ -110,7 +110,8 @@ async def prices(db, doc: ip.PlanDoc) -> tuple[dict, dict, float | None]:
 
 async def _quotes(db, doc: ip.PlanDoc) -> dict:
     stocks, coins = ip.price_pairs(doc)
-    sq = await _latest_quotes(db, [(c, "s") for c in stocks])
+    sq = await _latest_quotes(db, [(c, "s") for c in stocks if c != ip.GOLD_CODE])
+    await naver_gold.add_quote(stocks, sq)
     cq = await _latest_quotes(db, [(c, "c") for c in coins])
     fx = (await _latest_quotes(db, [("KRWUSD", "f")])).get("KRWUSD")
     return {"stocks": sq, "coins": cq, "fx": fx}
@@ -131,7 +132,8 @@ def _assets(doc: ip.PlanDoc, row, quotes: dict, current: dict) -> dict:
         at = quote.get("as_of") if holding["price"] is not None else None
         quote_at = (at.replace(tzinfo=_ET if holding["market"] == "US" else _KST).astimezone(_KST).isoformat()
                     if at else None)
-        rows.append({**holding, "quote_at": quote_at})
+        rows.append({**holding, "quote_at": quote_at, "quote_source": quote.get("source"),
+                     "quote_stale": bool(quote.get("stale"))})
     result = plan_assets.summarize(root_doc, {**current, "rows": rows}, previous)
     return {**result, "rev_id": row.rev_id if row else None,
             "holdings_as_of": doc.as_of.isoformat() if doc.as_of else None,
@@ -160,7 +162,7 @@ async def plan_view(db, row) -> dict:
     for ev in ip.past_events(doc, datetime.now(_KST)):
         at = ip._kst(ev.at)
         if at not in cache:
-            px = await _closes_at(db, [(c, "s", c in us_codes) for c in stocks] + [(c, "c", False) for c in coins]
+            px = await _closes_at(db, [(c, "s", c in us_codes) for c in stocks if c != ip.GOLD_CODE] + [(c, "c", False) for c in coins]
                                   + [("KRWUSD", "f", False)], at)
             cache[at] = ip.valuate(doc, {c: px[c] for c in stocks if c in px}, {c: px[c] for c in coins if c in px},
                                    px.get("KRWUSD"))
