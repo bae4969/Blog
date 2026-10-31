@@ -16,7 +16,7 @@
 
 from fastapi import HTTPException, Request, status
 
-from app.core import blog_user
+from app.core import blog_user, security
 from app.core.blog_user import BlogUser
 from app.core.security import AuthUser
 
@@ -24,8 +24,8 @@ from app.core.security import AuthUser
 def bearer_user(request: Request) -> AuthUser:
     """`Authorization: Bearer <jwt>` 로 인증된 사용자. 없거나 틀리면 401.
 
-    ⚠️ **쿠키는 보지 않는다.** `request.state.user` 는 미들웨어가 쿠키로도 채우므로
-       그걸 쓰면 쿠키 인증 쓰기가 열려 CSRF 구멍이 된다 — 헤더가 있었는지 직접 본다.
+    ⚠️ **쿠키는 보지 않는다.** 미들웨어의 `request.state.user` 는 쿠키에서 왔을 수
+       있으므로 헤더의 토큰 자체를 검증한다.
     """
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
@@ -34,11 +34,16 @@ def bearer_user(request: Request) -> AuthUser:
             "쓰기에는 Authorization: Bearer 토큰이 필요합니다(쿠키는 받지 않습니다)",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = getattr(request.state, "user", None)
-    if user is None:
-        # 헤더는 있는데 state 가 비었다 = 토큰이 만료·위조됐다는 뜻이다.
+    token = header[7:].strip()
+    try:
+        if not token:
+            raise security.TokenError("empty")
+        user = security.auth_user_from_payload(security.verify_token(token))
+    except security.TokenError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "토큰이 유효하지 않습니다",
-                            headers={"WWW-Authenticate": "Bearer"})
+                            headers={"WWW-Authenticate": "Bearer"}) from exc
+    # 저장 후 상세 응답도 같은 주체의 권한으로 읽어야 한다(`post(request, id)`).
+    request.state.user = user
     return user
 
 
