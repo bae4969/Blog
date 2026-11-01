@@ -81,7 +81,7 @@
             if (row.qty == null) quantity.classList.add('is-missing');
             if (row.kind === 'cash' && row.qty != null && row.valuation !== 'fixed') quantity.dataset.assetMoney = quantityText;
             position.appendChild(quantity);
-            if (row.unit_value_krw != null && row.valuation !== 'fixed') {
+            if (row.unit_value_krw != null && row.valuation !== 'fixed' && row.valuation !== 'fx') {
                 var priceLabel = /^[A-Z]{3}$/.test(unit) ? '1 ' + unit + ' = ' : unit + '당 ';
                 var price = el('span', 'plan-assets__holding-price', priceLabel);
                 price.appendChild(money(row.unit_value_krw, { decimals: row.valuation === 'fx' || unit === '개' ? 6 : 2 }));
@@ -218,8 +218,8 @@
             statusEl.hidden = !messages.length;
             statusEl.textContent = messages.join(' · ');
             var have = data.groups.some(function (g) { return g.items.length; });
-            footEl.textContent = have ? '부동산은 대출을 뺀 순액이에요'
-                : '등록된 자산이 없습니다. 상담에서 보유 자산을 알려주세요.';
+            footEl.hidden = have;
+            footEl.textContent = have ? '' : '등록된 자산이 없습니다. 상담에서 보유 자산을 알려주세요.';
             applyPrivacy();
         }
         function refresh(manual) {
