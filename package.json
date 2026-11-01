@@ -1,6 +1,6 @@
 {
   "name": "blog-frontend",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Frontend dependencies for the blog (Quill editor)",
   "main": "index.js",
   "scripts": {
