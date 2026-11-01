@@ -31,6 +31,7 @@
 .plan-assets__chevron svg { inline-size: 13px; block-size: 13px; }
 .plan-assets__account + .plan-assets__account { border-block-start: 1px solid var(--bae-divider); }
 .plan-assets__row { display: flex; align-items: center; gap: 11px; min-block-size: 62px; padding-block: 13px; }
+.plan-assets__row--invest { min-block-size: 64px; }
 .plan-assets__mark { display: grid; place-items: center; flex: none; inline-size: 34px; block-size: 34px; border-radius: 12px; background: var(--bae-surface-alt); color: var(--bae-info); }
 .plan-assets__mark svg { inline-size: 19px; block-size: 19px; }
 .plan-assets__mark--housing, .plan-assets__mark--saving { color: var(--bae-mint); }
@@ -40,6 +41,11 @@
 .plan-assets__amount { margin-inline-start: auto; font-size: 13px; font-weight: 550; white-space: nowrap; text-align: end; font-variant-numeric: tabular-nums; }
 .plan-assets__amount small { display: block; margin-block-start: 2px; font-size: 10px; font-weight: 400; }
 .plan-assets__account-return { display: block; margin-block-start: 2px; }
+.plan-assets__amount[data-asset-info] { cursor: help; line-height: 1.5; }
+.plan-assets__tip { margin: 0; max-inline-size: min(22rem, calc(100vw - 16px)); white-space: normal; }
+.plan-assets__tip strong { display: block; margin-block-end: 6px; color: var(--bae-text-primary); }
+.plan-assets__tip-line { display: flex; justify-content: space-between; gap: 20px; line-height: 1.7; }
+.plan-assets__tip-line > :last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .plan-assets__account > summary > .plan-assets__chevron { rotate: -90deg; }
 .plan-assets__account[open] > summary > .plan-assets__chevron { rotate: 0deg; }
 .plan-assets__holdings { margin-block: 2px 12px !important; padding-inline: 12px; border-radius: 12px; background: var(--bae-surface-alt); }
