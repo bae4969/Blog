@@ -13,6 +13,7 @@
         var refreshBtn = document.getElementById('planAssetsRefresh');
         var hideBtn = document.getElementById('planAssetsHide');
         var icons = document.getElementById('planAssetIcons').content;
+        var infoTip = null, infoOwner = null;
 
         function el(tag, cls, text) {
             var node = document.createElement(tag);
@@ -31,8 +32,11 @@
             return node;
         }
         function applyPrivacy() {
-            root.querySelectorAll('[data-asset-money]').forEach(function (node) {
-                node.textContent = hidden ? '••••••' : node.dataset.assetMoney;
+            [root, infoTip].forEach(function (scope) {
+                if (!scope) return;
+                scope.querySelectorAll('[data-asset-money]').forEach(function (node) {
+                    node.textContent = hidden ? '••••••' : node.dataset.assetMoney;
+                });
             });
             root.querySelectorAll('[data-asset-unit]').forEach(function (node) { node.hidden = hidden; });
         }
@@ -63,6 +67,70 @@
                 node.textContent = node.dataset.assetMoney;
             }
             return node;
+        }
+        function closeInfo() {
+            if (infoOwner) infoOwner.closest('summary').removeAttribute('aria-describedby');
+            infoOwner = null;
+            if (!infoTip) return;
+            infoTip.classList.remove('is-on');
+            if (infoTip.matches(':popover-open')) infoTip.hidePopover();
+        }
+        function showInfo(amount, item) {
+            closeInfo();
+            if (!infoTip) {
+                infoTip = el('div', 'c-tip plan-assets__tip');
+                infoTip.id = 'planAssetsInfo';
+                infoTip.setAttribute('role', 'tooltip');
+                infoTip.setAttribute('popover', 'manual');
+                document.body.appendChild(infoTip);
+            }
+            infoOwner = amount;
+            var heading = el('strong', null, item.name);
+            infoTip.replaceChildren(heading);
+            function line(label, value) {
+                var row = el('div', 'plan-assets__tip-line');
+                row.append(el('span', null, label), value || money(null, { unit: false }));
+                infoTip.appendChild(row);
+            }
+            line('전일 변동', money(item.change, { positive: true }));
+            line('전일 변동률', change(item.change, item.value));
+            line('매수원가', money(item.buy_cost_krw));
+            line('평가손익', money(item.pnl, { positive: true }));
+            line('수익률', percentage(item.pnl_pct));
+            applyPrivacy();
+            amount.closest('summary').setAttribute('aria-describedby', infoTip.id);
+            infoTip.showPopover();
+            var r = amount.getBoundingClientRect(), w = infoTip.offsetWidth, h = infoTip.offsetHeight;
+            var x = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+            var y = r.top - h - 6 >= 8 ? r.top - h - 6 : r.bottom + 6;
+            y = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+            infoTip.style.transform = 'translate(' + Math.round(x) + 'px, ' + Math.round(y) + 'px)';
+            infoTip.classList.add('is-on');
+        }
+        function accountInfo(amount, summary, item) {
+            amount.dataset.assetInfo = '';
+            var pointerType = '';
+            amount.addEventListener('pointerenter', function (e) {
+                if (e.pointerType === 'mouse') showInfo(amount, item);
+            });
+            amount.addEventListener('pointerleave', function (e) {
+                if (e.pointerType === 'mouse') closeInfo();
+            });
+            amount.addEventListener('pointerdown', function (e) { pointerType = e.pointerType; });
+            amount.addEventListener('click', function (e) {
+                if (pointerType !== 'touch' && pointerType !== 'pen') return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (infoOwner === amount) closeInfo();
+                else showInfo(amount, item);
+            });
+            summary.addEventListener('focusin', function () {
+                // Tab 이동으로 계좌가 화면 안에 스크롤된 뒤 풍선을 연다.
+                requestAnimationFrame(function () {
+                    if (document.activeElement === summary && summary.matches(':focus-visible')) showInfo(amount, item);
+                });
+            });
+            summary.addEventListener('focusout', closeInfo);
         }
         function holdingRow(row) {
             var node = el('div', 'plan-assets__holding');
@@ -128,6 +196,7 @@
             var node = el('details', 'plan-assets__account');
             node.dataset.assetKey = group.key + ':' + item.name;
             var row = el('summary', 'plan-assets__row');
+            if (group.key === 'invest') row.classList.add('plan-assets__row--invest');
             var type = housing ? 'housing' : item.type === 'saving' ? 'saving'
                 : item.type === 'pension' ? 'pension' : group.key;
             row.appendChild(icon(type, 'plan-assets__mark plan-assets__mark--' + type));
@@ -138,7 +207,12 @@
             var amount = el('span', 'plan-assets__amount');
             amount.appendChild(money(item.value));
             var accountChange = movement(item);
-            if (accountChange || item.pnl != null) {
+            if (group.key === 'invest') {
+                var rate = el('small');
+                rate.appendChild(percentage(item.pnl_pct) || money(null, { unit: false }));
+                amount.appendChild(rate);
+                accountInfo(amount, row, item);
+            } else if (accountChange || item.pnl != null) {
                 var daily = el('small');
                 if (item.pnl != null) {
                     daily.appendChild(money(item.pnl, { positive: true, cls: item.pnl > 0 ? 'plan-assets__up' : item.pnl < 0 ? 'plan-assets__down' : '' }));
@@ -169,6 +243,7 @@
             return node;
         }
         function renderGroups() {
+            closeInfo();
             var opened = {};
             groupsEl.querySelectorAll('details').forEach(function (node) { opened[node.dataset.assetKey] = node.open; });
             var active = document.activeElement;
@@ -243,6 +318,12 @@
             applyPrivacy();
         });
         refreshBtn.addEventListener('click', function () { refresh(true); });
+        document.addEventListener('pointerdown', function (e) {
+            if (!infoOwner || !infoOwner.contains(e.target)) closeInfo();
+        }, true);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeInfo(); });
+        window.addEventListener('scroll', closeInfo, true);
+        window.addEventListener('resize', closeInfo);
         setInterval(function () { refresh(false); }, 30000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
         window.addEventListener('focus', function () { refresh(false); });
