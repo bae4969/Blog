@@ -102,7 +102,7 @@
             infoTip.showPopover();
             var r = amount.getBoundingClientRect(), w = infoTip.offsetWidth, h = infoTip.offsetHeight;
             var x = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
-            var y = r.top - h - 6 >= 8 ? r.top - h - 6 : r.bottom + 6;
+            var y = r.bottom + h + 6 <= window.innerHeight - 8 ? r.bottom + 6 : r.top - h - 6;
             y = Math.max(8, Math.min(y, window.innerHeight - h - 8));
             infoTip.style.transform = 'translate(' + Math.round(x) + 'px, ' + Math.round(y) + 'px)';
             infoTip.classList.add('is-on');
@@ -196,7 +196,7 @@
             var node = el('details', 'plan-assets__account');
             node.dataset.assetKey = group.key + ':' + item.name;
             var row = el('summary', 'plan-assets__row');
-            if (group.key === 'invest') row.classList.add('plan-assets__row--invest');
+            if (!housing) row.classList.add('plan-assets__row--financial');
             var type = housing ? 'housing' : item.type === 'saving' ? 'saving'
                 : item.type === 'pension' ? 'pension' : group.key;
             row.appendChild(icon(type, 'plan-assets__mark plan-assets__mark--' + type));
@@ -207,7 +207,7 @@
             var amount = el('span', 'plan-assets__amount');
             amount.appendChild(money(item.value));
             var accountChange = movement(item);
-            if (group.key === 'invest') {
+            if (!housing) {
                 var rate = el('small');
                 rate.appendChild(percentage(item.pnl_pct) || money(null, { unit: false }));
                 amount.appendChild(rate);

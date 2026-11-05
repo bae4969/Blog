@@ -89,6 +89,35 @@ def test_미국종목_매수비용은_원화로_저장해_현재환율을_원가
     assert a['pnl'] == 80_000 and a['pnl_pct'] == 40
 
 
+@pytest.mark.parametrize('account_type', ['cash', 'saving', 'invest', 'pension'])
+@pytest.mark.parametrize('costs', [(850_000, 140_000), (850_000, None), (None, None)])
+def test_외화손익은_계좌분류와_무관하고_모든_통화의_원가가_있을때만_합산한다(account_type, costs):
+    d = ip.PlanDoc(accounts=[ip.Account(name='외화', type=account_type)], holdings=[
+        ip.Holding(kind='cash', name='엔', currency='JPY', qty=100_000,
+                   buy_cost_krw=costs[0], account='외화'),
+        ip.Holding(kind='cash', name='달러', currency='USD', qty=100,
+                   buy_cost_krw=costs[1], account='외화'),
+        ip.Holding(kind='cash', name='원화', qty=50_000, account='외화')])
+    current = ip.valuate(d, {}, {}, {'JPY': 9, 'USD': 1500})['root']
+    previous = ip.valuate(d, {}, {}, {'JPY': 8.9, 'USD': 1490})['root']
+    result = plan_assets.summarize(d, current, previous)
+    group = next(g for g in result['groups'] if g['items'])
+    assert group['key'] == ('cash' if account_type in ('cash', 'saving') else 'invest')
+    account = group['items'][0]
+    assert account['value'] == 1_100_000
+    assert account['change'] == 11_000
+    assert account['rows'][0]['pnl'] == (50_000 if costs[0] is not None else None)
+    assert account['rows'][1]['pnl'] == (10_000 if costs[1] is not None else None)
+    assert account['rows'][2]['pnl_pct'] is None
+    if all(cost is not None for cost in costs):
+        assert account['buy_cost_krw'] == 990_000
+        assert account['pnl'] == 60_000
+        assert account['pnl_pct'] == pytest.approx(60_000 / 990_000 * 100)
+    else:
+        assert account['buy_cost_krw'] is None
+        assert account['pnl'] is None and account['pnl_pct'] is None
+
+
 @pytest.mark.parametrize('cost', [None, 0, 100, 200, 400])
 def test_미확인원가_0원원가_손익0_이익_손실을_구분한다(cost):
     d = ip.PlanDoc(holdings=[ip.Holding(kind='stock', name='주식', code='005930', market='KR', qty=2,

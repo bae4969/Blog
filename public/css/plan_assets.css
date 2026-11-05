@@ -31,7 +31,7 @@
 .plan-assets__chevron svg { inline-size: 13px; block-size: 13px; }
 .plan-assets__account + .plan-assets__account { border-block-start: 1px solid var(--bae-divider); }
 .plan-assets__row { display: flex; align-items: center; gap: 11px; min-block-size: 62px; padding-block: 13px; }
-.plan-assets__row--invest { min-block-size: 64px; }
+.plan-assets__row--financial { min-block-size: 64px; }
 .plan-assets__mark { display: grid; place-items: center; flex: none; inline-size: 34px; block-size: 34px; border-radius: 12px; background: var(--bae-surface-alt); color: var(--bae-info); }
 .plan-assets__mark svg { inline-size: 19px; block-size: 19px; }
 .plan-assets__mark--housing, .plan-assets__mark--saving { color: var(--bae-mint); }
