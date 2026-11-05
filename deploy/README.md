@@ -3,12 +3,38 @@
 `main` 머지 뒤 모든 CI/CD 계산은 UbuntuVM의 self-hosted GitHub Actions Runner에서 수행한다.
 GitHub 호스팅 Runner와 Actions artifact 저장소는 사용하지 않는다.
 
+## PR·릴리스 버전
+
+`main` 직접 푸시는 저장소 규칙이 막으며 PR로만 변경한다. `dev` 푸시는 CI·배포를 실행하지 않고,
+`main`으로 가는 PR은 검사를, `main` 머지는 검사 → 릴리스 → 배포를 실행한다.
+파이프라인의 원본은 [release.yml](../.github/workflows/release.yml)이다.
+
+릴리스 번호는 최신 `vX.Y.Z` 태그를 기준으로 정한다. `package.json`의 `version`이 최신 태그보다
+큰 새 번호이면 그 번호를 사용하고, 그렇지 않으면 최신 태그의 patch를 1 올린다.
+같은 버전 태그가 이미 있다는 이유만으로 배포를 건너뛰지는 않는다.
+
+- 버그 수정·문구·스타일 변경은 버전 파일을 수정하지 않는다. patch는 CI가 올린다.
+- 기능 추가·제거·화면 개편은 minor, 스택 교체·데이터 구조 변경은 major를 수동으로 올린다.
+  `package.json`의 `version`과 `package-lock.json`의 최상위 `version`·`packages[""].version`을 함께 바꾼다.
+- CI는 릴리스 태그만 만들고 버전 파일을 `main`에 되밀지 않는다. 따라서 `package.json` 숫자는
+  실제 릴리스보다 뒤처질 수 있으며, 배포된 버전은 운영 컨테이너의 실행 이미지 태그·digest로 확인한다.
+- 이미 배포된 태그를 삭제하거나 같은 이름으로 다시 만들지 않는다.
+
+## 이미지 적용
+
 1. VM이 `Dockerfile`로 `bae-blog:vX.Y.Z` 이미지를 만든다.
 2. 이미지를 TrueNAS의 `bae-registry`로 push하고 SHA-256 digest를 확정한다.
 3. `truenas/bae-blog.yml`을 제한 SSH 연결의 stdin으로 보낸다.
 4. NAS의 강제 명령 스크립트가 이미지 태그·서비스·볼륨·네트워크·Traefik 라벨을 검증한다.
 5. 버전 태그와 digest로 고정한 YAML을 TrueNAS `bae-blog` 앱에 적용하고 healthy 상태와 실행
    이미지까지 확인한다.
+6. CI가 `HEALTH_URL` 응답을 확인한다. 응답 성공은 화면의 JS·상호작용 검증을 대신하지 않는다.
+
+## DB 변경
+
+`app/migrations/NNNN_이름.sql`에 추가한 변경은 컨테이너가 뜰 때 앱보다 먼저 적용된다.
+새 테이블·기본값이 있는 새 컬럼·데이터 채우기처럼 **더하기만** 하며, 재실행에도 안전하도록 작성한다.
+배포 실패 시 이미지는 이전 것으로 돌아가지만 DB는 그대로이므로, 삭제·이름 변경은 옛 코드를 깨뜨린다.
 
 ## 영속 데이터
 
