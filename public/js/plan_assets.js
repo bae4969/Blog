@@ -49,10 +49,10 @@
             if (value == null || balance == null || balance - value <= 0) return null;
             return percentage(value / (balance - value) * 100);
         }
-        function percentage(pct) {
+        function percentage(pct, estimated) {
             if (!Number.isFinite(pct)) return null;
             var rounded = Number(pct.toFixed(2)) || 0;
-            var text = (rounded > 0 ? '+' : '') + rounded.toLocaleString('ko-KR', {
+            var text = (estimated ? '≈' : '') + (rounded > 0 ? '+' : '') + rounded.toLocaleString('ko-KR', {
                 minimumFractionDigits: 2, maximumFractionDigits: 2
             }) + '%';
             var node = el('span', rounded > 0 ? 'plan-assets__up' : rounded < 0 ? 'plan-assets__down' : '', text);
@@ -61,7 +61,7 @@
         }
         function movement(row) {
             var profit = row.pnl_pct != null;
-            var node = profit ? percentage(row.pnl_pct) : row.buy_cost_krw != null ? null : change(row.change, row.value);
+            var node = profit ? percentage(row.pnl_pct, row.pnl_estimated) : row.return_cost_krw != null || row.buy_cost_krw != null ? null : change(row.change, row.value);
             if (node) {
                 node.dataset.assetMoney = (profit ? '매수 대비 ' : '전일 ') + node.dataset.assetMoney;
                 node.textContent = node.dataset.assetMoney;
@@ -94,9 +94,9 @@
             }
             line('전일 변동', money(item.change, { positive: true }));
             line('전일 변동률', change(item.change, item.value));
-            line('매수원가', money(item.buy_cost_krw));
-            line('평가손익', money(item.pnl, { positive: true }));
-            line('수익률', percentage(item.pnl_pct));
+            line(item.pnl_estimated ? '추정 매수원가' : '매수원가', money(item.return_cost_krw));
+            line(item.pnl_estimated ? '추정 평가손익' : '평가손익', money(item.pnl, { positive: true }));
+            line(item.pnl_estimated ? '평균매입가 기준 추정' : '수익률', percentage(item.pnl_pct, item.pnl_estimated));
             applyPrivacy();
             amount.closest('summary').setAttribute('aria-describedby', infoTip.id);
             infoTip.showPopover();
@@ -209,7 +209,7 @@
             var accountChange = movement(item);
             if (!housing) {
                 var rate = el('small');
-                rate.appendChild(percentage(item.pnl_pct) || money(null, { unit: false }));
+                rate.appendChild(percentage(item.pnl_pct, item.pnl_estimated) || money(null, { unit: false }));
                 amount.appendChild(rate);
                 accountInfo(amount, row, item);
             } else if (accountChange || item.pnl != null) {

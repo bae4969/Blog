@@ -242,6 +242,15 @@ async def account() -> str:
     return out.splitlines()[-1] if out else f"알 수 없음(exit {code})"
 
 
+async def version() -> str:
+    """호스트 CLI나 모델 목록이 아닌 앱이 실제 실행하는 바이너리의 버전."""
+    try:
+        code, out = await _cli("--version", timeout=5)
+    except OSError:
+        return "설치되지 않음"
+    return out.splitlines()[-1] if code == 0 and out else "확인 실패"
+
+
 def login_state() -> dict:
     proc = _login["proc"]
     return {"pending": proc is not None and proc.returncode is None,

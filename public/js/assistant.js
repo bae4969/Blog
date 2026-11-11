@@ -28,6 +28,7 @@
     var thumbsEl = document.getElementById('aiThumbs');
     var sendBtn = document.getElementById('aiSend');
     var expandBtn = document.getElementById('aiExpand');
+    var newChatBtn = document.getElementById('aiNewChat');
 
     var MAX_IMAGES = 4;
     var IMAGE_SIDE = 1600;
@@ -242,6 +243,7 @@
     function setBusy(on) {
         busy = on;
         sendBtn.disabled = on;
+        newChatBtn.disabled = on;
         clearInterval(timer);
         if (on) {
             var t0 = Date.now();
@@ -254,6 +256,26 @@
         }
         logEl.scrollTop = logEl.scrollHeight;
     }
+
+    newChatBtn.addEventListener('click', function () {
+        if (busy) return;
+        setBusy(true);
+        load().then(function () {
+            return api('POST', '/api/v1/assistant/chat/new');
+        }).then(function () {
+            input.value = '';
+            store.removeItem('ai-draft');
+            images = [];
+            renderChips();
+            setBusy(false);
+            showChats([]);
+            window.toast('새 상담을 시작했습니다. 자산·원칙·기억은 유지됩니다', 'success');
+            input.focus();
+        }).catch(function (e) {
+            setBusy(false);
+            window.toast('새 상담을 시작하지 못했습니다: ' + e.message, 'error');
+        });
+    });
 
     /** 모듈이 낸 바뀐 것 — 토스트(+[되돌리기])와 화면에 알리기. */
     function applyChanges(list) {

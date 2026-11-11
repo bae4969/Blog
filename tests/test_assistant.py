@@ -18,7 +18,7 @@ def test_대화는_글로_펴고_이미지는_따로():
         {"role": "user", "content": [{"type": "text", "text": "이걸 읽어 줘"},
                                      {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]},
     ])
-    assert prompt == "지시\n\n[상담가]\n이전 답\n\n[사용자]\n이걸 읽어 줘"
+    assert prompt == "지시\n\n[상담가]\n이전 답\n\n[사용자]\n이걸 읽어 줘\n[첨부 이미지 1]"
     assert images == ["data:image/png;base64,AAAA"]
 
 
@@ -88,7 +88,7 @@ def fake(monkeypatch):
     class DB:
         async def execute(self, stmt, params=None):
             rows.append(params)
-            return SimpleNamespace(lastrowid=len(rows))
+            return SimpleNamespace(lastrowid=len(rows), scalar=lambda: None)
 
         async def commit(self):
             pass
@@ -97,8 +97,8 @@ def fake(monkeypatch):
     async def session():
         yield DB()
 
-    async def ask(cfg, messages, user_index, tools):
-        asked.update(messages=messages, tools=tools)
+    async def ask(cfg, messages, user_index, tools, request_context=None):
+        asked.update(messages=messages, tools=tools, request_context=request_context)
         return "  답입니다  ", [{"tool": "thing_set", "saved": True, "rev_id": 5}, {"tool": "other", "saved": True}], asked.get("error")
 
     monkeypatch.setattr(mcp, "MODULES", [mod])
@@ -145,3 +145,24 @@ def test_실패해도_그_전에_고친_것은_알린다(fake):
 
 def test_시스템_프롬프트에_시각():
     assert "2026-10-19 09:30" in assistant_v1.system_prompt(datetime(2026, 10, 19, 9, 30), ["", "조각"])
+
+
+def test_과거첨부를_원래질문에_연결하고_새첨부를_포함해_네장만_전달한다():
+    history = [SimpleNamespace(chat_id=i, role="user", content=f"질문{i}") for i in (3, 2, 1)]
+    urls = {i: [f"data:image/png;base64,{i}{j}" for j in range(2)] for i in (1, 2, 3)}
+    messages = assistant_v1.past_messages(history, urls, remaining=3)
+    prompt, images = assistant_v1._flatten(messages + [{"role": "user", "content": [
+        {"type": "text", "text": "후속질문"}, {"type": "image_url", "image_url": {"url": "새첨부"}}]}])
+    assert images == [urls[2][-1], *urls[3], "새첨부"]
+    assert "질문1\n\n[사용자]\n질문2\n[첨부 이미지 1]" in prompt
+    assert prompt.endswith("후속질문\n[첨부 이미지 4]")
+
+
+def test_후속질문에도_이전이미지를_전달한다(fake):
+    mod, rows, asked = fake
+    history = [SimpleNamespace(chat_id=10, role="user", content="잔고를 저장해 줘")]
+    url = "data:image/png;base64,AAAA"
+    asyncio.run(assistant_v1._chat(1, "가격도 기록했니?", [], None, {}, history,
+                                 {mod: {"before": 1}}, {10: [url]}))
+    _, images = assistant_v1._flatten(asked["messages"])
+    assert images == [url]

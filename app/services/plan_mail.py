@@ -4,11 +4,12 @@
 """
 
 import json
+import hashlib
 import re
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
-from app.services.invest_plan import GROUP_LABEL, PlanDoc, _kst, on_dropped_path
+from app.services.invest_plan import GROUP_LABEL, Node, PlanDoc, _kst, on_dropped_path
 
 #: 시작 시각이 이만큼 지난 이벤트는 보내지 않는다 — 앱이 오래 꺼져 있다 켜졌을 때 옛 알림이 몰려오지 않게.
 LATE_LIMIT = timedelta(hours=24)
@@ -16,9 +17,20 @@ LATE_LIMIT = timedelta(hours=24)
 
 def due_events(doc: PlanDoc, now: datetime):
     """시작 시각이 지났고(24시간 안) 아직 결과가 정해지지 않은(pending) 이벤트 — 접힌 가지 아래 것은 뺀다."""
-    return [n for n in doc.nodes
+    legacy = [n for n in doc.nodes
             if n.kind == "event" and n.status == "pending" and timedelta(0) <= now - _kst(n.at) <= LATE_LIMIT
             and not on_dropped_path(doc, n)]
+    observations = [Node(id=observation_notice_id(o.id), kind="event", title=o.title[:100], at=o.at, about=o.purpose)
+                    for o in doc.strategy.observations if o.status == "pending" and timedelta(0) <= now - _kst(o.at) <= LATE_LIMIT]
+    return legacy + observations
+
+
+def observation_notice_id(identifier: str) -> str:
+    return "obs_" + hashlib.sha256(identifier.encode()).hexdigest()[:24]
+
+
+def observation_for(doc, event):
+    return next((o for o in doc.strategy.observations if observation_notice_id(o.id) == event.id), None)
 
 
 def _won(v: float) -> str:
@@ -63,6 +75,13 @@ def event_text(doc: PlanDoc, view: dict, event) -> str:
     주문은 **서버 매매표**(`view["trades"]`)로 적는다 — 화면과 같은 출처다. AI 가 쓴 `actions` 는 메모로만 붙인다
     (둘이 따로 놀아 메일과 화면의 수량이 다를 수 있었다, 2026-10-14 검토). 잔고가 바뀐 가지는 매매표 대신 경고.
     """
+    observation = observation_for(doc, event)
+    if observation:
+        decision = next((d for d in doc.strategy.decisions if d.id == observation.decision_id), None)
+        return (f"{observation.title} — {_kst(observation.at):%Y-%m-%d %H:%M} 관찰\n\n"
+                f"목적: {observation.purpose}\n확인 자료: {observation.source}\n"
+                + (f"연결된 결정: {decision.title}\n검토할 문제: {decision.question}\n" if decision else "")
+                + "관찰 결과를 상담에서 확인하세요. 매매 실행을 뜻하지 않습니다.")
     values, trades, stale = view["values"], view.get("trades", {}), set(view.get("stale", ()))
     branches = [n for n in doc.nodes if n.kind == "branch" and n.parent == event.id]
     at = _kst(event.at).strftime("%Y-%m-%d %H:%M")
@@ -97,10 +116,19 @@ def event_text(doc: PlanDoc, view: dict, event) -> str:
 
 def compose(doc: PlanDoc, view: dict, event, sender: str, to: str, page_url: str) -> EmailMessage:
     """이벤트 시작 메일 — 본문(`event_text`) + 출처·안내, HTML 판(`event_html`)을 함께."""
+    if observation_for(doc, event):
+        msg = EmailMessage()
+        msg["Subject"] = f"[투자 계획] {event.title} 관찰"
+        msg["From"], msg["To"] = sender, to
+        content = event_text(doc, view, event)
+        msg.set_content(content + f"\n\n투자 계획: {page_url}")
+        msg.add_alternative(_frame("관찰", _C["notice"], _kst(event.at).strftime("%Y-%m-%d"), event.title,
+                                   _card("관찰할 내용", md_html(content)), page_url, ""), subtype="html")
+        return msg
     branches = [n for n in doc.nodes if n.kind == "branch" and n.parent == event.id]
     lines = [event_text(doc, view, event)]
     if event.links:
-        lines += ["", "■ 출처"] + [f"- {l.title}: {l.url}" for l in event.links]
+        lines += ["", "■ 출처"] + [f"- {link.title}: {link.url}" for link in event.links]
     lines += ["", "결과가 나오면 상담에서 알려 주세요 — 실현된 가지를 표시하고 다음 계획을 이어 갑니다.",
               f"투자 계획: {page_url}", "", "※ 금액은 오늘 시세로 환산한 값입니다."]
 
@@ -158,7 +186,11 @@ def parse_check(reply: str) -> dict | None:
         return None
     if data["level"] != "none" and not data.get("title"):
         return None
-    return {k: _unlink(v) for k, v in data.items()}
+    result = {k: _unlink(v) for k, v in data.items() if k != "evidence"}
+    # 메일 표시는 기존대로 출처 없이, 내부 검토 근거는 별도 메타에만 보존한다.
+    result["evidence"] = [{k: str(row.get(k, ""))[:1000] for k in ("decision_id", "source", "finding")}
+                          for row in data.get("evidence", [])[:10] if isinstance(row, dict)] if isinstance(data.get("evidence", []), list) else []
+    return result
 
 
 def _sections(check: dict) -> list[tuple[str, list[str]]]:
@@ -296,8 +328,8 @@ def event_html(doc: PlanDoc, view: dict, event, page_url: str) -> str:
     if not branches:
         cards += _card("대응 방법", "아직 정하지 않았습니다")
     if event.links:
-        cards += _card("출처", _bullets([f'<a href="{escape(l.url)}" style="color:{tone}">{escape(l.title)}</a>'
-                                        for l in event.links if l.url.startswith(("http://", "https://"))], tone))
+        cards += _card("출처", _bullets([f'<a href="{escape(link.url)}" style="color:{tone}">{escape(link.title)}</a>'
+                                        for link in event.links if link.url.startswith(("http://", "https://"))], tone))
     at = _kst(event.at).strftime("%Y-%m-%d %H:%M")
     return _frame("시작", tone, f"투자 계획 · {at} (KST)", event.title, cards, page_url,
                   "결과가 나오면 상담에서 알려 주세요 — 실현된 가지를 표시하고 다음 계획을 이어 갑니다.<br>"

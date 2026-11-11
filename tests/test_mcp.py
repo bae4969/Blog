@@ -44,7 +44,9 @@ def test_초기화와_도구_목록():
     assert names[:13] == ["plan_get", "node_get", "plan_revisions", "plan_revision_get",
                           "node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
                           "rules_set", "memory_set"]
-    assert set(plan_ai.WRITE_TOOLS) == set(names[4:13]) == set(mcp.write_tools())
+    assert set(plan_ai.LEGACY_WRITE_TOOLS) == set(names[4:13])
+    assert set(plan_ai.WRITE_TOOLS) == set(mcp.write_tools())
+    assert {"plan_preview", "plan_apply", "plan_allocate", "plan_schema"} <= set(names)
     assert {"quotes_get", "stock_search", "stock_candles", "stock_disclosures", "market_heatmap", "index_quotes",
             "watchlist_get", "backtest_portfolios", "backtest_portfolio_get", "post_search", "post_get"} <= set(names[13:])
     assert len(names) == len(set(names))   # 모듈끼리 이름이 겹치지 않는다
@@ -227,7 +229,7 @@ def test_원칙_기억은_연_상담에서만_쓴다():
     r = _rpc(t, "tools/call", {"name": "memory_set", "arguments": {"memory": ["x"]}}).json()["result"]
     mcp.revoke(t)
     assert "memory_set" not in names and "rules_set" not in names and "node_add" in names
-    assert r["isError"] and "시킨 상담에서만" in r["content"][0]["text"]
+    assert r["isError"] and "목록 전체 교체" in r["content"][0]["text"]
     ro = mcp.issue(7, read_only=True)
     names = [x["name"] for x in _rpc(ro, "tools/list").json()["result"]["tools"]]
     mcp.revoke(ro)
@@ -235,17 +237,14 @@ def test_원칙_기억은_연_상담에서만_쓴다():
 
 
 def test_원칙_기억을_여는_말():
-    assert "rules_set" in plan_ai.tools_for("레버리지는 원칙으로 남겨")
-    assert "memory_set" in plan_ai.tools_for("그거 잊어 줘")
-    tools = plan_ai.tools_for("FOMC 가지 만들어 줘")
-    assert "memory_set" not in tools and "rules_set" not in tools and "node_add" in tools
+    for message in ("레버리지는 원칙으로 남겨", "그거 잊어 줘", "FOMC 가지 만들어 줘"):
+        assert set(plan_ai.tools_for(message)) == {"plan_preview", "plan_apply"}
 
 
 def test_원칙_기억을_물었으면_다음_답에서_연다():
-    # 직전 답이 "기억으로 남길까요?" 였으면 "ㅇㅇ" 에도 연다 — 안 열면 같은 질문만 되풀이했다(2026-10-16 운영)
-    assert "memory_set" in plan_ai.tools_for("ㅇㅇ", "‘ISA는 저축·투자용’이라는 점을 기억으로 남길까요?")
-    assert "rules_set" in plan_ai.tools_for("응", "원칙으로 남길까요?")
-    assert "memory_set" not in plan_ai.tools_for("ㅇㅇ", "5년 이상 보유할 수 있을까요?")
+    # AI 문장의 질문만으로 전체 목록 교체 권한이 생기지 않는다. 서버에 보관된 변경안과 사용자 확인을 연결한다.
+    for reply in ("원칙으로 남길까요?", "5년 이상 보유할 수 있을까요?"):
+        assert not set(plan_ai.LEGACY_WRITE_TOOLS) & set(plan_ai.tools_for("ㅇㅇ", reply))
 
 
 def test_모르는_도구는_오류():

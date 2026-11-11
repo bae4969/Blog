@@ -23,7 +23,7 @@ from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
 from app.db.session import db_session
-from app.services import codex_runner, naver_gold, plan_assets, plan_reconcile
+from app.services import codex_runner, naver_gold, plan_assets, plan_reconcile, plan_strategy
 from app.services import invest_plan as ip
 from app.ui.stocks import _candle_candidates, _latest_quotes
 
@@ -84,6 +84,8 @@ async def resolved_doc(db, row) -> ip.PlanDoc:
 
 
 async def _save_rev(db, user_index: int, doc: ip.PlanDoc, summary: str) -> int:
+    plan_reconcile.preserve_execution(_doc_of(await latest_rev(db, user_index)), doc)
+    doc = ip.PlanDoc.model_validate(doc.model_dump())
     res = await db.execute(text(
         "INSERT INTO invest_plan_rev (user_index, doc, summary) VALUES (:u, :d, :s)"),
         {"u": user_index, "d": doc.model_dump_json(), "s": summary[:500]})
@@ -220,14 +222,41 @@ async def plan_view(db, row) -> dict:
         "accounts": ip.account_view(doc, values),
         "debt_total": sum(d.balance for d in doc.debts),
         "stale": sorted(ip.stale_branches(doc)),
+        "strategy_review": plan_strategy.review(doc.strategy, values["root"]["rows"], datetime.now(_KST).date(), doc.execution_log),
     }
 
 
 @router.get("", summary="지금 계획과 노드별 평가")
 async def get_plan(request: Request):
+    from app.api import plan_counsel
     async with db_session() as db:
         me = await owner(db, request)
-        return await plan_view(db, await latest_rev(db, me.user_index))
+        return {**await plan_view(db, await latest_rev(db, me.user_index)), "changes": await plan_counsel.pending(db, me.user_index)}
+
+
+@router.post("/changes/{change_id}/apply", summary="검토한 변경안을 한 번에 반영")
+async def apply_change(request: Request, change_id: str):
+    from app.api import plan_counsel
+    async with db_session() as db:
+        me = await owner(db, request)
+        try:
+            result = await plan_counsel.apply(db, me.user_index, change_id, confirmed=True)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from e
+        return {**await plan_view(db, await latest_rev(db, me.user_index)), "result": result,
+                "changes": await plan_counsel.pending(db, me.user_index)}
+
+
+@router.post("/changes/{change_id}/dismiss", summary="미반영 변경안 폐기")
+async def dismiss_change(request: Request, change_id: str):
+    from app.api import plan_counsel
+    async with db_session() as db:
+        me = await owner(db, request)
+        async with write_lock(me.user_index):
+            await db.execute(text("UPDATE invest_plan_change SET status='dismissed' WHERE user_index=:u AND change_id=:c AND status='pending'"),
+                             {"u": me.user_index, "c": change_id})
+            await db.commit()
+        return {**await plan_view(db, await latest_rev(db, me.user_index)), "changes": await plan_counsel.pending(db, me.user_index)}
 
 
 @router.get("/assets", summary="내 자산 — 현재 보유와 연결 대출의 최신 평가")
@@ -264,7 +293,24 @@ async def _restore(db, user_index: int, rev_id: int, expect: int | None) -> dict
         {"u": user_index, "r": rev_id})).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 버전입니다")
-    await _save_rev(db, user_index, ip.PlanDoc.model_validate_json(row.doc), f"{rev_id}번 버전으로 되돌림")
+    restored = ip.PlanDoc.model_validate_json(row.doc)
+    # 실제 사실을 되돌리면 계획과 잔고가 뒤섞인다. 복원은 계획/원칙이며 현재 잔고와 실행은 유지한다.
+    current = _doc_of(await latest_rev(db, user_index))
+    restored.holdings, restored.as_of = current.holdings, current.as_of
+    restored.accounts, restored.debts, restored.cashflow = current.accounts, current.debts, current.cashflow
+    plan_reconcile.preserve_execution(current, restored)
+    for node in restored.nodes:
+        records = [r for r in restored.execution_log if r.reference == node.id]
+        if records and records[-1].status in ("reported", "partial", "confirmed"):
+            actual = records[-1]
+            node.executed_at = actual.at
+            if actual.before is not None and actual.after is not None:
+                node.execution = ip.Execution(before=actual.before, after=actual.after)
+    try:
+        restored = ip.PlanDoc.model_validate(restored.model_dump())
+    except ValueError as e:
+        raise HTTPException(409, "현재 계좌와 옛 계획이 맞지 않아 복원하지 않았습니다. 상담에서 필요한 결정을 복원하세요") from e
+    await _save_rev(db, user_index, restored, f"{rev_id}번 계획으로 되돌림(현재 잔고·실행 보존)")
     await db.commit()
     return await plan_view(db, await latest_rev(db, user_index))
 
@@ -310,6 +356,8 @@ async def mark_executed(request: Request, node_id: str):
             node = next((n for n in doc.nodes if n.id == node_id), None)
             if node is None or node.kind != "branch":
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "없는 가지입니다")
+            if node.executed_at:
+                return {**await plan_view(db, row), "prev_rev_id": None}
             node.executed_at = datetime.now(_KST).date()
             await _save_rev(db, me.user_index, doc, f"실행함: {node.title}")
             await db.commit()
@@ -472,7 +520,8 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
     if check is None:
         return True
     async with db_session() as db:
-        await assistant_v1.record(db, user_index, "assistant", "[매일 점검 메일] " + plan_mail.daily_text(check, day))
+        await assistant_v1.record(db, user_index, "assistant", "[매일 점검 메일] " + plan_mail.daily_text(check, day),
+                                  {"check_evidence": check.get("evidence", [])})
         await db.commit()
     logger.info("매일 점검 메일 보냄: user=%s %s %s → %s", user_index, check["level"], check["title"], cfg["plan_mail_to"])
     return True

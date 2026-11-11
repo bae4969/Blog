@@ -18,9 +18,11 @@ COPY requirements-api.txt /tmp/blog-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/blog-requirements.txt \
     && rm /tmp/blog-requirements.txt
 
-# 투자 계획 AI — codex CLI(2026-10-10). 빌드할 때 그때의 최신을 깐다(배포마다 따라 올라간다 — 실행 중 자체 업데이트는 안 한다).
+# 투자 계획 AI — 빌드 시 최신 설치. 설치 단계에서 VCS_REF를 참조해 새 커밋마다 다시 설치한다.
+# 실행 중 자체 업데이트는 하지 않는다. CI·배포 빌드와 관리자 화면에서 실제 바이너리 버전을 확인한다.
 # 실행 파일은 이미지(/opt/codex), 로그인(auth.json)은 볼륨(/data/codex — compose 가 blog_data/codex 를 붙인다)에 둔다.
-RUN curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_HOME=/opt/codex CODEX_INSTALL_DIR=/usr/local/bin sh \
+RUN echo "Codex install revision: ${VCS_REF}" \
+    && curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_HOME=/opt/codex CODEX_INSTALL_DIR=/usr/local/bin sh \
     && /usr/local/bin/codex --version
 ENV CODEX_HOME=/data/codex
 
