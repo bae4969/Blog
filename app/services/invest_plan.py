@@ -23,6 +23,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
+from app.services.plan_strategy import Strategy
+
 AssetClass = Literal["stock", "bond", "cash", "crypto", "other"]
 _KST = timezone(timedelta(hours=9))
 #: 화면·메일의 자산군 비중 — 주식·채권은 국내/해외로 나눈다(2026-10-11 사용자 요청). 키는 `group()`.
@@ -49,6 +51,8 @@ class Holding(BaseModel):
     amount: float | None = Field(default=None, ge=0, description="옛 입력 평가액(currency 기준). 새 자료는 qty와 unit_price")
     buy_cost_krw: float | None = Field(default=None, ge=0, allow_inf_nan=False,
                                       description="현재 보유 수량 전체의 총 매수비용(원). 주당 단가·현재 평가액·계좌 납입원금이 아니다")
+    avg_buy_price: float | None = Field(default=None, ge=0, allow_inf_nan=False,
+                                      description="화면에서 확인한 평균매입단가(currency 기준). 반올림 가능, unit_price와 다르다")
     currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$", description="원통화 ISO 코드. 외화를 원화 환산액으로 저장하지 않는다")
     account: str | None = Field(default=None, max_length=30,
                                 description="계좌(ISA·IRP·DC 등) — 같은 종목도 계좌가 다르면 다른 줄. 2026-10-11 에 더했다(옛 문서는 비어 있다)")
@@ -125,6 +129,26 @@ class Execution(BaseModel):
     after: list[Holding] = Field(max_length=_MAX_HOLDINGS)
 
 
+class ExecutionRecord(BaseModel):
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    reference: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=100)
+    at: date
+    status: Literal["reported", "partial", "confirmed", "corrected"]
+    source: str = Field(min_length=1, max_length=2000)
+    correction_of: str | None = None
+    before: list[Holding] | None = None
+    after: list[Holding] | None = None
+
+    @model_validator(mode="after")
+    def evidence(self):
+        if self.status in ("partial", "confirmed") and (self.before is None or self.after is None):
+            raise ValueError("실행 확인에는 실제 전후 잔고가 필요합니다")
+        if self.status == "corrected" and not self.correction_of:
+            raise ValueError("실행 정정은 원본 기록을 지정해야 합니다")
+        return self
+
+
 class Node(BaseModel):
     """이벤트·가지 공용. 이벤트 전용 칸(`at`·`about`·`expect`·`links`)과 가지 전용 칸(`condition`·`actions`·`holdings`)이 섞여 있다.
 
@@ -156,6 +180,8 @@ MAX_RULES, MAX_MEMORY = 30, 50
 
 
 class PlanDoc(BaseModel):
+    strategy: Strategy = Field(default_factory=Strategy)
+    execution_log: list[ExecutionRecord] = Field(default_factory=list, max_length=1000)
     as_of: date | None = Field(default=None, description="보유 자산 기준일")
     holdings: list[Holding] = Field(default_factory=list, max_length=_MAX_HOLDINGS)
     nodes: list[Node] = Field(default_factory=list, max_length=_MAX_NODES)
@@ -171,8 +197,17 @@ class PlanDoc(BaseModel):
         """계좌 목록이 있으면 보유(가지 포함)·납입·부채의 account 는 그 이름이어야 한다 — 같은 계좌를 다르게 적어 따로 묶이지 않게.
         목록이 비면(옛 문서) 보지 않는다."""
         if not self.accounts:
+            if self.strategy.policies or any(s.account for d in self.strategy.decisions for s in d.scenarios):
+                raise ValueError("계좌를 먼저 등록해야 운용 원칙과 매매 계획을 만들 수 있습니다")
             return self
         names = [a.name for a in self.accounts]
+        for p in self.strategy.policies:
+            if p.account not in names:
+                raise ValueError(f"{p.account}: 운용 원칙의 계좌가 없습니다")
+        for d in self.strategy.decisions:
+            for s in d.scenarios:
+                if s.account and s.account not in names:
+                    raise ValueError(f"{s.account}: 시나리오의 계좌가 없습니다")
         if len(set(names)) != len(names):
             raise ValueError("계좌 이름이 겹친다")
         where = [(f"보유 {h.name}", h.account) for h in self.holdings]
@@ -435,6 +470,7 @@ def holdings_stamp(hs: list[Holding]) -> str:
         data = h.model_dump(mode="json")
         # 매수비용을 확인하는 것은 보유 수량 변경이나 새 매매가 아니다.
         data.pop("buy_cost_krw")
+        data.pop("avg_buy_price")
         # 새 선택 칸이 없는 옛 자료의 지문은 기존과 같아야 버전에서 기준 잔고를 찾을 수 있다.
         for name in ("unit", "unit_price"):
             if data[name] is None:
@@ -640,6 +676,9 @@ PLAN_PROMPT = """# 투자 계획
 - 금리 결정·실적 발표 같은 **이벤트**마다 결과별 **가지**(인하/동결/인상 등)를 나누고, 가지마다 매수·매도 액션과
   리밸런싱 뒤 보유 자산을 정한다. 사용자의 상황·성향을 물어 가며 함께 짠다.
 - 사용자가 증권사·은행 화면 이미지를 주면 읽어서 **지금 보유(holdings)** 를 갱신한다. 읽기 애매한 값은 추측하지 말고 물어본다.
+  수량·평균매입단가·총매입금액·남은 현금을 함께 확인한다. 원칙을 저장하라는 말이 있어도 실제 보유 갱신을 빠뜨리지 않는다.
+  보이는 평균매입단가는 avg_buy_price에 저장한다. 총매입금액이 안 보여도 평균가를 먼저 저장할 수 있다.
+  저장 뒤 plan_get으로 수량·avg_buy_price·buy_cost_krw·계좌 pnl_pct·pnl_estimated를 재조회하고 저장한 것과 미확인을 구분해 답한다.
 - **월 현금흐름(cashflow)** 을 함께 관리한다 — 급여명세·카드 내역·가계부 화면이나 사용자가 말한 숫자로 수입·고정 지출·생활비·
   저축·납입을 채운다. 분할 매수 금액을 정할 때는 여유(수입 − 지출 − 저축·납입)와 계좌별 납입을 근거로 쓴다.
 - **지출 상담**도 한다: 항목을 고정·생활로 나눠 수입 대비 비율을 보이고, 고정비(대출 이자·보험·통신·구독)를 점검하고,
@@ -700,7 +739,8 @@ PLAN_PROMPT = """# 투자 계획
     saving 저축·납입(적금·청약·ISA·IRP 적립 등 — account 에 보유와 같은 계좌 이름). 연 단위 돈(상여 등)은 12로 나눠 note 에 적는다.
   - 화면은 이벤트마다 "그때까지 예상 적립"(달 수 × 계좌별 납입)을 따로 보인다 — 가지 holdings 에 적립을 미리 더하지 않는다.
 - 보유: {{"kind": "stock|bond|cash|crypto|other", "name": 이름, "code": 종목코드|null, "market": "KR|US|COIN"|null,
-  "qty": 수량, "unit": 단위, "unit_price": 입력단가|null, "buy_cost_krw": 현재 보유 전체의 총 매수비용(원)|null,
+  "qty": 수량, "unit": 단위, "unit_price": 평가용 입력단가|null, "buy_cost_krw": 현재 보유 전체의 총 매수비용(원)|null,
+  "avg_buy_price": 화면에서 확인한 평균매입단가(currency 기준)|null,
   "currency": "KRW|USD|JPY|EUR|…"(ISO 통화), "account": 계좌|null,
   "type": "cash|saving|invest|pension|housing"|null, "region": "KR|GLOBAL"|null}}
   - account 는 계좌 목록(accounts)의 name 이다. 같은 종목이 여러 계좌에 있으면 계좌마다 한 줄로 두고,
@@ -713,6 +753,8 @@ PLAN_PROMPT = """# 투자 계획
   - KRX 금현물은 kind=other, code=M04020000, market=KR, currency=KRW, qty=그램(g) 수량으로 쓴다. 네이버 KRX 원/g 시세로 평가한다(금 ETF·은행 금과 다르다).
   - 원화 현금·예적금은 qty=원 잔액, currency=KRW, unit_price=1이다(1원=1개). 외화는 qty=원통화 실제 잔액, currency=USD·JPY 등, unit_price=1이다.
   - buy_cost_krw는 현재 보유 수량 전체에 해당하는 총 매수비용이며 unit_price·amount·계좌 principal과 다르다. 사용자가 제공한 원화 비용만 기록한다.
+    avg_buy_price는 평균매입가 전용이다. unit_price에 매입가를 저장하지 않는다. 총매입금액이 없고 원화 평균매입가가 있으면 서버가 수량×평균가로 추정 수익률을 계산한다.
+    이 곱을 확정 buy_cost_krw로 쓰지 않는다. pnl_estimated=true는 추정이며 답에서도 추정이라고 말한다. 외화 평균가는 매수 당시 환율 없이 원화 원가로 환산하지 않는다.
     수량 변경 시 총 매수비용도 다시 확인한다. 모르면 null로 두고 시세나 예전 수익률로 역산하지 않는다. holdings_set에서 생략은 같은 수량의 기존 비용을 유지하고 명시한 null은 미확인으로 바꾼다.
     외화 계좌는 통화별로 나눠 저장하고 서버가 환율로 평가한다. 원화 환산액을 외화 수량으로 저장하지 않는다.
   - 별도 시세가 없는 자산은 qty+unit+unit_price를 쓴다. 예: 부동산·보증금 1건×전액 단가(대출은 debts), 직접 보유 채권은 명시된 단위 수량×입력 단가.
@@ -769,6 +811,8 @@ def outline(doc: PlanDoc) -> dict:
     계획 전체를 실으면 노드 160개에서 147KB 였다(깊이 시험 2026-10-10). 상세는 AI 가 MCP(node_get·plan_get)로 꺼낸다.
     """
     return {"as_of": doc.as_of and doc.as_of.isoformat(),
+            "strategy": doc.strategy.model_dump(mode="json", exclude_defaults=True),
+            "recent_execution": [r.model_dump(mode="json") for r in doc.execution_log[-10:]],
             "holdings": [as_quantity(h).model_dump(mode="json", exclude_none=True) for h in doc.holdings],
             "accounts": [a.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for a in doc.accounts],
             "debts": [d.model_dump(mode="json", exclude_none=True, exclude_defaults=True) for d in doc.debts],
@@ -803,6 +847,9 @@ DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보�
 - 계획의 대기(pending) 이벤트, 특히 14일 안의 것: 일정 변경, 시장 예상(컨센서스·금리선물 확률)의 큰 변화, 전제가 깨지는 발표
 - 보유 비중이 큰 종목·자산: 급등락, 중요 공시·실적, 거래 정지 같은 사건
 - 계획에 없던 큰 일: 예정에 없던 금리 결정, 전쟁·금융 사고처럼 시장 전체를 흔드는 일
+- strategy.decisions: 선택한 대응의 조건·가정·중단 조건 변화와 재검토일. 어떤 결정을 다시 볼지 제목으로 연결한다.
+- strategy.observations: 예정 관찰의 자료가 나왔는지와 연결된 결정. 관찰 결과를 거래 완료로 해석하지 않는다.
+같은 소식은 기존 결정에 연결한다. 새 계획이나 원칙을 자동 생성하지 않는다. 조건 충족과 실행 완료는 별개다.
 숫자(종가·등락률·환율·평가)는 블로그 도구(MCP `blog` — plan_get·node_get·quotes_get)를 먼저 쓴다. 이 점검은 **조회만** 한다 — 계획을 고치지 않는다.
 아래 원칙은 사용자가 정한 규칙이다 — 할 일(actions)은 원칙을 어기지 않는다. 기억은 사용자에 대한 사실이다.
 
@@ -816,6 +863,7 @@ DAILY_PROMPT = """너는 사용자 한 명의 개인 투자 계획을 지켜보�
 ## 답하는 법
 JSON 하나만 답한다(설명 글 없이):
 {{"level": "none|notice|urgent", "title": "한 줄 제목(none 이면 빈 글)", "summary": "무슨 일인지 2~4문장",
+ "evidence": [{{"decision_id": "관련 결정 id", "source": "확인한 자료 URL", "finding": "어느 가정이 바뀌었나"}}],
  "impacts": ["예상 영향 — 영향받는 이벤트·가지·보유와 어떻게(제목으로 쓰고 id 는 쓰지 않는다)"],
  "actions": ["할 일 — 무엇을 다시 볼지·상담에서 정할 것(방향만). 수량·금액은 쓰지 않는다 — 주문은 상담에서 계획으로 정한다"]}}
 메일로 간다 — 링크·URL·출처 표기는 쓰지 않는다. quotes_get 값은 as_of 시각과 함께 읽는다(장중이면 확정 종가가 아니다).
@@ -878,4 +926,10 @@ def diff_summary(old: PlanDoc, new: PlanDoc) -> str:
         parts.append("원칙 갱신")
     if old.memory != new.memory:
         parts.append("기억 갱신")
+    for field, label in (("goals", "목표"), ("policies", "운용 원칙"),
+                         ("decisions", "결정·시나리오"), ("observations", "관찰 일정")):
+        if getattr(old.strategy, field) != getattr(new.strategy, field):
+            parts.append(f"{label} 갱신")
+    if old.execution_log != new.execution_log:
+        parts.append("실행 기록 추가")
     return ", ".join(parts) or "변경 없음"

@@ -62,6 +62,48 @@ def test_매수비용_일부만_확인되면_계좌수익률을_일부합으로_
     assert a['change'] is not None
 
 
+def test_원화평균매입가만_있으면_확정원가를_만들지_않고_추정성과를_계산한다():
+    d = doc()
+    d.holdings[1].buy_cost_krw = None
+    d.holdings[1].avg_buy_price = 190
+    _, a = summary(d)
+    row = a['rows'][1]
+    assert row['buy_cost_krw'] is None and row['return_cost_krw'] == 3800
+    assert row['pnl'] == -200 and row['pnl_pct'] == pytest.approx(-200 / 3800 * 100)
+    assert row['pnl_estimated'] is True
+    assert a['buy_cost_krw'] is None and a['return_cost_krw'] == 8300
+    assert a['pnl_estimated'] is True and a['pnl'] == -450
+    assert a['pnl_pct'] == pytest.approx(-450 / 8300 * 100)
+    # 확인된 총매입금액은 평균가보다 우선한다.
+    d.holdings[1].buy_cost_krw = 4000
+    _, a = summary(d)
+    assert a['buy_cost_krw'] == 8500 and not a['pnl_estimated']
+
+
+def test_평가용단가를_평균매입가로_오인하거나_외화매입가에_현재환율을_곱하지_않는다():
+    d = doc()
+    h = d.holdings[0]
+    h.buy_cost_krw = None
+    h.unit_price = 100
+    assert summary(d)[1]['pnl_pct'] is None
+    h.avg_buy_price = 100
+    h.currency = 'USD'
+    assert summary(d)[1]['pnl_pct'] is None
+
+
+def test_평균매입가_확인은_계획보유지문이나_매매를_바꾸지_않는다():
+    d = doc()
+    before = ip.holdings_stamp(d.holdings), plan_reconcile.stamp(d.holdings)
+    d.holdings[0].avg_buy_price = 100
+    assert (ip.holdings_stamp(d.holdings), plan_reconcile.stamp(d.holdings)) == before
+
+
+@pytest.mark.parametrize('price', [-1, float('inf'), float('nan')])
+def test_잘못된_평균매입가를_거부한다(price):
+    with pytest.raises(ValidationError):
+        ip.Holding(kind='stock', name='주식', code='005930', market='KR', qty=1, avg_buy_price=price)
+
+
 @pytest.mark.parametrize('missing_qty', [False, True])
 def test_입력평가액_또는_수량미확인은_매수비용이_있어도_수익률_미확인이다(missing_qty):
     d = doc()
@@ -205,3 +247,33 @@ def test_MCP_원가저장과_같은수량의_생략보존_수량변경의_미확
         row['quote_at'] = None
     prompt = plan_assets.prompt({**s, 'holdings_as_of': None, 'checked_at': None})
     assert 'buy_cost_krw' in prompt and 'pnl_pct' in prompt and '전일 대비' in prompt
+
+
+@pytest.mark.parametrize(('qty', 'sent', 'expected'), [(10, 'omit', 100), (11, 'omit', None),
+                                                     (10, None, None), (11, 110, 110)])
+def test_MCP_평균매입가는_같은수량일때만_생략을_보존한다(monkeypatch, qty, sent, expected):
+    d = doc()
+    d.holdings[0].avg_buy_price = 100
+    stored = []
+    async def latest(db, user):
+        return SimpleNamespace(doc=d.model_dump_json())
+    async def save(db, user, new, note):
+        stored.append(new)
+        return 2
+    async def prices(db, new):
+        return {}, {}, {}
+    class DB:
+        async def commit(self):
+            pass
+    monkeypatch.setattr(plan_ai, 'latest_rev', latest)
+    monkeypatch.setattr(plan_ai, '_save_rev', save)
+    monkeypatch.setattr(plan_ai, 'prices', prices)
+    holdings = [h.model_dump(mode='json') for h in d.holdings]
+    holdings[0]['qty'] = qty
+    holdings[0].pop('buy_cost_krw')
+    if sent == 'omit':
+        holdings[0].pop('avg_buy_price')
+    else:
+        holdings[0]['avg_buy_price'] = sent
+    asyncio.run(plan_ai._write(DB(), 991, 'holdings_set', {'holdings': holdings}))
+    assert (stored[-1] if stored else d).holdings[0].avg_buy_price == expected

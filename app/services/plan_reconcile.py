@@ -1,8 +1,32 @@
 """수량 검증·계획 기준 잔고·실행 이력. 전략과 기억을 임의로 바꾸지 않는다."""
 
 import re
+import hashlib
 
 from app.services import invest_plan as ip
+
+
+def preserve_execution(old: ip.PlanDoc, new: ip.PlanDoc) -> None:
+    """모든 저장/되돌리기에서 실제 기록을 합친다. 정정도 원본은 남긴다."""
+    records = {r.id: r.model_copy(deep=True) for r in old.execution_log}
+    for record in new.execution_log:
+        if record.id in records and record != records[record.id]:
+            raise ValueError("실행 기록은 덮어쓸 수 없습니다. 원본을 지정해 정정하세요")
+        if record.correction_of and record.correction_of not in records:
+            raise ValueError("정정할 실행 기록이 없습니다")
+        records[record.id] = record
+    # 구형 노드의 확정 사실도 별도 기록으로 남긴다. 미래 계획의 holdings는 실제 잔고로 쓰지 않는다.
+    for doc in (old, new):
+        for n in doc.nodes:
+            if not n.executed_at:
+                continue
+            signature = f"{n.id}:{n.executed_at}:" + (n.execution.model_dump_json() if n.execution else "reported")
+            rid = "legacy_" + hashlib.sha256(signature.encode()).hexdigest()[:24]
+            if rid not in records:
+                records[rid] = ip.ExecutionRecord(id=rid, reference=n.id, title=n.title, at=n.executed_at,
+                    status="confirmed" if n.execution else "reported", source="기존 계획의 실행 기록",
+                    before=n.execution.before if n.execution else None, after=n.execution.after if n.execution else None)
+    new.execution_log = list(records.values())
 
 
 def key(h: ip.Holding) -> tuple:
@@ -66,7 +90,7 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
     costs, cash_changes = {}, {}
     for k in dict.fromkeys([*before, *after]):
         b, a = before.get(k), after.get(k)
-        if b == a or b and a and b.model_dump(exclude={"buy_cost_krw"}) == a.model_dump(exclude={"buy_cost_krw"}):
+        if b == a or b and a and b.model_dump(exclude={"buy_cost_krw", "avg_buy_price"}) == a.model_dump(exclude={"buy_cost_krw", "avg_buy_price"}):
             continue
         if any(h.qty is None for h in (a, b) if h is not None):
             raise ValueError("수량 미확인")
@@ -82,7 +106,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         if qty < -1e-8:
             raise ValueError("보유보다 큰 매도")
         updated = (current or ref).model_copy(update={"qty": max(0, qty), "amount": None,
-                                                       "buy_cost_krw": None if delta else (current or ref).buy_cost_krw})
+                                                       "buy_cost_krw": None if delta else (current or ref).buy_cost_krw,
+                                                       "avg_buy_price": None if delta else (current or ref).avg_buy_price})
         if a and b and a.unit_price != b.unit_price:
             updated.unit_price = a.unit_price
         result[k] = updated
@@ -98,7 +123,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         if current is None or current.qty is None or current.qty + delta < -1e-8:
             raise ValueError("현금 수량 미확인 또는 부족")
         result[k] = current.model_copy(update={"qty": max(0, current.qty + delta), "amount": None,
-                                               "buy_cost_krw": None if delta else current.buy_cost_krw})
+                                               "buy_cost_krw": None if delta else current.buy_cost_krw,
+                                               "avg_buy_price": None if delta else current.avg_buy_price})
     for account, cost in costs.items():
         cash = [(k, h) for k, h in result.items() if h.account == account and h.kind == "cash"]
         if len(cash) != 1 or cash[0][1].qty is None:
@@ -108,7 +134,8 @@ def _rebase(n: ip.Node, parent: list[ip.Holding], prices: tuple) -> list[ip.Hold
         if not fx or h.qty - cost / fx < -1e-8:
             raise ValueError("환율 미확인 또는 현금 부족")
         result[k] = h.model_copy(update={"qty": max(0, h.qty - cost / fx), "amount": None,
-                                         "buy_cost_krw": None if cost else h.buy_cost_krw})
+                                         "buy_cost_krw": None if cost else h.buy_cost_krw,
+                                         "avg_buy_price": None if cost else h.avg_buy_price})
     return list(result.values())
 
 
