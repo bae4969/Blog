@@ -129,6 +129,7 @@ jobs:
             --build-arg "VCS_REF=$GITHUB_SHA" \
             --tag "$CI_IMAGE" .
           docker run --rm --entrypoint sh "$CI_IMAGE" -c '
+            codex --version &&
             test -s /app/public/vendor/chart.umd.min.js &&
             test -s /app/public/vendor/chartjs-plugin-zoom.min.js &&
             test -s /app/public/vendor/hammer.min.js &&
@@ -244,6 +245,7 @@ jobs:
             --build-arg "APP_VERSION=$VERSION" \
             --build-arg "VCS_REF=$GITHUB_SHA" \
             --tag "$IMAGE" .
+          docker run --rm --entrypoint codex "$IMAGE" --version
           docker push "$IMAGE"
           DIGEST_REF=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')
           IMAGE_DIGEST="${DIGEST_REF##*@}"

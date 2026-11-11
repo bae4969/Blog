@@ -1139,7 +1139,7 @@ async def _integrations_page(request: Request, form: dict | None = None, status_
     codex = {**codex_runner.login_state(), "logged_in": codex_runner.logged_in(),
              "account": await codex_runner.account(), "model": model,
              "effort": codex_runner.resolve_effort(model, cfg["ai_effort"]), "catalog": codex_runner.catalog(),
-             "aliases": codex_runner.aliases()}
+             "aliases": codex_runner.aliases(), "version": await codex_runner.version()}
     token = csrf.new_token(request)
     response = templates.TemplateResponse(
         request, "admin_integrations.html",
