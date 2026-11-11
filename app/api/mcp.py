@@ -82,7 +82,7 @@ _TOKENS: dict[str, dict] = {}
 _TTL = 1260
 
 
-def issue(user_index: int, read_only: bool = False, allow: tuple | None = None) -> str:
+def issue(user_index: int, read_only: bool = False, allow: tuple | None = None, context: dict | None = None) -> str:
     """`read_only` 면 쓰기 도구를 서버가 거절한다(매일 점검 — codex 쪽 승인을 안 켜도 서버에서 한 번 더 막는다).
     `allow` 는 이 상담에 연 쓰기 도구(없으면 전부)."""
     now = time.time()
@@ -91,7 +91,7 @@ def issue(user_index: int, read_only: bool = False, allow: tuple | None = None) 
             _TOKENS.pop(t, None)
     token = secrets.token_urlsafe(32)
     _TOKENS[token] = {"user": user_index, "exp": now + _TTL, "ro": read_only, "made": [],
-                      "allow": set(write_tools() if allow is None else allow)}
+                      "allow": set(write_tools() if allow is None else allow), "context": context or {}}
     return token
 
 
@@ -168,10 +168,13 @@ async def mcp(request: Request):
             return _text(mid, f"이 상담에서는 {name} 을 쓸 수 없습니다. " + getattr(mod, "CLOSED_HINT", ""), error=True)
         try:
             async with db_session() as db:
-                data = await mod.call(db, who["user"], name, args)
+                if hasattr(mod, "call_context"):
+                    data = await mod.call_context(db, who["user"], name, args, who["context"])
+                else:
+                    data = await mod.call(db, who["user"], name, args)
         except (ValueError, KeyError, TypeError) as e:
             return _text(mid, str(e), error=True)
-        if name in writes and isinstance(data, dict) and data.get("saved"):
+        if name in writes and isinstance(data, dict) and (data.get("saved") or data.get("prepared")):
             who["made"].append({"tool": name, **data})
         return _text(mid, json.dumps(data, ensure_ascii=False, default=str))
     return _error(mid, -32601, f"모르는 메서드: {method}")

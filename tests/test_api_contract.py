@@ -240,6 +240,9 @@ class TestWriteIsBearerOnly:
         ("get", "/api/v1/watchlist"),
         ("put", "/api/v1/watchlist/005930"),
         ("delete", "/api/v1/watchlist/005930"),
+        ("post", "/api/v1/assistant/chat/new"),
+        ("post", "/api/v1/plan/changes/test/apply"),
+        ("post", "/api/v1/plan/changes/test/dismiss"),
     ]
 
     @staticmethod

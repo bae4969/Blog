@@ -243,7 +243,8 @@ def test_실제_쓰기_순서로_실행후_잔고갱신과_후속계획을_함�
     snapshot = d.nodes[1].execution.model_dump_json()
     forged = d.nodes[1].execution.model_copy(deep=True)
     forged.before[1].qty = 0
-    assert not write("node_update", {"id": "b1", "fields": {"execution": forged.model_dump(mode="json")}})["saved"]
+    with pytest.raises(ValueError, match="과거 실행"):
+        write("node_update", {"id": "b1", "fields": {"execution": forged.model_dump(mode="json")}})
     assert state["doc"].nodes[1].execution.model_dump_json() == snapshot
 
 

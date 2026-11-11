@@ -92,6 +92,7 @@
             api('GET', '/api/v1/plan').then(setPlan).catch(function () {});
         }
     });
+    var strategyPanel = window.PlanStrategy(document.getElementById('planStrategy'), api, setPlan);
 
     // ── 도우미 ─────────────────────────────────────────────
 
@@ -1268,6 +1269,8 @@
     function setPlan(next) {
         if (plan && (next.rev_id || 0) < (plan.rev_id || 0)) return;
         plan = next;
+        strategyPanel.render(next);
+        treeEl.closest('.plan-stage').hidden = !next.doc.nodes.length && !document.getElementById('planStrategy').hidden;
         assetsPanel.setData(next.assets);
         render();
     }
@@ -1277,7 +1280,7 @@
         var q = expect ? '?expect=' + expect : '';
         return api('POST', '/api/v1/plan/revisions/' + revId + '/restore' + q).then(function (p) {
             setPlan(p);
-            window.toast('계획을 ' + revId + '번 버전으로 되돌렸습니다', 'success');
+            window.toast('계획을 ' + revId + '번으로 되돌렸습니다. 현재 잔고와 실행 기록은 보존했습니다', 'success');
         }).catch(function (e) { window.toast('되돌리지 못했습니다: ' + e.message, 'error'); });
     }
 

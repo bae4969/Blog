@@ -2,14 +2,12 @@
 
 상담([assistant_v1](assistant_v1.py))과 MCP([mcp](mcp.py))는 계획을 모른다. `main.py` 가 이 모듈을 둘에 붙인다.
 
-- MCP: 조회(지금 계획·버전 이력 — 시세·종목 검색은 [market_ai](market_ai.py)) + 쓰기(노드 추가·수정·삭제, 보유·현금흐름·계좌·부채·원칙·기억 통째로).
+- MCP: 조회(계획·이력·배분 계산) + 목적별 변경안 검토·원자적 반영. 옛 전체 교체 도구는 호환용이며 상담에는 열지 않는다.
   **계획을 고치는 길은 쓰기 도구뿐이다**(전에 쓰던 답 끝의 plan 블록은 2026-10-10 에 걷었다 — AI 가 노드 하나 고치려고
   문서 전체를 다시 쓰다 빠뜨리는 일이 없게). 쓰기마다 `PlanDoc` 으로 검증하고 통과하면 새 버전으로 쌓는다.
 - 상담: `begin` 이 상담 직전 계획을 읽고, `prompt` 가 프롬프트 조각을, `tools_for` 가 이번 상담에 열 쓰기 도구를,
   `finish` 가 상담이 쌓은 버전의 요약·[바뀐 것]·되돌리기를 낸다.
 """
-
-import re
 
 from sqlalchemy import text
 
@@ -17,14 +15,15 @@ from app.api.mcp import RO, RW, RW_DEL, obj
 from app.api.plan_v1 import _assets, _doc_of, _price_maps, _quotes, _save_rev, latest_rev, plan_view, prices, resolved_doc, write_lock
 from app.services import invest_plan as ip
 from app.services import plan_assets, plan_reconcile
+from app.api import plan_counsel
 
 #: 쓰기 도구 이름 — codex_runner 가 상담이 연 것에만 자동 승인을 건다.
-WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
-               "rules_set", "memory_set")
+LEGACY_WRITE_TOOLS = ("node_add", "node_update", "node_delete", "holdings_set", "cashflow_set", "accounts_set", "debts_set",
+                      "rules_set", "memory_set")
+WRITE_TOOLS = LEGACY_WRITE_TOOLS + plan_counsel.WRITE_TOOLS
 #: 원칙·기억 쓰기 — 웹 검색 결과의 지시(프롬프트 주입)로 바뀌면 이후 상담·점검에 계속 실린다. 사용자가 시킨 상담에만 연다.
 NOTE_TOOLS = ("rules_set", "memory_set")
-CLOSED_HINT = ("원칙·기억은 사용자가 '기억해·원칙으로·잊어·빼'처럼 시킨 상담에서만 고친다. "
-               "남길 만하면 사용자에게 \"원칙(기억)으로 남길까요?\" 하고 물어라")
+CLOSED_HINT = "목록 전체 교체 도구는 닫혀 있습니다. 목적별 변경안(plan_preview)을 검토한 뒤 plan_apply로 반영하세요"
 
 TOOLS = [
     {"annotations": RO, "name": "plan_get", "description": "지금 계획 문서와 노드별 평가(오늘 시세·원화 환산 금액·환율), 월 현금흐름 합계(cashflow)와 이벤트까지의 예상 적립(accrual).",
@@ -46,7 +45,7 @@ TOOLS = [
      "description": "노드 하나와 그 아래 노드를 모두 지운다.",
      "inputSchema": obj({"id": {"type": "string"}}, ["id"])},
     {"annotations": RW, "name": "holdings_set",
-     "description": "지금 보유(holdings) 목록을 통째로 바꾼다. buy_cost_krw는 현재 보유 전체의 총 매수비용(원), 미확인은 null. 수량 변경 시 매수비용도 확인한다. as_of 는 기준일 YYYY-MM-DD.",
+     "description": "지금 보유(holdings) 목록을 통째로 바꾼다. avg_buy_price는 평균매입단가(currency 기준), buy_cost_krw는 현재 보유 전체의 총 매수비용(원), 미확인은 null. 매입가를 unit_price에 넣지 않는다. 저장 후 plan_get으로 수량·평균가·원가·성과를 확인한다. as_of는 YYYY-MM-DD.",
      "inputSchema": obj({"holdings": {"type": "array", "items": {"type": "object"}}, "as_of": {"type": "string"}},
                         ["holdings"])},
     {"annotations": RW, "name": "cashflow_set",
@@ -65,6 +64,15 @@ TOOLS = [
      "description": "기억(memory — 사용자에 대한 사실·상황·선호) 목록을 통째로 바꾼다. 한 줄에 하나, 300자 이내, 최대 50줄.",
      "inputSchema": obj({"memory": {"type": "array", "items": {"type": "string"}}}, ["memory"])},
 ]
+TOOLS += plan_counsel.TOOLS
+
+
+async def call_context(db, user_index: int, name: str, args: dict, context: dict):
+    if name == "plan_preview":
+        return await plan_counsel.preview(db, user_index, args, context)
+    if name == "plan_apply":
+        return await plan_counsel.apply(db, user_index, args["change_id"], context)
+    return await call(db, user_index, name, args)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +80,10 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 
 async def call(db, user_index: int, name: str, args: dict):
+    if name == "plan_schema":
+        return plan_counsel.schema()
+    if name == "plan_allocate":
+        return await plan_counsel.allocate(db, user_index, args)
     if name == "plan_get":
         return await plan_view(db, await latest_rev(db, user_index))
     if name == "node_get":
@@ -132,6 +144,8 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
         if hit is None:
             raise ValueError(f"없는 노드입니다: {args.get('id')}")
         fields = {k: v for k, v in (args.get("fields") or {}).items() if k != "id"}
+        if (hit.get("executed_at") or hit.get("execution")) and any(hit.get(k) != v for k, v in fields.items()):
+            raise ValueError("과거 실행 노드는 고치지 않습니다. 실행 정정을 남기세요")
         hit.update(fields)
         what = f"노드 수정: {hit.get('title', hit['id'])}({', '.join(fields) or '변경 없음'})"
     elif name == "node_delete":
@@ -143,6 +157,8 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
             more = {n["id"] for n in nodes if n.get("parent") in gone} - gone
             gone |= more
             grew = bool(more)
+        if any(n["id"] in gone and (n.get("executed_at") or n.get("execution")) for n in nodes):
+            raise ValueError("실행 기록이 있는 노드는 삭제할 수 없습니다")
         data["nodes"] = [n for n in nodes if n["id"] not in gone]
         what = f"노드 삭제: {target}" + (f" 외 {len(gone) - 1}개" if len(gone) > 1 else "")
     elif name == "cashflow_set":
@@ -176,6 +192,8 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
             # 수량이 바뀌었으면 새 비용을 확인해야 하므로 생략된 비용은 미확인으로 둔다.
             if "buy_cost_krw" not in raw and len(previous) == 1 and ip.canonical(previous[0]).qty == ip.canonical(holding).qty:
                 holding.buy_cost_krw = previous[0].buy_cost_krw
+            if "avg_buy_price" not in raw and len(previous) == 1 and ip.canonical(previous[0]).qty == ip.canonical(holding).qty:
+                holding.avg_buy_price = previous[0].avg_buy_price
     if errs := plan_reconcile.quantity_errors(old, new):
         raise ValueError("수량 확인 필요 — 저장하지 않았습니다: " + "; ".join(errs[:8]))
     if old.holdings != new.holdings:
@@ -198,6 +216,7 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
             raise ValueError("재원 초과 — 저장하지 않았습니다: " + "; ".join(errs))
     if new == old:
         return {"saved": False, "summary": "변경 없음"}
+    plan_reconcile.preserve_execution(old, new)
     rev_id = await _save_rev(db, user_index, new, what)
     await db.commit()
     return {"saved": True, "rev_id": rev_id, "summary": what,
@@ -208,18 +227,9 @@ async def _write_locked(db, user_index: int, name: str, args: dict) -> dict:
 # 상담
 # ---------------------------------------------------------------------------
 
-#: 원칙·기억을 고치라는 말 — 이게 있는 상담에만 rules_set·memory_set 을 연다(2026-10-14 검토, 사용자 선택 A).
-#: 단어 검사라 넓게 잡는다("빼"·"지워"는 다른 뜻일 때도 열리지만 여는 쪽 실수라 괜찮다). 없으면 AI 가 "남길까요?"라고 묻는다.
-_NOTE_INTENT = re.compile(r"기억|원칙|규칙|잊|빼|지워|지우|삭제")
-#: 직전 답이 "원칙(기억)으로 남길까요?" 라고 물었으면 이번 답("ㅇㅇ")에 그 말이 없어도 연다 — 안 열면 물어 놓고
-#: 저장할 길이 없어 같은 질문만 되풀이했다(2026-10-16 운영 상담).
-_NOTE_ASKED = re.compile(r"(원칙|기억)으로\s*남길까요")
-
-
 def tools_for(message: str, last_reply: str = "") -> tuple:
-    if _NOTE_INTENT.search(message) or _NOTE_ASKED.search(last_reply):
-        return WRITE_TOOLS
-    return tuple(t for t in WRITE_TOOLS if t not in NOTE_TOOLS)
+    # 쓰기 범위는 변경안에 묶인 실제 사용자 요청과 서버가 저장한 이전 변경안으로 검증한다.
+    return plan_counsel.WRITE_TOOLS
 
 
 async def begin(db, user_index: int) -> dict:
@@ -230,11 +240,11 @@ async def begin(db, user_index: int) -> dict:
     px = _price_maps(quotes)
     plan_reconcile.rebase(doc, px)
     assets = _assets(doc, row, quotes, ip.valuate(doc, *px)["root"])
-    return {"row": row, "doc": doc, "assets": assets}
+    return {"row": row, "doc": doc, "assets": assets, "pending": await plan_counsel.pending(db, user_index)}
 
 
 def prompt(state: dict, now, allow: tuple) -> str:
-    base = ip.plan_prompt(state["doc"], "rules_set" in allow)
+    base = plan_counsel.prompt(state)
     return base + "\n\n" + plan_assets.prompt(state["assets"])
 
 
@@ -248,22 +258,33 @@ async def finish(db, user_index: int, state: dict, made: list[dict]) -> dict | N
     since = (await db.execute(text(
         "SELECT rev_id, summary FROM invest_plan_rev WHERE user_index = :u AND rev_id > :p ORDER BY rev_id"),
         {"u": user_index, "p": row.rev_id if row else 0})).all()
-    ours = {w["rev_id"] for w in made}
+    ours = {w["rev_id"] for w in made if w.get("saved") and w.get("rev_id")}
     mine = [r for r in since if r.rev_id in ours]
+    drafts = [w for w in made if w.get("prepared")]
+    remaining = await plan_counsel.pending(db, user_index) if drafts else []
+    remaining_by_id = {p["change_id"]: p for p in remaining}
+    proposed = next((remaining_by_id[w["change_id"]] for w in reversed(drafts) if w.get("change_id") in remaining_by_id), None)
     if not mine:
+        if proposed:
+            return {"source": "plan", "tail": "\n\n[반영 대기]\n" + "\n".join("- " + s for s in proposed["summary"]),
+                    "meta": {"plan_change_id": proposed["change_id"]},
+                    "toast": "투자계획 변경안을 검토할 수 있습니다", "undo": None, "note": None}
         return None
     latest = await latest_rev(db, user_index)
     new = _doc_of(latest)
-    undo = row.rev_id if row and len(mine) == len(since) else None
+    plan_changed = any(getattr(old, f) != getattr(new, f) for f in ("nodes", "strategy", "rules", "memory"))
+    undo = row.rev_id if row and plan_changed and len(mine) == len(since) else None
     rev_id = mine[-1].rev_id
-    changes = ip.change_lines(old, new)
+    from app.services.plan_changes import summary
+    changes = summary(old, new)
     return {
         "source": "plan",
         "tail": "\n\n[바뀐 것]\n" + "\n".join(f"- {c}" for c in changes[:30]) if changes else "",
-        "meta": {"plan_rev": rev_id, "badge": f"계획 버전 #{rev_id}"},
+        "meta": {"plan_rev": rev_id, "badge": f"계획 버전 #{rev_id}",
+                 **({"plan_change_id": proposed["change_id"]} if proposed else {})},
         "toast": "계획을 고쳤습니다: " + " · ".join(r.summary for r in mine)[:300] + f" ({ip.diff_summary(old, new)})",
-        "undo": {"label": "되돌리기", "method": "POST",
+        "undo": {"label": "계획 되돌리기", "method": "POST",
                  "url": f"/api/v1/plan/revisions/{undo}/restore?expect={latest.rev_id}",
-                 "done": f"계획을 {undo}번 버전으로 되돌렸습니다"} if undo else None,
-        "note": "상담 중 다른 저장이 있어 한 번에 되돌리지 않습니다 — 버전 기록에서 고르세요" if row and undo is None else "",
+                 "done": "계획을 되돌렸습니다. 현재 잔고와 실행 기록은 유지했습니다"} if undo else None,
+        "note": "상담 중 다른 저장이 있어 한 번에 되돌리지 않습니다 — 버전 기록에서 고르세요" if row and plan_changed and undo is None else "",
     }

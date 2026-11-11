@@ -14,6 +14,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="/css/plan.css?v={{ static_v }}">
 <link rel="stylesheet" href="/css/plan_assets.css?v={{ static_v }}">
+<link rel="stylesheet" href="/css/plan_strategy.css?v={{ static_v }}">
 {% endblock %}
 
 {% block content %}
@@ -30,6 +31,12 @@
 <section class="plan-card plan-todo" id="planTodo" hidden aria-label="지금 할 일"></section>
 
 <div class="plan-grid">
+    <div class="plan-workspace">
+    <div class="plan-strategy" id="planStrategy" hidden aria-label="목표와 시나리오"></div>
+    <template id="planStrategyIcons">
+        <span data-icon="check">{{ icons.i('check') }}</span>
+        <span data-icon="cancel">{{ icons.i('cancel') }}</span>
+    </template>
     {#
       트리 — 왼쪽 세로 날짜축(아래가 미래), 날짜마다 가로 점선, 노드는 원("시작"·가지 결과).
       날짜 라벨이나 원을 누르면 트리 위 오른쪽에 상세 창이 뜬다(좁은 화면에서는 아래에서 올라오는 시트).
@@ -49,6 +56,7 @@
             <div class="plan-float__body" id="planDetail"></div>
         </aside>
     </section>
+    </div>
     <aside class="plan-assets" id="planAssets" aria-labelledby="planAssetsTitle">
         <div class="plan-assets__head">
             <h2 id="planAssetsTitle">내 자산</h2>
@@ -115,5 +123,6 @@
 
 {% block extra_js %}
 <script src="/js/plan_assets.js?v={{ static_v }}" defer></script>
+<script src="/js/plan_strategy.js?v={{ static_v }}" defer></script>
 <script src="/js/plan.js?v={{ static_v }}" defer></script>
 {% endblock %}

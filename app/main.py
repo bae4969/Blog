@@ -29,7 +29,7 @@ from app.core.security import (
     refresh_session,
 )
 from app.api import blog_ai, market_ai, mcp, plan_ai
-from app.api.assistant_v1 import router as api_assistant_router
+from app.api.assistant_v1 import image_cleanup_loop, router as api_assistant_router
 from app.api.auth_v1 import router as api_auth_router
 from app.api.backtest_v1 import router as api_backtest_router
 from app.api.plan_v1 import mail_loop as plan_mail_loop
@@ -58,8 +58,13 @@ async def lifespan(app: FastAPI):
     logger.info("blog(api) 기동 — base_domain=%s", settings.base_domain)
     # 투자 계획 이벤트 시작 메일 — 1분마다 훑는다(SMTP 설정이 비면 아무것도 안 한다). 워커가 하나라 루프도 하나다.
     mailer = asyncio.create_task(plan_mail_loop())
-    yield
-    mailer.cancel()
+    image_cleaner = asyncio.create_task(image_cleanup_loop())
+    try:
+        yield
+    finally:
+        mailer.cancel()
+        image_cleaner.cancel()
+        await asyncio.gather(mailer, image_cleaner, return_exceptions=True)
 
 
 app = FastAPI(
