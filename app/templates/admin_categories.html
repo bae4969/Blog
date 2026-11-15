@@ -37,16 +37,8 @@
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card{% if not form %} collapsed{% endif %}">
-        <h2>블로그 카테고리 관리</h2>
-        <div class="stat-row">
-            <div class="stat-item"><span class="stat-label">전체 카테고리</span> <span class="stat-value">{{ rows | length }}</span></div>
-            <span class="stat-sep">·</span>
-            <div class="stat-item"><span class="stat-label">전체 게시글</span> <span class="stat-value">{{ '{:,}'.format(rows | sum(attribute='post_count')) }}</span></div>
-        </div>
-        <hr>
-
-        <h3 class="collapsible-header">
-            새 카테고리 생성
+        <h3 class="admin-group-heading collapsible-header">
+            <span>새 카테고리 생성<button type="button" class="admin-info" data-tip-tap aria-label="전체 카테고리 {{ rows | length }}&#10;전체 게시글 {{ '{:,}'.format(rows | sum(attribute='post_count')) }}">{{ icons.i('info') }}</button></span>
             <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </h3>
         <div class="collapsible-body">

@@ -43,15 +43,13 @@
 {% block content %}
 <div class="admin-content">
     <div class="admin-card stock-admin-management-card">
-        <h2>주식 구독 관리</h2>
-        <div class="stat-row">
+        <div id="subscriptionSummary" hidden>
             <div class="stat-item"><span class="stat-label">현재 필터 결과</span> <span class="stat-value">{{ '{:,}'.format(total) }}</span></div>
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">현재 시장 등록 종목</span> <span class="stat-value" id="registeredCountLabel">{{ '{:,}'.format(counts.get(market, 0)) }}</span></div>
             <span class="stat-sep">·</span>
             <div class="stat-item"><span class="stat-label">현재 시장 선택 수</span> <span class="stat-value" id="selectedCountLabel">0</span></div>
         </div>
-        <hr>
 
         <div class="stock-admin-toolbar">
             <div class="stock-admin-market-tabs">
@@ -69,6 +67,7 @@
             </form>
 
             <div class="stock-admin-actions">
+                <button type="button" class="admin-info" id="subscriptionInfo" data-tip-tap aria-label="구독 현황">{{ icons.i('info') }}</button>
                 <button type="button" class="btn btn-secondary stock-admin-action" id="resetSelectionButton">{{ icons.i('reset') }}<span>원래 상태로 되돌리기</span></button>
                 <button type="submit" form="stockAdminForm" class="btn btn-primary stock-admin-action">{{ icons.i('save') }}<span>구독 목록 저장</span></button>
             </div>
@@ -252,6 +251,8 @@ function updateStockAdminSelectionCount(selectionSet) {
     if (label) {
         label.textContent = countStockAdminSelectionsForMarket(selectionSet, stockAdminCurrentMarket).toLocaleString();
     }
+    document.getElementById('subscriptionInfo').setAttribute('aria-label',
+        document.getElementById('subscriptionSummary').textContent.replace(/\s+/g, ' ').trim());
 }
 
 function syncStockAdminCheckboxes(selectionSet) {

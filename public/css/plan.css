@@ -8,6 +8,8 @@
    2026-10-10 dataviz 검사기로 #262626 위 인접 쌍 CVD ΔE ≥ 8.4). 순서는 고정이고 순위로 다시 칠하지 않는다.
 */
 
+body.stock-page:has(.plan) #content { padding: 10px; }
+
 .plan {
     --plan-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
     --plan-h: calc(100dvh - var(--topbar-h, 3.5rem) - 7.5rem - var(--ai-peek, 0px));   /* 트리가 화면 높이를 채운다(AI 상담 손잡이 줄 위까지) */

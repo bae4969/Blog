@@ -3,6 +3,27 @@
    다크테마 · 보더리스 디자인 · 배경색 계층 구분
    =========================================== */
 
+/* 홈과 같은 본문 최대 폭. 관리자 메뉴를 포함한 전체 영역에 적용한다. */
+.admin-shell { padding-inline: 10px; }
+.admin-shell > section { display: block; max-width: 80rem; margin-inline: auto; box-sizing: border-box; padding: 0; background: transparent; border-radius: 0; }
+.admin-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px 0; border-bottom: 1px solid var(--bae-border); }
+.admin-toolbar::after { content: none; }
+.admin-toolbar h1 { flex: none; margin: 0; font-size: 14px; font-weight: 700; color: var(--bae-text-muted); white-space: nowrap; }
+.admin-menu { display: flex; gap: .125rem; min-width: 0; padding: .1875rem; border-radius: .625rem; background: var(--bae-bg-alt); overflow-x: auto; scrollbar-width: none; }
+.admin-menu::-webkit-scrollbar { display: none; }
+.admin-menu a { display: inline-flex; flex: none; align-items: center; height: 2rem; padding: 0 .625rem; border: 0; border-radius: .5rem; color: var(--bae-text-dim); font: inherit; font-size: .8125rem; font-weight: 700; white-space: nowrap; text-decoration: none; transition: color .15s, background-color .15s; }
+.admin-menu a:hover { color: var(--bae-text-primary); }
+.admin-menu a[aria-current=page] { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+.admin-menu a:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -2px; }
+.admin-shell .admin-content { padding: 0 0 20px; }
+.admin-shell .admin-card { background: transparent; border-radius: 0; box-shadow: none; margin: 0; padding: 16px 0; }
+.admin-shell .admin-table-wrap { margin-inline: 0; overflow-x: clip; }
+@media (max-width: 767.98px) {
+    .admin-split-table :is(th, td):is(:nth-child(2), :nth-child(5), :nth-child(6), :nth-child(7)) { display: none; }
+    .admin-split-table td { white-space: normal; overflow-wrap: anywhere; }
+}
+
+
 /* 관리자 콘텐츠 영역 */
 .admin-content {
     display: flex;
@@ -1352,3 +1373,68 @@
 .int-head { display: flex; flex: 1 1 100%; inline-size: 100%; align-items: center; justify-content: space-between; gap: 12px; margin-block: 20px 4px; }
 .int-head > h3 { inline-size: auto; flex: 0 1 auto; margin: 0; }
 .int-actions { display: inline-flex; gap: 6px; margin-inline-start: auto; }
+
+/* 관리자 설정 공통: 그룹 제목 → 입력/작업 → 목록, 같은 정렬과 간격. */
+.admin-shell #content { padding: 0 !important; } /* stocks.css의 본문 여백을 관리자에 중복 적용하지 않는다. */
+.admin-shell .admin-content { gap: 0; }
+/* 레거시 div::after clearfix가 flex/grid의 빈 항목으로 간격을 차지하지 않게 한다. */
+.admin-shell :is(.admin-content, .admin-card, .admin-form-grid, .admin-form-field,
+    .admin-form-actions, .stock-admin-toolbar, .stock-admin-market-tabs,
+    .stock-admin-actions, .int-head, .int-actions, .qc-sets)::after { content: none; }
+.admin-shell .admin-card + .admin-card { border-top: 1px solid var(--bae-border); }
+.admin-shell .admin-group-heading {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--bae-text-primary);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+}
+.admin-group-heading > span { display: inline-flex; align-items: center; min-width: 0; }
+.admin-shell .collapsible-header:hover { background: transparent; }
+.admin-shell .collapsible-body { padding-bottom: 16px; margin-bottom: 16px; }
+.admin-shell .collapsed .collapsible-body { visibility: hidden; padding-bottom: 0; margin-bottom: 0; }
+.admin-shell .admin-form { display: block; margin: 0; padding: 0; }
+.admin-shell .admin-form-grid { gap: 16px; }
+.admin-shell .admin-form-field { min-width: 0; }
+.admin-shell .admin-form-actions,
+.admin-shell .stock-admin-actions,
+.admin-shell .int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.admin-shell .admin-form-actions { margin-top: 16px; }
+.admin-shell .admin-form-actions > .btn { margin: 0; }
+.admin-shell .stock-admin-action { margin: 0; }
+.admin-shell .stock-admin-actions > .admin-info { margin: 0 4px 0 0; }
+.admin-shell .stock-admin-toolbar { margin: 0 0 16px; gap: 12px; }
+.admin-shell .int-head { margin: 0 0 16px; gap: 12px; }
+.admin-shell .int-head > .admin-group-heading { margin: 0; }
+.admin-shell .admin-form-grid ~ .int-head { border-top: 1px solid var(--bae-border); padding-top: 24px; margin-top: 24px; }
+.admin-shell .qc-sets { margin-top: 0; }
+.admin-shell .qc-set__title { font-size: 14px; margin: 0 0 8px; }
+.admin-shell .admin-form-field :is(input, select, .cs-btn),
+.admin-shell .stock-admin-search-form input {
+    min-width: 0;
+    min-height: 38px;
+    transition: border-color .15s, box-shadow .15s, background-color .15s;
+    padding: 8px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    font-size: 14px;
+    line-height: 20px;
+    box-sizing: border-box;
+}
+.admin-shell .admin-form-field :is(input, select, .cs-btn):focus,
+.admin-shell .stock-admin-search-form input:focus {
+    border-color: var(--bae-accent-fg);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bae-accent-fg);
+}

@@ -23,14 +23,8 @@
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card collapsed">
-        <h2>액면분할/병합 관리</h2>
-        <div class="stat-row">
-            <div class="stat-item"><span class="stat-label">등록된 이벤트</span> <span class="stat-value">{{ total }}</span></div>
-        </div>
-        <hr>
-
-        <h3 class="collapsible-header">
-            이벤트 등록
+        <h3 class="admin-group-heading collapsible-header">
+            <span>이벤트 등록<button type="button" class="admin-info" data-tip-tap aria-label="등록된 이벤트 {{ total }}">{{ icons.i('info') }}</button></span>
             <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </h3>
         <div class="collapsible-body">
@@ -83,7 +77,7 @@
             <p class="admin-placeholder">등록된 분할/병합 이벤트가 없습니다.</p>
         {% else %}
             <div class="admin-table-wrap">
-                <table class="admin-table">
+                <table class="admin-table admin-split-table">
                     <thead>
                         <tr>
                             <th>종목 코드</th>

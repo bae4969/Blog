@@ -34,6 +34,7 @@ from app.api.auth_v1 import router as api_auth_router
 from app.api.backtest_v1 import router as api_backtest_router
 from app.api.plan_v1 import mail_loop as plan_mail_loop
 from app.api.plan_v1 import router as api_plan_router
+from app.api.real_estate_v1 import router as api_real_estate_router
 from app.api.quotes_v1 import router as api_quotes_router
 from app.api.stocks_v1 import router as api_stocks_router
 from app.api.v1 import router as api_v1_router
@@ -42,6 +43,7 @@ from app.ui.admin import router as admin_router
 from app.ui.backtest import router as backtest_router
 from app.ui.plan import router as plan_router
 from app.ui.quotes import router as quotes_router
+from app.ui.real_estate import router as real_estate_router
 from app.ui.routes import router as ui_router
 from app.ui.stocks import router as stocks_router
 
@@ -131,7 +133,7 @@ app.add_middleware(OptionalAuthMiddleware)
 mimetypes.add_type("image/webp", ".webp")
 
 _PUBLIC = Path(__file__).parent.parent / "public"
-for _sub in ("css", "js", "res", "vendor", "uploads"):
+for _sub in ("css", "js", "res", "vendor", "uploads", "maps"):
     _dir = _PUBLIC / _sub
     if _dir.is_dir():
         app.mount(f"/{_sub}", StaticFiles(directory=_dir), name=f"public-{_sub}")
@@ -147,6 +149,8 @@ app.include_router(api_assistant_router) # /api/v1/assistant — 모든 화면 �
 app.include_router(mcp.router)          # /mcp — 상담 중 codex 가 조회하는 MCP(상담 한 번짜리 토큰)
 # 상담·MCP 에 붙는 기능 모듈 — 상담과 MCP 는 기능을 모르고, 모듈이 도구·프롬프트 조각·상담 뒤 요약을 낸다.
 mcp.register(plan_ai, market_ai, blog_ai)
+app.include_router(api_real_estate_router)
+app.include_router(real_estate_router)
 app.include_router(ui_router)
 app.include_router(admin_router)   # /admin/*
 app.include_router(stocks_router)   # /stocks — 목록·상세·차트

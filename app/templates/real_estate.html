@@ -1,0 +1,82 @@
+{% extends 'layout.html' %}
+{% import '_icons.html' as icons %}
+{% block title %}부동산 · Developer Notes{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/css/real_estate.css?v={{ static_v }}">{% endblock %}
+{% block content %}
+<main class="re-page" id="realEstate">
+  <h1 class="u-sr-only">전국 아파트 매매 분석</h1>
+  <div class="re-toolbar">
+    <span class="re-kind">아파트 매매</span>
+    <div class="re-tabs" role="group" aria-label="가격 지표">
+      <button type="button" disabled data-select="rePriceMetric" data-value="median" aria-pressed="true">중위가격</button>
+      <button type="button" disabled data-select="rePriceMetric" data-value="ppm" aria-pressed="false">㎡당 가격</button>
+    </div>
+    <div class="re-tabs" role="group" aria-label="지도 지표">
+      <button type="button" disabled data-select="reMetric" data-value="change" aria-pressed="true">연환산 상승률</button>
+      <button type="button" disabled data-select="reMetric" data-value="count" aria-pressed="false">누적 거래량</button>
+    </div>
+    <select hidden data-native disabled id="reMetric" aria-label="지도 지표"><option value="change">연환산 상승률</option><option value="count">거래량</option></select>
+    <select hidden data-native disabled id="rePriceMetric" aria-label="가격 지표"><option value="median" selected>중위 거래가격</option><option value="ppm">㎡당 중위가격</option></select>
+    <div class="re-toolbar-actions">
+      <div class="re-tabs re-periods" role="group" aria-label="조회 기간">
+        {% for years in [1, 3, 5, 10, 20] %}
+        <button type="button" disabled data-years="{{ years }}" aria-label="최근 {{ years }}년" aria-pressed="false">{{ years }}Y</button>
+        {% endfor %}
+      </div>
+      <button class="c-btn" id="reInfoButton" type="button" aria-label="분석 기준과 출처">{{ icons.i('info') }}</button>
+    </div>
+  </div>
+  <div id="reError" role="alert" class="re-error" hidden></div>
+  <div id="reLoading" class="re-loading" role="status" hidden>실거래를 집계하는 중…</div>
+  <div class="re-workspace">
+    <section class="re-map-panel" aria-label="지역별 히트맵">
+      <div class="re-map-head">
+        <nav class="re-breadcrumb" id="reBreadcrumb" aria-label="지역 경로"></nav>
+      </div>
+      <h2 id="reMapTitle" class="u-sr-only">전국</h2>
+      <div class="re-map-body">
+        <div class="re-legend" id="reLegend" aria-label="지도 범례"></div>
+        <div class="re-map-wrap"><svg id="reMap" viewBox="0 0 640 540" aria-label="지역별 아파트 히트맵"></svg></div>
+      </div>
+    </section>
+    <section class="re-detail" aria-label="선택 지역 분석">
+      <div class="re-detail-heading">
+        <div><h2 id="reDetailName">전국</h2><span id="reDetailPeriod" class="re-unit"></span></div>
+        <div class="re-chart-actions">
+        <button type="button" class="c-btn" id="reEnter" aria-label="선택 지역으로 이동" hidden>{{ icons.i('next') }}</button></div>
+      </div>
+      <div class="re-price-head">
+        <strong id="reHeadline">—</strong>
+        <strong id="reAnnualChange" class="re-muted" aria-label="연환산 상승률">—</strong>
+      </div>
+      <h3 id="reTrendTitle" class="u-sr-only">가격 추이</h3>
+      <div class="re-chart"><canvas id="rePriceChart" role="img" aria-label="가격 추이"></canvas></div>
+      <div class="re-volume-head"><h3>거래량</h3><strong id="reVolumeValue">—</strong></div>
+      <div class="re-chart re-chart-volume"><canvas id="reVolumeChart" role="img" aria-label="거래량 추이"></canvas></div>
+      <p id="reChartEmpty" class="re-empty" hidden>비교할 거래 표본이 없습니다.</p>
+    </section>
+    <section class="re-regions" aria-label="하위 지역 탐색">
+      <div class="re-panel-head"><h2>하위 지역</h2><div class="re-tabs" role="group" aria-label="지역 정렬"><button type="button" disabled data-select="reSort" data-value="region" aria-pressed="true">지역순</button><button type="button" disabled data-select="reSort" data-value="name" aria-pressed="false">이름순</button><button type="button" disabled data-select="reSort" data-value="change" aria-pressed="false">연환산순</button><button type="button" disabled data-select="reSort" data-value="count" aria-pressed="false">거래량순</button></div><select hidden data-native disabled id="reSort" aria-label="지역 정렬"><option value="region">지역순</option><option value="name">이름순</option><option value="change">연환산순</option><option value="count">거래량순</option></select></div>
+      <div id="reRegionRows"></div>
+    </section>
+  </div>
+  <dialog class="re-dialog" id="reInfo">
+    <div class="re-panel-head"><h2>분석 기준과 출처</h2><button type="button" class="c-btn" id="reCloseInfo" aria-label="닫기">{{ icons.i('cancel') }}</button></div>
+    <div class="re-info-body">
+      <p>아파트 매매 실거래 · 계약일 기준 · 취소 및 가격·면적이 0 이하인 거래 제외. 거래량과 중위 거래가격에는 직거래를 포함합니다.</p>
+      <p>지도는 차트에 현재 보이는 분기 범위를 나타냅니다. 차트 위 휠로 확대·축소하고 드래그로 좌우 이동합니다. 모바일은 두 손가락 확대·축소와 한 손가락 가로 이동을 지원합니다. 키보드로는 차트에 초점을 둔 뒤 +/−로 확대·축소, 좌우 화살표로 이동, Home으로 전체 기간을 봅니다. 전체 기간 보기 아이콘으로도 복원할 수 있습니다. 조작이 멈추면 지도 집계를 갱신합니다. 연환산 상승률(CAGR)은 시작 분기와 마지막 분기에 각각 비교 대상 거래가 2건 이상 있는 동일 단지·전용면적별 연환산 변화율의 중앙값이며, 누적 거래량은 해당 기간의 유효 거래 전체 합계입니다. 거래량 색상은 현재 지도에서 가장 많은 지역을 기준으로 연속적인 명암을 적용하며, 지역을 확대하거나 기간을 바꾸면 범례도 바뀝니다. 각 조합에서 ((마지막 분기 중위가격 ÷ 시작 분기 중위가격)^(1 ÷ 비교 연수) − 1) × 100을 구한 뒤 연환산 변화율들의 중앙값을 사용합니다. 비교 연수는 시작·끝 비교 구간의 중심일 사이 일수를 365.2425로 나눈 값입니다. 진행 분기의 끝값은 수집 기준일 직전 3개월을 사용하며 값은 잠정입니다. 조합별 가중치는 같으며, 지역 전체 중위가격의 변화율이나 분기별 변화율을 누적한 값이 아닙니다. 차트에 마우스를 올려도 지도 기간은 바뀌지 않습니다.</p>
+      <p>가격 차트는 분기봉입니다. 몸통은 첫 달과 마지막 달의 중위가격, 꼬리는 세 달 중위가격 중 최고·최저입니다. 개별 거래의 시가·종가·최고·최저가가 아닙니다. ㎡당 가격도 거래별 ㎡당 가격의 월 중위값으로 같은 방식으로 계산합니다. 세 월 구간 중 하나라도 거래가 없으면 봉을 표시하지 않습니다. 상단 가격은 해당 분기 전체 거래의 중위값이므로 봉의 끝값과 다를 수 있습니다. 완료된 분기는 달력 분기를 유지하고, 마지막 잠정 봉은 수집 기준일까지 최근 3개월을 한 달씩 나눈 세 구간을 사용합니다. 거래된 주택 구성이 달마다 달라지며, 공식 가격지수나 동일 세대 반복매매 지수가 아닙니다.</p>
+      <p>표본 5개 미만은 지도 색과 변화율 순위에서 제외합니다. 지도 가격 비교에는 거래 방식 미구분 자료를 포함하고, 직거래로 확인된 거래만 제외합니다. 미구분 거래를 중개거래로 간주하는 것은 아니며, 과거 자료에 식별할 수 없는 직거래가 섞여 있을 수 있습니다. 취소·잘못된 금액·면적은 제외하고, 시작·끝 구간에 같은 단지·전용면적의 비교 대상 거래가 각각 2건 이상인 조합을 사용합니다. 이 조건을 만족하는 조합이 부족하면 표본 부족으로 표시합니다. 이 기준은 통계적 유의성을 보증하지 않습니다. 층·동·향·수리 상태는 보정하지 않았습니다. 중위 거래가격 차트는 매 분기 거래된 주택 전체를 대상으로 하므로, 같은 단지·면적을 비교하는 지도와 상승·하락 방향이 다를 수 있습니다. 거래된 주택의 구성에 따라 달라지며 신축 등 비교 상대가 없는 주택은 지도 변화율에서 제외됩니다.</p>
+      <p>전국·시도·시의 가격 변화는 해당 지역의 원 표본을 모아 계산하며, 하위 지역 변화율의 평균이 아닙니다. 차트 기간을 바꿔도 같은 분기의 봉 값은 같습니다.</p>
+      <p>진행 중인 마지막 점은 분기 초에 거래량이 급감해 보이지 않도록 최근 3개월로 보완하며, 진행 중이거나 신고 지연이 남은 최근 분기는 잠정 표시합니다. 새 수집분은 화면이 열려 있을 때 5분마다 확인해 자동 반영합니다. 계약 즉시 반영되는 실시간 시세는 아닙니다. 종료된 기간도 취소·정정될 수 있습니다. 최근 3개월 이전의 취소·정정은 계속 갱신된다고 보장할 수 없습니다. 수집 완료는 무누락이나 신고 확정을 뜻하지 않습니다.</p>
+      <p id="reSourceInfo"></p><p id="reSampleInfo"></p>
+      <p>지도는 2026-10-01 경계 기준입니다. 전국 지도에서 서쪽 외곽 도서와 울릉·독도는 식별하기 쉽도록 확대하고 본토 가까이 이동 배치합니다. 제주도도 본토 가까이 이동 배치합니다. 지역 상세 지도에서도 멀리 떨어진 섬 묶음은 가까운 빈 해역으로 이동하고, 작은 섬은 식별하기 쉽도록 확대합니다. 실제 거리·위치를 나타내는 지도가 아닙니다. 현재 코드와 일치하는 자료만 지역 지도에 연결하며, 미연결 자료는 전국 집계에 포함하고 별도로 알립니다. 과거 행정구역의 경계 변화는 소급 보정하지 않습니다.</p>
+      <p>본 지도는 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a>의 공공누리 제1유형 행정동 경계를 가공한 <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> 자료를 사용합니다. 이 프로젝트에서 경계 합침·단순화·투영을 적용했습니다. <a href="/maps/real-estate/LICENSE-DATA.txt" target="_blank" rel="noopener">이용 조건</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
+    </div>
+  </dialog>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script src="/vendor/chart.umd.min.js" defer></script>
+<script src="/js/real_estate.js?v={{ static_v }}" defer></script>
+{% endblock %}
