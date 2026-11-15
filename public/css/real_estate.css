@@ -1,0 +1,86 @@
+/* 지도와 선택 지역 분석을 하나의 탐색면으로 연결한다. */
+body.stock-page:has(.re-page) #blog > section { background: transparent; padding: 0; }
+body.stock-page:has(.re-page) #content { padding: 10px; }
+.re-page { max-width: 80rem; margin: 0 auto; padding: 16px 0 32px; min-width: 0; overflow-x: clip; }
+.re-page *, .re-page *::before, .re-page *::after { box-sizing: border-box; }
+/* 레거시 clearfix가 flex/grid의 빈 항목이 되는 것을 막는다. */
+.re-page :where(div, section, nav)::after { content: none; }
+.re-toolbar, .re-panel-head, .re-filter, .re-breadcrumb, .re-legend, .re-map-head, .re-detail-heading, .re-volume-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.re-toolbar { flex-wrap: wrap; padding: 0 0 16px; }
+.re-toolbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; max-width: 100%; }
+.re-kind { font-size: 14px; font-weight: 700; margin-right: 0; }
+/* 홈 .sh-seg와 같은 중립색 선택 버튼. */
+.re-tabs { display: flex; gap: .125rem; padding: .1875rem; border-radius: .625rem; background: var(--bae-bg-alt); }
+.re-tabs button { display: inline-flex; align-items: center; gap: .3125rem; height: 2rem; padding: 0 .625rem; border: 0; border-radius: .5rem; background: none; color: var(--bae-text-dim); font: inherit; font-size: .8125rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: color .15s, background-color .15s; }
+.re-tabs button:hover { color: var(--bae-text-primary); }
+.re-tabs button[aria-pressed=true] { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+.re-tabs button:disabled { opacity: .5; cursor: default; }
+.re-filter { gap: 6px; font-size: 12px; color: var(--bae-text-dim); }
+.re-select { background: var(--bae-surface); color: var(--bae-text-primary); border: 1px solid var(--bae-border); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 14px; line-height: 20px; min-height: 38px; min-width: 0; max-width: 100%; }
+.re-select:hover { background: var(--bae-surface-hover); }
+.re-select:disabled { color: var(--bae-text-dim); cursor: default; }
+.re-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; border-top: 1px solid var(--bae-border); }
+.re-map-panel, .re-detail, .re-regions { display: block; min-width: 0; background: transparent; border-radius: 0; }
+.re-map-panel { display: flex; flex-direction: column; padding-top: 16px; }
+.re-map-head { justify-content: space-between; align-items: start; flex-wrap: wrap; }
+.re-periods { max-width: 100%; }
+.re-breadcrumb { gap: 4px; flex-wrap: wrap; min-height: 38px; font-size: 14px; }
+.re-breadcrumb a { color: var(--bae-text-dim); text-decoration: none; padding: 4px; border-radius: 4px; }
+.re-breadcrumb a[aria-current] { color: var(--bae-text-primary); font-weight: 700; }
+.re-breadcrumb a:hover { color: var(--bae-accent-fg); }
+.re-map-body { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px; flex: 1; min-width: 0; }
+.re-map-wrap { position: relative; flex: 1; min-width: 0; min-height: 360px; overflow: clip; }
+#reMap { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.re-map-region { cursor: pointer; outline: none; stroke: var(--bae-bg); stroke-width: 1; stroke-linejoin: round; vector-effect: non-scaling-stroke; transition: fill .18s, opacity .18s; }
+.re-map-region:hover, .re-map-region.is-selected { stroke: var(--bae-text-primary); stroke-width: 2; }
+.re-map-region:focus-visible { stroke: var(--bae-accent-fg); stroke-width: 3; outline: none; }
+#reMap.has-preview:not(.is-volume) .re-map-region:not(.is-selected) { opacity: .45; }
+.re-map-label { fill: var(--bae-text-primary); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--bae-bg); stroke-width: 3px; stroke-linejoin: round; }
+.re-legend { flex-direction: column; align-items: flex-start; align-self: center; gap: 9px; font-size: 11px; color: var(--bae-text-muted); margin: 12px 0; }
+.re-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.re-legend i, .re-legend svg { flex-shrink: 0; width: 12px; height: 8px; border-radius: 2px; }
+.re-detail { align-self: start; border-left: 1px solid var(--bae-divider); padding: 24px 0 16px 28px; }
+.re-detail-heading { justify-content: space-between; min-height: 58px; margin-bottom: 20px; }
+.re-detail-heading h2 { font-size: 22px; font-weight: 700; margin: 0 0 4px; overflow-wrap: anywhere; }
+.re-unit { font-size: 12px; color: var(--bae-text-dim); }
+.re-price-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+#reHeadline { font-size: clamp(28px, 3vw, 40px); line-height: 1.2; font-weight: 700; font-variant-numeric: tabular-nums; }
+#reAnnualChange { margin-left: auto; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#reAnnualChange.re-muted { font-size: 14px; font-weight: 400; }
+.re-chart { position: relative; height: 210px; min-width: 0; }
+.re-chart-volume { height: 120px; }
+.re-chart canvas { max-width: 100%; }
+.re-chart-actions { display: flex; align-items: center; gap: 8px; }
+.re-volume-head { justify-content: space-between; margin-top: 22px; margin-bottom: 10px; }
+.re-volume-head h3 { font-size: 13px; font-weight: 400; color: var(--bae-text-muted); margin: 0; }
+.re-volume-head strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.re-regions { grid-column: 1 / -1; margin-top: 16px; border-top: 1px solid var(--bae-divider); padding-top: 16px; }
+.re-panel-head { justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; }
+.re-panel-head h2 { font-size: 14px; font-weight: 500; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#reRegionRows { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 16px; }
+.re-region-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 8px; min-width: 0; border-radius: 4px; color: var(--bae-text-primary); font-size: 13px; text-decoration: none; font-variant-numeric: tabular-nums; }
+.re-region-row:hover, .re-region-row:focus-visible, .re-region-row.is-selected { background: var(--bae-surface); }
+.re-region-name { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.re-region-name b { font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.re-region-name small { color: var(--bae-text-dim); }
+.re-region-value { flex-shrink: 0; }
+.re-up { color: var(--chart-up-text); } .re-down { color: var(--chart-down-text); }
+.re-muted { color: var(--bae-text-dim); }
+.re-empty { color: var(--bae-text-dim); padding: 12px 0; font-size: 13px; }
+.re-error { color: var(--bae-danger); padding: 12px 0; font-size: 14px; }
+.re-loading { color: var(--bae-text-muted); padding: 8px 12px; font-size: 13px; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--bae-surface-alt); border: 1px solid var(--bae-border); border-radius: 8px; z-index: 1000; }
+.re-page[aria-busy=true] .re-workspace { opacity: .5; }
+.re-dialog { width: min(620px, calc(100vw - 32px)); --float-h: 70dvh; max-height: var(--float-h); color: var(--bae-text-primary); background: var(--bae-surface); border: 1px solid var(--bae-border); border-radius: 12px; padding: 0; overflow: visible; box-shadow: 0 20px 25px -5px rgb(0 0 0 / .4); }
+.re-dialog::backdrop { background: rgb(0 0 0 / .7); }
+.re-dialog[open] { display: flex; flex-direction: column; }
+.re-dialog > .re-panel-head { flex: 0 0 auto; padding: 12px 20px; margin: 0; border-bottom: 1px solid var(--bae-border); }
+.re-info-body { padding: 4px 20px 16px; font-size: 13px; color: var(--bae-text-muted); line-height: 1.7; overflow-y: auto; overflow-x: clip; overscroll-behavior: contain; min-height: 0; }
+.re-info-body p { margin: 12px 0; overflow-wrap: anywhere; }
+.re-info-body a { color: var(--bae-accent-fg); }
+.re-page [hidden] { display: none !important; }
+@media (max-width: 1023px) { .re-page { padding: 16px; } .re-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; } .re-detail { padding-left: 20px; } #reRegionRows { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .re-page { padding: 12px 12px 28px; } .re-kind { width: 100%; } .re-toolbar { gap: 8px; }  .re-workspace { display: block; } .re-map-head { gap: 8px; } .re-map-body { gap: 4px; flex: none; } .re-map-wrap { flex: none; min-height: 0; height: min(100vw, 430px); } .re-detail { padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--bae-divider); margin-top: 20px; } .re-detail-heading { margin-bottom: 12px; min-height: 0; } .re-detail-heading h2 { font-size: 20px; } .re-price-head { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; } #reHeadline { font-size: 32px; } .re-chart { height: 190px; } .re-chart-volume { height: 110px; } #reRegionRows { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; } .re-region-row { padding-inline: 4px; font-size: 12px; } }
+@media (pointer: coarse) { .re-region-row { min-height: 44px; } .re-tabs button { min-height: 40px; } .re-breadcrumb a { min-height: 36px; display: inline-flex; align-items: center; } }
+@media (prefers-reduced-motion: reduce) { .re-map-region { transition: none; } }
+
+.re-map-inset-label { fill: var(--bae-text-muted); text-anchor: middle; pointer-events: none; }
