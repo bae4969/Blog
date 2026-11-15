@@ -1,5 +1,4 @@
 /* 내 자산 — 계획과 12px 간격. 상담 시트의 배치·동작은 바꾸지 않는다. */
-.plan { max-inline-size: 90rem; }
 .plan-grid { grid-template-columns: minmax(0, 1fr) 23.875rem; gap: 12px; align-items: start; }
 .plan-assets { min-inline-size: 0; padding: 24px 24px 16px; border-radius: 20px; background: var(--bae-surface); color: var(--bae-text-primary); }
 .plan-assets :is(div, p, h2, h3, summary) { margin: 0; }

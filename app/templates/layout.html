@@ -2,9 +2,8 @@
   블로그 레이아웃 — PHP `views/blog/layout.php` + `views/home/{partials-head,header,footer}.php`
   를 하나로 옮긴 것이다.
 
-  ⚠️ **DOM 구조와 id·class 를 그대로 유지한다.** 스타일은 기존 `public/css/{common,blog}.css`
-     를 쓰므로 `#blog > section > (#side-panel, #content)` 중첩이 하나라도 어긋나면 화면이
-     무너진다(실제로 래퍼를 빼고 렌더했다가 카드 레이아웃이 통째로 깨졌다).
+  기존 콘텐츠 id·class 는 공통 스타일과 스크립트에서 사용한다.
+  관리자 화면은 admin-shell 안의 상단 메뉴와 전체 폭 콘텐츠 구조를 사용한다.
   ⚠️ 정적 자산(`/css`, `/res`)은 **이 앱이 직접 서빙**한다(`main.py` 의 mount). PHP 를
      걷어내면서 넘겨받은 것이라 URL 경로는 옛 그대로다.
 #}
@@ -283,50 +282,36 @@
       주식 화면의 `section` 은 배경·패딩이 없다(`section.stock-page-section { padding:0;
       background:transparent }`). 안 붙이면 표 바깥에 회색 판이 한 겹 더 깔린다.
     #}
+    {% if admin_menu is defined %}<div class="admin-shell">{% endif %}
     <section{% if is_stock_page %} class="stock-page-section"{% endif %}>
-        {#
-          ⚠️ 사이드바는 이제 **관리자 화면만** 쓴다(2026-09-22). 조건을
-             `not hide_sidebar` → `admin_menu is defined` 로 뒤집은 것이 전부다 —
-             관리자 5화면의 `aside#side-panel` + `ul#category` + `.sidebar-toggle` +
-             `toggleSidebar()` 는 한 픽셀도 안 바뀐다. 가장 크고 유일하게 렌더해 본
-             적 없던 위험을 정면돌파 대신 회피한 것이다.
-             주식 화면은 원래부터 사이드바가 없었다(`hide_sidebar`).
-
-          ⚠️ 이 목록과 `admin.py` 의 라우트는 **함께 움직인다.** 화면을 지우면서
-             여기 한 줄을 안 지우면 404 로 가는 메뉴가 남는다.
-          ⚠️ 주석을 아래 리스트 리터럴 **안에** 두면 표현식이 깨져 관리자 화면이
-             전부 500 이 된다. 반드시 태그 밖에 둘 것.
-        #}
+        {# 관리자 메뉴는 기존 경로를 유지하는 상단 가로 선택 메뉴다. #}
         {% if admin_menu is defined %}
-        <aside id="side-panel">
-            <button class="sidebar-toggle" onclick="toggleSidebar()">{{ icons.i('menu') }}<span>메뉴</span></button>
-            <div class="sidebar-content">
-                <div id="profile">관리자: {{ user.cn or user.uid if user else '' }}</div>
-                <ul id="category">
-                    {% for key, label, url in [
-                        ('categories', '블로그 카테고리', '/admin/categories'),
-                        ('stocks', '주식 구독 관리', '/admin/stocks'),
-                        ('quotes', '지수·환율 구독', '/admin/quotes'),
-                        ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
-                        ('wol', 'WOL', '/admin/wol'),
-                        ('integrations', '외부 연동', '/admin/integrations'),
-                    ] %}
-                    <li class="category {% if admin_menu == key %}category-selected{% endif %}"
-                        onclick="location.href='{{ url }}'">{{ label }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </aside>
+        <div class="admin-toolbar">
+            <h1>관리자 설정</h1>
+            <nav class="admin-menu" aria-label="관리자 설정 메뉴">
+                {% for key, label, url in [
+                    ('categories', '블로그 카테고리', '/admin/categories'),
+                    ('stocks', '주식 구독 관리', '/admin/stocks'),
+                    ('quotes', '지수·환율 구독', '/admin/quotes'),
+                    ('stock-splits', '액면분할 관리', '/admin/stock-splits'),
+                    ('wol', 'WOL', '/admin/wol'),
+                    ('integrations', '외부 연동', '/admin/integrations'),
+                ] %}
+                <a href="{{ url }}"{% if admin_menu == key %} aria-current="page"{% endif %}>{{ label }}</a>
+                {% endfor %}
+            </nav>
+        </div>
         {% endif %}
 
         {#
           사이드바가 없으면 `#content` 의 `width: calc(100% - 220px)` 가 남아 본문이 좁아진다.
           blog.css 에 이미 준비된 `stock-page-content`(width:100%)를 붙여 푼다.
         #}
-        <div id="content" {% if hide_sidebar %}class="stock-page-content"{% endif %}>
+        <div id="content" {% if hide_sidebar or admin_menu is defined %}class="stock-page-content"{% endif %}>
             {% block content %}{% endblock %}
         </div>
     </section>
+    {% if admin_menu is defined %}</div>{% endif %}
 
     {#
       ── 바닥글 ──────────────────────────────────────────────────────────
@@ -402,18 +387,8 @@
 // 카테고리 칩과 검색은 이제 진짜 링크·폼이라 JS 없이도 동작하고, JS 가 있으면
 // `blog_list.js` 가 가로채 새로고침 없이 거른다.
 
-function toggleSidebar() {
-    const c = document.querySelector('.sidebar-content');
-    const b = document.querySelector('.sidebar-toggle');
-    if (c.classList.contains('expanded')) { c.classList.remove('expanded'); b.classList.add('collapsed'); }
-    else { c.classList.add('expanded'); b.classList.remove('collapsed'); }
-}
 document.addEventListener('DOMContentLoaded', function () {
-    // blog.css 의 (max-width: 1023.98px)·(min-width: 1024px) 와 짝 — 1024px 부터 사이드바를 펼친다.
-    if (window.innerWidth < 1024) {
-        const b = document.querySelector('.sidebar-toggle');
-        if (b) b.classList.add('collapsed');
-    }
+    document.querySelector('.admin-menu [aria-current="page"]')?.scrollIntoView({block: 'nearest', inline: 'nearest'});
     // 관리자 화면의 접기/펼치기 카드. PHP 는 admin 레이아웃 푸터에 두고 있었다 —
     // 이게 없으면 `collapsed` 로 접힌 카드를 눌러도 펴지지 않아 폼이 영영 안 보인다.
     document.querySelectorAll('.collapsible-header').forEach(function (h) {

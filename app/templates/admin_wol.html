@@ -34,14 +34,8 @@
 <div class="admin-content">
 {# 안내는 `layout.html` 이 토스트로 띄운다(프로젝트 디자인 규칙). #}
     <div class="admin-card collapsible-card{% if not (form and form.where == 'create') %} collapsed{% endif %}">
-        <h2>WOL (Wake-on-LAN)<button type="button" class="admin-info" data-tip-tap
-            aria-label="· 같은 네트워크(LAN)에 있는 장치만 깨울 수 있습니다&#10;· 대상 장치의 BIOS/UEFI 에서 WOL 이 켜져 있어야 합니다&#10;· 패킷을 보냈다고 장치가 켜진다는 보장은 없습니다&#10;· MAC 주소 형식: AA-BB-CC-DD-EE-FF 또는 AA:BB:CC:DD:EE:FF">{{ icons.i('info') }}</button></h2>
-        <div class="stat-row">
-            <div class="stat-item"><span class="stat-label">등록된 장치</span> <span class="stat-value">{{ rows | length }}</span></div>
-        </div>
-        <hr>
-        <h3 class="collapsible-header">
-            새 장치 등록
+        <h3 class="admin-group-heading collapsible-header">
+            <span>새 장치 등록<button type="button" class="admin-info" data-tip-tap aria-label="등록된 장치 {{ rows | length }}&#10;같은 네트워크(LAN)의 장치만 깨울 수 있습니다.&#10;대상 장치의 BIOS/UEFI에서 WOL을 켜야 합니다.&#10;패킷 전송이 장치 부팅을 보장하지는 않습니다.&#10;MAC 주소: AA-BB-CC-DD-EE-FF 또는 AA:BB:CC:DD:EE:FF">{{ icons.i('info') }}</button></span>
             <svg class="collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </h3>
         <div class="collapsible-body">
