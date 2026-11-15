@@ -25,4 +25,5 @@ jinja2                # 템플릿 컴파일 검사에도 쓰인다
 
 # 테스트 도구
 pytest
+pytest-asyncio
 httpx                 # fastapi.testclient 가 쓴다
