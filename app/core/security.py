@@ -162,9 +162,11 @@ async def refresh_session(request: Request) -> tuple[AuthUser, str, str | None] 
         return None
 
 
-def attach_session(response, token: str, device_token: str | None) -> None:
+def attach_session(
+    response, token: str, device_token: str | None, *, domain: str | None = None
+) -> None:
     """갱신한 토큰을 쿠키로 심는다 — auth 와 **같은 속성**이어야 덮어써진다."""
-    common = {"domain": settings.cookie_domain, "path": "/",
+    common = {"domain": domain or settings.cookie_domain, "path": "/",
               "httponly": True, "secure": True, "samesite": "lax"}
     response.set_cookie(settings.cookie_name, token, max_age=_SESSION_MAX_AGE, **common)
     if device_token:

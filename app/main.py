@@ -57,7 +57,8 @@ async def lifespan(app: FastAPI):
         await fetch_public_key()
     except Exception:
         logger.warning("auth 공개키를 아직 못 받았다 — 첫 요청에서 다시 시도한다")
-    logger.info("blog(api) 기동 — base_domain=%s", settings.base_domain)
+    logger.info("blog(api) 기동 — base_domain=%s allowed_domains=%s",
+                settings.base_domain, settings.allowed_domains)
     # 투자 계획 이벤트 시작 메일 — 1분마다 훑는다(SMTP 설정이 비면 아무것도 안 한다). 워커가 하나라 루프도 하나다.
     mailer = asyncio.create_task(plan_mail_loop())
     image_cleaner = asyncio.create_task(image_cleanup_loop())
@@ -111,7 +112,7 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
         request.state.renewed_token = renewed[0] if renewed else None
         response = await call_next(request)
         if renewed is not None:
-            attach_session(response, *renewed)
+            attach_session(response, *renewed, domain=settings.cookie_domain_for(request))
         return response
 
     def _skip(self, path: str) -> bool:

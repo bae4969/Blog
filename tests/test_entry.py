@@ -21,6 +21,10 @@ def client():
     ("blog.bdda.duckdns.org", "/blog"),
     ("stock.bdda.duckdns.org", "/stocks"),
     ("blogtest.bdda.duckdns.org", "/stocks"),   # `blog` 로 시작해도 `blog` 는 아니다
+    ("blog.onulkit.com", "/blog"),
+    ("stock.onulkit.com", "/stocks"),
+    ("blogtest.onulkit.com", "/stocks"),
+    ("BLOG.ONULKIT.COM:443", "/blog"),
     ("localhost:8080", "/stocks"),
 ])
 def test_루트는_도메인별로_나뉜다(client, host, target):
@@ -29,6 +33,11 @@ def test_루트는_도메인별로_나뉜다(client, host, target):
     assert r.headers["location"] == target
 
 
-def test_쿼리를_실어_보낸다(client):
-    r = client.get("/?market=US", headers={"host": "stock.bdda.duckdns.org"}, follow_redirects=False)
-    assert r.headers["location"] == "/stocks?market=US"
+@pytest.mark.parametrize("host, target", [
+    ("stock.bdda.duckdns.org", "/stocks?market=US"),
+    ("stock.onulkit.com", "/stocks?market=US"),
+    ("blog.onulkit.com", "/blog?market=US"),
+])
+def test_쿼리를_실어_보낸다(client, host, target):
+    r = client.get("/?market=US", headers={"host": host}, follow_redirects=False)
+    assert r.headers["location"] == target

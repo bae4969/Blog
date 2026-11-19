@@ -64,7 +64,7 @@ async def root_by_subdomain(request: Request) -> RedirectResponse:
        `blog.` 로 들어온 사람만 블로그로 보낸다(그 주소를 친 사람은 블로그를 보러 왔고,
        옛 즐겨찾기도 그대로 산다). `blogtest` 는 `blog` 가 아니라 주식으로 간다.
     """
-    host = request.headers.get("host", "localhost").split(":")[0]
+    host = request.headers.get("host", "localhost").split(":")[0].lower()
     subdomain = host.split(".")[0]
     target = "/blog" if subdomain == "blog" else "/stocks"
     if request.url.query:
@@ -120,7 +120,7 @@ async def _post_list(request: Request, group: str):
             "search": search,
             "nav_group": group,
             "list_path": _LIST_PATH[group],
-            "auth_public_url": settings.auth_public_url,
+            "auth_public_url": settings.auth_public_url_for(request),
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
         },
@@ -270,7 +270,7 @@ async def post_detail(request: Request):
             "is_owner": is_owner,
             "can_moderate": can_moderate,
             "csrf_token": csrf_token,
-            "auth_public_url": settings.auth_public_url,
+            "auth_public_url": settings.auth_public_url_for(request),
             "contact_email": settings.contact_email,
             "github_url": settings.github_url,
         },
@@ -304,7 +304,7 @@ async def _shell_ctx(request: Request, db, level: int, category_id: int | None =
         "categories": categories,
         "category_id": category_id,
         "search": "",
-        "auth_public_url": settings.auth_public_url,
+        "auth_public_url": settings.auth_public_url_for(request),
         "contact_email": settings.contact_email,
         "github_url": settings.github_url,
     }

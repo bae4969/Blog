@@ -11,6 +11,28 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _normalize_domain(value: str) -> str:
+    """도메인 문자열 정규화 — 소문자·앞뒤 공백과 점 제거."""
+    return value.strip().strip(".").lower()
+
+
+def _extract_host(request_or_host) -> str:
+    """Request 또는 호스트 문자열에서 포트·끝 점을 뗀 소문자 호스트명을 꺼낸다."""
+    if request_or_host is None:
+        return ""
+    if isinstance(request_or_host, str):
+        raw = request_or_host
+    else:
+        raw = request_or_host.headers.get("host", "") or (request_or_host.url.hostname or "")
+    raw = raw.strip().lower()
+    if not raw:
+        return ""
+    if raw.startswith("["):
+        end = raw.find("]")
+        return raw[1:end] if end != -1 else raw
+    return raw.split(":", 1)[0].rstrip(".")
+
+
 class Settings(BaseSettings):
     # PHP 쪽 .env 와 섞이지 않게 파일명을 나눈다.
     model_config = SettingsConfigDict(
@@ -22,6 +44,34 @@ class Settings(BaseSettings):
 
     # 환경마다 다른 값은 .env.api 에서 받는다 — 공개 저장소라 기본값은 예시만 둔다.
     base_domain: str = Field(default="example.com", alias="BASE_DOMAIN")
+    # 병행 운영할 추가 상위 도메인(쉼표·공백 구분, 예: "onulkit.com"). 10.auth 와 같은 규약.
+    extra_domains: str = Field(default="", alias="EXTRA_DOMAINS")
+
+    @property
+    def allowed_domains(self) -> tuple[str, ...]:
+        """허용된 상위 도메인 화이트리스트(주 도메인 우선, 중복 제거)."""
+        raw_items = [self.base_domain, *self.extra_domains.replace(",", " ").split()]
+        seen: list[str] = []
+        for item in raw_items:
+            domain = _normalize_domain(item)
+            if domain and domain not in seen:
+                seen.append(domain)
+        return tuple(seen)
+
+    def match_domain(self, host: str | None) -> str | None:
+        """호스트가 허용 도메인 중 하나(자신 또는 서브도메인)에 속하면 그 상위 도메인."""
+        normalized = _extract_host(host)
+        if not normalized:
+            return None
+        matches = [
+            d for d in self.allowed_domains if normalized == d or normalized.endswith(f".{d}")
+        ]
+        return max(matches, key=len) if matches else None
+
+    def domain_for(self, request_or_host=None) -> str:
+        """요청 호스트에 대응하는 상위 도메인. 화이트리스트 밖(내부 호출 등)이면 `BASE_DOMAIN`."""
+        matched = self.match_domain(_extract_host(request_or_host))
+        return matched or _normalize_domain(self.base_domain)
 
     # ── 데이터베이스 ──────────────────────────────────────────────
     # 운영 블로그와 같은 스키마다. 읽기만 하는 동안은 계정에 SELECT 만 줘도 된다.
@@ -43,7 +93,18 @@ class Settings(BaseSettings):
     #: 쿠키를 심을 도메인. 서브도메인이 공유해야 하므로 앞에 점을 붙인다(auth 와 같은 규약).
     @property
     def cookie_domain(self) -> str:
-        return f".{self.base_domain}"
+        return f".{_normalize_domain(self.base_domain)}"
+
+    def cookie_domain_for(self, request_or_host=None) -> str:
+        """요청 호스트 계열의 쿠키 도메인(`.bdda.duckdns.org` / `.onulkit.com`)."""
+        return f".{self.domain_for(request_or_host)}"
+
+    def auth_public_url_for(self, request_or_host=None) -> str:
+        """요청 호스트 계열의 브라우저용 auth 주소. 화이트리스트 밖이면 `AUTH_PUBLIC_URL`."""
+        matched = self.match_domain(_extract_host(request_or_host))
+        if matched:
+            return f"https://auth.{matched}"
+        return self.auth_public_url.rstrip("/")
 
     # ── 권한 ──────────────────────────────────────────────────────
     # PHP 규약을 그대로 따른다: level 은 **낮을수록** 권한이 높다(0:root … 4:visitor).
