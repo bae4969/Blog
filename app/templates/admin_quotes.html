@@ -81,55 +81,60 @@
             {# JS 가 죽었을 때의 안전망. 정상 동작 시에는 제출 직전에 초안으로 교체된다. #}
             <div id="dynamicSelectionInputs">{% for k in keepers %}<input type="hidden" name="selected_codes" value="{{ k }}">{% endfor %}</div>
 
-            <div class="stocks-table admin-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>선택</th>
-                            <th>이름</th>
-                            <th>코드</th>
-                            <th>분류</th>
-                            <th>저장 이름</th>
-                            <th>환산</th>
-                            <th>등록 상태</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for q in rows %}
-                            <tr class="admin-table-row {{ 'is-selected' if q.is_registered else '' }}" data-selection-key="{{ q.code }}">
-                                <td class="admin-select-cell">
-                                    <input
-                                        type="checkbox"
-                                        class="admin-stock-checkbox"
-                                        name="selected_codes"
-                                        value="{{ q.code }}"
-                                        {{ 'checked' if q.is_registered else '' }}
-                                    >
-                                </td>
-                                <td class="stock-name-cell">
-                                    <div class="stock-name-kr">{{ q.name_kr or q.code }}</div>
-                                    {% if q.name_en %}
-                                        <div class="stock-name-en">{{ q.name_en }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="stock-code">{{ q.code }}</td>
-                                <td><span class="type-badge type-{{ q.category|lower }}">{{ category_labels.get(q.category, q.category) }}</span></td>
-                                {# 저장 이름·환산식은 서버가 기존 행에서 물려받는다 — 여기서는 보여주기만 한다. #}
-                                <td class="stock-code">{{ q.query_name or '—' }}</td>
-                                <td class="quote-na">
-                                    {%- if q.operator and q.operator != 'NONE' -%}
-                                        {{ q.base_code }} {{ '×' if q.operator == 'MUL' else '÷' }}
-                                    {%- else -%}—{%- endif -%}
-                                </td>
-                                <td>{{ '등록됨' if q.is_registered else '미등록' }}</td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="7" class="no-data">조회된 항목이 없습니다.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="admin-list-wrap admin-list--quotes">
+                {% if rows %}
+                <div class="admin-list-head" aria-hidden="true">
+                    <span class="ali-center">선택</span>
+                    <span>이름</span>
+                    <span>코드</span>
+                    <span class="ali-center">분류</span>
+                    <span class="ali-col-query">저장 이름</span>
+                    <span class="ali-center ali-col-conv">환산</span>
+                    <span class="ali-center">상태</span>
+                </div>
+                <div class="admin-list">
+                    {% for q in rows %}
+                        <div class="admin-list-item admin-table-row {{ 'is-selected' if q.is_registered else '' }}" data-selection-key="{{ q.code }}">
+                            <label class="ali-check">
+                                <input
+                                    type="checkbox"
+                                    class="admin-stock-checkbox"
+                                    name="selected_codes"
+                                    value="{{ q.code }}"
+                                    aria-label="{{ q.name_kr or q.code }} 선택"
+                                    {{ 'checked' if q.is_registered else '' }}
+                                >
+                            </label>
+                            <div class="ali-main">
+                                <div class="ali-title" title="{{ q.name_kr or q.code }}">{{ q.name_kr or q.code }}</div>
+                                {% if q.name_en %}
+                                    <div class="ali-sub" title="{{ q.name_en }}">{{ q.name_en }}</div>
+                                {% endif %}
+                                <div class="ali-mobile-meta">
+                                    <span>{{ q.code }}</span>
+                                    <span class="type-badge type-{{ q.category|lower }}">{{ category_labels.get(q.category, q.category) }}</span>
+                                    {% if q.query_name %}<span>{{ q.query_name }}</span>{% endif %}
+                                </div>
+                            </div>
+                            <div class="ali-meta ali-col-code">{{ q.code }}</div>
+                            <div class="ali-center ali-col-cat"><span class="type-badge type-{{ q.category|lower }}">{{ category_labels.get(q.category, q.category) }}</span></div>
+                            {# 저장 이름·환산식은 서버가 기존 행에서 물려받는다 — 여기서는 보여주기만 한다. #}
+                            <div class="ali-meta ali-col-query">{{ q.query_name or '—' }}</div>
+                            <div class="ali-meta ali-center ali-col-conv">
+                                {%- if q.operator and q.operator != 'NONE' -%}
+                                    {{ q.base_code }} {{ '×' if q.operator == 'MUL' else '÷' }}
+                                {%- else -%}—{%- endif -%}
+                            </div>
+                            <div class="ali-status {{ 'is-on' if q.is_registered else '' }}">
+                                <span class="ali-dot" aria-hidden="true"></span>
+                                <span>{{ '등록됨' if q.is_registered else '미등록' }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                    <p class="admin-list-empty">조회된 항목이 없습니다.</p>
+                {% endif %}
             </div>
 
             {% if total_pages > 1 %}
