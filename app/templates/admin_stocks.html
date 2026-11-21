@@ -82,62 +82,64 @@
             {# JS 가 죽었을 때의 안전망. 정상 동작 시에는 제출 직전에 초안으로 교체된다. #}
             <div id="dynamicSelectionInputs">{% for k in keepers %}<input type="hidden" name="selected_codes" value="{{ k }}">{% endfor %}</div>
 
-            <div class="stocks-table admin-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>선택</th>
-                            <th>종목명</th>
-                            <th>코드</th>
-                            <th>시장</th>
-                            <th>유형</th>
-                            <th>현재가</th>
-                            <th>등록 상태</th>
-                            <th>이동</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in rows %}
-                            {% set selection_key = prefix ~ ':' ~ stock.code %}
-                            {% set is_us = stock.market in ('NYSE', 'NASDAQ', 'AMEX') %}
-                            <tr class="admin-table-row {{ 'is-selected' if stock.is_registered else '' }}" data-selection-key="{{ selection_key }}">
-                                <td class="admin-select-cell">
-                                    <input
-                                        type="checkbox"
-                                        class="admin-stock-checkbox"
-                                        name="selected_codes"
-                                        value="{{ selection_key }}"
-                                        {{ 'checked' if stock.is_registered else '' }}
-                                    >
-                                </td>
-                                <td class="stock-name-cell">
-                                    <div class="stock-name-kr">{{ stock.name_kr or '' }}</div>
-                                    {% if stock.name_en %}
-                                        <div class="stock-name-en">{{ stock.name_en }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="stock-code">{{ stock.code or '' }}</td>
-                                <td><span class="market-badge market-{{ (stock.market or '') | lower }}">{{ stock.market or '' }}</span></td>
-                                <td><span class="type-badge type-{{ (stock.stock_type or 'stock')|lower }}">{{ stock.stock_type or '' }}</span></td>
-                                <td class="stock-price">
-                                    {{- '$' if is_us else '' -}}
-                                    {{- '{:,.2f}'.format(stock.price|float) if is_us else '{:,.0f}'.format(stock.price|float) -}}
-                                    {{- '' if is_us else '원' -}}
-                                </td>
-                                <td>{{ '등록됨' if stock.is_registered else '미등록' }}</td>
-                                <td>
-                                    <a class="stock-admin-view-link" href="/stocks/view?code={{ stock.code|urlencode }}{{ '&market=COIN' if prefix == 'COIN' else '' }}">
-                                        {{- icons.i('open') }}<span>상세 보기</span>
-                                    </a>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="8" class="no-data">조회된 종목이 없습니다.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="admin-list-wrap admin-list--stocks">
+                {% if rows %}
+                <div class="admin-list-head" aria-hidden="true">
+                    <span class="ali-center">선택</span>
+                    <span>종목명</span>
+                    <span>코드</span>
+                    <span class="ali-center">시장</span>
+                    <span class="ali-center ali-col-type">유형</span>
+                    <span class="ali-right ali-col-price">현재가</span>
+                    <span class="ali-center">상태</span>
+                    <span></span>
+                </div>
+                <div class="admin-list">
+                    {% for stock in rows %}
+                        {% set selection_key = prefix ~ ':' ~ stock.code %}
+                        {% set is_us = stock.market in ('NYSE', 'NASDAQ', 'AMEX') %}
+                        {% set price_text = ('$' if is_us else '') ~ ('{:,.2f}'.format(stock.price|float) if is_us else '{:,.0f}'.format(stock.price|float)) ~ ('' if is_us else '원') %}
+                        <div class="admin-list-item admin-table-row {{ 'is-selected' if stock.is_registered else '' }}" data-selection-key="{{ selection_key }}">
+                            <label class="ali-check">
+                                <input
+                                    type="checkbox"
+                                    class="admin-stock-checkbox"
+                                    name="selected_codes"
+                                    value="{{ selection_key }}"
+                                    aria-label="{{ stock.name_kr or stock.code }} 선택"
+                                    {{ 'checked' if stock.is_registered else '' }}
+                                >
+                            </label>
+                            <div class="ali-main">
+                                <div class="ali-title" title="{{ stock.name_kr or stock.code }}">{{ stock.name_kr or stock.code }}</div>
+                                {% if stock.name_en %}
+                                    <div class="ali-sub" title="{{ stock.name_en }}">{{ stock.name_en }}</div>
+                                {% endif %}
+                                <div class="ali-mobile-meta">
+                                    <span>{{ stock.code or '' }}</span>
+                                    <span class="market-badge market-{{ (stock.market or '') | lower }}">{{ stock.market or '' }}</span>
+                                    <span>{{ price_text }}</span>
+                                </div>
+                            </div>
+                            <div class="ali-meta ali-col-code">{{ stock.code or '' }}</div>
+                            <div class="ali-center ali-col-market"><span class="market-badge market-{{ (stock.market or '') | lower }}">{{ stock.market or '' }}</span></div>
+                            <div class="ali-center ali-col-type"><span class="type-badge type-{{ (stock.stock_type or 'stock')|lower }}">{{ stock.stock_type or '' }}</span></div>
+                            <div class="ali-num ali-col-price">{{ price_text }}</div>
+                            <div class="ali-status {{ 'is-on' if stock.is_registered else '' }}">
+                                <span class="ali-dot" aria-hidden="true"></span>
+                                <span>{{ '등록됨' if stock.is_registered else '미등록' }}</span>
+                            </div>
+                            <div class="ali-actions">
+                                <a class="ali-icon-link" href="/stocks/view?code={{ stock.code|urlencode }}{{ '&market=COIN' if prefix == 'COIN' else '' }}" aria-label="상세 보기">
+                                    {{- icons.i('open') }}<span>상세 보기</span>
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                    <p class="admin-list-empty">조회된 종목이 없습니다.</p>
+                {% endif %}
             </div>
 
             {% if total_pages > 1 %}

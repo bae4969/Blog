@@ -121,12 +121,14 @@ class Settings(BaseSettings):
 
     docs_enabled: bool = Field(default=False, alias="DOCS_ENABLED")
 
-    # ── 투자 계획 AI(codex CLI) ──────────────────────────────────
-    # 블로그 컨테이너 안에서 `codex exec` 를 부른다(app/services/codex_runner.py). 경로만 여기 — 로그인은
-    # 관리자 › 외부 연동의 기기 코드 흐름으로 하고 `CODEX_HOME/auth.json` 에 남는다.
+    # ── AI CLI (codex · agy) ─────────────────────────────────────
+    # 블로그 컨테이너 안에서 `codex exec` 또는 `agy -p=` 를 부른다(app/services/{codex,agy,ai}_runner.py).
+    # 로그인은 관리자 › 외부 연동에서 하며 codex 는 `CODEX_HOME/auth.json`, agy 는 `AGY_HOME` 아래에 남는다.
     codex_bin: str = Field(default="codex", alias="CODEX_BIN")
     codex_home: str = Field(default="", alias="CODEX_HOME")
-    # 상담 중 codex 가 붙는 블로그 MCP — 같은 컨테이너의 앱 자신(uvicorn 8080).
+    agy_bin: str = Field(default="", alias="AGY_BIN")
+    agy_home: str = Field(default="", alias="AGY_HOME")
+    # 상담 중 AI CLI 가 붙는 블로그 MCP — 같은 컨테이너의 앱 자신(uvicorn 8080).
     plan_mcp_url: str = Field(default="http://127.0.0.1:8080/mcp", alias="PLAN_MCP_URL")
 
 

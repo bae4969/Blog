@@ -11,10 +11,16 @@ import re
 
 from sqlalchemy import text
 
+#: 지원하는 AI 프로바이더.
+PROVIDERS = ("codex", "agy")
+
 #: 키 → 기본값. 화면의 입력 칸도 이 순서다.
 DEFAULTS: dict[str, str] = {
-    "ai_model": "sol",                 # 이름 일부 — 그중 최신 모델을 쓴다(pick_model)
-    "ai_effort": "",                   # 추론 강도(low…ultra). 비우거나 모델이 지원하지 않으면 모델 기본값
+    "ai_provider": "codex",            # codex | agy
+    "ai_model": "sol",                 # Codex 모델 이름 일부 — 그중 최신 모델을 쓴다(pick_model)
+    "ai_effort": "",                   # Codex 추론 강도(low…ultra). 비우거나 모델이 지원하지 않으면 모델 기본값
+    "agy_model": "",                   # AGY 모델 이름(일부 가능). 비우면 AGY 기본 모델
+    "agy_effort": "",                  # AGY 추론 강도(low…max). 비우거나 지원하지 않으면 모델 기본값
     "smtp_host": "",
     "smtp_port": "465",
     "smtp_user": "",
@@ -22,8 +28,10 @@ DEFAULTS: dict[str, str] = {
     "plan_mail_to": "",
     "plan_daily_on": "",               # "1" 이면 매일 점검(plan_v1.daily_tick) — 기본은 꺼짐(테스트 컨테이너도 같은 루프를 돈다)
     "plan_daily_at": "12:00",          # 점검 시각(KST, HH:MM)
+    "n8n_webhook_url": "",             # 글쓰기 화면에서 초안 자동 작성에 호출할 n8n 웹훅 URL
+    "n8n_webhook_token": "",           # 선택 — 있으면 Authorization: Bearer 헤더로 전송
 }
-SECRETS = frozenset({"smtp_password"})
+SECRETS = frozenset({"smtp_password", "n8n_webhook_token"})
 #: 화면의 강도 선택지(모델마다 지원 범위가 다르다 — 지원하지 않으면 모델 기본값을 쓴다).
 EFFORTS = ("low", "medium", "high", "xhigh", "max", "ultra")
 

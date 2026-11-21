@@ -783,7 +783,7 @@
         tableTargets().forEach(function (box) {
             box.textContent = '';
             if (!rows.length) {
-                box.innerHTML = '<p class="empty-hint">검색 결과에서 [+ 포트폴리오] 버튼을 눌러 추가하세요</p>';
+                box.innerHTML = '<p class="empty-hint">종목을 추가하세요</p>';
                 return;
             }
             box.appendChild(buildTable());
@@ -1114,6 +1114,9 @@
     }
 
     // 벤치마크 렌더링
+    var CANCEL_SVG = '<svg class="c-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
     function renderBenchmark() {
         var container = document.getElementById('selectedBenchmark');
         if (!container) return;
@@ -1126,7 +1129,7 @@
                 '<span class="ps-name">' + escapeHtml(b.name) + '</span>' +
                 '<span class="ps-code">' + escapeHtml(b.code) + '</span>' +
                 '<span class="ps-market badge-' + escapeHtml(b.market.toLowerCase()) + '">' + escapeHtml(b.market) + '</span>' +
-                '<button type="button" class="btn btn-sm btn-danger picker-remove" data-idx="' + idx + '">&times;</button>' +
+                '<button type="button" class="btn btn-sm btn-outline picker-remove" data-idx="' + idx + '">' + CANCEL_SVG + '<span>벤치마크 빼기</span></button>' +
                 '</div>';
         });
         container.innerHTML = html;

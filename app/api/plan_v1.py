@@ -23,7 +23,7 @@ from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
 from app.db.session import db_session
-from app.services import codex_runner, naver_gold, plan_assets, plan_reconcile, plan_strategy
+from app.services import ai_runner, naver_gold, plan_assets, plan_reconcile, plan_strategy
 from app.services import invest_plan as ip
 from app.ui.stocks import _candle_candidates, _latest_quotes
 
@@ -495,10 +495,8 @@ async def daily_check(cfg: dict, user_index: int, doc: ip.PlanDoc, day, now: dat
     token = mcp.issue(user_index, read_only=True)
     failure = None
     try:
-        model = codex_runner.resolve_model(cfg["ai_model"])
-        reply = await codex_runner.run(ip.daily_prompt(doc, now), model, mcp_url=settings.plan_mcp_url, mcp_token=token,
-                                       effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
-    except codex_runner.CodexError as e:
+        reply = await ai_runner.run(cfg, ip.daily_prompt(doc, now), mcp_url=settings.plan_mcp_url, mcp_token=token)
+    except ai_runner.AIError as e:
         failure, reply = str(e), ""
     finally:
         mcp.revoke(token)

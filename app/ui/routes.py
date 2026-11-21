@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 
@@ -25,10 +25,11 @@ from app.core.sanitize import (
     sanitize_for_save,
     validate_thumbnail,
 )
-from app.core import blog_user, csrf, thumbnail
+from app.core import app_settings, blog_user, csrf, thumbnail
 from app.core.security import AuthUser
 from app.db.models import Category, Post, User
 from app.db.session import db_session
+from app.services import n8n_writer
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -332,6 +333,7 @@ async def writer_form(request: Request):
             return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
 
         ctx = await _shell_ctx(request, db, me.level)
+        cfg = await app_settings.load(db)
         # 쓸 수 있는 카테고리만 고르게 한다 — 목록 밖이면 저장 단계에서 거부된다.
         writable = (
             await db.execute(
@@ -354,6 +356,7 @@ async def writer_form(request: Request):
             "post": None,
             "selected_category": selected,
             "cancel_query": f"?category_index={selected}" if selected else "",
+            "n8n_enabled": n8n_writer.valid_url(cfg["n8n_webhook_url"]),
             "csrf_token": token,
         },
     )
@@ -380,6 +383,7 @@ async def edit_form(request: Request, post_id: int):
             return RedirectResponse("/blog", status_code=status.HTTP_303_SEE_OTHER)
 
         ctx = await _shell_ctx(request, db, me.level, row.category_index)
+        cfg = await app_settings.load(db)
         writable = (
             await db.execute(
                 select(Category)
@@ -399,11 +403,85 @@ async def edit_form(request: Request, post_id: int):
             "post": row,
             "selected_category": row.category_index,
             "cancel_query": f"?category_index={row.category_index}",
+            "n8n_enabled": n8n_writer.valid_url(cfg["n8n_webhook_url"]),
             "csrf_token": token,
         },
     )
     csrf.attach(response, token)
     return response
+
+
+@router.post("/writer/n8n", include_in_schema=False)
+async def writer_n8n_draft(request: Request):
+    """글쓰기 화면에서 대충 적은 제목·내용을 n8n 웹훅으로 보내 초안을 받아온다."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"detail": "요청 본문이 올바르지 않습니다"}, status_code=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(body, dict):
+        return JSONResponse({"detail": "요청 본문이 올바르지 않습니다"}, status_code=status.HTTP_400_BAD_REQUEST)
+
+    csrf_token = str(body.get("csrf_token") or "")
+    if not csrf.valid(request, csrf_token):
+        return JSONResponse({"detail": "보안 토큰이 만료되었습니다 — 새로고침 후 다시 시도해 주세요"},
+                            status_code=status.HTTP_403_FORBIDDEN)
+
+    title = str(body.get("title") or "").strip()[:255]
+    content_html = str(body.get("content_html") or "")[:200_000]
+    content_text = str(body.get("content_text") or "").strip()[:50_000]
+    if not title and not content_text:
+        return JSONResponse({"detail": "대충이라도 제목이나 내용을 먼저 입력해 주세요"},
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+    try:
+        cat_raw = body.get("category_index")
+        cat_id = int(cat_raw) if cat_raw not in (None, "", -1, "-1") else None
+    except (TypeError, ValueError):
+        cat_id = None
+    if cat_id is not None and cat_id <= 0:
+        cat_id = None
+
+    is_edit = bool(body.get("is_edit"))
+    try:
+        post_id = int(body["post_id"]) if body.get("post_id") else None
+    except (TypeError, ValueError):
+        post_id = None
+
+    async with db_session() as db:
+        me = await blog_user.find(db, getattr(request.state, "user", None))
+        if me is None:
+            return JSONResponse({"detail": "글쓰기 권한이 없습니다"}, status_code=status.HTTP_403_FORBIDDEN)
+        if not is_edit and me.is_limited:
+            return JSONResponse({"detail": "작성 가능한 글 수 한도에 도달했습니다"}, status_code=status.HTTP_403_FORBIDDEN)
+
+        cat_name = ""
+        if cat_id is not None:
+            if not await blog_user.can_write_category(db, me.level, cat_id):
+                return JSONResponse({"detail": "선택한 카테고리에 쓸 권한이 없습니다"}, status_code=status.HTTP_403_FORBIDDEN)
+            cat_row = (await db.execute(
+                select(Category.category_name).where(Category.category_index == cat_id)
+            )).scalar()
+            cat_name = str(cat_row or "")
+
+        cfg = await app_settings.load(db)
+
+    payload = {
+        "category_id": cat_id,
+        "category_name": cat_name,
+        "title": title,
+        "content_html": content_html,
+        "content_text": content_text,
+        "is_edit": is_edit,
+        "post_id": post_id,
+        "author": me.user_id,
+    }
+    try:
+        result = await n8n_writer.request_draft(cfg["n8n_webhook_url"], cfg["n8n_webhook_token"], payload)
+    except n8n_writer.N8nWriterError as e:
+        return JSONResponse({"detail": str(e)}, status_code=status.HTTP_502_BAD_GATEWAY)
+
+    logger.info("n8n 글 작성 요청: user=%s mode=%s cat=%s", me.user_id, result["mode"], cat_id)
+    return JSONResponse(result)
 
 
 def _reject(msg: str, to: str = "/blog") -> RedirectResponse:

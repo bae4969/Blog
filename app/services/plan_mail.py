@@ -354,5 +354,5 @@ def compose_daily_failure(day: date, reason: str, sender: str, to: str, page_url
     msg["From"] = sender
     msg["To"] = to
     msg.set_content(f"{day:%Y-%m-%d} 매일 점검을 하지 못했습니다.\n\n사유: {reason}\n\n"
-                    f"Codex 로그인(관리자 › 외부 연동)을 확인해 주세요. 내일 같은 시각에 다시 합니다.\n투자 계획: {page_url}")
+                    f"AI 로그인(관리자 › 외부 연동)을 확인해 주세요. 내일 같은 시각에 다시 합니다.\n투자 계획: {page_url}")
     return msg

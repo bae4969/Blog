@@ -60,6 +60,12 @@
         </div>
 
         <div class="form-actions">
+            {% if n8n_enabled %}
+            <button id="btn_n8n_draft" type="button" class="btn btn-secondary">
+                {{ icons.i('sparkle') }}
+                <span>n8n 자동 작성</span>
+            </button>
+            {% endif %}
             <button id="btn_submit" type="submit" form="post-form" class="btn btn-primary">
                 {{ icons.i('save') }}
                 <span class="btn-text">{{ '수정' if is_edit else '작성' }}</span>
@@ -658,6 +664,139 @@ function handleFormSubmit() {
     document.querySelector('.post-form').submit();
 }
 
+// n8n 웹훅으로 대충 적은 제목·내용을 보내 초안 자동 작성
+(function initN8nWriter() {
+    const btn = document.getElementById('btn_n8n_draft');
+    if (!btn) return;
+    let busy = false;
+
+    btn.addEventListener('click', async function() {
+        if (busy || !quill) return;
+        const titleInput = document.getElementById('input_title');
+        const categorySelect = document.getElementById('input_category');
+        const contentTextarea = document.getElementById('input_content');
+        const thumbInput = document.getElementById('input_thumbnail');
+
+        const title = titleInput.value.trim();
+        const contentHtml = quill.root.innerHTML;
+        const contentText = quill.getText().trim();
+
+        if (!title && !contentText) {
+            showFieldError(titleInput, '대충이라도 제목이나 내용을 먼저 입력해 주세요.');
+            titleInput.scrollIntoView({ block: 'center' });
+            titleInput.focus({ preventScroll: true });
+            return;
+        }
+        clearFieldError(titleInput);
+
+        const prev = {
+            title: titleInput.value,
+            html: contentHtml,
+            thumb: thumbInput.value
+        };
+
+        busy = true;
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.classList.add('is-busy');
+        const labelSpan = btn.querySelector('span');
+        if (labelSpan) labelSpan.textContent = 'n8n 작성 중...';
+        const loadingToast = window.toast
+            ? window.toast('n8n 에서 글을 작성하는 중입니다…', 'info', { duration: 240000 })
+            : null;
+        const closeLoading = function() {
+            if (loadingToast) {
+                const closeBtn = loadingToast.querySelector('.c-toast__close');
+                if (closeBtn) closeBtn.click();
+            }
+        };
+
+        try {
+            const resp = await fetch('/writer/n8n', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    csrf_token: getCsrfToken(),
+                    category_index: categorySelect.value,
+                    title: title,
+                    content_html: contentHtml,
+                    content_text: contentText,
+                    is_edit: {{ 'true' if is_edit else 'false' }},
+                    post_id: {{ post.posting_index if is_edit else 'null' }}
+                })
+            });
+            const data = await resp.json().catch(function() { return {}; });
+            if (!resp.ok) {
+                throw new Error(data.detail || ('요청이 실패했습니다 (' + resp.status + ')'));
+            }
+            closeLoading();
+
+            if (data.mode === 'draft') {
+                if (data.title) {
+                    titleInput.value = data.title;
+                }
+                if (data.content) {
+                    quill.setContents([]);
+                    quill.clipboard.dangerouslyPasteHTML(data.content);
+                    contentTextarea.value = quill.root.innerHTML;
+                }
+                if (data.thumbnail) {
+                    selectedThumbnailSrc = '';
+                    thumbInput.value = data.thumbnail;
+                }
+                validateTitle();
+                validateContent();
+                hasUnsavedChanges = true;
+                scheduleOverlayUpdate();
+
+                if (window.toast) {
+                    window.toast('n8n 에서 초안을 불러왔습니다', 'success', {
+                        duration: 8000,
+                        action: {
+                            label: '되돌리기',
+                            onClick: function() {
+                                titleInput.value = prev.title;
+                                quill.setContents([]);
+                                if (prev.html) quill.clipboard.dangerouslyPasteHTML(prev.html);
+                                contentTextarea.value = quill.root.innerHTML;
+                                thumbInput.value = prev.thumb;
+                                validateTitle();
+                                validateContent();
+                                scheduleOverlayUpdate();
+                                window.toast('이전 내용으로 되돌렸습니다', 'info');
+                            }
+                        }
+                    });
+                }
+            } else {
+                const msg = data.message || 'n8n 에 글 작성을 요청했습니다';
+                const opts = data.post_id ? {
+                    duration: 8000,
+                    action: {
+                        label: '글 보기',
+                        onClick: function() {
+                            hasUnsavedChanges = false;
+                            location.href = '/reader.php?posting_index=' + data.post_id;
+                        }
+                    }
+                } : {};
+                if (window.toast) window.toast(msg, 'success', opts);
+            }
+        } catch (err) {
+            closeLoading();
+            if (window.toast) {
+                window.toast(err && err.message ? err.message : 'n8n 요청에 실패했습니다', 'error');
+            }
+        } finally {
+            busy = false;
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+            btn.classList.remove('is-busy');
+            if (labelSpan) labelSpan.textContent = 'n8n 자동 작성';
+        }
+    });
+})();
+
     // 로그인·글쓰기 버튼 동작은 layout.html 에 있다(여기 중복 정의하면 그쪽을 덮어쓴다).
 
 // Quill 에디터 다크 테마 스타일링
@@ -837,6 +976,15 @@ const quillDarkTheme = `
     
     #quill-wrapper:hover .thumb-overlay .img-thumb-star.active {
         opacity: 1;
+    }
+
+    #btn_n8n_draft.is-busy .c-ico {
+        animation: n8nPulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes n8nPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.45; transform: scale(0.9); }
     }
     
     </style>

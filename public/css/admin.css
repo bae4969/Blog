@@ -350,7 +350,7 @@
 @media (hover: hover) {
     .inline-name__pencil { opacity: 0; }
 
-    :is(tr, .wol-edit-row):hover .inline-name__pencil,
+    :is(tr, .admin-list-item, .wol-edit-row):hover .inline-name__pencil,
     .inline-name__pencil:focus-visible { opacity: 1; }
 }
 
@@ -518,7 +518,10 @@
 }
 
 .qc-list {
-    margin: 0 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 10px;
     padding: 0;
     list-style: none;
 }
@@ -526,13 +529,17 @@
 .qc-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-height: 36px;
-    padding: 2px 4px;
-    border-bottom: 1px solid var(--bae-border);
+    gap: 8px;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
     font-size: 13px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
+.qc-item:hover { background: var(--bae-surface-hover); }
 .qc-item.is-dragging { opacity: 0.45; }
 .qc-item.is-off .qc-name { color: var(--bae-text-dim); }
 
@@ -632,15 +639,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px;
-    background: var(--bae-surface-alt);
-    border: none;
-    border-radius: var(--border-radius);
-    transition: var(--transition);
+    padding: 14px 16px;
+    background: transparent;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    transition: border-color 0.15s ease;
 }
 
 .wol-device:hover {
-    background: var(--bae-surface-hover);
+    background: transparent;
+    border-color: var(--bae-border-hover);
 }
 
 .wol-device-info {
@@ -1369,10 +1377,33 @@
 .type-badge.type-ex_index { background: rgba(147, 197, 253, 0.22); color: var(--bae-info); }
 .type-badge.type-fx { background: rgba(110, 231, 183, 0.22); color: var(--bae-mint); }
 
-/* 외부 연동 — 칸 머리: 제목 왼쪽, 그 칸의 버튼(Codex 로그인·로그아웃·시험) 오른쪽 */
-.int-head { display: flex; flex: 1 1 100%; inline-size: 100%; align-items: center; justify-content: space-between; gap: 12px; margin-block: 20px 4px; }
+/* 외부 연동 — 칸 머리: 제목 왼쪽, 그 칸의 버튼(로그인·로그아웃·시험) 오른쪽 */
+.int-head { display: flex; flex: 1 1 100%; inline-size: 100%; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 12px; margin-block: 20px 4px; }
 .int-head > h3 { inline-size: auto; flex: 0 1 auto; margin: 0; }
+.int-head__left { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .int-actions { display: inline-flex; gap: 6px; margin-inline-start: auto; }
+.int-actions[hidden], .int-provider-pane[hidden], .admin-info[hidden] { display: none !important; }
+
+/* AI 프로바이더 선택 탭 — 상단 .admin-menu 와 같은 세그먼트 겉모양 */
+.int-provider-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bae-bg-alt); border: 1px solid var(--bae-border); }
+.int-provider-tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--bae-text-dim); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: color .15s, background-color .15s; white-space: nowrap; }
+.int-provider-tab:hover { color: var(--bae-text-primary); }
+.int-provider-tab[aria-selected="true"] { background: var(--bae-surface-hover); color: var(--bae-text-primary); }
+.int-provider-tab:focus-visible { outline: 2px solid var(--bae-accent-fg); outline-offset: -2px; }
+.int-provider-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bae-border-hover); flex: none; }
+.int-provider-dot.is-on { background: var(--bae-success); }
+
+/* 로그인 진행 상자 (Codex 기기 코드 · AGY OAuth 코드 제출) */
+.int-login-box { margin: 0 0 16px; padding: 12px 14px; border-radius: 8px; background: var(--bae-surface-alt); border: 1px solid var(--bae-border); color: var(--bae-text-muted); font-size: 14px; line-height: 1.5; word-break: break-word; }
+.int-login-box.is-error { border-color: var(--bae-danger); color: var(--bae-danger); }
+.int-login-box a { color: var(--bae-accent-fg); text-decoration: underline; }
+.int-login-box__msg { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+.int-login-box__timer { font-size: 12px; color: var(--bae-text-dim); font-variant-numeric: tabular-nums; }
+.int-code-row { display: flex; align-items: center; gap: 8px; }
+.int-code-row input { flex: 1 1 auto; min-width: 0; min-height: 38px; padding: 8px 12px; border: 1px solid var(--bae-border); border-radius: 8px; background: var(--bae-bg); color: var(--bae-text-primary); font: inherit; font-size: 14px; box-sizing: border-box; }
+.int-code-row input:focus { border-color: var(--bae-accent-fg); outline: none; box-shadow: 0 0 0 2px var(--bae-accent-fg); }
+.admin-form-field--wide { grid-column: span 2; }
+@media (max-width: 1023.98px) { .admin-form-field--wide { grid-column: auto; } }
 
 /* 관리자 설정 공통: 그룹 제목 → 입력/작업 → 목록, 같은 정렬과 간격. */
 .admin-shell #content { padding: 0 !important; } /* stocks.css의 본문 여백을 관리자에 중복 적용하지 않는다. */
@@ -1380,7 +1411,8 @@
 /* 레거시 div::after clearfix가 flex/grid의 빈 항목으로 간격을 차지하지 않게 한다. */
 .admin-shell :is(.admin-content, .admin-card, .admin-form-grid, .admin-form-field,
     .admin-form-actions, .stock-admin-toolbar, .stock-admin-market-tabs,
-    .stock-admin-actions, .int-head, .int-actions, .qc-sets)::after { content: none; }
+    .stock-admin-actions, .int-head, .int-head__left, .int-actions, .int-provider-tabs,
+    .int-provider-pane, .int-login-box, .int-code-row, .qc-sets)::after { content: none; }
 .admin-shell .admin-card + .admin-card { border-top: 1px solid var(--bae-border); }
 .admin-shell .admin-group-heading {
     display: flex;
@@ -1413,8 +1445,9 @@
 .admin-shell .stock-admin-actions > .admin-info { margin: 0 4px 0 0; }
 .admin-shell .stock-admin-toolbar { margin: 0 0 16px; gap: 12px; }
 .admin-shell .int-head { margin: 0 0 16px; gap: 12px; }
-.admin-shell .int-head > .admin-group-heading { margin: 0; }
-.admin-shell .admin-form-grid ~ .int-head { border-top: 1px solid var(--bae-border); padding-top: 24px; margin-top: 24px; }
+.admin-shell .int-head > .admin-group-heading,
+.admin-shell .int-head__left > .admin-group-heading { margin: 0; }
+.admin-shell .int-head--sep { border-top: 1px solid var(--bae-border); padding-top: 24px; margin-top: 24px; }
 .admin-shell .qc-sets { margin-top: 0; }
 .admin-shell .qc-set__title { font-size: 14px; margin: 0 0 8px; }
 .admin-shell .admin-form-field :is(input, select, .cs-btn),
@@ -1437,4 +1470,428 @@
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: 0 0 0 2px var(--bae-accent-fg);
+}
+
+/* ===========================================
+   관리자 공용 목록 (정본 card-list.md list item 규약)
+   행마다 rounded-lg(8px) · 1px --bae-border · 8px 12px · 행 사이 6px
+   =========================================== */
+.admin-list-wrap {
+    overflow-x: clip;
+}
+
+.admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-list-head {
+    display: grid;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--bae-text-dim);
+    user-select: none;
+}
+
+.admin-list-item {
+    display: grid;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--bae-text-primary);
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-list-item:hover {
+    background: var(--bae-surface-hover);
+}
+
+.admin-list-item.is-selected {
+    background: rgba(var(--bae-accent-rgb), 0.10);
+    border-color: rgba(var(--bae-accent-rgb), 0.45);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.admin-list-item.is-selected:hover {
+    background: var(--bae-surface-hover);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.admin-list-item.is-dragging {
+    opacity: 0.45;
+}
+
+.admin-shell :is(.admin-list-wrap, .admin-list, .admin-list-head, .admin-list-item,
+    .ali-main, .ali-cell, .ali-actions, .ali-status, .ali-mobile-meta,
+    .ali-cat-controls, .ali-field, .ali-grip, .ali-name, .ali-count, .ali-check)::after {
+    content: none;
+}
+
+.admin-list-empty {
+    margin: 0;
+    padding: 28px 16px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--bae-text-dim);
+}
+
+.ali-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+}
+
+.ali-check input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--bae-accent);
+}
+
+.ali-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ali-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--bae-text-primary);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ali-sub {
+    font-size: 12px;
+    color: var(--bae-text-dim);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ali-cell {
+    min-width: 0;
+    font-size: 13px;
+    color: var(--bae-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ali-meta {
+    font-size: 12px;
+    color: var(--bae-text-dim);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ali-num {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--bae-text-primary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.ali-center {
+    text-align: center;
+    justify-self: center;
+}
+
+.ali-right {
+    text-align: right;
+    justify-self: end;
+}
+
+.ali-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--bae-text-dim);
+    white-space: nowrap;
+}
+
+.ali-status.is-on {
+    color: var(--bae-text-primary);
+}
+
+.ali-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--bae-border-hover);
+}
+
+.ali-status.is-on .ali-dot {
+    background: var(--bae-success);
+}
+
+.ali-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: none;
+}
+
+.ali-icon-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    flex: none;
+}
+
+.ali-icon-link:hover {
+    background: var(--bae-surface-hover);
+    border-color: var(--bae-border-hover);
+    color: var(--bae-text-primary);
+}
+
+.ali-icon-link span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.ali-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+}
+
+.ali-badge--split {
+    background: rgba(var(--bae-success-rgb), 0.16);
+    color: var(--bae-success);
+}
+
+.ali-badge--merge {
+    background: rgba(var(--bae-warn-rgb), 0.16);
+    color: var(--bae-warn);
+}
+
+.ali-mobile-meta {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--bae-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+/* 리스트 안의 select(.cs-btn 포함) — 폼 입력칸과 같은 8px·border 톤 */
+.admin-list-item .inline-select,
+.admin-list-item .cs-btn {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+/* ── 1) 블로그 카테고리 (.admin-list--cat) ─────────────────────────── */
+.admin-list--cat .admin-list-head,
+.admin-list--cat .admin-list-item {
+    grid-template-columns: 24px minmax(140px, 1.4fr) 118px 118px 146px 52px 104px;
+}
+
+.admin-list--cat .ali-field {
+    min-width: 0;
+}
+
+.admin-list--cat .ali-field-label {
+    display: none;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--bae-text-dim);
+}
+
+@media (max-width: 1023.98px) {
+    .admin-list--cat .admin-list-head { display: none; }
+    .admin-list--cat .admin-list-item {
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        grid-template-areas:
+            "grip name act"
+            "controls controls controls";
+        gap: 10px 10px;
+        padding: 12px;
+    }
+    .admin-list--cat .ali-grip { grid-area: grip; }
+    .admin-list--cat .ali-name { grid-area: name; }
+    .admin-list--cat .ali-actions { grid-area: act; }
+    .admin-list--cat .ali-field-label { display: block; }
+    .admin-list--cat .ali-count { display: none; }
+    .admin-list--cat .ali-mobile-meta { display: flex; }
+    .admin-list--cat .ali-cat-controls {
+        grid-area: controls;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .admin-list--cat .ali-cat-controls { display: contents; }
+}
+
+@media (max-width: 639.98px) {
+    .admin-list--cat .ali-cat-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .admin-list--cat .ali-cat-controls > .ali-field:last-child {
+        grid-column: 1 / -1;
+    }
+}
+
+/* ── 2) 주식 구독 관리 (.admin-list--stocks) ───────────────────────── */
+.admin-list--stocks .admin-list-head,
+.admin-list--stocks .admin-list-item {
+    grid-template-columns: 28px minmax(0, 1.8fr) 88px 86px 72px 112px 76px 36px;
+}
+
+@media (max-width: 1119.98px) {
+    .admin-list--stocks .admin-list-head,
+    .admin-list--stocks .admin-list-item {
+        grid-template-columns: 28px minmax(0, 1.6fr) 86px 84px 76px 36px;
+    }
+    .admin-list--stocks .ali-col-type,
+    .admin-list--stocks .ali-col-price { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    .admin-list--stocks .admin-list-head { display: none; }
+    .admin-list--stocks .admin-list-item {
+        grid-template-columns: 28px minmax(0, 1fr) auto 36px;
+        gap: 10px;
+    }
+    .admin-list--stocks .ali-col-code,
+    .admin-list--stocks .ali-col-market { display: none; }
+    .admin-list--stocks .ali-mobile-meta { display: flex; }
+}
+
+/* ── 3) 지수·환율 구독 (.admin-list--quotes) ───────────────────────── */
+.admin-list--quotes .admin-list-head,
+.admin-list--quotes .admin-list-item {
+    grid-template-columns: 28px minmax(0, 1.6fr) 96px 86px 104px 104px 76px;
+}
+
+@media (max-width: 1023.98px) {
+    .admin-list--quotes .admin-list-head,
+    .admin-list--quotes .admin-list-item {
+        grid-template-columns: 28px minmax(0, 1.5fr) 96px 86px 76px;
+    }
+    .admin-list--quotes .ali-col-query,
+    .admin-list--quotes .ali-col-conv { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    .admin-list--quotes .admin-list-head { display: none; }
+    .admin-list--quotes .admin-list-item {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+    .admin-list--quotes .ali-col-code,
+    .admin-list--quotes .ali-col-cat { display: none; }
+    .admin-list--quotes .ali-mobile-meta { display: flex; }
+}
+
+/* ── 4) 액면분할 관리 (.admin-list--splits) ────────────────────────── */
+.admin-list--splits .admin-list-head,
+.admin-list--splits .admin-list-item {
+    grid-template-columns: 92px 62px 104px 70px 60px minmax(0, 1fr) 144px 36px;
+}
+
+@media (max-width: 1023.98px) {
+    .admin-list--splits .admin-list-head,
+    .admin-list--splits .admin-list-item {
+        grid-template-columns: 88px 60px 100px 66px 56px minmax(0, 1fr) 36px;
+    }
+    .admin-list--splits .ali-col-created { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    .admin-list--splits .admin-list-head { display: none; }
+    .admin-list--splits .admin-list-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+    .admin-list--splits .ali-col-market,
+    .admin-list--splits .ali-col-date,
+    .admin-list--splits .ali-col-ratio,
+    .admin-list--splits .ali-col-kind,
+    .admin-list--splits .ali-col-desc { display: none; }
+    .admin-list--splits .ali-mobile-meta { display: flex; }
+}
+
+/* 액면분할 페이지네이션 정렬 */
+.admin-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+/* 빈 상태 공통 — admin-placeholder 도 list item 테두리 톤으로 */
+.admin-shell .admin-placeholder {
+    margin: 0;
+    padding: 28px 16px;
+    background: transparent;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+}
+
+/* WOL 편집 입력칸도 폼 톤과 맞춤 */
+.admin-shell .wol-device .inline-input {
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
 }

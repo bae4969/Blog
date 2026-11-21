@@ -1,15 +1,17 @@
 /* ===========================================
-   백테스트(`/stocks/backtest`) — 2026-09-23 주식 화면들과 같은 겉모양
+   백테스트(`/stocks/backtest`) — 공통 디자인 기준 정합
    ===========================================
-   `stocks.css` **뒤에** 싣는다. 구조·동작은 그대로 두고(`backtest.js` 가 id 로 찾는다)
-   머리·폭·카드 바탕만 종목 상세(`stock_view.css`)·홈(`stock_home.css`)과 맞춘다:
-   테두리 대신 바탕 한 단계, 둥근 모서리 1rem, 가운데 80rem.
-   ⚠️ 포트폴리오 이름 칸(`.portfolio-name-section`)의 accent 테두리는 남긴다 — 방금 저장된
-      결과를 가리키는 표시다.
+   `stocks.css` **뒤에** 싣는다. `backtest.js` 가 id·클래스로 DOM 을 찾으므로 구조·훅은 유지하고,
+   주식 화면 카드 결(`stock_home.css`·`stock_view.css`)과 `11.web_design` 기준(form-field·card-list·button·tabs)을
+   한 번에 맞춘다.
+   ⚠️ 비중 표(`.wt-wrap`·`.wt`)의 테두리 상자·머리 줄·고정 종목 칸 구조는 사용자 확정 디자인이라 유지한다.
 */
 
 .bt {
     --bt-card: color-mix(in srgb, var(--bae-surface) 50%, var(--bae-bg));
+    --bt-radius: 1rem;
+    --bt-pad: 1rem;
+    --bt-gap: 0.75rem;
     max-inline-size: 80rem;
     margin-inline: auto;
     padding-block: var(--space-3, 0.75rem) var(--space-6, 2rem);
@@ -19,15 +21,73 @@
     .bt { --bt-card: var(--bae-surface); }
 }
 
-/* 옛 blog.css 의 clearfix 유령이 flex 머리에 빈 칸을 끼우지 않게. */
+/* 옛 blog.css 의 `div::after { content: ""; display: table }` clearfix 유령이 flex·grid 에
+   빈 칸/빈 줄을 끼우지 않게 해제한다.
+   ⚠️ 버튼 터치 44px `::after` · `.wt-col.has-error .wt-head::after` 알림 점 · `.bmk-val:hover::after` 는 건드리지 않는다. */
 .bt::after,
-.bt-head::after { content: none; }
+.bt-head::after,
+.bt :is(
+    .portfolio-name-section,
+    .portfolio-name-row,
+    .backtest-container,
+    .backtest-results,
+    .backtest-config,
+    .total-score-card,
+    .score-main,
+    .score-breakdown,
+    .metrics-cards,
+    .metric-card,
+    .backtest-chart-section,
+    .backtest-chart-wrapper,
+    .annual-returns-section,
+    .table-responsive,
+    .trade-summary-section,
+    .trade-summary-grid,
+    .trade-stat,
+    .config-section,
+    .stock-picker,
+    .selected-stocks-list,
+    .selected-benchmark,
+    .benchmark-item,
+    .wt-wrap,
+    .config-grid,
+    .config-field,
+    .input-with-unit,
+    .strategy-tabs,
+    .strategy-detail,
+    .signal-rules,
+    .signal-rule,
+    .signal-combine,
+    .config-save-row,
+    .phase-strip,
+    .phase-strip__row,
+    .phase-strip__seg,
+    .phase-strip__bar,
+    .phase-strip__legend
+)::after,
+:is(
+    .bt-search-pop,
+    .stock-search-row,
+    .stock-search-dropdown,
+    .search-result-item,
+    .phase-pop,
+    .phase-pop__foot,
+    .phase-dlg__head,
+    .phase-dlg__body,
+    .portfolio-menu,
+    .portfolio-menu__head,
+    .portfolio-menu__list,
+    .portfolio-menu__item
+)::after {
+    content: none;
+}
 
+/* ── 머리 · 포트폴리오 이름 줄 ──────────────────────────────────── */
 .bt-head {
     display: flex;
     align-items: center;
     gap: var(--space-3, 0.75rem);
-    margin-block-end: var(--space-4, 1rem);
+    margin-block-end: var(--bt-gap);
     padding-inline: var(--space-1, 0.25rem);
 }
 
@@ -39,10 +99,671 @@
     line-height: 1.25;
 }
 
-
-.bt :is(.config-section, .total-score-card, .metric-card, .backtest-chart-section,
-        .annual-returns-section, .trade-summary-section) {
-    border-color: transparent;
-    border-radius: 1rem;
+.bt .portfolio-name-section {
+    margin-bottom: var(--bt-gap);
+    padding: 10px 14px;
+    border: 1px solid rgba(var(--bae-accent-rgb), 0.45);
+    border-radius: 12px;
     background: var(--bt-card);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bt .portfolio-name-section.is-empty {
+    border-color: var(--bae-border);
+    box-shadow: none;
+}
+
+.bt .portfolio-name-row {
+    min-height: 32px;
+}
+
+.bt .portfolio-name-input {
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bt .portfolio-name-input:focus {
+    border-color: var(--bae-accent-fg);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bae-accent-fg);
+}
+
+.bt .portfolio-list-btn {
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    justify-content: center;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
+}
+
+.bt .portfolio-list-btn:hover {
+    border-color: var(--bae-border-hover);
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+/* ── 본문 2단 · 카드 공통 ──────────────────────────────────────── */
+.bt .backtest-container {
+    gap: 16px;
+}
+
+.bt .backtest-results,
+.bt .backtest-config {
+    gap: var(--bt-gap);
+}
+
+.bt :is(
+    .config-section,
+    .total-score-card,
+    .metric-card,
+    .backtest-chart-section,
+    .annual-returns-section,
+    .trade-summary-section
+) {
+    border: 1px solid transparent;
+    border-radius: var(--bt-radius);
+    background: var(--bt-card);
+    padding: var(--bt-pad);
+}
+
+.bt .config-section {
+    margin-bottom: 0;
+}
+
+.bt .config-save-section {
+    padding: 12px 16px;
+}
+
+.bt .total-score-card {
+    padding: 14px 18px;
+    margin-bottom: 0;
+}
+
+.bt .metrics-cards {
+    gap: var(--bt-gap);
+    margin-bottom: 0;
+}
+
+.bt .config-section-title,
+.bt .result-section-title {
+    margin: 0 0 12px 0;
+    color: var(--bae-text-primary);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.bt details:not([open]) > .config-section-title.clickable {
+    margin: 0;
+}
+
+.bt details[open] > .config-section-title.clickable {
+    margin: 0 0 12px 0;
+}
+
+.bt .config-subsection-title {
+    margin: 0 0 8px 0;
+    color: var(--bae-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.bt .config-label,
+.phase-pop .config-label {
+    margin-bottom: 4px;
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.bt .config-grid {
+    gap: 12px;
+}
+
+.bt .config-grid + .config-grid {
+    margin-top: 12px;
+}
+
+.bt .input-with-unit {
+    gap: 6px;
+}
+
+/* ── 폼 필드 (`form-field.md` 정본 값) ─────────────────────────── */
+.bt .backtest-input,
+.bt .backtest-select,
+.bt .cs-btn,
+.bt-search-pop .backtest-input,
+.phase-pop .backtest-input,
+.phase-pop .cs-btn {
+    min-width: 0;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-primary);
+    font-size: 0.875rem;
+    line-height: 20px;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.bt .backtest-input::placeholder,
+.bt-search-pop .backtest-input::placeholder {
+    color: var(--bae-text-dim);
+}
+
+.bt .backtest-input:focus,
+.bt .backtest-select:focus,
+.bt .cs-btn:focus-visible,
+.bt-search-pop .backtest-input:focus,
+.phase-pop .backtest-input:focus,
+.phase-pop .cs-btn:focus-visible {
+    border-color: var(--bae-accent-fg);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bae-accent-fg);
+}
+
+.bt .backtest-input:disabled,
+.bt .backtest-select:disabled,
+.bt .cs-btn:disabled {
+    background: var(--bae-surface);
+    color: var(--bae-text-dim);
+    cursor: not-allowed;
+}
+
+/* 비중 표 안 숫자 칸 — 표 구조는 유지하고 톤·포커스 링(2px)만 정본으로 */
+.bt .wt-cell,
+.phase-dlg .wt-cell {
+    height: 30px;
+    border-radius: 6px;
+    background: var(--bae-surface-alt);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bt .wt-cell:focus,
+.phase-dlg .wt-cell:focus {
+    border-color: var(--bae-accent-fg);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bae-accent-fg);
+}
+
+/* ── 전략 탭 (`.sh-seg` · `.admin-menu` 공용 세그먼트) ────────── */
+.bt .strategy-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 12px;
+    padding: 3px;
+    border-radius: 0.625rem;
+    background: var(--bae-bg-alt);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.bt .strategy-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.bt .strategy-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.bt .strategy-tab:hover {
+    background: none;
+    color: var(--bae-text-primary);
+}
+
+.bt .strategy-tab.active {
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+    font-weight: 700;
+}
+
+.bt .strategy-tab .c-ico {
+    flex: none;
+    width: 14px;
+    height: 14px;
+}
+
+.bt .strategy-detail {
+    margin-top: 10px;
+}
+
+/* ── 시그널 규칙 (list item 톤) ────────────────────────────────── */
+.bt .signal-rules {
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.bt .signal-rule {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+}
+
+.bt .signal-rule .backtest-select,
+.bt .signal-rule .cs-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.8125rem;
+}
+
+.bt .signal-combine {
+    margin-top: 10px;
+}
+
+/* ── 종목 구성 · 벤치마크 (list item 톤) ───────────────────────── */
+.bt .picker-sub-title {
+    margin: 0 0 8px;
+    color: var(--bae-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.bt .picker-divider {
+    margin: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--bae-border);
+}
+
+.bt .empty-hint {
+    margin: 0;
+    padding: 18px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+.bt .selected-benchmark {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bt .benchmark-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.8125rem;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.bt .benchmark-item:hover {
+    background: var(--bae-surface-hover);
+}
+
+/* ── 아이콘 버튼 규격 (`button.md` · 최소 28px · 위험 hover) ───── */
+.bt .wt-tools .btn,
+.phase-dlg .wt-tools .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
+}
+
+.bt .wt-tools .btn:hover,
+.phase-dlg .wt-tools .btn:hover {
+    border-color: var(--bae-border-hover);
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+.bt .config-save-row {
+    gap: 8px;
+}
+
+.bt .config-save-row .btn,
+.bt #addSignalRule,
+.phase-pop .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
+}
+
+.bt .config-save-row .btn:hover,
+.bt #addSignalRule:hover,
+.phase-pop .btn:hover {
+    border-color: var(--bae-border-hover);
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+.bt .picker-remove,
+.bt .signal-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bt .picker-remove {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+}
+
+.bt .signal-remove {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+}
+
+.bt .picker-remove:hover,
+.bt .signal-remove:hover,
+.bt #clearConfig:hover,
+.phase-pop #phaseDel:hover {
+    border-color: var(--bae-danger);
+    background: rgba(var(--bae-danger-rgb), 0.15);
+    color: var(--bae-danger);
+}
+
+.bt #runBacktest {
+    min-height: 44px;
+    padding: 10px 20px;
+    border-radius: 8px;
+}
+
+/* ── 연도별 수익률 표 (`card-list.md` 행 + `overflow-x: clip`) ─── */
+.bt .table-responsive {
+    overflow-x: clip;
+}
+
+.bt .annual-returns-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+    font-size: 0.8125rem;
+}
+
+.bt .annual-returns-table thead th {
+    padding: 0 12px 4px;
+    border: 0;
+    color: var(--bae-text-dim);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: right;
+    text-transform: none;
+}
+
+.bt .annual-returns-table thead th:first-child {
+    width: 16%;
+    text-align: left;
+}
+
+.bt .annual-returns-table tbody td {
+    padding: 10px 12px;
+    border-top: 1px solid var(--bae-border);
+    border-bottom: 1px solid var(--bae-border);
+    color: var(--bae-text-primary);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
+}
+
+.bt .annual-returns-table tbody td:first-child {
+    border-left: 1px solid var(--bae-border);
+    border-radius: 8px 0 0 8px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.bt .annual-returns-table tbody td:last-child {
+    border-right: 1px solid var(--bae-border);
+    border-radius: 0 8px 8px 0;
+}
+
+.bt .annual-returns-table tbody tr:hover td {
+    background: var(--bae-surface-hover);
+}
+
+.bt .annual-returns-table tbody td.positive {
+    color: var(--bae-success);
+}
+
+.bt .annual-returns-table tbody td.negative {
+    color: var(--bae-danger);
+}
+
+/* ── 거래 요약 (list item 카드 행) ─────────────────────────────── */
+.bt .trade-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+}
+
+.bt .trade-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+    transition: background-color 0.15s ease;
+}
+
+.bt .trade-stat[hidden] {
+    display: none;
+}
+
+.bt .trade-stat:hover {
+    background: var(--bae-surface-hover);
+}
+
+/* ── 떠 있는 창: 내 포트폴리오 · 종목 검색 (list item 톤) ──────── */
+.portfolio-menu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+}
+
+.portfolio-menu__item {
+    gap: 8px;
+    padding: 4px 8px 4px 4px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.portfolio-menu__item + .portfolio-menu__item {
+    border-top: 1px solid var(--bae-border);
+}
+
+.portfolio-menu__item:hover {
+    background: var(--bae-surface-hover);
+}
+
+.portfolio-menu__item.is-current {
+    border-color: rgba(var(--bae-accent-rgb), 0.45);
+    background: rgba(var(--bae-accent-rgb), 0.10);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.portfolio-menu__item.is-current:hover {
+    background: var(--bae-surface-hover);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.portfolio-menu__load:hover {
+    background: transparent;
+}
+
+.portfolio-menu__del {
+    width: 30px;
+    min-height: 30px;
+    padding: 0;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--bae-text-dim);
+}
+
+.portfolio-menu__del:hover {
+    border-color: var(--bae-danger);
+    background: rgba(var(--bae-danger-rgb), 0.15);
+    color: var(--bae-danger);
+}
+
+.stock-search-dropdown {
+    padding: 6px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: var(--bae-surface);
+    box-shadow: var(--shadow-lg);
+}
+
+.search-result-item {
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.search-result-item + .search-result-item {
+    margin-top: 4px;
+}
+
+.search-result-item:hover {
+    border-color: var(--bae-border);
+    background: var(--bae-surface-hover);
+}
+
+.sr-add-btn {
+    padding: 4px 8px;
+    border: 1px solid var(--bae-border);
+    border-radius: 6px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sr-add-benchmark:hover {
+    border-color: var(--bae-border-hover);
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+}
+
+/* ── 반응형 ────────────────────────────────────────────────────── */
+@media (max-width: 639.98px) {
+    .bt :is(
+        .config-section,
+        .total-score-card,
+        .backtest-chart-section,
+        .annual-returns-section,
+        .trade-summary-section
+    ) {
+        padding: 12px;
+    }
+
+    .bt .metric-card {
+        padding: 12px;
+    }
+
+    .bt .strategy-tabs {
+        flex-wrap: nowrap;
+    }
+
+    .bt .strategy-tab {
+        flex: 1 0 auto;
+        padding: 0 8px;
+        font-size: 0.75rem;
+    }
+
+    .bt .trade-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bt .annual-returns-table thead th,
+    .bt .annual-returns-table tbody td {
+        padding-inline: 8px;
+        font-size: 0.75rem;
+    }
+
+    .bt .annual-returns-table thead th:nth-child(3),
+    .bt .annual-returns-table tbody td:nth-child(3) {
+        display: none;
+    }
+
+    .bt .annual-returns-table thead th:first-child {
+        width: 20%;
+    }
 }
