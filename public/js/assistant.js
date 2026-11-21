@@ -34,8 +34,16 @@
     var IMAGE_SIDE = 1600;
     var images = [];          // 보낼 이미지 data URL
     var busy = false;
-    var loaded = null;        // 대화 기록을 읽었나(Promise) — 처음 열 때 읽는다
+    var sending = false;      // 이 탭이 직접 POST /chat 을 기다리는 중
+    var hasLoaded = false;    // 대화 기록을 최소 1회 읽었나
+    var chatSig = '';         // 마지막으로 그린 대화 시그니처(바뀔 때만 다시 그린다)
+    var syncPromise = null;   // 진행 중인 동기화 요청(중복 호출 방지)
+    var followPromise = null; // 진행 중인 busy 폴링(중복 폴링 방지)
+    var pendingText = null;   // 다른 기기·이전 탭에서 진행 중인 사용자 질문
     var lastChatId = 0;       // 화면에 있는 마지막 기록 — 끊긴 뒤 다시 읽을 때 새 답이 왔는지 가른다
+    var sseAbort = null;      // 열린 시트의 실시간 SSE 연결 중단기
+    var sseRetryTimer = null;
+    var sseBackoff = 2000;
     //: 손가락이 주 입력인 기기 — Enter 는 줄바꿈, 보내기는 버튼(휴대폰 메신저처럼. 긴 글을 쓰다 Enter 로 잘못 보냈다)
     var coarse = window.matchMedia('(pointer: coarse)');
     var store = window.sessionStorage;
@@ -171,25 +179,75 @@
         logEl.appendChild(box);
     }
 
+    function chatsSig(chats) {
+        if (!chats.length) return '0';
+        return chats.length + ':' + chats[0].chat_id + ':' + chats[chats.length - 1].chat_id;
+    }
+
+    function clearPendingBubbles() {
+        logEl.querySelectorAll('[data-pending="1"]').forEach(function (n) { n.remove(); });
+    }
+
+    function showPendingBubble(content) {
+        clearPendingBubbles();
+        if (!content) return;
+        var node = addMessage({ role: 'user', content: content });
+        node.setAttribute('data-pending', '1');
+    }
+
     function showChats(chats) {
         logEl.textContent = '';
-        if (!chats.length) emptyChat();
+        chatSig = chatsSig(chats);
+        if (!chats.length && !pendingText) emptyChat();
         chats.forEach(addMessage);
         lastChatId = chats.length ? chats[chats.length - 1].chat_id : 0;
-        if (busy) logEl.appendChild(waitEl);
+        if (busy) {
+            if (pendingText) showPendingBubble(pendingText);
+            logEl.appendChild(waitEl);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
     }
 
     function load() {
-        if (!loaded) {
+        return sync(false);
+    }
+
+    /** 서버의 최신 대화와 진행 중(busy) 상태를 동기화한다 — PC·폰 다중 기기·새 탭 모두 같은 상태를 본다. */
+    function sync(silent) {
+        if (sending) return Promise.resolve();
+        if (syncPromise) return syncPromise;
+        if (!hasLoaded && !silent) {
+            logEl.textContent = '';
             logEl.appendChild(el('p', 'ai-empty', '불러오는 중…'));
-            loaded = api('GET', '/api/v1/assistant/chat').then(showChats, function (e) {
-                loaded = null;
-                logEl.textContent = '';
-                window.toast('상담 기록을 불러오지 못했습니다: ' + e.message, 'error');
-                throw e;
-            });
         }
-        return loaded;
+        syncPromise = Promise.all([
+            api('GET', '/api/v1/assistant/chat'),
+            api('GET', '/api/v1/assistant/chat/busy')
+        ]).then(function (res) {
+            syncPromise = null;
+            var chats = res[0], b = res[1];
+            var nextSig = chatsSig(chats);
+            var first = !hasLoaded;
+            hasLoaded = true;
+            if (b && b.busy) {
+                pendingText = b.message || pendingText;
+                if (first || nextSig !== chatSig) showChats(chats);
+                else if (pendingText && !logEl.querySelector('[data-pending="1"]')) showPendingBubble(pendingText);
+                follow(lastChatId, b).then(function (got) { if (got) arrived(); }, function () { setBusy(false); });
+            } else {
+                pendingText = null;
+                if (busy && !followPromise) setBusy(false);
+                if (first || nextSig !== chatSig) showChats(chats);
+            }
+        }, function (e) {
+            syncPromise = null;
+            if (!hasLoaded) {
+                logEl.textContent = '';
+                if (!silent) window.toast('상담 기록을 불러오지 못했습니다: ' + e.message, 'error');
+            }
+            if (!silent) throw e;
+        });
+        return syncPromise;
     }
 
     function renderChips() {
@@ -240,17 +298,24 @@
         }).catch(function (e) { window.toast(e.message, 'error'); });
     }
 
-    function setBusy(on) {
+    function setBusy(on, startedAt) {
         busy = on;
         sendBtn.disabled = on;
         newChatBtn.disabled = on;
         clearInterval(timer);
         if (on) {
-            var t0 = Date.now();
-            waitEl.textContent = '요청중';
+            var parsed = startedAt ? Date.parse(startedAt) : NaN;
+            var t0 = isFinite(parsed) ? Math.min(parsed, Date.now()) : Date.now();
+            var tick = function () {
+                var sec = Math.max(0, Math.round((Date.now() - t0) / 1000));
+                waitEl.textContent = sec > 0 ? '요청중 · ' + sec + '초' : '요청중';
+            };
+            tick();
             logEl.appendChild(waitEl);
-            timer = setInterval(function () { waitEl.textContent = '요청중 · ' + Math.round((Date.now() - t0) / 1000) + '초'; }, 1000);
+            timer = setInterval(tick, 1000);
         } else {
+            pendingText = null;
+            clearPendingBubbles();
             if (waitEl.parentNode) waitEl.remove();
             store.removeItem('ai-pending');
         }
@@ -259,10 +324,11 @@
 
     newChatBtn.addEventListener('click', function () {
         if (busy) return;
+        sending = true;
         setBusy(true);
-        load().then(function () {
-            return api('POST', '/api/v1/assistant/chat/new');
-        }).then(function () {
+        api('POST', '/api/v1/assistant/chat/new').then(function () {
+            sending = false;
+            hasLoaded = true;
             input.value = '';
             store.removeItem('ai-draft');
             images = [];
@@ -272,7 +338,13 @@
             window.toast('새 상담을 시작했습니다. 자산·원칙·기억은 유지됩니다', 'success');
             input.focus();
         }).catch(function (e) {
+            sending = false;
             setBusy(false);
+            if (e.status === 409) {
+                window.toast('다른 기기에서 상담이 진행 중입니다. 끝난 뒤 다시 시도해 주세요', 'info');
+                sync(true);
+                return;
+            }
             window.toast('새 상담을 시작하지 못했습니다: ' + e.message, 'error');
         });
     });
@@ -308,16 +380,32 @@
         expand(false);   // 크게 편 채 보내면 큰 입력창이 대화를 가린다 — 접는다(30.ai_center 와 같다)
         images = [];
         renderChips();
+        sending = true;
         setBusy(true);
         store.setItem('ai-pending', String(lastChatId));
 
         api('POST', '/api/v1/assistant/chat', sent).then(function (r) {
+            sending = false;
             setBusy(false);
             lastChatId = r.chat_id;
+            chatSig = '';
             addMessage({ role: 'assistant', content: r.reply, meta: r.meta });
             arrived();
             applyChanges(r.changes);
         }).catch(function (e) {
+            sending = false;
+            // 다른 기기(PC·폰)에서 이미 상담이 돌고 있으면 작성한 입력은 되살리고 진행 중 대기로 합류한다.
+            if (e.status === 409) {
+                setBusy(false);
+                mine.remove();
+                input.value = sent.message;
+                images = sent.images;
+                renderChips();
+                if (!logEl.querySelector('.ai-msg')) emptyChat();
+                window.toast('다른 기기에서 상담이 진행 중입니다. 끝나면 자동으로 불러옵니다', 'info');
+                sync(true);
+                return;
+            }
             // 서버에 못 닿은 실패면 서버는 답을 끝까지 만들어 저장한다 — 끝나길 기다렸다 기록을 다시 읽는다.
             if (!e.status) {
                 follow(lastChatId).then(function (got) {
@@ -352,13 +440,20 @@
         }
     }
 
-    // 서버의 상담이 끝날 때까지 기다렸다(최대 12분 — codex 는 10분이면 끊긴다) 대화를 다시 그린다.
+    // 서버의 상담이 끝날 때까지 기다렸다(최대 12분 — codex/agy 는 10분이면 끊긴다) 대화를 다시 그린다.
     // `since` 뒤에 새 답이 저장됐으면 true. 기다리는 동안의 연결 실패는 다시 묻는다(화면이 꺼져 있었을 수 있다).
-    function follow(since) {
+    function follow(since, initial) {
+        if (followPromise) return followPromise;
         var until = Date.now() + 12 * 60 * 1000;
         var later = function () { return new Promise(function (ok) { setTimeout(ok, 5000); }); };
         var poll = function () {
-            return api('GET', '/api/v1/assistant/chat/busy').then(function (r) { return r.busy; }, function (e) {
+            return api('GET', '/api/v1/assistant/chat/busy').then(function (r) {
+                if (r.busy && r.message && r.message !== pendingText) {
+                    pendingText = r.message;
+                    if (hasLoaded) showPendingBubble(pendingText);
+                }
+                return r.busy;
+            }, function (e) {
                 if (e.status || Date.now() > until) throw e;
                 return true;
             }).then(function (still) {
@@ -366,15 +461,24 @@
                 return api('GET', '/api/v1/assistant/chat');
             });
         };
-        if (!busy) setBusy(true);
-        return poll().then(function (chats) {
+        if (initial && initial.message) {
+            pendingText = initial.message;
+            if (hasLoaded) showPendingBubble(pendingText);
+        }
+        if (!busy) setBusy(true, initial && initial.started_at);
+        followPromise = (initial && initial.busy ? later().then(poll) : poll()).then(function (chats) {
+            followPromise = null;
             var newest = chats.length ? chats[chats.length - 1].chat_id : 0;
             changed(null);   // 그 사이 무엇이 바뀌었는지 모른다 — 화면이 다시 읽는다
+            hasLoaded = true;
             setBusy(false);
-            loaded = Promise.resolve();
             showChats(chats);
             return newest > since;
+        }, function (e) {
+            followPromise = null;
+            throw e;
         });
+        return followPromise;
     }
 
     // 대화 기록 아래 여백 = 떠 있는 입력 상자의 실제 높이 + 4px. 첨부 칩이 붙어 상자가 높아지면 따라간다.
@@ -474,9 +578,12 @@
             grip.classList.remove('has-new');
             document.dispatchEvent(new CustomEvent('assistant:open'));
             load().catch(function () {});
+            startStream();
             fitLogPadding();
             logEl.scrollTop = logEl.scrollHeight;
             if (!coarse.matches) input.focus({ preventScroll: true });
+        } else {
+            stopStream();
         }
     }
 
@@ -565,9 +672,141 @@
         open: function () { set(true); },
     };
 
-    // 다른 화면에서 보낸 상담이 아직 돌고 있으면(보내고 화면을 옮긴 경우) 끝날 때까지 기다렸다 답을 띄운다.
+    // ── 실시간 다중 기기 동기화 (SSE) ──────────────────────
+    //    시트가 열려 있고 탭이 보이는 동안 `/api/v1/assistant/chat/events` 에 Bearer 로 연결한다.
+    //    PC·폰 양쪽 시트를 열어둔 상태에서도 질문 시작(`started`)·완료(`done`)·새 상담(`reset`)이 즉시 반영된다.
+    function handleStreamEvent(ev, data) {
+        if (ev === 'started') {
+            if (sending) return;
+            pendingText = (data && data.message) || pendingText;
+            if (hasLoaded && pendingText) showPendingBubble(pendingText);
+            if (!busy) setBusy(true, data && data.started_at);
+            return;
+        }
+        if (ev === 'state') {
+            if (sending) return;
+            if (data && data.busy) {
+                pendingText = data.message || pendingText;
+                if (hasLoaded && pendingText && !logEl.querySelector('[data-pending="1"]')) showPendingBubble(pendingText);
+                if (!busy) setBusy(true, data.started_at);
+            } else if (busy && !followPromise) {
+                setBusy(false);
+                sync(true);
+            }
+            return;
+        }
+        if (ev === 'done') {
+            if (sending) return;
+            pendingText = null;
+            setBusy(false);
+            changed(null);
+            sync(true).then(function () {
+                if (data && data.chat_id && data.chat_id > lastChatId) arrived();
+            });
+            return;
+        }
+        if (ev === 'reset') {
+            if (sending) return;
+            pendingText = null;
+            setBusy(false);
+            hasLoaded = true;
+            showChats([]);
+        }
+    }
+
+    function stopStream() {
+        clearTimeout(sseRetryTimer);
+        sseRetryTimer = null;
+        if (sseAbort) {
+            try { sseAbort.abort(); } catch (e) {}
+            sseAbort = null;
+        }
+    }
+
+    function scheduleStreamRetry() {
+        if (!isOpen() || document.visibilityState !== 'visible') return;
+        clearTimeout(sseRetryTimer);
+        var delay = sseBackoff;
+        sseBackoff = Math.min(15000, sseBackoff * 2);
+        sseRetryTimer = setTimeout(function () {
+            sseRetryTimer = null;
+            if (isOpen() && document.visibilityState === 'visible') {
+                sync(true);
+                startStream();
+            }
+        }, delay);
+    }
+
+    function startStream() {
+        if (sseAbort || !isOpen() || document.visibilityState !== 'visible') return;
+        if (typeof AbortController === 'undefined' || !window.TextDecoder) return;
+        var ac = new AbortController();
+        sseAbort = ac;
+        authToken().then(function (t) {
+            if (sseAbort !== ac) return null;
+            return fetch('/api/v1/assistant/chat/events', {
+                headers: { Authorization: 'Bearer ' + t, Accept: 'text/event-stream' },
+                signal: ac.signal
+            });
+        }).then(function (r) {
+            if (!r || sseAbort !== ac) return;
+            if (!r.ok || !r.body) throw new Error('SSE ' + r.status);
+            sseBackoff = 2000;
+            var reader = r.body.getReader();
+            var decoder = new TextDecoder();
+            var buf = '';
+            function pump() {
+                return reader.read().then(function (chunk) {
+                    if (sseAbort !== ac) return;
+                    if (chunk.done) throw new Error('EOF');
+                    buf += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n');
+                    var sep;
+                    while ((sep = buf.indexOf('\n\n')) >= 0) {
+                        var block = buf.slice(0, sep);
+                        buf = buf.slice(sep + 2);
+                        var ev = 'message', lines = [];
+                        block.split('\n').forEach(function (line) {
+                            if (line.indexOf('event:') === 0) ev = line.slice(6).trim();
+                            else if (line.indexOf('data:') === 0) lines.push(line.slice(5).trim());
+                        });
+                        if (lines.length) {
+                            try { handleStreamEvent(ev, JSON.parse(lines.join('\n'))); } catch (e) {}
+                        }
+                    }
+                    return pump();
+                });
+            }
+            return pump();
+        }).catch(function () {
+            if (sseAbort === ac) {
+                sseAbort = null;
+                scheduleStreamRetry();
+            }
+        });
+    }
+
+    // 다른 탭·기기에서 진행 중인 상담이 있으면 바로 대기 상태로 합류한다.
     var pending = store.getItem('ai-pending');
     if (pending !== null) {
         follow(+pending || 0).then(function (got) { if (got) arrived(); }, function () { setBusy(false); });
+    } else {
+        api('GET', '/api/v1/assistant/chat/busy').then(function (b) {
+            if (b && b.busy) {
+                follow(lastChatId, b).then(function (got) { if (got) arrived(); }, function () { setBusy(false); });
+            }
+        }).catch(function () {});
     }
+
+    // 다른 기기(PC↔폰)에서 상담을 마치고 돌아온 탭에서도 최신 대화를 바로 반영하고 SSE 를 다시 잇는다.
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            if (isOpen()) {
+                sync(true);
+                startStream();
+            }
+        } else {
+            stopStream();
+        }
+    });
+    window.addEventListener('pagehide', stopStream);
 })();

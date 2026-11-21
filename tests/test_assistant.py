@@ -166,3 +166,85 @@ def test_후속질문에도_이전이미지를_전달한다(fake):
                                  {mod: {"before": 1}}, {10: [url]}))
     _, images = assistant_v1._flatten(asked["messages"])
     assert images == [url]
+
+
+def test_busy는_진행중_시각과_질문을_돌려주고_동시요청은_409로_막는다(monkeypatch):
+    from app.core.blog_user import BlogUser
+
+    @asynccontextmanager
+    async def session():
+        yield SimpleNamespace()
+
+    async def find(db, user):
+        return BlogUser(user_index=7, user_id="root", level=0, posting_count=0, posting_limit=1)
+
+    monkeypatch.setattr(assistant_v1, "db_session", session)
+    monkeypatch.setattr(assistant_v1, "bearer_user", lambda request: object())
+    monkeypatch.setattr(assistant_v1.blog_user, "find", find)
+    monkeypatch.setattr(assistant_v1, "_CHATTING", {})
+
+    idle = asyncio.run(assistant_v1.chat_busy(None))
+    assert idle == {"busy": False, "started_at": None, "message": None}
+
+    assistant_v1._CHATTING[7] = {
+        "started_at": "2026-11-21T16:40:00+00:00",
+        "message": "[화면: 주식 · /stocks]\n폭락했는데 여전히 유지냐?",
+    }
+    active = asyncio.run(assistant_v1.chat_busy(None))
+    assert active == {
+        "busy": True,
+        "started_at": "2026-11-21T16:40:00+00:00",
+        "message": "[화면: 주식 · /stocks]\n폭락했는데 여전히 유지냐?",
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(assistant_v1.chat(None, assistant_v1.ChatIn(message="중복 질문")))
+    assert exc.value.status_code == 409
+
+    with pytest.raises(HTTPException) as exc2:
+        asyncio.run(assistant_v1.new_chat(None))
+    assert exc2.value.status_code == 409
+
+
+def test_sse_구독자에게_시작_완료_리셋_이벤트를_실시간_전달한다(monkeypatch):
+    from app.core.blog_user import BlogUser
+
+    @asynccontextmanager
+    async def session():
+        yield SimpleNamespace()
+
+    async def find(db, user):
+        return BlogUser(user_index=9, user_id="root", level=0, posting_count=0, posting_limit=1)
+
+    monkeypatch.setattr(assistant_v1, "db_session", session)
+    monkeypatch.setattr(assistant_v1, "bearer_user", lambda request: object())
+    monkeypatch.setattr(assistant_v1.blog_user, "find", find)
+    monkeypatch.setattr(assistant_v1, "_CHATTING", {})
+    monkeypatch.setattr(assistant_v1, "_SUBSCRIBERS", {})
+
+    async def run():
+        class FakeRequest:
+            async def is_disconnected(self):
+                return False
+
+        resp = await assistant_v1.chat_events(FakeRequest())
+        assert resp.media_type == "text/event-stream"
+        it = resp.body_iterator
+        first = await anext(it)
+        assert first.startswith("event: state\n") and '"busy": false' in first
+
+        assistant_v1._publish(9, "started", {"started_at": "2026-11-21T16:50:00+00:00", "message": "실시간 질문"})
+        assistant_v1._publish(9, "done", {"chat_id": 55})
+        assistant_v1._publish(9, "reset", {"after_chat_id": 55})
+
+        ev1 = await anext(it)
+        ev2 = await anext(it)
+        ev3 = await anext(it)
+        await it.aclose()
+        return ev1, ev2, ev3
+
+    ev1, ev2, ev3 = asyncio.run(run())
+    assert ev1.startswith("event: started\n") and "실시간 질문" in ev1
+    assert ev2.startswith("event: done\n") and '"chat_id": 55' in ev2
+    assert ev3.startswith("event: reset\n") and '"after_chat_id": 55' in ev3
+    assert 9 not in assistant_v1._SUBSCRIBERS   # 종료 후 구독자 정리 확인

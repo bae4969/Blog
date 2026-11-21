@@ -1,26 +1,348 @@
-.plan-workspace { min-inline-size: 0; }
-.plan-strategy { min-inline-size: 0; margin-block-end: 12px; }
-.plan-strategy[hidden] { display: none; }
-.plan-strategy div::after { content: none; }
-.plan-strategy__tabs { display: flex; gap: 2px; padding: 4px 4px 0; overflow-x: auto; scrollbar-width: none; border-block-end: 1px solid var(--bae-border); }
-.plan-strategy__tabs button { border: 0; border-radius: 4px 4px 0 0; padding: 8px 12px; background: var(--bae-surface-alt); color: var(--bae-text-dim); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
-.plan-strategy__tabs button[aria-selected="true"] { background: var(--bae-surface); color: var(--bae-accent-fg); }
-.plan-strategy__tabs button:hover { background: var(--bae-surface-hover); }
-.plan-strategy__tabs button:focus-visible, .plan-strategy summary:focus-visible { outline: 2px solid var(--bae-accent); outline-offset: -2px; }
-.plan-strategy__content { display: grid; gap: 6px; padding-block-start: 8px; }
-.plan-strategy__item { min-inline-size: 0; border: 1px solid var(--bae-border); border-radius: 8px; background: var(--bae-surface); margin-block-end: 6px; }
-.plan-strategy__item > .plan-strategy__item { margin: 8px; border-inline-start: 3px solid var(--bae-border-hover); }
-.plan-strategy__summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; }
-.plan-strategy__summary::-webkit-details-marker { display: none; }
-.plan-strategy__summary:hover { background: var(--bae-surface-hover); border-radius: 8px; }
-.plan-strategy__title { min-inline-size: 0; flex: 1; overflow: clip; white-space: nowrap; text-overflow: ellipsis; color: var(--bae-text-primary); font-size: 14px; font-weight: 500; }
-.plan-strategy__summary small { flex-shrink: 0; color: var(--bae-text-dim); font-size: 12px; }
-.plan-strategy__body { margin: 0; padding: 8px 12px 12px; }
-.plan-strategy__field { display: grid; grid-template-columns: minmax(72px, 1fr) minmax(0, 3fr); gap: 8px; padding-block: 4px; font-size: 13px; }
-.plan-strategy__field dt { color: var(--bae-text-dim); overflow-wrap: anywhere; }
-.plan-strategy__field dd { margin: 0; min-inline-size: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.plan-strategy__actions { display: flex; justify-content: end; gap: 8px; padding: 8px 12px; }
-.plan-strategy__actions .c-btn { inline-size: 28px; block-size: 28px; border-radius: 4px; }
-.plan-strategy__changes { padding: 0 28px; font-size: 13px; overflow-wrap: anywhere; }
-.plan-strategy__warning { padding: 8px 12px; color: var(--bae-danger); font-size: 13px; }
-@media (pointer: coarse) { .plan-strategy__summary { min-block-size: 44px; } .plan-strategy__actions .c-btn { inline-size: 44px; block-size: 44px; } }
+/* 투자 계획 — 변경안 검토 · 전략 탭 (`plan_strategy.js`)
+   옆의 내 자산(`.plan-assets`)·계획 트리(`.plan-card`)와 같은 카드 결(1rem · `--plan-card`),
+   공용 세그먼트 탭(`.sh-seg`·`.admin-menu`), `card-list.md` list item 규약에 맞춘다. */
+
+.plan-workspace {
+    min-inline-size: 0;
+}
+
+.plan-strategy {
+    display: grid;
+    gap: 12px;
+    min-inline-size: 0;
+    margin-block-end: 12px;
+}
+
+.plan-strategy[hidden] {
+    display: none;
+}
+
+/* 레거시 blog.css clearfix 유령 해제 (버튼 터치 44px `::after` 는 유지) */
+.plan-strategy::after,
+.plan-strategy :is(div, ul, li, dl, details)::after {
+    content: none;
+}
+
+/* ── 탭 패널 카드 ──────────────────────────────────────────────── */
+.plan-strategy__panel {
+    min-inline-size: 0;
+    padding: 16px;
+    border-radius: 1rem;
+    background: var(--plan-card);
+    overflow-x: clip;
+}
+
+.plan-strategy__tabs {
+    display: inline-flex;
+    gap: 2px;
+    max-inline-size: 100%;
+    padding: 3px;
+    border-radius: 0.625rem;
+    background: var(--bae-bg-alt);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.plan-strategy__tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.plan-strategy__tabs button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    block-size: 2rem;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.plan-strategy__tabs button:hover {
+    color: var(--bae-text-primary);
+}
+
+.plan-strategy__tabs button[aria-selected="true"] {
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-primary);
+    font-weight: 700;
+}
+
+.plan-strategy__tabs button:focus-visible,
+.plan-strategy summary:focus-visible {
+    outline: 2px solid var(--bae-accent-fg);
+    outline-offset: -2px;
+}
+
+.plan-strategy__content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-inline-size: 0;
+    padding-block-start: 12px;
+}
+
+.plan-strategy__panel .plan-empty {
+    margin: 0;
+    padding: 20px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    color: var(--bae-text-dim);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+/* ── list item 아코디언 항목 ───────────────────────────────────── */
+.plan-strategy__item {
+    min-inline-size: 0;
+    margin: 0;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.plan-strategy__item.is-selected {
+    border-color: rgba(var(--bae-accent-rgb), 0.45);
+    background: rgba(var(--bae-accent-rgb), 0.08);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.plan-strategy__item > .plan-strategy__item {
+    margin: 8px 12px;
+    box-shadow: inset 3px 0 0 var(--bae-border-hover);
+}
+
+.plan-strategy__item > .plan-strategy__item.is-selected {
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+}
+
+.plan-strategy__summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-block-size: 40px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    list-style: none;
+    transition: background-color 0.15s ease;
+}
+
+.plan-strategy__summary::-webkit-details-marker {
+    display: none;
+}
+
+.plan-strategy__summary:hover {
+    background: var(--bae-surface-hover);
+}
+
+.plan-strategy__item[open] > .plan-strategy__summary {
+    border-radius: 8px 8px 0 0;
+}
+
+.plan-strategy__title {
+    min-inline-size: 0;
+    flex: 1;
+    overflow: hidden;
+    color: var(--bae-text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-strategy__summary small {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.plan-strategy__body {
+    margin: 0;
+    padding: 8px 12px 12px;
+    border-block-start: 1px solid var(--bae-divider);
+}
+
+.plan-strategy__field {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr);
+    gap: 8px;
+    padding-block: 4px;
+    font-size: 0.8125rem;
+}
+
+.plan-strategy__field dt {
+    color: var(--bae-text-dim);
+    overflow-wrap: anywhere;
+}
+
+.plan-strategy__field dd {
+    margin: 0;
+    min-inline-size: 0;
+    color: var(--bae-text-primary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 변경안 검토 카드 (accent 좌측 3px 바 강조) ─────────────────── */
+.plan-strategy__change {
+    border: 1px solid rgba(var(--bae-accent-rgb), 0.45);
+    border-radius: 1rem;
+    background: var(--plan-card);
+    box-shadow: inset 3px 0 0 var(--bae-accent);
+    overflow: hidden;
+}
+
+.plan-strategy__change > .plan-strategy__summary {
+    padding: 14px 16px;
+    border-radius: 1rem;
+}
+
+.plan-strategy__change[open] > .plan-strategy__summary {
+    border-radius: 1rem 1rem 0 0;
+}
+
+.plan-strategy__change > .plan-strategy__summary .plan-strategy__title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.plan-strategy__changes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 16px 4px;
+    list-style: none;
+}
+
+.plan-strategy__changes li {
+    padding: 8px 12px;
+    border: 1px solid var(--bae-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--bae-text-primary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.plan-strategy__warning {
+    margin: 8px 16px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--bae-danger);
+    border-radius: 8px;
+    background: rgba(var(--bae-danger-rgb), 0.15);
+    color: var(--bae-danger);
+    font-size: 0.75rem;
+}
+
+.plan-strategy__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px 14px;
+}
+
+.plan-strategy__actions .c-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 32px;
+    block-size: 32px;
+    min-block-size: 32px;
+    padding: 0;
+    border-radius: 8px;
+}
+
+.plan-strategy__actions .c-btn .c-ico {
+    inline-size: 16px;
+    block-size: 16px;
+}
+
+.plan-strategy__apply {
+    border-color: transparent;
+    background: var(--bae-accent);
+    color: var(--bae-accent-text);
+}
+
+.plan-strategy__apply:hover {
+    border-color: transparent;
+    background: var(--bae-accent-hover);
+    color: var(--bae-accent-text);
+}
+
+.plan-strategy__apply:disabled {
+    background: var(--bae-surface-hover);
+    color: var(--bae-text-dim);
+    cursor: not-allowed;
+}
+
+.plan-strategy__dismiss {
+    border: 1px solid var(--bae-border);
+    background: var(--bae-surface-alt);
+    color: var(--bae-text-dim);
+}
+
+.plan-strategy__dismiss:hover {
+    border-color: var(--bae-danger);
+    background: rgba(var(--bae-danger-rgb), 0.15);
+    color: var(--bae-danger);
+}
+
+/* ── 터치 · 반응형 ─────────────────────────────────────────────── */
+@media (any-pointer: coarse) {
+    .plan-strategy__actions .c-btn::after {
+        content: "";
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: 50%;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (pointer: coarse) {
+    .plan-strategy__summary {
+        min-block-size: 44px;
+    }
+}
+
+@media (max-width: 639.98px) {
+    .plan-strategy__panel {
+        padding: 12px;
+    }
+
+    .plan-strategy__change > .plan-strategy__summary {
+        padding: 12px;
+    }
+
+    .plan-strategy__changes {
+        padding-inline: 12px;
+    }
+
+    .plan-strategy__actions {
+        padding: 10px 12px 12px;
+    }
+
+    .plan-strategy__field {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+}
