@@ -35,7 +35,7 @@ from app.api.deps import bearer_user
 from app.core import app_settings, blog_user
 from app.core.config import settings
 from app.db.session import db_session
-from app.services import codex_runner
+from app.services import ai_runner
 
 router = APIRouter(prefix="/api/v1/assistant", tags=["assistant"])
 
@@ -218,10 +218,8 @@ async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple,
     token = mcp.issue(user_index, allow=tools, context=request_context)
     reply, error = "", None
     try:
-        model = codex_runner.resolve_model(cfg["ai_model"])
-        reply = await codex_runner.run(prompt, model, images, settings.plan_mcp_url, token, tools,
-                                       effort=codex_runner.resolve_effort(model, cfg["ai_effort"]))
-    except codex_runner.CodexError as e:
+        reply = await ai_runner.run(cfg, prompt, images, settings.plan_mcp_url, token, tools)
+    except ai_runner.AIError as e:
         error = str(e)
     finally:
         made = mcp.revoke(token)

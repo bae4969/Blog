@@ -30,7 +30,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.exc import IntegrityError
 
 from app.core import app_settings, blog_user, csrf
-from app.services import codex_runner
+from app.services import agy_runner, ai_runner, codex_runner, n8n_writer
 from app.db.session import db_session
 from app.ui import quotes as quote_cards
 from app.ui.routes import _int_arg, _shell_ctx, templates
@@ -1112,9 +1112,13 @@ async def quote_subscriptions_update(request: Request):
 # 내보내지 않는다 — 끝 4자리만 보이고, 칸을 비워 저장하면 원래 값을 그대로 둔다.
 
 
-def _back(msg: str, error: bool = False) -> RedirectResponse:
-    kind = "&kind=error" if error else ""
-    return RedirectResponse(f"/admin/integrations?msg={quote(msg)}{kind}", status_code=status.HTTP_303_SEE_OTHER)
+def _back(msg: str, error: bool = False, provider: str | None = None) -> RedirectResponse:
+    parts = [f"msg={quote(msg)}"]
+    if error:
+        parts.append("kind=error")
+    if provider in app_settings.PROVIDERS:
+        parts.append(f"provider={provider}")
+    return RedirectResponse(f"/admin/integrations?{'&'.join(parts)}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/integrations", response_class=HTMLResponse, include_in_schema=False)
@@ -1135,15 +1139,40 @@ async def _integrations_page(request: Request, form: dict | None = None, status_
     if form:
         values.update({k: v for k, v in form["values"].items() if k not in app_settings.SECRETS})
     saved = {k: app_settings.masked(cfg[k]) for k in app_settings.SECRETS}
-    model = codex_runner.resolve_model(cfg["ai_model"])
+
+    codex_model = codex_runner.resolve_model(cfg["ai_model"])
     codex = {**codex_runner.login_state(), "logged_in": codex_runner.logged_in(),
-             "account": await codex_runner.account(), "model": model,
-             "effort": codex_runner.resolve_effort(model, cfg["ai_effort"]), "catalog": codex_runner.catalog(),
+             "account": await codex_runner.account(), "model": codex_model,
+             "effort": codex_runner.resolve_effort(codex_model, cfg["ai_effort"]), "catalog": codex_runner.catalog(),
              "aliases": codex_runner.aliases(), "version": await codex_runner.version()}
+
+    if agy_runner.logged_in() and not agy_runner.catalog()["models"]:
+        await agy_runner.refresh_catalog()
+    agy_model = agy_runner.resolve_model(cfg["agy_model"])
+    agy = {**agy_runner.login_state(), "logged_in": agy_runner.logged_in(),
+           "account": await agy_runner.account(), "model": agy_model,
+           "effort": agy_runner.resolve_effort(agy_model, cfg["agy_effort"]), "catalog": agy_runner.catalog(),
+           "aliases": agy_runner.aliases(), "version": await agy_runner.version()}
+
+    # 화면에서 열 프로바이더 탭: 폼 검증 실패 시 입력값 → 쿼리 파라미터 → 로그인 진행 중 → 저장된 프로바이더
+    req_provider = (request.query_params.get("provider") or "").strip().lower()
+    if form and form["values"].get("ai_provider") in app_settings.PROVIDERS:
+        view_provider = form["values"]["ai_provider"]
+    elif req_provider in app_settings.PROVIDERS:
+        view_provider = req_provider
+    elif agy["pending"] and not codex["pending"]:
+        view_provider = "agy"
+    elif codex["pending"] and not agy["pending"]:
+        view_provider = "codex"
+    else:
+        view_provider = ai_runner.provider_of(cfg)
+
     token = csrf.new_token(request)
     response = templates.TemplateResponse(
         request, "admin_integrations.html",
-        {**ctx, "admin_menu": "integrations", "values": values, "saved": saved, "codex": codex,
+        {**ctx, "admin_menu": "integrations", "values": values, "saved": saved,
+         "codex": codex, "agy": agy, "view_provider": view_provider,
+         "saved_provider": ai_runner.provider_of(cfg),
          "csrf_token": token, "msg": request.query_params.get("msg"), "form": form},
         status_code=status_code)
     csrf.attach(response, token)
@@ -1156,15 +1185,23 @@ async def integrations_save(request: Request):
     if not csrf.valid(request, str(form.get("csrf_token", ""))):
         return _deny("csrf_invalid", "/admin/integrations")
     values = {k: str(form.get(k, "")).strip() for k in app_settings.DEFAULTS}
+    if not values["ai_provider"]:
+        values["ai_provider"] = "codex"
     bad = None
-    if not values["smtp_port"].isdigit() or not 0 < int(values["smtp_port"]) < 65536:
-        bad = ("smtp_port", "SMTP 포트는 1~65535 숫자여야 합니다")
+    if values["ai_provider"] not in app_settings.PROVIDERS:
+        bad = ("ai_provider", "AI 프로바이더를 확인하세요")
     elif values["ai_effort"] and values["ai_effort"] not in app_settings.EFFORTS:
         bad = ("ai_effort", "추론 강도가 올바르지 않습니다")
+    elif values["agy_effort"] and values["agy_effort"] not in app_settings.EFFORTS:
+        bad = ("agy_effort", "추론 강도가 올바르지 않습니다")
+    elif not values["smtp_port"].isdigit() or not 0 < int(values["smtp_port"]) < 65536:
+        bad = ("smtp_port", "SMTP 포트는 1~65535 숫자여야 합니다")
     elif values["plan_mail_to"] and "@" not in values["plan_mail_to"]:
         bad = ("plan_mail_to", "받는 메일 주소 형식이 아닙니다")
     elif not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", values["plan_daily_at"]):
         bad = ("plan_daily_at", "점검 시각은 HH:MM 이어야 합니다")
+    elif values["n8n_webhook_url"] and not n8n_writer.valid_url(values["n8n_webhook_url"]):
+        bad = ("n8n_webhook_url", "웹훅 주소는 http:// 또는 https:// 로 시작해야 합니다")
     if bad:
         logger.warning("관리자 거부: integrations.save %s", bad[0])
         return await _integrations_page(request, {"field": bad[0], "error": bad[1], "values": values},
@@ -1174,19 +1211,20 @@ async def integrations_save(request: Request):
         if me is None:
             return _deny("not_admin integrations.save")
         await app_settings.save(db, values)
-    logger.info("외부 연동 설정 저장: %s", me.user_id)
-    return _back("외부 연동 설정을 저장했습니다")
+    logger.info("외부 연동 설정 저장: %s (provider=%s)", me.user_id, values["ai_provider"])
+    return _back("외부 연동 설정을 저장했습니다", provider=values["ai_provider"])
 
 
-async def _test_ai(cfg: dict) -> tuple[bool, str]:
-    """codex 를 실제로 한 번 부른다(10~20초) — 로그인·모델이 맞는지 한 번에 본다. (성공 여부, 안내)"""
-    model = codex_runner.resolve_model(cfg["ai_model"])
-    effort = codex_runner.resolve_effort(model, cfg["ai_effort"])
+async def _test_ai(cfg: dict, provider: str | None = None) -> tuple[bool, str]:
+    """선택된 프로바이더(Codex/AGY)를 실제로 한 번 부른다 — 로그인·모델이 맞는지 한 번에 본다. (성공 여부, 안내)"""
+    prov = provider if provider in app_settings.PROVIDERS else ai_runner.provider_of(cfg)
+    _, model, effort = ai_runner.resolve_for(cfg, prov)
+    label = ai_runner.PROVIDER_LABELS.get(prov, prov)
     try:
-        out = await codex_runner.run("‘OK’ 라고만 답해.", model, effort=effort)
-    except codex_runner.CodexError as e:
+        out = await ai_runner.run(cfg, "‘OK’ 라고만 답해.", provider=prov)
+    except ai_runner.AIError as e:
         return False, str(e)
-    return True, f"AI 응답 성공 — {model or 'codex 기본'} · 강도 {effort or '기본'}: {out.strip()[:40]}"
+    return True, f"{label} 응답 성공 — {model or f'{label} 기본'} · 강도 {effort or '기본'}: {out.strip()[:40]}"
 
 
 def _test_smtp(cfg: dict) -> tuple[bool, str]:
@@ -1221,18 +1259,58 @@ async def integrations_codex(request: Request, csrf_token: str = Form(""), actio
     if action == "login":
         state = await codex_runner.start_login()
         return _back("아래 링크에서 코드를 넣어 주세요" if state["code"] else f"로그인을 시작하지 못했습니다 {state['error'] or ''}",
-                     error=not state["code"])
+                     error=not state["code"], provider="codex")
     if action == "cancel":
         await codex_runner.cancel_login()
-        return _back("Codex 로그인을 취소했습니다")
+        return _back("Codex 로그인을 취소했습니다", provider="codex")
     if action == "logout":
         await codex_runner.logout()
-        return _back("Codex 에서 로그아웃했습니다")
-    return _back("무엇을 할지 모릅니다", error=True)
+        return _back("Codex 에서 로그아웃했습니다", provider="codex")
+    return _back("무엇을 할지 모릅니다", error=True, provider="codex")
+
+
+@router.post("/integrations/agy", include_in_schema=False)
+async def integrations_agy(
+    request: Request,
+    csrf_token: str = Form(""),
+    action: str = Form(""),
+    code: str = Form(""),
+):
+    """AGY 로그인(Google OAuth PTY 코드 제출)·취소·로그아웃·모델 목록 새로고침."""
+    if not csrf.valid(request, csrf_token):
+        return _deny("csrf_invalid", "/admin/integrations?provider=agy")
+    async with db_session() as db:
+        if await _require_admin(request, db) is None:
+            return _deny("not_admin integrations.agy")
+    if action == "login":
+        state = await agy_runner.start_login()
+        if state["url"]:
+            return _back("60초 안에 아래 링크로 로그인한 뒤 코드를 붙여넣어 주세요", provider="agy")
+        return _back(f"AGY 로그인을 시작하지 못했습니다 {state['error'] or ''}".strip(), error=True, provider="agy")
+    if action == "submit_code":
+        ok, msg = await agy_runner.submit_code(code)
+        return _back(msg, error=not ok, provider="agy")
+    if action == "cancel":
+        await agy_runner.cancel_login()
+        return _back("AGY 로그인을 취소했습니다", provider="agy")
+    if action == "logout":
+        await agy_runner.logout()
+        return _back("AGY 에서 로그아웃했습니다", provider="agy")
+    if action == "refresh":
+        cat = await agy_runner.refresh_catalog()
+        if cat["models"]:
+            return _back(f"AGY 모델 {len(cat['models'])}개를 불러왔습니다", provider="agy")
+        return _back("AGY 모델 목록을 불러오지 못했습니다", error=True, provider="agy")
+    return _back("무엇을 할지 모릅니다", error=True, provider="agy")
 
 
 @router.post("/integrations/test", include_in_schema=False)
-async def integrations_test(request: Request, csrf_token: str = Form(""), target: str = Form("")):
+async def integrations_test(
+    request: Request,
+    csrf_token: str = Form(""),
+    target: str = Form(""),
+    provider: str = Form(""),
+):
     """저장된 값으로 시험한다(입력 칸의 고치는 중인 값이 아니다)."""
     if not csrf.valid(request, csrf_token):
         return _deny("csrf_invalid", "/admin/integrations")
@@ -1241,8 +1319,9 @@ async def integrations_test(request: Request, csrf_token: str = Form(""), target
             return _deny("not_admin integrations.test")
         cfg = await app_settings.load(db)
     if target == "ai":
-        ok, msg = await _test_ai(cfg)
-        return _back(msg, error=not ok)   # 시험 실패는 오류 토스트로
+        prov = provider.strip().lower() if provider.strip().lower() in app_settings.PROVIDERS else ai_runner.provider_of(cfg)
+        ok, msg = await _test_ai(cfg, prov)
+        return _back(msg, error=not ok, provider=prov)   # 시험 실패는 오류 토스트로
     if target == "smtp":
         import asyncio
         ok, msg = await asyncio.to_thread(_test_smtp, cfg)

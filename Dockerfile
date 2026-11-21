@@ -18,12 +18,16 @@ COPY requirements-api.txt /tmp/blog-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/blog-requirements.txt \
     && rm /tmp/blog-requirements.txt
 
-# 투자 계획 AI — 빌드 시 최신 설치. 설치 단계에서 VCS_REF를 참조해 새 커밋마다 다시 설치한다.
+# AI CLI (codex · agy) — 빌드 시 최신 설치. 설치 단계에서 VCS_REF를 참조해 새 커밋마다 다시 설치한다.
 # 실행 중 자체 업데이트는 하지 않는다. CI·배포 빌드와 관리자 화면에서 실제 바이너리 버전을 확인한다.
-# 실행 파일은 이미지(/opt/codex), 로그인(auth.json)은 볼륨(/data/codex — compose 가 blog_data/codex 를 붙인다)에 둔다.
-RUN echo "Codex install revision: ${VCS_REF}" \
+# 실행 파일은 이미지(/usr/local/bin), 로그인(codex auth.json · agy OAuth 토큰)은 볼륨(/data/codex)에 둔다.
+RUN echo "AI CLI install revision: ${VCS_REF}" \
     && curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_HOME=/opt/codex CODEX_INSTALL_DIR=/usr/local/bin sh \
-    && /usr/local/bin/codex --version
+    && /usr/local/bin/codex --version \
+    && HOME=/opt/agy-install curl -fsSL https://antigravity.google/cli/install.sh | HOME=/opt/agy-install bash \
+    && cp /opt/agy-install/.local/bin/agy /usr/local/bin/agy \
+    && rm -rf /opt/agy-install \
+    && /usr/local/bin/agy --version
 ENV CODEX_HOME=/data/codex
 
 COPY --chown=1000:3000 app/ /app/app/

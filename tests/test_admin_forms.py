@@ -40,3 +40,18 @@ def _handler_fields(func) -> set[str]:
 ])
 def test_카테고리_폼_필드가_핸들러와_같다(path, func):
     assert _form_fields(path) == _handler_fields(func)
+
+
+def test_외부연동_폼_필드가_app_settings와_일치한다():
+    from app.core import app_settings
+
+    tpl = Path("app/templates/admin_integrations.html").read_text()
+    start = tpl.index('action="/admin/integrations"')
+    end = tpl.index("</form>", start)
+    # form="agySubmit" 처럼 외부 폼에 속한 입력(code)은 제외한다.
+    fields = {
+        m.group(1)
+        for m in re.finditer(r'<(?:input|select|textarea)\b[^>]*\bname="([a-z0-9_]+)"[^>]*>', tpl[start:end])
+        if 'form="' not in m.group(0)
+    }
+    assert fields == set(app_settings.DEFAULTS) | {"csrf_token"}
