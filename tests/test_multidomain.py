@@ -18,27 +18,45 @@ def client():
 
 
 @pytest.fixture()
+def single_domain(monkeypatch):
+    monkeypatch.setattr(settings, "base_domain", "onulkit.com")
+    monkeypatch.setattr(settings, "extra_domains", "")
+    monkeypatch.setattr(settings, "auth_public_url", "https://auth.onulkit.com")
+
+
+@pytest.fixture()
 def dual_domains(monkeypatch):
-    monkeypatch.setattr(settings, "base_domain", "bdda.duckdns.org")
-    monkeypatch.setattr(settings, "extra_domains", "onulkit.com")
-    monkeypatch.setattr(settings, "auth_public_url", "https://auth.bdda.duckdns.org")
+    monkeypatch.setattr(settings, "base_domain", "onulkit.com")
+    monkeypatch.setattr(settings, "extra_domains", "example.net")
+    monkeypatch.setattr(settings, "auth_public_url", "https://auth.onulkit.com")
 
 
 class TestMultiDomainConfig:
     def test_허용_도메인_정규화_중복제거(self, monkeypatch):
-        monkeypatch.setattr(settings, "base_domain", " Bdda.DuckDNS.org ")
-        monkeypatch.setattr(settings, "extra_domains", " .onulkit.com, onulkit.com  example.net ")
-        assert settings.allowed_domains == ("bdda.duckdns.org", "onulkit.com", "example.net")
+        monkeypatch.setattr(settings, "base_domain", " Onulkit.COM ")
+        monkeypatch.setattr(settings, "extra_domains", " .onulkit.com, example.net  example.org ")
+        assert settings.allowed_domains == ("onulkit.com", "example.net", "example.org")
+
+    @pytest.mark.parametrize("host", [
+        "blog.onulkit.com",
+        "stock.onulkit.com",
+        "blogtest.onulkit.com",
+        "BLOG.ONULKIT.COM:443",
+        "onulkit.com.",
+    ])
+    def test_단일_도메인_매칭(self, single_domain, host):
+        assert settings.allowed_domains == ("onulkit.com",)
+        assert settings.domain_for(host) == "onulkit.com"
+        assert settings.cookie_domain_for(host) == ".onulkit.com"
+        assert settings.auth_public_url_for(host) == "https://auth.onulkit.com"
 
     @pytest.mark.parametrize("host, expected_domain, expected_cookie, expected_auth", [
-        ("blog.bdda.duckdns.org", "bdda.duckdns.org", ".bdda.duckdns.org", "https://auth.bdda.duckdns.org"),
-        ("stock.bdda.duckdns.org", "bdda.duckdns.org", ".bdda.duckdns.org", "https://auth.bdda.duckdns.org"),
-        ("blogtest.bdda.duckdns.org", "bdda.duckdns.org", ".bdda.duckdns.org", "https://auth.bdda.duckdns.org"),
         ("blog.onulkit.com", "onulkit.com", ".onulkit.com", "https://auth.onulkit.com"),
         ("stock.onulkit.com", "onulkit.com", ".onulkit.com", "https://auth.onulkit.com"),
         ("blogtest.onulkit.com", "onulkit.com", ".onulkit.com", "https://auth.onulkit.com"),
-        ("BLOG.ONULKIT.COM:443", "onulkit.com", ".onulkit.com", "https://auth.onulkit.com"),
-        ("onulkit.com.", "onulkit.com", ".onulkit.com", "https://auth.onulkit.com"),
+        ("blog.example.net", "example.net", ".example.net", "https://auth.example.net"),
+        ("BLOG.EXAMPLE.NET:443", "example.net", ".example.net", "https://auth.example.net"),
+        ("example.net.", "example.net", ".example.net", "https://auth.example.net"),
     ])
     def test_허용_도메인_분기(self, dual_domains, host, expected_domain, expected_cookie, expected_auth):
         assert settings.domain_for(host) == expected_domain
@@ -46,27 +64,28 @@ class TestMultiDomainConfig:
         assert settings.auth_public_url_for(host) == expected_auth
 
     @pytest.mark.parametrize("host", [
+        "blog.bdda.duckdns.org",
         "evil-onulkit.com",
         "onulkit.com.evil.test",
         "localhost:8080",
         "bae-blog:8080",
         "",
     ])
-    def test_화이트리스트_밖은_기본_도메인으로_폴백(self, dual_domains, host):
+    def test_화이트리스트_밖은_기본_도메인으로_폴백(self, single_domain, host):
         assert settings.match_domain(host) is None
-        assert settings.domain_for(host) == "bdda.duckdns.org"
-        assert settings.cookie_domain_for(host) == ".bdda.duckdns.org"
-        assert settings.auth_public_url_for(host) == "https://auth.bdda.duckdns.org"
+        assert settings.domain_for(host) == "onulkit.com"
+        assert settings.cookie_domain_for(host) == ".onulkit.com"
+        assert settings.auth_public_url_for(host) == "https://auth.onulkit.com"
 
 
 class TestMultiDomainSessionRefresh:
     @pytest.mark.parametrize("host, expected_cookie_domain", [
-        ("blog.bdda.duckdns.org", "Domain=.bdda.duckdns.org"),
-        ("stock.bdda.duckdns.org", "Domain=.bdda.duckdns.org"),
         ("blog.onulkit.com", "Domain=.onulkit.com"),
         ("stock.onulkit.com", "Domain=.onulkit.com"),
         ("blogtest.onulkit.com", "Domain=.onulkit.com"),
-        ("evil-onulkit.com", "Domain=.bdda.duckdns.org"),
+        ("blog.example.net", "Domain=.example.net"),
+        ("blog.bdda.duckdns.org", "Domain=.onulkit.com"),
+        ("evil-onulkit.com", "Domain=.onulkit.com"),
     ])
     def test_자동_세션_갱신_쿠키가_요청_도메인_계열로_발급된다(
         self, client, dual_domains, monkeypatch, host, expected_cookie_domain

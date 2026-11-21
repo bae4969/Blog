@@ -18,12 +18,9 @@ def client():
 
 
 @pytest.mark.parametrize("host, target", [
-    ("blog.bdda.duckdns.org", "/blog"),
-    ("stock.bdda.duckdns.org", "/stocks"),
-    ("blogtest.bdda.duckdns.org", "/stocks"),   # `blog` 로 시작해도 `blog` 는 아니다
     ("blog.onulkit.com", "/blog"),
     ("stock.onulkit.com", "/stocks"),
-    ("blogtest.onulkit.com", "/stocks"),
+    ("blogtest.onulkit.com", "/stocks"),   # `blog` 로 시작해도 `blog` 는 아니다
     ("BLOG.ONULKIT.COM:443", "/blog"),
     ("localhost:8080", "/stocks"),
 ])
@@ -34,7 +31,6 @@ def test_루트는_도메인별로_나뉜다(client, host, target):
 
 
 @pytest.mark.parametrize("host, target", [
-    ("stock.bdda.duckdns.org", "/stocks?market=US"),
     ("stock.onulkit.com", "/stocks?market=US"),
     ("blog.onulkit.com", "/blog?market=US"),
 ])

@@ -96,7 +96,7 @@ class Settings(BaseSettings):
         return f".{_normalize_domain(self.base_domain)}"
 
     def cookie_domain_for(self, request_or_host=None) -> str:
-        """요청 호스트 계열의 쿠키 도메인(`.bdda.duckdns.org` / `.onulkit.com`)."""
+        """요청 호스트 계열의 쿠키 도메인(예: `.onulkit.com`)."""
         return f".{self.domain_for(request_or_host)}"
 
     def auth_public_url_for(self, request_or_host=None) -> str:
