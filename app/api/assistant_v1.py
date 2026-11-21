@@ -27,6 +27,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -226,10 +227,80 @@ async def _ask(cfg: dict, messages: list[dict], user_index: int, tools: tuple,
     return reply, made, error
 
 
-#: 상담이 돌고 있는 사용자. 휴대폰은 기다리는 사이 요청이 끊기는데 서버는 끝까지 답을 만들어 저장한다 — 화면은
-#: `/chat/busy` 로 끝나길 기다렸다 대화를 다시 읽고, 그 사이 다시 보낸 상담은 409 로 막는다(끊긴 줄 알고 다시 보내
-#: AI 가 같은 일을 두 번 했다 — 2026-10-14~16 운영 로그). 앱 워커가 하나라 프로세스 안 집합이면 충분하다.
-_CHATTING: set[int] = set()
+#: 상담이 돌고 있는 사용자별 진행 정보(`{started_at, message}`). 휴대폰 연결 끊김이나
+#: PC·폰 동시 접속 시 다른 기기가 `/chat/busy` · `/chat/events`(SSE) 로 진행 중 상태·경과 시각·질문 내용을 받아
+#: 즉시 동기화하고, 그 사이 중복 전송은 409 로 막는다. 앱 워커가 하나라 프로세스 안 딕셔너리면 충분하다.
+_CHATTING: dict[int, dict] = {}
+#: 다중 기기 실시간 동기화용 SSE 구독자 큐(사용자별).
+_SUBSCRIBERS: dict[int, set[asyncio.Queue]] = {}
+_SSE_PING_SEC = 20.0
+
+
+def _sse_frame(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+def _publish(user_index: int, event: str, data: dict) -> None:
+    """연결된 모든 기기(SSE)에 상담 상태 변화를 즉시 알린다."""
+    subs = _SUBSCRIBERS.get(user_index)
+    if not subs:
+        return
+    frame = _sse_frame(event, data)
+    for q in list(subs):
+        try:
+            q.put_nowait(frame)
+        except asyncio.QueueFull:
+            pass
+
+
+def _busy_payload(user_index: int) -> dict:
+    active = _CHATTING.get(user_index)
+    if not active:
+        return {"busy": False, "started_at": None, "message": None}
+    return {
+        "busy": True,
+        "started_at": active.get("started_at"),
+        "message": active.get("message") or None,
+    }
+
+
+@router.get("/chat/events", summary="상담 상태 실시간 동기화(SSE)")
+async def chat_events(request: Request):
+    async with db_session() as db:
+        me = await _root(db, request)
+    uid = me.user_index
+    q: asyncio.Queue[str] = asyncio.Queue(maxsize=32)
+    subs = _SUBSCRIBERS.setdefault(uid, set())
+    subs.add(q)
+
+    async def stream():
+        try:
+            yield _sse_frame("state", _busy_payload(uid))
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    frame = await asyncio.wait_for(q.get(), timeout=_SSE_PING_SEC)
+                except TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+                yield frame
+        except asyncio.CancelledError:
+            raise
+        finally:
+            subs.discard(q)
+            if not subs:
+                _SUBSCRIBERS.pop(uid, None)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat/new", summary="새 상담 — 기록·자산·원칙·기억을 보존하고 이전 대화 전달을 끝낸다")
@@ -238,11 +309,11 @@ async def new_chat(request: Request):
         me = await _root(db, request)
         if me.user_index in _CHATTING:
             raise HTTPException(status.HTTP_409_CONFLICT, "상담이 끝난 뒤 새 상담을 시작해 주세요")
-        _CHATTING.add(me.user_index)
+        _CHATTING[me.user_index] = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "message": ""}
         try:
-            boundary = (await db.execute(text(
+            boundary = int((await db.execute(text(
                 "SELECT COALESCE(MAX(chat_id), 0) FROM assistant_chat WHERE user_index = :u"),
-                {"u": me.user_index})).scalar()
+                {"u": me.user_index})).scalar() or 0)
             await db.execute(text(
                 "INSERT INTO assistant_context (user_index, after_chat_id) VALUES (:u, :c) "
                 "ON DUPLICATE KEY UPDATE after_chat_id = VALUES(after_chat_id)"),
@@ -250,7 +321,8 @@ async def new_chat(request: Request):
             await db.execute(text("DELETE FROM assistant_image WHERE user_index = :u"), {"u": me.user_index})
             await db.commit()
         finally:
-            _CHATTING.discard(me.user_index)
+            _CHATTING.pop(me.user_index, None)
+    _publish(me.user_index, "reset", {"after_chat_id": boundary})
     return {"after_chat_id": boundary}
 
 
@@ -258,7 +330,7 @@ async def new_chat(request: Request):
 async def chat_busy(request: Request):
     async with db_session() as db:
         me = await _root(db, request)
-    return {"busy": me.user_index in _CHATTING}
+    return _busy_payload(me.user_index)
 
 
 @router.post("/chat", summary="상담 — AI 가 MCP 쓰기 도구로 무언가 고치면 모듈이 그 요약·되돌리기를 낸다")
@@ -276,11 +348,17 @@ async def chat(request: Request, body: ChatIn):
         except (binascii.Error, ValueError):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이미지 데이터가 올바르지 않습니다") from None
 
+    pending_label = context_label(fit_context(body.context))
+    pending_msg = "\n".join(x for x in (pending_label, msg, f"[이미지 {len(body.images)}장]" if body.images else "") if x)
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
     async with db_session() as db:
         me = await _root(db, request)
         if me.user_index in _CHATTING:
             raise HTTPException(status.HTTP_409_CONFLICT, "앞의 상담이 아직 진행 중입니다")
-        _CHATTING.add(me.user_index)
+        _CHATTING[me.user_index] = {"started_at": started_at, "message": pending_msg}
+    _publish(me.user_index, "started", {"started_at": started_at, "message": pending_msg or None})
+    done_chat_id: int | None = None
     try:
         async with db_session() as db:
             cfg = await app_settings.load(db)
@@ -292,9 +370,12 @@ async def chat(request: Request, body: ChatIn):
             for row in reversed(retained):
                 history_images.setdefault(row.chat_id, []).append(row.data_url)
             states = {m: await m.begin(db, me.user_index) for m in mcp.MODULES if hasattr(m, "begin")}
-        return await _chat(me.user_index, msg, body.images, body.context, cfg, history, states, history_images)
+        res = await _chat(me.user_index, msg, body.images, body.context, cfg, history, states, history_images)
+        done_chat_id = res.get("chat_id")
+        return res
     finally:
-        _CHATTING.discard(me.user_index)
+        _CHATTING.pop(me.user_index, None)
+        _publish(me.user_index, "done", {"chat_id": done_chat_id})
 
 
 async def _chat(user_index: int, msg: str, images: list[str], ctx: dict | None, cfg: dict, history, states: dict,
