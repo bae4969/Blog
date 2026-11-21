@@ -3,6 +3,8 @@
     'use strict';
     window.PlanStrategy = function (root, api, changed) {
         var tab = 'decisions', current, opened = new Set();
+        var iconTpl = document.getElementById('planStrategyIcons');
+        var iconRoot = iconTpl && iconTpl.content;
         var states = {draft: '초안', selected: '선택', discarded: '폐기', confirmed: '확인 완료', superseded: '대체됨',
                       pending: '관찰 대기', observed: '관찰 완료', cancelled: '취소', reported: '실행 보고', partial: '부분 확인', corrected: '정정'};
         var actions = {observe: '관찰', hold: '유지', buy: '추가 매수', reduce: '축소', defer: '보류'};
@@ -35,11 +37,11 @@
             });
             return item;
         }
-        function button(icon, label, fn) {
-            var b = el('button', 'c-btn');
+        function button(icon, label, fn, extraClass) {
+            var b = el('button', extraClass ? 'c-btn ' + extraClass : 'c-btn');
             b.type = 'button';
-            var source = document.querySelector('#planStrategyIcons [data-icon="' + icon + '"]');
-            if (source) b.appendChild(source.firstElementChild.cloneNode(true));
+            var svg = iconRoot && iconRoot.querySelector('[data-icon="' + icon + '"] svg');
+            if (svg) b.appendChild(svg.cloneNode(true));
             b.appendChild(el('span', '', label));
             b.addEventListener('click', function () {
                 b.disabled = true;
@@ -51,6 +53,7 @@
         function body(item) { var d = el('dl', 'plan-strategy__body'); item.appendChild(d); return d; }
         function scenario(parent, s, selected, review) {
             var box = details('scenario:' + s.id + ':' + parent.dataset.key, s.title, selected ? 'selected' : '', selected);
+            if (selected) box.classList.add('is-selected');
             var d = body(box);
             field(d, '대응', actions[s.action]);
             field(d, '가정', s.assumption);
@@ -94,6 +97,7 @@
         }
         function change(p) {
             var item = details('change:' + p.change_id, '변경안 검토', '', true);
+            item.classList.add('plan-strategy__change');
             var list = el('ul', 'plan-strategy__changes');
             p.summary.forEach(function (s) { list.appendChild(el('li', '', s)); });
             item.appendChild(list);
@@ -106,7 +110,7 @@
                 return api('POST', '/api/v1/plan/changes/' + p.change_id + '/apply').then(function (data) {
                     changed(data); window.toast('투자계획 변경안을 반영했습니다', 'success');
                 });
-            });
+            }, 'c-btn--accent plan-strategy__apply');
             if (p.base_rev !== (current.rev_id || 0)) {
                 apply.disabled = true;
                 item.appendChild(el('p', 'plan-strategy__warning', '계획이 변경됐습니다. 상담에서 변경안을 다시 검토해 주세요.'));
@@ -115,7 +119,7 @@
                 return api('POST', '/api/v1/plan/changes/' + p.change_id + '/dismiss').then(function (data) {
                     changed(data); window.toast('변경안을 폐기했습니다', 'info');
                 });
-            }));
+            }, 'plan-strategy__dismiss'));
             item.appendChild(foot);
             return item;
         }
@@ -128,6 +132,7 @@
             root.replaceChildren();
             if (root.hidden) return;
             changes.forEach(function (p) { root.appendChild(change(p)); });
+            var panel = el('div', 'plan-strategy__panel');
             var tabs = el('div', 'plan-strategy__tabs');
             tabs.setAttribute('role', 'tablist');
             tabs.setAttribute('aria-label', '투자계획 정보');
@@ -137,10 +142,11 @@
                 b.addEventListener('click', function () { tab = entry[0]; render(current); root.querySelector('[aria-selected="true"]').focus(); });
                 tabs.appendChild(b);
             });
-            root.appendChild(tabs);
+            panel.appendChild(tabs);
             var content = el('div', 'plan-strategy__content');
             content.setAttribute('role', 'tabpanel');
-            root.appendChild(content);
+            panel.appendChild(content);
+            root.appendChild(panel);
             if (tab === 'decisions') {
                 var review = (data.strategy_review || {}).decisions || [];
                 var timeline = s.decisions.filter(function (d) { return d.status !== 'discarded'; }).map(function (d) {
